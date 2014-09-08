@@ -44,7 +44,9 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            boolean newEnableRelocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED, enableRelocation);
+            boolean newEnableRelocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED,
+                    SnapshotInProgressAllocationDecider.this.settings.getAsBoolean(
+                            CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED, enableRelocation));
             if (newEnableRelocation != enableRelocation) {
                 logger.info("updating [{}] from [{}], to [{}]", CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED, enableRelocation, newEnableRelocation);
                 enableRelocation = newEnableRelocation;

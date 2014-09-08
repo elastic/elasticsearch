@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster.settings;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.client.Client;
@@ -27,11 +28,16 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
 /**
  */
@@ -51,10 +57,32 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         clusterUpdateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterUpdateSettingsRequest.masterNodeTimeout()));
         Map<String, Object> source = XContentFactory.xContent(request.content()).createParser(request.content()).mapAndClose();
         if (source.containsKey("transient")) {
-            clusterUpdateSettingsRequest.transientSettings((Map) source.get("transient"));
+            Map<String, Object> transientSettings = (Map) source.get("transient");
+            Iterator<Map.Entry<String, Object>> iterator = transientSettings.entrySet().iterator();
+            Set<String> transientSettingsToRemove = Sets.newHashSet();
+            while (iterator.hasNext()) {
+                Map.Entry<String, Object> entry = iterator.next();
+                if (entry.getValue() == null) {
+                    transientSettingsToRemove.add(entry.getKey());
+                    iterator.remove();
+                }
+            }
+            clusterUpdateSettingsRequest.transientSettings(transientSettings);
+            clusterUpdateSettingsRequest.transientSettingsToRemove(transientSettingsToRemove);
         }
         if (source.containsKey("persistent")) {
-            clusterUpdateSettingsRequest.persistentSettings((Map) source.get("persistent"));
+            Map<String, Object> persistentSettings = (Map) source.get("persistent");
+            Iterator<Map.Entry<String, Object>> iterator = persistentSettings.entrySet().iterator();
+            Set<String> persistentSettingsToRemove = Sets.newHashSet();
+            while (iterator.hasNext()) {
+                Map.Entry<String, Object> entry = iterator.next();
+                if (entry.getValue() == null) {
+                    persistentSettingsToRemove.add(entry.getKey());
+                    iterator.remove();
+                }
+            }
+            clusterUpdateSettingsRequest.persistentSettings(persistentSettings);
+            clusterUpdateSettingsRequest.persistentSettingsToRemove(persistentSettingsToRemove);
         }
 
         client.admin().cluster().updateSettings(clusterUpdateSettingsRequest, new AcknowledgedRestListener<ClusterUpdateSettingsResponse>(channel) {

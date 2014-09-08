@@ -34,7 +34,10 @@ public final class DestructiveOperations implements NodeSettingsService.Listener
      */
     public static final String REQUIRES_NAME = "action.destructive_requires_name";
 
+    private static final boolean DEFAULT_REQUIRES_NAME = false;
+
     private final ESLogger logger;
+    private final Settings settings;
     private volatile boolean destructiveRequiresName;
 
     // TODO: Turn into a component that can be reused and wired up into all the transport actions where
@@ -42,7 +45,9 @@ public final class DestructiveOperations implements NodeSettingsService.Listener
     // statement is printed several times, this can removed once this becomes a component.
     public DestructiveOperations(ESLogger logger, Settings settings, NodeSettingsService nodeSettingsService) {
         this.logger = logger;
-        destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, false);
+        this.settings = settings;
+        destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME,
+                DEFAULT_REQUIRES_NAME);
         nodeSettingsService.addListener(this);
     }
 
@@ -71,7 +76,8 @@ public final class DestructiveOperations implements NodeSettingsService.Listener
 
     @Override
     public void onRefreshSettings(Settings settings) {
-        boolean newValue = settings.getAsBoolean("action.destructive_requires_name", destructiveRequiresName);
+        boolean newValue = settings.getAsBoolean(REQUIRES_NAME,
+                DestructiveOperations.this.settings.getAsBoolean(REQUIRES_NAME, DEFAULT_REQUIRES_NAME));
         if (destructiveRequiresName != newValue) {
             logger.info("updating [action.operate_all_indices] from [{}] to [{}]", destructiveRequiresName, newValue);
             this.destructiveRequiresName = newValue;

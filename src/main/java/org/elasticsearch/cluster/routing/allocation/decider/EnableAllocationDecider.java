@@ -154,13 +154,15 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
 
     @Override
     public void onRefreshSettings(Settings settings) {
-        final Allocation enable = Allocation.parse(settings.get(CLUSTER_ROUTING_ALLOCATION_ENABLE, this.enableAllocation.name()));
+        final Allocation enable = Allocation.parse(settings.get(CLUSTER_ROUTING_ALLOCATION_ENABLE,
+                this.settings.get(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.ALL.name())));
         if (enable != this.enableAllocation) {
             logger.info("updating [{}] from [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_ENABLE, this.enableAllocation, enable);
             EnableAllocationDecider.this.enableAllocation = enable;
         }
 
-        final Rebalance enableRebalance = Rebalance.parse(settings.get(CLUSTER_ROUTING_REBALANCE_ENABLE, this.enableRebalance.name()));
+        final Rebalance enableRebalance = Rebalance.parse(settings.get(CLUSTER_ROUTING_REBALANCE_ENABLE,
+                this.settings.get(CLUSTER_ROUTING_REBALANCE_ENABLE, Rebalance.ALL.name())));
         if (enableRebalance != this.enableRebalance) {
             logger.info("updating [{}] from [{}] to [{}]", CLUSTER_ROUTING_REBALANCE_ENABLE, this.enableRebalance, enableRebalance);
             EnableAllocationDecider.this.enableRebalance = enableRebalance;

@@ -43,10 +43,16 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
     public static final String CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE = "cluster.routing.allocation.cluster_concurrent_rebalance";
 
+    private static final int DEFAULT_CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE = 2;
+
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            int clusterConcurrentRebalance = settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance);
+            int clusterConcurrentRebalance = settings.getAsInt(
+                    CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE,
+                    ConcurrentRebalanceAllocationDecider.this.settings.getAsInt(
+                            CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE,
+                            DEFAULT_CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE));
             if (clusterConcurrentRebalance != ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance) {
                 logger.info("updating [cluster.routing.allocation.cluster_concurrent_rebalance] from [{}], to [{}]", ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance, clusterConcurrentRebalance);
                 ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance = clusterConcurrentRebalance;
@@ -59,7 +65,9 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
     @Inject
     public ConcurrentRebalanceAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        this.clusterConcurrentRebalance = settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, 2);
+        this.clusterConcurrentRebalance = settings.getAsInt(
+                CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE,
+                DEFAULT_CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE);
         logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRebalance);
         nodeSettingsService.addListener(new ApplySettings());
     }

@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -90,16 +91,21 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            String[] awarenessAttributes = settings.getAsArray(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTES, null);
-            if (awarenessAttributes == null && "".equals(settings.get(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTES, null))) {
+            String[] awarenessAttributes = settings.getAsArray(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTES,
+                    AwarenessAllocationDecider.this.settings.getAsArray(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTES));
+            if ("".equals(settings.get(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTES, null))) {
                 awarenessAttributes = Strings.EMPTY_ARRAY; // the empty string resets this
             }
-            if (awarenessAttributes != null) {
+            if (awarenessAttributes != null && !Arrays.equals(AwarenessAllocationDecider.this.awarenessAttributes, awarenessAttributes)) {
                 logger.info("updating [cluster.routing.allocation.awareness.attributes] from [{}] to [{}]", AwarenessAllocationDecider.this.awarenessAttributes, awarenessAttributes);
                 AwarenessAllocationDecider.this.awarenessAttributes = awarenessAttributes;
             }
-            Map<String, String[]> forcedAwarenessAttributes = new HashMap<>(AwarenessAllocationDecider.this.forcedAwarenessAttributes);
+            Map<String, String[]> forcedAwarenessAttributes = new HashMap<>();
             Map<String, Settings> forceGroups = settings.getGroups(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP);
+            if (forceGroups.isEmpty()) {
+                // check initial values (from config file)
+                forceGroups = AwarenessAllocationDecider.this.settings.getGroups(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP);
+            }
             if (!forceGroups.isEmpty()) {
                 for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
                     String[] aValues = entry.getValue().getAsArray("values");

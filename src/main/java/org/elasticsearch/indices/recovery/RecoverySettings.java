@@ -54,6 +54,14 @@ public class RecoverySettings extends AbstractComponent {
     @Deprecated
     public static final String INDICES_RECOVERY_MAX_SIZE_PER_SEC = "indices.recovery.max_size_per_sec";
 
+    private static final ByteSizeValue DEFAULT_FILE_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
+    private static final int DEFAULT_TRANSLOG_OPS = 1000;
+    private static final ByteSizeValue DEFAULT_TRANSLOG_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
+    private static final boolean DEFAULT_COMPRESS = true;
+    private static final int DEFAULT_CONCURRENT_STREAMS = 3;
+    private static final int DEFAULT_CONCURRENT_SMALL_FILE_STREAMS = 2;
+    private static final ByteSizeValue DEFAULT_MAX_BYTES_PER_SEC = new ByteSizeValue(20, ByteSizeUnit.MB);
+
     private volatile ByteSizeValue fileChunkSize;
 
     private volatile boolean compress;
@@ -72,17 +80,17 @@ public class RecoverySettings extends AbstractComponent {
     public RecoverySettings(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
 
-        this.fileChunkSize = componentSettings.getAsBytesSize("file_chunk_size", settings.getAsBytesSize("index.shard.recovery.file_chunk_size", new ByteSizeValue(512, ByteSizeUnit.KB)));
-        this.translogOps = componentSettings.getAsInt("translog_ops", settings.getAsInt("index.shard.recovery.translog_ops", 1000));
-        this.translogSize = componentSettings.getAsBytesSize("translog_size", settings.getAsBytesSize("index.shard.recovery.translog_size", new ByteSizeValue(512, ByteSizeUnit.KB)));
-        this.compress = componentSettings.getAsBoolean("compress", true);
+        this.fileChunkSize = componentSettings.getAsBytesSize("file_chunk_size", settings.getAsBytesSize("index.shard.recovery.file_chunk_size", DEFAULT_FILE_CHUNK_SIZE));
+        this.translogOps = componentSettings.getAsInt("translog_ops", settings.getAsInt("index.shard.recovery.translog_ops", DEFAULT_TRANSLOG_OPS));
+        this.translogSize = componentSettings.getAsBytesSize("translog_size", settings.getAsBytesSize("index.shard.recovery.translog_size", DEFAULT_TRANSLOG_SIZE));
+        this.compress = componentSettings.getAsBoolean("compress", DEFAULT_COMPRESS);
 
-        this.concurrentStreams = componentSettings.getAsInt("concurrent_streams", settings.getAsInt("index.shard.recovery.concurrent_streams", 3));
+        this.concurrentStreams = componentSettings.getAsInt("concurrent_streams", settings.getAsInt("index.shard.recovery.concurrent_streams", DEFAULT_CONCURRENT_STREAMS));
         this.concurrentStreamPool = EsExecutors.newScaling(0, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[recovery_stream]"));
-        this.concurrentSmallFileStreams = componentSettings.getAsInt("concurrent_small_file_streams", settings.getAsInt("index.shard.recovery.concurrent_small_file_streams", 2));
+        this.concurrentSmallFileStreams = componentSettings.getAsInt("concurrent_small_file_streams", settings.getAsInt("index.shard.recovery.concurrent_small_file_streams", DEFAULT_CONCURRENT_SMALL_FILE_STREAMS));
         this.concurrentSmallFileStreamPool = EsExecutors.newScaling(0, concurrentSmallFileStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[small_file_recovery_stream]"));
 
-        this.maxBytesPerSec = componentSettings.getAsBytesSize("max_bytes_per_sec", componentSettings.getAsBytesSize("max_size_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB)));
+        this.maxBytesPerSec = componentSettings.getAsBytesSize("max_bytes_per_sec", componentSettings.getAsBytesSize("max_size_per_sec", DEFAULT_MAX_BYTES_PER_SEC));
         if (maxBytesPerSec.bytes() <= 0) {
             rateLimiter = null;
         } else {
@@ -134,7 +142,14 @@ public class RecoverySettings extends AbstractComponent {
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            ByteSizeValue maxSizePerSec = settings.getAsBytesSize(INDICES_RECOVERY_MAX_BYTES_PER_SEC, settings.getAsBytesSize(INDICES_RECOVERY_MAX_SIZE_PER_SEC, RecoverySettings.this.maxBytesPerSec));
+            ByteSizeValue maxSizePerSec = settings.getAsBytesSize(
+                    INDICES_RECOVERY_MAX_BYTES_PER_SEC,
+                    settings.getAsBytesSize(INDICES_RECOVERY_MAX_SIZE_PER_SEC,
+                            RecoverySettings.this.settings.getAsBytesSize(
+                                    INDICES_RECOVERY_MAX_BYTES_PER_SEC,
+                                    RecoverySettings.this.settings.getAsBytesSize(
+                                            INDICES_RECOVERY_MAX_SIZE_PER_SEC,
+                                            DEFAULT_MAX_BYTES_PER_SEC))));
             if (!Objects.equal(maxSizePerSec, RecoverySettings.this.maxBytesPerSec)) {
                 logger.info("updating [{}] from [{}] to [{}]", INDICES_RECOVERY_MAX_BYTES_PER_SEC, RecoverySettings.this.maxBytesPerSec, maxSizePerSec);
                 RecoverySettings.this.maxBytesPerSec = maxSizePerSec;
@@ -147,38 +162,51 @@ public class RecoverySettings extends AbstractComponent {
                 }
             }
 
-            ByteSizeValue fileChunkSize = settings.getAsBytesSize(INDICES_RECOVERY_FILE_CHUNK_SIZE, RecoverySettings.this.fileChunkSize);
+            ByteSizeValue fileChunkSize = settings.getAsBytesSize(INDICES_RECOVERY_FILE_CHUNK_SIZE,
+                    RecoverySettings.this.settings.getAsBytesSize(INDICES_RECOVERY_FILE_CHUNK_SIZE,
+                            DEFAULT_FILE_CHUNK_SIZE));
             if (!fileChunkSize.equals(RecoverySettings.this.fileChunkSize)) {
                 logger.info("updating [indices.recovery.file_chunk_size] from [{}] to [{}]", RecoverySettings.this.fileChunkSize, fileChunkSize);
                 RecoverySettings.this.fileChunkSize = fileChunkSize;
             }
 
-            int translogOps = settings.getAsInt(INDICES_RECOVERY_TRANSLOG_OPS, RecoverySettings.this.translogOps);
+            int translogOps = settings.getAsInt(INDICES_RECOVERY_TRANSLOG_OPS,
+                    RecoverySettings.this.settings.getAsInt(INDICES_RECOVERY_TRANSLOG_OPS,
+                            DEFAULT_TRANSLOG_OPS));
             if (translogOps != RecoverySettings.this.translogOps) {
                 logger.info("updating [indices.recovery.translog_ops] from [{}] to [{}]", RecoverySettings.this.translogOps, translogOps);
                 RecoverySettings.this.translogOps = translogOps;
             }
 
-            ByteSizeValue translogSize = settings.getAsBytesSize(INDICES_RECOVERY_TRANSLOG_SIZE, RecoverySettings.this.translogSize);
+            ByteSizeValue translogSize = settings.getAsBytesSize(INDICES_RECOVERY_TRANSLOG_SIZE,
+                    RecoverySettings.this.settings.getAsBytesSize(INDICES_RECOVERY_TRANSLOG_SIZE,
+                            DEFAULT_TRANSLOG_SIZE));
             if (!translogSize.equals(RecoverySettings.this.translogSize)) {
                 logger.info("updating [indices.recovery.translog_size] from [{}] to [{}]", RecoverySettings.this.translogSize, translogSize);
                 RecoverySettings.this.translogSize = translogSize;
             }
 
-            boolean compress = settings.getAsBoolean(INDICES_RECOVERY_COMPRESS, RecoverySettings.this.compress);
+            boolean compress = settings.getAsBoolean(INDICES_RECOVERY_COMPRESS,
+                    RecoverySettings.this.settings.getAsBoolean(INDICES_RECOVERY_COMPRESS,
+                            DEFAULT_COMPRESS));
             if (compress != RecoverySettings.this.compress) {
                 logger.info("updating [indices.recovery.compress] from [{}] to [{}]", RecoverySettings.this.compress, compress);
                 RecoverySettings.this.compress = compress;
             }
 
-            int concurrentStreams = settings.getAsInt(INDICES_RECOVERY_CONCURRENT_STREAMS, RecoverySettings.this.concurrentStreams);
+            int concurrentStreams = settings.getAsInt(INDICES_RECOVERY_CONCURRENT_STREAMS,
+                    RecoverySettings.this.settings.getAsInt(INDICES_RECOVERY_CONCURRENT_STREAMS,
+                            DEFAULT_CONCURRENT_STREAMS));
             if (concurrentStreams != RecoverySettings.this.concurrentStreams) {
                 logger.info("updating [indices.recovery.concurrent_streams] from [{}] to [{}]", RecoverySettings.this.concurrentStreams, concurrentStreams);
                 RecoverySettings.this.concurrentStreams = concurrentStreams;
                 RecoverySettings.this.concurrentStreamPool.setMaximumPoolSize(concurrentStreams);
             }
 
-            int concurrentSmallFileStreams = settings.getAsInt(INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, RecoverySettings.this.concurrentSmallFileStreams);
+            int concurrentSmallFileStreams = settings.getAsInt(
+                    INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS,
+                    RecoverySettings.this.settings.getAsInt(INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS,
+                            DEFAULT_CONCURRENT_SMALL_FILE_STREAMS));
             if (concurrentSmallFileStreams != RecoverySettings.this.concurrentSmallFileStreams) {
                 logger.info("updating [indices.recovery.concurrent_small_file_streams] from [{}] to [{}]", RecoverySettings.this.concurrentSmallFileStreams, concurrentSmallFileStreams);
                 RecoverySettings.this.concurrentSmallFileStreams = concurrentSmallFileStreams;

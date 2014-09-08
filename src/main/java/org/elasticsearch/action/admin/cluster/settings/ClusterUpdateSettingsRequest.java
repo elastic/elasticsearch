@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -45,6 +47,8 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     private Settings transientSettings = EMPTY_SETTINGS;
     private Settings persistentSettings = EMPTY_SETTINGS;
+    private Set<String> transientSettingsToRemove = Sets.newHashSet();
+    private Set<String> persistentSettingsToRemove = Sets.newHashSet();
 
     public ClusterUpdateSettingsRequest() {
     }
@@ -52,7 +56,9 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (transientSettings.getAsMap().isEmpty() && persistentSettings.getAsMap().isEmpty()) {
+        if (transientSettings.getAsMap().isEmpty() && persistentSettings.getAsMap().isEmpty()
+                && transientSettingsToRemove.size() == 0
+                && persistentSettingsToRemove.size() == 0) {
             validationException = addValidationError("no settings to update", validationException);
         }
         return validationException;
@@ -144,12 +150,45 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         return this;
     }
 
+    /**
+     * Sets a set of transient setting names which should be removed
+     */
+    public ClusterUpdateSettingsRequest transientSettingsToRemove(Set<String> transientSettingsToRemove) {
+        this.transientSettingsToRemove = transientSettingsToRemove;
+        return this;
+    }
+
+    /**
+     * Sets a set of persistent setting names which should be removed
+     */
+    public ClusterUpdateSettingsRequest persistentSettingsToRemove(Set persistentSettingsToRemove) {
+        this.persistentSettingsToRemove = persistentSettingsToRemove;
+        return this;
+    }
+
+    public Set<String> transientSettingsToRemove() {
+        return transientSettingsToRemove;
+    }
+
+    public Set<String> persistentSettingsToRemove() {
+        return persistentSettingsToRemove;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         transientSettings = readSettingsFromStream(in);
         persistentSettings = readSettingsFromStream(in);
         readTimeout(in);
+
+        int transientToRemoveSize = in.readVInt();
+        for (int i = 0; i < transientToRemoveSize; i++) {
+            transientSettingsToRemove.add(in.readString());
+        }
+        int persistentToRemoveSize = in.readVInt();
+        for (int i = 0; i < persistentToRemoveSize; i++) {
+            persistentSettingsToRemove.add(in.readString());
+        }
     }
 
     @Override
@@ -158,5 +197,14 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
         writeTimeout(out);
+
+        out.writeVInt(transientSettingsToRemove.size());
+        for (String transientSettingName : transientSettingsToRemove) {
+            out.writeString(transientSettingName);
+        }
+        out.writeVInt(persistentSettingsToRemove.size());
+        for (String persistentSettingName : persistentSettingsToRemove) {
+            out.writeString(persistentSettingName);
+        }
     }
 }

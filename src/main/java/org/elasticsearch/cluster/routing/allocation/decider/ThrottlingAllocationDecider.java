@@ -121,13 +121,21 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            int primariesInitialRecoveries = settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES, ThrottlingAllocationDecider.this.primariesInitialRecoveries);
+            int primariesInitialRecoveries = settings.getAsInt(
+                    CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES,
+                    ThrottlingAllocationDecider.this.settings.getAsInt(
+                            CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES,
+                            DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES));
             if (primariesInitialRecoveries != ThrottlingAllocationDecider.this.primariesInitialRecoveries) {
                 logger.info("updating [cluster.routing.allocation.node_initial_primaries_recoveries] from [{}] to [{}]", ThrottlingAllocationDecider.this.primariesInitialRecoveries, primariesInitialRecoveries);
                 ThrottlingAllocationDecider.this.primariesInitialRecoveries = primariesInitialRecoveries;
             }
 
-            int concurrentRecoveries = settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, ThrottlingAllocationDecider.this.concurrentRecoveries);
+            int concurrentRecoveries = settings.getAsInt(
+                    CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES,
+                    ThrottlingAllocationDecider.this.settings.getAsInt(
+                            CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES,
+                            DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES));
             if (concurrentRecoveries != ThrottlingAllocationDecider.this.concurrentRecoveries) {
                 logger.info("updating [cluster.routing.allocation.node_concurrent_recoveries] from [{}] to [{}]", ThrottlingAllocationDecider.this.concurrentRecoveries, concurrentRecoveries);
                 ThrottlingAllocationDecider.this.concurrentRecoveries = concurrentRecoveries;

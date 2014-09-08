@@ -38,6 +38,31 @@ last example will be:
 }' 
 --------------------------------------------------
 
+Resetting persistent or transient settings can be done by assigning a
+`null` value. If a transient setting is reset, the persistent setting
+is applied if available. Otherwise Elasticsearch will fallback to the setting
+defined at the configuration file or, if not existent, to the default
+value. Here is an example:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/_cluster/settings -d '{
+    "transient" : {
+        "discovery.zen.minimum_master_nodes" : null
+    }
+}'
+--------------------------------------------------
+
+Reset settings will not be included in the cluster response. So
+the response for the last example will be:
+
+[source,js]
+--------------------------------------------------
+{
+    "persistent" : {},
+    "transient" : {}
+}
+
 Cluster wide settings can be returned using:
 
 [source,js]

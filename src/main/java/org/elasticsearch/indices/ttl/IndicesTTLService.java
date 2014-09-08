@@ -70,6 +70,8 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     public static final String INDICES_TTL_INTERVAL = "indices.ttl.interval";
     public static final String INDEX_TTL_DISABLE_PURGE = "index.ttl.disable_purge";
 
+    private static final TimeValue DEFAULT_TTL_INTERVAL = TimeValue.timeValueSeconds(60);
+
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final TransportBulkAction bulkAction;
@@ -82,7 +84,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        TimeValue interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(60));
+        TimeValue interval = componentSettings.getAsTime("interval", DEFAULT_TTL_INTERVAL);
         this.bulkAction = bulkAction;
         this.bulkSize = componentSettings.getAsInt("bulk_size", 10000);
         this.purgerThread = new PurgerThread(EsExecutors.threadName(settings, "[ttl_expire]"), interval);
@@ -298,7 +300,8 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         @Override
         public void onRefreshSettings(Settings settings) {
             final TimeValue currentInterval = IndicesTTLService.this.purgerThread.getInterval();
-            final TimeValue interval = settings.getAsTime(INDICES_TTL_INTERVAL, currentInterval);
+            final TimeValue interval = settings.getAsTime(INDICES_TTL_INTERVAL,
+                    IndicesTTLService.this.settings.getAsTime(INDICES_TTL_INTERVAL, DEFAULT_TTL_INTERVAL));
             if (!interval.equals(currentInterval)) {
                 logger.info("updating indices.ttl.interval from [{}] to [{}]",currentInterval, interval);
                 IndicesTTLService.this.purgerThread.resetInterval(interval);

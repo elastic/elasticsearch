@@ -71,7 +71,8 @@ public class DiscoverySettings extends AbstractComponent {
     private class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            TimeValue newPublishTimeout = settings.getAsTime(PUBLISH_TIMEOUT, null);
+            TimeValue newPublishTimeout = settings.getAsTime(PUBLISH_TIMEOUT,
+                    DiscoverySettings.this.settings.getAsTime(PUBLISH_TIMEOUT, null));
             if (newPublishTimeout != null) {
                 if (newPublishTimeout.millis() != publishTimeout.millis()) {
                     logger.info("updating [{}] from [{}] to [{}]", PUBLISH_TIMEOUT, publishTimeout, newPublishTimeout);

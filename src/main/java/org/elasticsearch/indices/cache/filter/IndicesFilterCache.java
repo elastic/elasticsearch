@@ -39,6 +39,7 @@ import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.sql.Time;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -67,25 +68,35 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     public static final String INDICES_CACHE_FILTER_CLEAN_INTERVAL = "indices.cache.filter.clean_interval";
     public static final String INDICES_CACHE_FILTER_MINIMUM_ENTRY_WEIGHT = "indices.cache.filter.minimum_entry_weight";
 
+    private static final String DEFAULT_SIZE = "10%";
+    private static final int DEFAULT_MINIMUM_ENTRY_WEIGHT = 1024; // 1k per entry minimum
+    private static final TimeValue DEFAULT_CLEAN_INTERVAL = TimeValue.timeValueSeconds(60);
+    private static final int DEFAULT_CONCURRENCY_LEVEL = 16;
+
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
             boolean replace = false;
-            String size = settings.get(INDICES_CACHE_FILTER_SIZE, IndicesFilterCache.this.size);
+            String size = settings.get(INDICES_CACHE_FILTER_SIZE,
+                    IndicesFilterCache.this.settings.get(INDICES_CACHE_FILTER_SIZE, DEFAULT_SIZE));
             if (!size.equals(IndicesFilterCache.this.size)) {
                 logger.info("updating [{}] from [{}] to [{}]",
                         INDICES_CACHE_FILTER_SIZE, IndicesFilterCache.this.size, size);
                 IndicesFilterCache.this.size = size;
                 replace = true;
             }
-            TimeValue expire = settings.getAsTime(INDICES_CACHE_FILTER_EXPIRE, IndicesFilterCache.this.expire);
+            TimeValue expire = settings.getAsTime(INDICES_CACHE_FILTER_EXPIRE,
+                    IndicesFilterCache.this.settings.getAsTime(INDICES_CACHE_FILTER_EXPIRE, null));
             if (!Objects.equal(expire, IndicesFilterCache.this.expire)) {
                 logger.info("updating [{}] from [{}] to [{}]",
                         INDICES_CACHE_FILTER_EXPIRE, IndicesFilterCache.this.expire, expire);
                 IndicesFilterCache.this.expire = expire;
                 replace = true;
             }
-            final int concurrencyLevel = settings.getAsInt(INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, IndicesFilterCache.this.concurrencyLevel);
+            final int concurrencyLevel = settings.getAsInt(INDICES_CACHE_FILTER_CONCURRENCY_LEVEL,
+                    IndicesFilterCache.this.settings.getAsInt(
+                            INDICES_CACHE_FILTER_CONCURRENCY_LEVEL,
+                            DEFAULT_CONCURRENCY_LEVEL));
             if (concurrencyLevel <= 0) {
                 throw new ElasticsearchIllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
             }
@@ -108,15 +119,15 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     public IndicesFilterCache(Settings settings, ThreadPool threadPool, NodeSettingsService nodeSettingsService) {
         super(settings);
         this.threadPool = threadPool;
-        this.size = settings.get(INDICES_CACHE_FILTER_SIZE, "10%");
+        this.size = settings.get(INDICES_CACHE_FILTER_SIZE, DEFAULT_SIZE);
         this.expire = settings.getAsTime(INDICES_CACHE_FILTER_EXPIRE, null);
-        this.minimumEntryWeight = settings.getAsInt(INDICES_CACHE_FILTER_MINIMUM_ENTRY_WEIGHT, 1024); // 1k per entry minimum
+        this.minimumEntryWeight = settings.getAsInt(INDICES_CACHE_FILTER_MINIMUM_ENTRY_WEIGHT, DEFAULT_MINIMUM_ENTRY_WEIGHT);
         if (minimumEntryWeight <= 0) {
             throw new ElasticsearchIllegalArgumentException("minimum_entry_weight must be > 0 but was: " + minimumEntryWeight);
         }
-        this.cleanInterval = settings.getAsTime(INDICES_CACHE_FILTER_CLEAN_INTERVAL, TimeValue.timeValueSeconds(60));
+        this.cleanInterval = settings.getAsTime(INDICES_CACHE_FILTER_CLEAN_INTERVAL, DEFAULT_CLEAN_INTERVAL);
         // defaults to 4, but this is a busy map for all indices, increase it a bit
-        this.concurrencyLevel =  settings.getAsInt(INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, 16);
+        this.concurrencyLevel =  settings.getAsInt(INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, DEFAULT_CONCURRENCY_LEVEL);
         if (concurrencyLevel <= 0) {
             throw new ElasticsearchIllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
         }

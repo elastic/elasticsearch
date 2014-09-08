@@ -217,6 +217,24 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                     }
                 }
 
+                for (String settingName : request.transientSettingsToRemove()) {
+                    if (dynamicSettings.hasDynamicSetting(settingName)) {
+                        transientSettings.remove(settingName);
+                        changed = true;
+                    } else {
+                        logger.warn("ignoring transient setting [{}], not dynamically updateable", settingName);
+                    }
+                }
+
+                for (String settingName : request.persistentSettingsToRemove()) {
+                    if (dynamicSettings.hasDynamicSetting(settingName)) {
+                        persistentSettings.remove(settingName);
+                        changed = true;
+                    } else {
+                        logger.warn("ignoring persistent setting [{}], not dynamically updateable", settingName);
+                    }
+                }
+
                 if (!changed) {
                     return currentState;
                 }

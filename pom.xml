@@ -119,6 +119,12 @@
             <artifactId>tika-parsers</artifactId>
             <version>1.5</version>
             <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>edu.ucar</groupId>
+                    <artifactId>netcdf</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>

@@ -38,7 +38,7 @@
         <tests.client.ratio></tests.client.ratio>
         <es.logger.level>INFO</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
-        <tests.heapdump.path>${basedir}/logs</tests.heapdump.path>
+        <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
     </properties>
@@ -514,6 +514,19 @@
                 <artifactId>maven-antrun-plugin</artifactId>
                 <version>1.7</version>
                 <executions>
+                    <execution>
+                        <phase>generate-test-resources</phase>
+                        <id>create-heapdump-directory</id>
+                        <configuration>
+                            <tasks>
+                                <echo message="Creating heapdump directory"/>
+                                <mkdir dir="${tests.heapdump.path}"/>
+                            </tasks>
+                        </configuration>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                    </execution>
                     <execution>
                         <id>tests</id>
                         <phase>test</phase>

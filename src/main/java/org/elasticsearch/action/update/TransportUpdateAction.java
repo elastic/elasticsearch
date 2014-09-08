@@ -270,7 +270,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 break;
             case NONE:
                 UpdateResponse update = result.action();
-                listener.onResponse(update);
                 IndexService indexServiceOrNull = indicesService.indexService(request.concreteIndex());
                 if (indexServiceOrNull !=  null) {
                     IndexShard shard = indexService.shard(request.request().shardId());
@@ -278,6 +277,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         shard.indexingService().noopUpdate(request.request().type());
                     }
                 }
+                listener.onResponse(update);
                 break;
             default:
                 throw new ElasticsearchIllegalStateException("Illegal operation " + result.operation());

@@ -410,10 +410,10 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testParsingTwiceDoesNotChangeMapping() throws Exception {
+    public void testParsingNotDefaultTwiceDoesNotChangeMapping() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true)
-                .field("index", "no")
+                .field("index", randomBoolean() ? "no" : "analyzed") // default is "not_analyzed" which will be omitted when building the source again
                 .field("store", true)
                 .field("path", "foo")
                 .field("default", "1970-01-01")
@@ -422,13 +422,35 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("properties")
                 .endObject()
                 .endObject().endObject().string();
-        logger.info(mapping);
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
         docMapper.refreshSource();
         docMapper = parser.parse(docMapper.mappingSource().string());
         assertThat(docMapper.mappingSource().string(), equalTo(mapping));
+    }
+
+    @Test
+    public void testParsingTwiceDoesNotChangeTokenizeValue() throws Exception {
+        String[] index_options = {"no", "analyzed", "not_analyzed"};
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", true)
+                .field("index", index_options[randomInt(2)])
+                .field("store", true)
+                .field("path", "foo")
+                .field("default", "1970-01-01")
+                .startObject("fielddata").field("format", "doc_values").endObject()
+                .endObject()
+                .startObject("properties")
+                .endObject()
+                .endObject().endObject().string();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+        boolean tokenized = docMapper.timestampFieldMapper().fieldType().tokenized();
+        docMapper.refreshSource();
+        docMapper = parser.parse(docMapper.mappingSource().string());
+        assertThat(tokenized, equalTo(docMapper.timestampFieldMapper().fieldType().tokenized()));
     }
 
     @Test
@@ -445,8 +467,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
-        docMapper.refreshSource();
-        docMapper = parser.parse(docMapper.mappingSource().string());
         assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", false)
@@ -459,11 +479,12 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
-        String[] expectedConflicts = {"mapper [_timestamp] has different index values", "mapper [_timestamp] has different store values", "Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02", "Cannot update path in _timestamp value. Value is foo now encountering bar"};
-        assertThat(mergeResult.conflicts().length, equalTo(expectedConflicts.length));
-        for (String conflict : expectedConflicts) {
-            assertThat(conflict, isIn(mergeResult.conflicts()));
+        String[] expectedConflicts = {"mapper [_timestamp] has different index values", "mapper [_timestamp] has different store values", "Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02", "Cannot update path in _timestamp value. Value is foo now encountering bar", "mapper [_timestamp] has different tokenize values"};
+
+        for (String conflict : mergeResult.conflicts()) {
+            assertThat(conflict, isIn(expectedConflicts));
         }
+        assertThat(mergeResult.conflicts().length, equalTo(expectedConflicts.length));
         assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
         assertTrue(docMapper.timestampFieldMapper().enabled());
         assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(docMapper.timestampFieldMapper().fieldDataType().getSettings()), equalTo("doc_values"));
@@ -484,8 +505,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
-        docMapper.refreshSource();
-        docMapper = parser.parse(docMapper.mappingSource().string());
         mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                 .startObject("_timestamp")

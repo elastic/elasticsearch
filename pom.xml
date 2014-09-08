@@ -577,7 +577,7 @@
                         </configuration>
                     </execution>
                     <execution>
-                        <phase>create-heapdump-directory</phase>
+                        <phase>generate-test-resources</phase>
                         <id>create-heapdump-directory</id>
                         <configuration>
                             <tasks>

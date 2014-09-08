@@ -128,7 +128,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
     public void sendFreeContext(DiscoveryNode node, long contextId, ClearScrollRequest request, final ActionListener<Boolean> actionListener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
-            boolean freed = searchService.freeContext(contextId);
+            final boolean freed = searchService.freeContext(contextId);
             actionListener.onResponse(freed);
         } else {
             transportService.sendRequest(node, SearchFreeContextTransportHandler.ACTION, new SearchFreeContextRequest(request, contextId), new FreeContextResponseHandler(actionListener));

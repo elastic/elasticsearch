@@ -62,32 +62,7 @@ public class CodecTests extends ElasticsearchIntegrationTest {
                         .field("postings_format", "test1").field("index_options", "docs").field("type", "string").endObject().endObject().endObject().endObject())
                 .setSettings(ImmutableSettings.settingsBuilder()
                         .put(indexSettings())
-                        .put("index.codec.postings_format.test1.type", "pulsing")));
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        try {
-            client().prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).execute().actionGet();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
-        }
-    }
-
-    @Test
-    public void testIndexingWithSimpleTextCodec() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder()
-                        .put(indexSettings())
-                        .put("index.codec", "SimpleText")));
+                        .put("index.codec.postings_format.test1.type", "default")));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
@@ -111,12 +86,12 @@ public class CodecTests extends ElasticsearchIntegrationTest {
 
         assertAcked(prepareCreate("test")
             .addMapping("test", jsonBuilder().startObject().startObject("test")
-                    .startObject("_version").field("doc_values_format", "disk").endObject()
+                    .startObject("_version").field("doc_values_format", "Lucene410").endObject()
                     .startObject("properties").startObject("field").field("type", "long").field("doc_values_format", "dvf").endObject().endObject()
                     .endObject().endObject())
             .setSettings(ImmutableSettings.settingsBuilder()
                     .put(indexSettings())
-                    .put("index.codec.doc_values_format.dvf.type", "disk")));
+                    .put("index.codec.doc_values_format.dvf.type", "default")));
 
         for (int i = 10; i >= 0; --i) {
             client().prepareIndex("test", "test", Integer.toString(i)).setSource("field", randomLong()).setRefresh(i == 0 || rarely()).execute().actionGet();

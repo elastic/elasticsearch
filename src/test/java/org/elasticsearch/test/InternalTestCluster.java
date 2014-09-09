@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
@@ -98,7 +99,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static junit.framework.Assert.fail;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
@@ -141,7 +141,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public static final String SETTING_CLUSTER_NODE_SEED = "test.cluster.node.seed";
 
-    private static final boolean ENABLE_MOCK_MODULES = systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
+    private static final boolean ENABLE_MOCK_MODULES = RandomizedTest.systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
     static final int DEFAULT_MIN_NUM_DATA_NODES = 2;
     static final int DEFAULT_MAX_NUM_DATA_NODES = 6;
@@ -747,7 +747,7 @@ public final class InternalTestCluster extends TestCluster {
             /* no sniff client for now - doesn't work will all tests since it might throw NoNodeAvailableException if nodes are shut down.
              * we first need support of transportClientRatio as annotations or so
              */
-            return transportClient = TransportClientFactory.noSniff(settingsSource.transportClient()).client(node, clusterName, random);
+            return transportClient = TransportClientFactory.noSniff(settingsSource.transportClient()).client(node, clusterName);
         }
 
         void resetClient() throws IOException {
@@ -814,7 +814,7 @@ public final class InternalTestCluster extends TestCluster {
             this.settings = settings != null ? settings : ImmutableSettings.EMPTY;
         }
 
-        public Client client(Node node, String clusterName, Random random) {
+        public Client client(Node node, String clusterName) {
             TransportAddress addr = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
             Settings nodeSettings = node.settings();
             Builder builder = settingsBuilder()
@@ -880,7 +880,7 @@ public final class InternalTestCluster extends TestCluster {
             if (nodeAndClient == null) {
                 changed = true;
                 Builder clientSettingsBuilder = ImmutableSettings.builder().put("node.data", false).put("node.master", false);
-                if (enableRandomBenchNodes && frequently()) {
+                if (enableRandomBenchNodes && usually(random)) {
                     //client nodes might also be bench nodes
                     clientSettingsBuilder.put("node.bench", true);
                 }
@@ -927,7 +927,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private void randomlyResetClients() throws IOException {
         // only reset the clients on nightly tests, it causes heavy load...
-        if (isNightly() && rarely(random)) {
+        if (RandomizedTest.isNightly() && rarely(random)) {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
             for (NodeAndClient nodeAndClient : nodesAndClients) {
                 nodeAndClient.resetClient();

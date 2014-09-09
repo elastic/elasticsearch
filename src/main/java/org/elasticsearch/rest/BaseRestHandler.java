@@ -66,7 +66,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel) throws Exception {
-        handleRequest(request, channel, usefulHeaders.size() == 0 ? client : new HeadersAndContextCopyClient(client, request, usefulHeaders));
+        handleRequest(request, channel, new HeadersAndContextCopyClient(client, request, usefulHeaders));
     }
 
     protected abstract void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception;

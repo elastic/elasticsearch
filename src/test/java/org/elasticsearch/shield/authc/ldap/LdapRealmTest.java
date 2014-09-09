@@ -13,9 +13,8 @@ import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
@@ -24,7 +23,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.*;
 
 public class LdapRealmTest extends ElasticsearchTestCase {
-    static ApacheDsEmbedded ldap = new ApacheDsEmbedded("o=sevenSeas", "seven-seas.ldif", LdapRealmTest.class.getName());
+
     public static String AD_IP = "54.213.145.20";
     public static String AD_URL = "ldap://" + AD_IP + ":389";
 
@@ -32,21 +31,15 @@ public class LdapRealmTest extends ElasticsearchTestCase {
     public static final String VALID_USERNAME = "Thomas Masterman Hardy";
     public static final String PASSWORD = "pass";
 
-    @BeforeClass
-    public static void startServer() throws Exception {
-        ldap.startServer();
-    }
-    @AfterClass
-    public static void stopServer() throws Exception {
-        ldap.stopAndCleanup();
-    }
+    @Rule
+    public static ApacheDsRule apacheDsRule = new ApacheDsRule();
 
     @Test
     public void testAuthenticate_subTreeGroupSearch(){
         String groupSearchBase = "o=sevenSeas";
         boolean isSubTreeSearch = true;
         String userTemplate = VALID_USER_TEMPLATE;
-        Settings settings = LdapConnectionTests.buildLdapSettings(ldap.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch);
+        Settings settings = LdapConnectionTests.buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch);
         StandardLdapConnectionFactory ldapFactory = new StandardLdapConnectionFactory(settings);
         LdapRealm ldap = new LdapRealm(buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper());
 
@@ -61,7 +54,7 @@ public class LdapRealmTest extends ElasticsearchTestCase {
         boolean isSubTreeSearch = false;
         String userTemplate = VALID_USER_TEMPLATE;
         StandardLdapConnectionFactory ldapFactory = new StandardLdapConnectionFactory(
-                LdapConnectionTests.buildLdapSettings(ldap.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
+                LdapConnectionTests.buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
 
         LdapRealm ldap = new LdapRealm(buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper());
 
@@ -77,7 +70,7 @@ public class LdapRealmTest extends ElasticsearchTestCase {
         boolean isSubTreeSearch = true;
         String userTemplate = VALID_USER_TEMPLATE;
         StandardLdapConnectionFactory ldapFactory = new StandardLdapConnectionFactory(
-                LdapConnectionTests.buildLdapSettings( ldap.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch) );
+                LdapConnectionTests.buildLdapSettings( apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch) );
 
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm( buildCachingSettings(), ldapFactory, buildGroupAsRoleMapper());
@@ -94,7 +87,7 @@ public class LdapRealmTest extends ElasticsearchTestCase {
         boolean isSubTreeSearch = true;
         String userTemplate = VALID_USER_TEMPLATE;
         StandardLdapConnectionFactory ldapFactory = new StandardLdapConnectionFactory(
-                LdapConnectionTests.buildLdapSettings(ldap.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch) );
+                LdapConnectionTests.buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch) );
 
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm( buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper());

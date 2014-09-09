@@ -10,12 +10,8 @@ import org.apache.commons.codec.digest.Crypt;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.codec.digest.Md5Crypt;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.os.OsUtils;
 
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -30,25 +26,25 @@ public enum Hasher {
     HTPASSWD() {
 
         @Override
-        public char[] hash(char[] text) {
+        public char[] hash(SecuredString text) {
             String salt = org.elasticsearch.shield.authc.support.BCrypt.gensalt();
-            return BCrypt.hashpw(new String(text), salt).toCharArray();
+            return BCrypt.hashpw(text, salt).toCharArray();
         }
 
         @Override
-        public boolean verify(char[] text, char[] hash) {
+        public boolean verify(SecuredString text, char[] hash) {
             String hashStr = new String(hash);
             if (hashStr.startsWith(BCRYPT_PREFIX_Y)) {
                 hashStr = BCRYPT_PREFIX + hashStr.substring(BCRYPT_PREFIX_Y.length());
             }
             if (hashStr.startsWith(BCRYPT_PREFIX)) {
-                return BCrypt.checkpw(new String(text), hashStr);
+                return BCrypt.checkpw(text, hashStr);
             }
             if (hashStr.startsWith(PLAIN_PREFIX)) {
                 hashStr = hashStr.substring(PLAIN_PREFIX.length());
-                return hashStr.compareTo(new String(text)) == 0;
+                return text.equals(hashStr);
             }
-            byte[] textBytes = toBytes(text);
+            byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
             if (hashStr.startsWith(APR1_PREFIX)) {
                 return hashStr.compareTo(Md5Crypt.apr1Crypt(textBytes, hashStr)) == 0;
             }
@@ -57,8 +53,8 @@ public enum Hasher {
                 return hashStr.substring(SHA1_PREFIX.length()).compareTo(passwd64) == 0;
             }
             return CRYPT_SUPPORTED ?
-                    hashStr.compareTo(Crypt.crypt(textBytes, hashStr)) == 0:     // crypt algo
-                    hashStr.compareTo(new String(text)) == 0;                    // plain text
+                    hashStr.compareTo(Crypt.crypt(textBytes, hashStr)) == 0 :     // crypt algo
+                    text.equals(hashStr);                    // plain text
         }
     };
 
@@ -88,16 +84,8 @@ public enum Hasher {
         return hasher;
     }
 
-    public abstract char[] hash(char[] data);
+    public abstract char[] hash(SecuredString data);
 
-    public abstract boolean verify(char[] data, char[] hash);
-
-    private static byte[] toBytes(char[] chars) {
-        CharBuffer charBuffer = CharBuffer.wrap(chars);
-        ByteBuffer byteBuffer = Charsets.UTF_8.encode(charBuffer);
-        byte[] bytes = Arrays.copyOfRange(byteBuffer.array(), byteBuffer.position(), byteBuffer.limit());
-        Arrays.fill(byteBuffer.array(), (byte) 0); // clear sensitive data
-        return bytes;
-    }
+    public abstract boolean verify(SecuredString data, char[] hash);
 
 }

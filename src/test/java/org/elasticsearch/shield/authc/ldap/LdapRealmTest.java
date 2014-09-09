@@ -10,6 +10,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -53,7 +55,7 @@ public class LdapRealmTest extends LdapTest {
         StandardLdapConnectionFactory ldapFactory = new StandardLdapConnectionFactory(settings);
         LdapRealm ldap = new LdapRealm(buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
 
-        User user = ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, PASSWORD.toCharArray()));
+        User user = ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
         assertThat( user, notNullValue());
         assertThat(user.roles(), arrayContaining("HMS Victory"));
     }
@@ -68,12 +70,11 @@ public class LdapRealmTest extends LdapTest {
 
         LdapRealm ldap = new LdapRealm(buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
 
-        User user = ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, PASSWORD.toCharArray()));
+        User user = ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
         assertThat( user, notNullValue());
-        assertThat( user.roles(), arrayContaining("HMS Victory"));
+        assertThat(user.roles(), arrayContaining("HMS Victory"));
     }
 
-    @Ignore //this is still failing.  not sure why.
     @Test
     public void testAuthenticate_caching(){
         String groupSearchBase = "o=sevenSeas";
@@ -84,11 +85,11 @@ public class LdapRealmTest extends LdapTest {
 
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm( buildCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
-        User user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, PASSWORD.toCharArray()));
-        user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, PASSWORD.toCharArray()));
+        User user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
         //verify one and only one bind -> caching is working
-        verify(ldapFactory, times(1)).bind(anyString(), any(char[].class));
+        verify(ldapFactory, times(1)).bind(anyString(), any(SecuredString.class));
     }
 
     @Test
@@ -101,11 +102,11 @@ public class LdapRealmTest extends LdapTest {
 
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm( buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
-        User user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, PASSWORD.toCharArray()));
-        user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, PASSWORD.toCharArray()));
+        User user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
         //verify two and only two binds -> caching is disabled
-        verify(ldapFactory, times(2)).bind(anyString(), any(char[].class));
+        verify(ldapFactory, times(2)).bind(anyString(), any(SecuredString.class));
     }
 
     @Ignore
@@ -119,7 +120,7 @@ public class LdapRealmTest extends LdapTest {
 
         LdapRealm ldap = new LdapRealm( buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
 
-        User user = ldap.authenticate( new UsernamePasswordToken("george", "R))Tr0x".toCharArray()));
+        User user = ldap.authenticate( new UsernamePasswordToken("george", SecuredStringTests.build("R))Tr0x")));
 
         assertThat( user, notNullValue());
         assertThat( user.roles(), hasItemInArray("upchuckers"));
@@ -136,7 +137,7 @@ public class LdapRealmTest extends LdapTest {
 
         ActiveDirectoryConnectionFactory ldapFactory = new ActiveDirectoryConnectionFactory( settings );
         LdapRealm ldap = new LdapRealm( buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
-        User user = ldap.authenticate( new UsernamePasswordToken("george", "R))Tr0x".toCharArray()));
+        User user = ldap.authenticate( new UsernamePasswordToken("george", SecuredStringTests.build("R))Tr0x")));
 
         assertThat( user, notNullValue());
         assertThat( user.roles(), hasItemInArray("upchuckers"));
@@ -152,8 +153,8 @@ public class LdapRealmTest extends LdapTest {
 
     private Settings buildCachingSettings() {
         return ImmutableSettings.builder()
-                .put("shield.authc.ldap."+LdapRealm.CACHE_TTL, 1)
-                .put("shield.authc.ldap."+LdapRealm.CACHE_MAX_USERS, 10)
+                .put("shield.authc.ldap."+LdapRealm.CACHE_TTL, 100000000)
+                .put("shield.authc.ldap." + LdapRealm.CACHE_MAX_USERS, 10)
                 .build();
     }
 

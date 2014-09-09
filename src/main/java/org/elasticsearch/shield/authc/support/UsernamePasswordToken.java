@@ -13,6 +13,7 @@ import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.regex.Matcher;
@@ -27,9 +28,9 @@ public class UsernamePasswordToken implements AuthenticationToken {
     private static final Pattern BASIC_AUTH_PATTERN = Pattern.compile("Basic\\s(.+)");
 
     private final String username;
-    private final char[] password;
+    private final SecuredString password;
 
-    public UsernamePasswordToken(String username, char[] password) {
+    public UsernamePasswordToken(String username, SecuredString password) {
         this.username = username;
         this.password = password;
     }
@@ -40,8 +41,13 @@ public class UsernamePasswordToken implements AuthenticationToken {
     }
 
     @Override
-    public char[] credentials() {
+    public SecuredString credentials() {
         return password;
+    }
+
+    @Override
+    public void clearCredentials() {
+        password.clear();
     }
 
     @Override
@@ -51,14 +57,16 @@ public class UsernamePasswordToken implements AuthenticationToken {
 
         UsernamePasswordToken that = (UsernamePasswordToken) o;
 
-        return Arrays.equals(password, that.password) &&
+        return password.equals(password) &&
                 Objects.equals(username, that.username);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(username, Arrays.hashCode(password));
+        return Objects.hash(username, password.hashCode());
     }
+
+
 
     public static UsernamePasswordToken extractToken(TransportMessage<?> message, UsernamePasswordToken defaultToken) {
         String authStr = message.getHeader(BASIC_AUTH_HEADER);
@@ -71,12 +79,15 @@ public class UsernamePasswordToken implements AuthenticationToken {
             throw new AuthenticationException("Invalid basic authentication header value");
         }
 
-        String userpasswd = new String(Base64.decodeBase64(matcher.group(1)), Charsets.UTF_8);
-        int i = userpasswd.indexOf(':');
+        char[] userpasswd = CharArrays.utf8BytesToChars(Base64.decodeBase64(matcher.group(1)));
+        int i = CharArrays.indexOf(userpasswd, ':');
         if (i < 0) {
             throw new AuthenticationException("Invalid basic authentication header value");
         }
-        return new UsernamePasswordToken(userpasswd.substring(0, i), userpasswd.substring(i+1).toCharArray());
+
+        return new UsernamePasswordToken(
+                new String(Arrays.copyOfRange(userpasswd, 0, i)),
+                new SecuredString(Arrays.copyOfRange(userpasswd, i + 1, userpasswd.length)));
     }
 
     public static UsernamePasswordToken extractToken(RestRequest request, UsernamePasswordToken defaultToken) {
@@ -90,21 +101,27 @@ public class UsernamePasswordToken implements AuthenticationToken {
             throw new AuthenticationException("Invalid basic authentication header value");
         }
 
-        String userpasswd = new String(Base64.decodeBase64(matcher.group(1)), Charsets.UTF_8);
-        int i = userpasswd.indexOf(':');
+        char[] userpasswd = CharArrays.utf8BytesToChars(Base64.decodeBase64(matcher.group(1)));
+        int i = CharArrays.indexOf(userpasswd, ':');
         if (i < 0) {
             throw new AuthenticationException("Invalid basic authentication header value");
         }
-        return new UsernamePasswordToken(userpasswd.substring(0, i), userpasswd.substring(i+1).toCharArray());
+
+        return new UsernamePasswordToken(
+                new String(Arrays.copyOfRange(userpasswd, 0, i)),
+                new SecuredString(Arrays.copyOfRange(userpasswd, i + 1, userpasswd.length)));
     }
 
     public static void putTokenHeader(TransportRequest request, UsernamePasswordToken token) {
         request.putHeader("Authorization", basicAuthHeaderValue(token.username, token.password));
     }
 
-    public static String basicAuthHeaderValue(String username, char[] passwd) {
-        String basicToken = username + ":" + new String(passwd);
-        basicToken = new String(Base64.encodeBase64(basicToken.getBytes(Charsets.UTF_8)), Charsets.UTF_8);
+    public static String basicAuthHeaderValue(String username, SecuredString passwd) {
+        CharBuffer chars = CharBuffer.allocate(username.length() + passwd.length() + 1);
+        chars.put(username).put(':').put(passwd.internalChars());
+
+        //TODO we still have passwords in Strings in headers
+        String basicToken = new String(Base64.encodeBase64(CharArrays.toUtf8Bytes(chars.array())), Charsets.UTF_8);
         return "Basic " + basicToken;
     }
 }

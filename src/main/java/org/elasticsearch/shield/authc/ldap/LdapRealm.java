@@ -16,7 +16,6 @@ import org.elasticsearch.shield.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.transport.TransportMessage;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -62,7 +61,6 @@ public class LdapRealm extends CachingUsernamePasswordRealm implements Realm<Use
             List<String> groupDNs = session.getGroups();
             Set<String> roles = roleMapper.mapRoles(groupDNs);
             User.Simple user = new User.Simple(token.principal(), roles.toArray(new String[roles.size()]));
-            Arrays.fill(token.credentials(), '\0');
             return user;
         } catch (ShieldException e){
             logger.info("Authentication Failed for user [{}]", e, token.principal());

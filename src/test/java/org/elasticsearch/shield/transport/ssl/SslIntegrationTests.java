@@ -97,7 +97,7 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
                 .put("name", "programmatic_node")
                 .put("cluster.name", internalCluster().getClusterName())
 
-                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword().toCharArray()))
+                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
 
@@ -122,7 +122,7 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
                 .put("discovery.type", "zen")
                 .putArray("discovery.zen.ping.unicast.hosts", getUnicastHostAddress())
 
-                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword().toCharArray()))
+                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put("shield.transport.n2n.ip_filter.file", writeFile(newFolder(), "ip_filter.yml", ShieldIntegrationTest.CONFIG_IPFILTER_ALLOW_ALL))
@@ -173,7 +173,7 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
         String url = String.format(Locale.ROOT, "https://%s:%s/", InetAddresses.toUriString(inetSocketTransportAddress.address().getAddress()), inetSocketTransportAddress.address().getPort());
 
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-        connection.setRequestProperty("Authorization", UsernamePasswordToken.basicAuthHeaderValue(DEFAULT_USER_NAME, DEFAULT_PASSWORD.toCharArray()));
+        connection.setRequestProperty("Authorization", UsernamePasswordToken.basicAuthHeaderValue(getClientUsername(), getClientPassword()));
         connection.connect();
 
         assertThat(connection.getResponseCode(), is(200));

@@ -61,7 +61,7 @@ public abstract class CachingUserPasswdStore extends AbstractComponent implement
     }
 
     @Override
-    public final boolean verifyPassword(final String username, final char[] password) {
+    public final boolean verifyPassword(final String username, final SecuredString password) {
         if (cache == null) {
             return doVerifyPassword(username, password);
         }
@@ -80,7 +80,7 @@ public abstract class CachingUserPasswdStore extends AbstractComponent implement
      * Verifies the given password. Both the given username, and if the username is verified, then the
      * given password. This method is used when the caching is disabled.
      */
-    protected abstract boolean doVerifyPassword(String username, char[] password);
+    protected abstract boolean doVerifyPassword(String username, SecuredString password);
 
     protected abstract PasswordHash passwordHash(String username);
 
@@ -92,8 +92,8 @@ public abstract class CachingUserPasswdStore extends AbstractComponent implement
         }
 
         @Override
-        public final void store(String username, char[] key) {
-            doStore(username, key);
+        public final void store(String username, SecuredString password) {
+            doStore(username, password);
             expire(username);
         }
 
@@ -103,7 +103,7 @@ public abstract class CachingUserPasswdStore extends AbstractComponent implement
             expire(username);
         }
 
-        protected abstract void doStore(String username, char[] password);
+        protected abstract void doStore(String username, SecuredString password);
 
         protected abstract void doRemove(String username);
     }
@@ -113,7 +113,7 @@ public abstract class CachingUserPasswdStore extends AbstractComponent implement
      */
     static interface PasswordHash {
 
-        boolean verify(char[] password);
+        boolean verify(SecuredString password);
 
     }
 }

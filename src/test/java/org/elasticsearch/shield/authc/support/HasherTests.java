@@ -16,7 +16,7 @@ public class HasherTests extends ElasticsearchTestCase {
     @Test
     public void testHtpasswdToolGenerated() throws Exception {
         Hasher hasher = Hasher.HTPASSWD;
-        char[] passwd = "test123".toCharArray();
+        SecuredString passwd = SecuredStringTests.build("test123");
         assertTrue(hasher.verify(passwd, "$2a$05$zxnP0vdREMxnEpkLCDI2OuSaSk/QEKA2.A42iOpI6U2u.RLLOWm1e".toCharArray()));
         assertTrue(hasher.verify(passwd, "$2a$10$FMhmFjwU5.qxQ/BsEciS9OqcJVkFMgXMo4uH5CelOR1j4N9zIv67e".toCharArray()));
         assertTrue(hasher.verify(passwd, "$apr1$R3DdqiAZ$aljIkaIVPSarmDMlJUBBP.".toCharArray()));
@@ -28,7 +28,7 @@ public class HasherTests extends ElasticsearchTestCase {
     @Test
     public void testHtpasswdSelfGenerated() throws Exception {
         Hasher hasher = Hasher.HTPASSWD;
-        char[] passwd = "test123".toCharArray();
+        SecuredString passwd = SecuredStringTests.build("test123");
         assertTrue(hasher.verify(passwd, hasher.hash(passwd)));
     }
 }

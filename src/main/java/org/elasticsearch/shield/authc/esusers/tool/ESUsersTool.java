@@ -11,12 +11,16 @@ import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.commons.CommandLine;
-import org.elasticsearch.common.collect.*;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.collect.Maps;
+import org.elasticsearch.common.collect.ObjectArrays;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.esusers.FileUserPasswdStore;
 import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
 import org.elasticsearch.shield.authc.support.Hasher;
+import org.elasticsearch.shield.authc.support.SecuredString;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -97,14 +101,14 @@ public class ESUsersTool extends CliTool {
 
             String rolesCsv = cli.getOptionValue("roles");
             String[] roles = (rolesCsv != null) ? rolesCsv.split(",") : Strings.EMPTY_ARRAY;
-            return new Useradd(terminal, username, password, roles);
+            return new Useradd(terminal, username, new SecuredString(password), roles);
         }
 
         final String username;
-        final char[] passwd;
+        final SecuredString passwd;
         final String[] roles;
 
-        Useradd(Terminal terminal, String username, char[] passwd, String... roles) {
+        Useradd(Terminal terminal, String username, SecuredString passwd, String... roles) {
             super(terminal);
             this.username = username;
             this.passwd = passwd;
@@ -212,12 +216,13 @@ public class ESUsersTool extends CliTool {
         }
 
         final String username;
-        final char[] passwd;
+        final SecuredString passwd;
 
         Passwd(Terminal terminal, String username, char[] passwd) {
             super(terminal);
             this.username = username;
-            this.passwd = passwd;
+            this.passwd = new SecuredString(passwd);
+            Arrays.fill(passwd, (char) 0);
         }
 
         @Override

@@ -28,6 +28,11 @@ public class SystemRealm implements Realm<AuthenticationToken> {
         public Object credentials() {
             return null;
         }
+
+        @Override
+        public void clearCredentials() {
+
+        }
     };
 
     @Override

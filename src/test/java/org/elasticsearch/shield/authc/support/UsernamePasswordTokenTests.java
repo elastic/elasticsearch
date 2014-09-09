@@ -31,7 +31,7 @@ public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
     @Test
     public void testPutToken() throws Exception {
         TransportRequest request = new TransportRequest() {};
-        UsernamePasswordToken.putTokenHeader(request, new UsernamePasswordToken("user1", "test123".toCharArray()));
+        UsernamePasswordToken.putTokenHeader(request, new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
         String header = request.getHeader(UsernamePasswordToken.BASIC_AUTH_HEADER);
         assertThat(header, notNullValue());
         assertTrue(header.startsWith("Basic "));
@@ -53,7 +53,7 @@ public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
         UsernamePasswordToken token = UsernamePasswordToken.extractToken(request, null);
         assertThat(token, notNullValue());
         assertThat(token.principal(), equalTo("user1"));
-        assertThat(new String(token.credentials()), equalTo("test123"));
+        assertThat(new String(token.credentials().internalChars()), equalTo("test123"));
     }
 
     @Test
@@ -87,8 +87,8 @@ public class UsernamePasswordTokenTests extends ElasticsearchTestCase {
     @Test
     public void testExtractTokenRest() throws Exception {
         RestRequest request = mock(RestRequest.class);
-        UsernamePasswordToken token = new UsernamePasswordToken("username", "changeme".toCharArray());
-        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn(UsernamePasswordToken.basicAuthHeaderValue("username", "changeme".toCharArray()));
+        UsernamePasswordToken token = new UsernamePasswordToken("username", SecuredStringTests.build("changeme"));
+        when(request.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn(UsernamePasswordToken.basicAuthHeaderValue("username", SecuredStringTests.build("changeme")));
         assertThat(UsernamePasswordToken.extractToken(request, null), equalTo(token));
     }
 

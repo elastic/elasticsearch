@@ -97,24 +97,29 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     @SuppressWarnings("unchecked")
     public User authenticate(String action, TransportMessage<?> message, AuthenticationToken token) throws AuthenticationException {
         assert token != null : "cannot authenticate null tokens";
-        User user = (User) message.getContext().get(USER_CTX_KEY);
-        if (user != null) {
-            return user;
-        }
-        for (Realm realm : realms) {
-            if (realm.supports(token)) {
-                user = realm.authenticate(token);
-                if (user != null) {
-                    message.putInContext(USER_CTX_KEY, user);
-                    return user;
-                } else if (auditTrail != null) {
-                    auditTrail.authenticationFailed(realm.type(), token, action, message);
+        try {
+            User user = (User) message.getContext().get(USER_CTX_KEY);
+            if (user != null) {
+                return user;
+            }
+            for (Realm realm : realms) {
+                if (realm.supports(token)) {
+                    user = realm.authenticate(token);
+                    if (user != null) {
+                        message.putInContext(USER_CTX_KEY, user);
+                        return user;
+                    } else if (auditTrail != null) {
+                        auditTrail.authenticationFailed(realm.type(), token, action, message);
+                    }
                 }
             }
+            if (auditTrail != null) {
+                auditTrail.authenticationFailed(token, action, message);
+            }
+            throw new AuthenticationException("Unable to authenticate user for request");
+        } finally {
+            token.clearCredentials();
         }
-        if (auditTrail != null) {
-            auditTrail.authenticationFailed(token, action, message);
-        }
-        throw new AuthenticationException("Unable to authenticate user for request");
+
     }
 }

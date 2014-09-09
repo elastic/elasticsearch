@@ -10,11 +10,11 @@ package org.elasticsearch.shield.authc.support;
  */
 public interface UserPasswdStore {
 
-    boolean verifyPassword(String username, char[] password);
+    boolean verifyPassword(String username, SecuredString password);
 
     static interface Writable extends UserPasswdStore {
 
-        void store(String username, char[] password);
+        void store(String username, SecuredString password);
 
         void remove(String username);
 

@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -29,7 +30,7 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
 
         String userName = "ironman";
 
-        LdapConnection ldap = connectionFactory.bind(userName, PASSWORD.toCharArray());
+        LdapConnection ldap = connectionFactory.bind(userName, SecuredStringTests.build(PASSWORD));
         String userDN = ldap.getAuthenticatedUserDn();
         //System.out.println("userPassword check:"+ldap.checkPassword(userDn, userPass));
 
@@ -48,7 +49,7 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
                 LdapTest.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, isSubTreeSearch));
 
         String user = "Tony Stark";
-        LdapConnection ldap = connectionFactory.bind(user, PASSWORD.toCharArray());
+        LdapConnection ldap = connectionFactory.bind(user, SecuredStringTests.build(PASSWORD));
 
         List<String> groups = ldap.getGroupsFromUserAttrs(ldap.getAuthenticatedUserDn());
         List<String> groups2 = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());

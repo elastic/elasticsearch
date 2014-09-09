@@ -32,7 +32,7 @@ public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
     @Test
     public void testCache(){
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm();
-        char[] pass = "pass".toCharArray();
+        SecuredString pass = SecuredStringTests.build("pass");
         realm.authenticate(new UsernamePasswordToken("a", pass));
         realm.authenticate(new UsernamePasswordToken("b", pass));
         realm.authenticate(new UsernamePasswordToken("c", pass));
@@ -50,8 +50,8 @@ public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm();
 
         String user = "testUser";
-        char[] pass1 = "pass".toCharArray();
-        char[] pass2 = "password".toCharArray();
+        SecuredString pass1 = SecuredStringTests.build("pass");
+        SecuredString pass2 = SecuredStringTests.build("password");
 
         realm.authenticate(new UsernamePasswordToken(user, pass1));
         realm.authenticate(new UsernamePasswordToken(user, pass1));

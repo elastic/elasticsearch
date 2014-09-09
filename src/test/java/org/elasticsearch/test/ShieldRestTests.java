@@ -14,6 +14,7 @@ import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.key.InternalKeyService;
 import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
@@ -82,7 +83,7 @@ public class ShieldRestTests extends ElasticsearchRestTests {
 
                 ImmutableSettings.Builder builder = ImmutableSettings.builder()
                         .put(InternalKeyService.FILE_SETTING, keyFile)
-                        .put("request.headers.Authorization", basicAuthHeaderValue(DEFAULT_USER_NAME, DEFAULT_PASSWORD.toCharArray()))
+                        .put("request.headers.Authorization", basicAuthHeaderValue(DEFAULT_USER_NAME, SecuredStringTests.build(DEFAULT_PASSWORD)))
                         .put("discovery.zen.ping.multicast.enabled", false)
                         .put("discovery.type", "zen")
                         .put("node.mode", "network")
@@ -123,7 +124,7 @@ public class ShieldRestTests extends ElasticsearchRestTests {
                 File folder = createFolder();
 
                 return ImmutableSettings.builder()
-                        .put("request.headers.Authorization", basicAuthHeaderValue(DEFAULT_USER_NAME, DEFAULT_PASSWORD.toCharArray()))
+                        .put("request.headers.Authorization", basicAuthHeaderValue(DEFAULT_USER_NAME, SecuredStringTests.build(DEFAULT_PASSWORD)))
                         .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                         .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                         .put("node.mode", "network")
@@ -154,7 +155,7 @@ public class ShieldRestTests extends ElasticsearchRestTests {
     @Override
     protected Settings restClientSettings() {
         return ImmutableSettings.builder()
-                .put("request.headers.Authorization", basicAuthHeaderValue(DEFAULT_USER_NAME, DEFAULT_PASSWORD.toCharArray())).build();
+                .put("request.headers.Authorization", basicAuthHeaderValue(DEFAULT_USER_NAME, SecuredStringTests.build(DEFAULT_PASSWORD))).build();
     }
 
     /* static helper methods for the global test class */

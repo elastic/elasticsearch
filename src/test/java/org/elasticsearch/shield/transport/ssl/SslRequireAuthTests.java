@@ -130,7 +130,7 @@ public class SslRequireAuthTests extends ShieldIntegrationTest {
         String url = String.format(Locale.ROOT, "https://%s:%s/", InetAddresses.toUriString(inetSocketTransportAddress.address().getAddress()), inetSocketTransportAddress.address().getPort());
 
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-        connection.setRequestProperty("Authorization", UsernamePasswordToken.basicAuthHeaderValue(DEFAULT_USER_NAME, DEFAULT_PASSWORD.toCharArray()));
+        connection.setRequestProperty("Authorization", UsernamePasswordToken.basicAuthHeaderValue(getClientUsername(), getClientPassword()));
         connection.connect();
 
         assertThat(connection.getResponseCode(), is(200));

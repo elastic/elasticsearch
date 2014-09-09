@@ -14,7 +14,6 @@ package org.elasticsearch.shield.authc.support;
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-import java.io.UnsupportedEncodingException;
 import java.security.SecureRandom;
 
 /**
@@ -638,13 +637,16 @@ public class BCrypt {
 	}
 
 	/**
-	 * Hash a password using the OpenBSD bcrypt scheme
+	 * Hash a password using the OpenBSD bcrypt scheme.
+     *
+     * Modified from the original to take a SecuredString instead of the original
+     *
 	 * @param password	the password to hash
 	 * @param salt	the salt to hash with (perhaps generated
 	 * using BCrypt.gensalt)
 	 * @return	the hashed password
 	 */
-	public static String hashpw(String password, String salt) {
+	public static String hashpw(SecuredString password, String salt) {
 		BCrypt B;
 		String real_salt;
 		byte passwordb[], saltb[], hashed[];
@@ -669,11 +671,18 @@ public class BCrypt {
 		rounds = Integer.parseInt(salt.substring(off, off + 2));
 
 		real_salt = salt.substring(off + 3, off + 25);
-		try {
+
+        /* original code before introducing SecuredString
+        try {
 			passwordb = (password + (minor >= 'a' ? "\000" : "")).getBytes("UTF-8");
 		} catch (UnsupportedEncodingException uee) {
 			throw new AssertionError("UTF-8 is not supported");
 		}
+
+         */
+
+        // the next line is the SecuredString replacement for the above commented-out section
+        passwordb = ( minor >= 'a' ? password.concat("\000"): password ).utf8Bytes();
 
 		saltb = decode_base64(real_salt, BCRYPT_SALT_LEN);
 
@@ -740,12 +749,14 @@ public class BCrypt {
 
 	/**
 	 * Check that a plaintext password matches a previously hashed
-	 * one
+	 * one.
+     *
+     * Modified from the original to take a SecuredString plaintext
 	 * @param plaintext	the plaintext password to verify
 	 * @param hashed	the previously-hashed password
 	 * @return	true if the passwords match, false otherwise
 	 */
-	public static boolean checkpw(String plaintext, String hashed) {
+	public static boolean checkpw(SecuredString plaintext, String hashed) {
 		return hashed.compareTo(hashpw(plaintext, hashed)) == 0;
 	}
 }

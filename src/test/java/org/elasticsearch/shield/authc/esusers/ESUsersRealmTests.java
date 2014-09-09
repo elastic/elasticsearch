@@ -21,9 +21,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authc.support.UserPasswdStore;
-import org.elasticsearch.shield.authc.support.UserRolesStore;
-import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
+import org.elasticsearch.shield.authc.support.*;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.hamcrest.Matchers;
@@ -62,7 +60,7 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
         MockUserPasswdStore userPasswdStore = new MockUserPasswdStore("user1", "test123");
         MockUserRolesStore userRolesStore = new MockUserRolesStore("user1", "role1", "role2");
         ESUsersRealm realm = new ESUsersRealm(settings, userPasswdStore, userRolesStore, restController);
-        User user = realm.authenticate(new UsernamePasswordToken("user1", "test123".toCharArray()));
+        User user = realm.authenticate(new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
         assertTrue(userPasswdStore.called);
         assertTrue(userRolesStore.called);
         assertThat(user, notNullValue());
@@ -80,13 +78,13 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
         ESUsersRealm realm = new ESUsersRealm(settings, userPasswdStore, userRolesStore, restController);
 
         TransportRequest request = new TransportRequest() {};
-        UsernamePasswordToken.putTokenHeader(request, new UsernamePasswordToken("user1", "test123".toCharArray()));
+        UsernamePasswordToken.putTokenHeader(request, new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
 
         UsernamePasswordToken token = realm.token(request);
         assertThat(token, notNullValue());
         assertThat(token.principal(), equalTo("user1"));
         assertThat(token.credentials(), notNullValue());
-        assertThat(new String(token.credentials()), equalTo("test123"));
+        assertThat(new String(token.credentials().internalChars()), equalTo("test123"));
     }
 
 
@@ -102,10 +100,10 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public boolean verifyPassword(String username, char[] password) {
+        public boolean verifyPassword(String username, SecuredString password) {
             called = true;
             assertThat(username, equalTo(this.username));
-            assertThat(new String(password), equalTo(this.password));
+            assertThat(new String(password.internalChars()), equalTo(this.password));
             return true;
         }
     }

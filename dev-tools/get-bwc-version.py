@@ -14,6 +14,10 @@
 # either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
 
+'''
+Downloads and extracts elasticsearch for backwards compatibility tests.
+'''
+
 import argparse
 import os
 import shutil
@@ -23,8 +27,7 @@ import urllib.request
 import zipfile
 
 def parse_config():
-  desc = 'Download and extract elasticsearch for backwards compatibility tests'
-  parser = argparse.ArgumentParser(description=desc)
+  parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument('--path', metavar='DIR', default='./backwards',
                       help='Where to extract elasticsearch')
   parser.add_argument('--force', action='store_true', default=False,

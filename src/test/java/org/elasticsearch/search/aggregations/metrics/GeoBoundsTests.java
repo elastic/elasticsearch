@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.BigArray;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
@@ -149,17 +150,23 @@ public class GeoBoundsTests extends ElasticsearchIntegrationTest {
         indexRandom(true, builders);
         ensureSearchable();
 
-        // Added to debug a test failure (Dev issue #266) where the terms aggregation seems to be reporting two documents with the same value for NUMBER_FIELD_NAME.  This will chaeck that after
-        // random indexing each document only has 1 value for NUMBER_FIELD_NAME and it is the correct value
+        // Added to debug a test failure where the terms aggregation seems to be reporting two documents with the same value for NUMBER_FIELD_NAME.  This will check that after
+        // random indexing each document only has 1 value for NUMBER_FIELD_NAME and it is the correct value. Following this initial change its seems that this call was getting 
+        // more that 2000 hits (actual value was 2059) so now it will also check to ensure all hits have the correct index and type 
         SearchResponse response = client().prepareSearch("high_card_idx").addField(NUMBER_FIELD_NAME).addSort(SortBuilders.fieldSort(NUMBER_FIELD_NAME).order(SortOrder.ASC)).setSize(5000).get();
         assertSearchResponse(response);
-        assertThat(response.getHits().totalHits(), equalTo(2000l));
-        for (int i = 0; i < 2000; i++) {
-            SearchHitField hitField = response.getHits().getAt(i).field(NUMBER_FIELD_NAME);
+        long totalHits = response.getHits().totalHits();
+        for (int i = 0; i < totalHits; i++) {
+            SearchHit searchHit = response.getHits().getAt(i);
+            assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getIndex(), equalTo("high_card_idx"));
+            assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getType(), equalTo("type"));
+            SearchHitField hitField = searchHit.field(NUMBER_FIELD_NAME);
+            
             assertThat("Hit " + i + " has wrong number of values", hitField.getValues().size(), equalTo(1));
             Integer value = hitField.getValue();
             assertThat("Hit " + i + " has wrong value", value, equalTo(i));
         }
+        assertThat(totalHits, equalTo(2000l));
     }
 
     private void updateBoundsBottomRight(GeoPoint geoPoint, GeoPoint currentBound) {

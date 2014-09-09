@@ -651,6 +651,8 @@
                             <excludes>
                                 <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
                                 <exclude>org/elasticsearch/test/rest/test/**/*</exclude>
+                                <!-- unit tests for test framework classes-->
+                                <exclude>org/elasticsearch/test/test/**/*</exclude>
                             </excludes>
                             <!-- Resources are large and not really helpful as "test sources". -->
                             <excludeResources>true</excludeResources>

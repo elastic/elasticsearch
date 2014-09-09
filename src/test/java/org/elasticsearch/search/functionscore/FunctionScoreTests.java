@@ -244,13 +244,13 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
 
     }
 
-    protected float computeExpectedScore(float[] weights, float[] scores, String scoreMode) {
-        float expectedScore = 0.0f;
+    protected double computeExpectedScore(float[] weights, float[] scores, String scoreMode) {
+        double expectedScore = 0.0;
         if ("multiply".equals(scoreMode)) {
-            expectedScore = 1.0f;
+            expectedScore = 1.0;
         }
         if ("max".equals(scoreMode)) {
-            expectedScore = Float.MAX_VALUE * -1.0f;
+            expectedScore = Float.MAX_VALUE * -1.0;
         }
         if ("min".equals(scoreMode)) {
             expectedScore = Float.MAX_VALUE;

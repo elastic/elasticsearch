@@ -71,7 +71,8 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", CONFIG_ROLE_ALLOW_ALL))
                 .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", CONFIG_IPFILTER_ALLOW_ALL))
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
-                .put("shield.audit.enabled", true);
+                .put("shield.audit.enabled", true)
+                .put("plugins.load_classpath_plugins", false);
 
         if (OsUtils.MAC) {
             builder.put("network.host", randomBoolean() ? "127.0.0.1" : "::1");

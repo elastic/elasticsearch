@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
@@ -67,13 +68,9 @@ public final class ExternalTestCluster extends TestCluster {
     public ExternalTestCluster(TransportAddress... transportAddresses) {
 
         Settings clientSettings = ImmutableSettings.settingsBuilder()
+                .put("config.ignore_system_properties", true) // prevents any settings to be replaced by system properties.
                 .put("client.transport.ignore_cluster_name", true)
                 .put("node.mode", "network").build(); // we require network here!
-
-        // verify that the end node setting will have network enabled.
-        Tuple<Settings, Environment> finalSettings = InternalSettingsPreparer.prepareSettings(clientSettings, true);
-        assertFalse("testing against an external cluster must run in network mode. You probably have a system property overriding the test settings.",
-                DiscoveryNode.localNode(finalSettings.v1()));
 
         this.client = new TransportClient(clientSettings).addTransportAddresses(transportAddresses);
 

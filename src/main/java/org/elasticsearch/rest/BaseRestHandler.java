@@ -29,20 +29,20 @@ import org.elasticsearch.common.settings.Settings;
  * This handler makes sure that the headers & context of the handled {@link RestRequest requests} are copied over to
  * the transport requests executed by the associated client. While the context is fully copied over, not all the headers
  * are copied, but a selected few. It is possible to control what headers are copied over by registering them using
- * {@link org.elasticsearch.rest.ClientFactory#addUsefulHeaders(String...)}
+ * {@link RestClientFactory#addRelevantHeaders(String...)}
  */
 public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
 
-    private final ClientFactory clientFactory;
+    private final RestClientFactory restClientFactory;
 
-    protected BaseRestHandler(Settings settings, ClientFactory clientFactory) {
+    protected BaseRestHandler(Settings settings, RestClientFactory restClientFactory) {
         super(settings);
-        this.clientFactory = clientFactory;
+        this.restClientFactory = restClientFactory;
     }
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel) throws Exception {
-        handleRequest(request, channel, clientFactory.client(request));
+        handleRequest(request, channel, restClientFactory.client(request));
     }
 
     protected abstract void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception;

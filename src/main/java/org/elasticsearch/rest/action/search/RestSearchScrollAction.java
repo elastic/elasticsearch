@@ -39,8 +39,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSearchScrollAction extends BaseRestHandler {
 
     @Inject
-    public RestSearchScrollAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestSearchScrollAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
 
         controller.registerHandler(GET, "/_search/scroll", this);
         controller.registerHandler(POST, "/_search/scroll", this);

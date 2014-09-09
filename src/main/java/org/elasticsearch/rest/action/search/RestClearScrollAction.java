@@ -38,8 +38,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestClearScrollAction extends BaseRestHandler {
 
     @Inject
-    public RestClearScrollAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestClearScrollAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
 
         controller.registerHandler(DELETE, "/_search/scroll", this);
         controller.registerHandler(DELETE, "/_search/scroll/{scroll_id}", this);

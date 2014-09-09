@@ -41,8 +41,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestPluginsAction extends AbstractCatAction {
 
     @Inject
-    public RestPluginsAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestPluginsAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_cat/plugins", this);
     }
 

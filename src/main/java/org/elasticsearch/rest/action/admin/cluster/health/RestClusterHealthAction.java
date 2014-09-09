@@ -39,8 +39,8 @@ import static org.elasticsearch.client.Requests.clusterHealthRequest;
 public class RestClusterHealthAction extends BaseRestHandler {
 
     @Inject
-    public RestClusterHealthAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestClusterHealthAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
 
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/health", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/health/{index}", this);

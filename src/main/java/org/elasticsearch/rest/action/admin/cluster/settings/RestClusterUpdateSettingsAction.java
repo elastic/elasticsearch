@@ -38,8 +38,8 @@ import java.util.Map;
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
 
     @Inject
-    public RestClusterUpdateSettingsAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestClusterUpdateSettingsAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(RestRequest.Method.PUT, "/_cluster/settings", this);
     }
 

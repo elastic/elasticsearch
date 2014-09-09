@@ -41,8 +41,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodesStatsAction extends BaseRestHandler {
 
     @Inject
-    public RestNodesStatsAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestNodesStatsAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_nodes/stats", this);
         controller.registerHandler(GET, "/_nodes/{nodeId}/stats", this);
 

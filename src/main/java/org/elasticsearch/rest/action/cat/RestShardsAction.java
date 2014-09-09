@@ -40,8 +40,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestShardsAction extends AbstractCatAction {
 
     @Inject
-    public RestShardsAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestShardsAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_cat/shards", this);
         controller.registerHandler(GET, "/_cat/shards/{index}", this);
     }

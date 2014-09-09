@@ -37,8 +37,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestCreateSnapshotAction extends BaseRestHandler {
 
     @Inject
-    public RestCreateSnapshotAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestCreateSnapshotAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(PUT, "/_snapshot/{repository}/{snapshot}", this);
         controller.registerHandler(POST, "/_snapshot/{repository}/{snapshot}/_create", this);
     }

@@ -20,7 +20,7 @@ package org.elasticsearch.rest.action.template;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.ClientFactory;
+import org.elasticsearch.rest.RestClientFactory;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.script.RestDeleteIndexedScriptAction;
@@ -30,8 +30,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteSearchTemplateAction extends RestDeleteIndexedScriptAction {
 
     @Inject
-    public RestDeleteSearchTemplateAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestDeleteSearchTemplateAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(DELETE, "/_search/template/{id}", this);
     }
 

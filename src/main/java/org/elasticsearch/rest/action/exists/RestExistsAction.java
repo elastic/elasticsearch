@@ -40,8 +40,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestExistsAction extends BaseRestHandler {
 
-    public RestExistsAction(Settings settings, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestExistsAction(Settings settings, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
     }
 
     @Override

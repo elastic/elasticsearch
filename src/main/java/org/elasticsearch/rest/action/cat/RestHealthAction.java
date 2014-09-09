@@ -39,8 +39,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestHealthAction extends AbstractCatAction {
 
     @Inject
-    public RestHealthAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestHealthAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_cat/health", this);
     }
 

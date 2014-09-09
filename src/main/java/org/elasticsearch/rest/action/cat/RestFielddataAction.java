@@ -46,8 +46,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestFielddataAction extends AbstractCatAction {
 
     @Inject
-    public RestFielddataAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestFielddataAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_cat/fielddata", this);
         controller.registerHandler(GET, "/_cat/fielddata/{fields}", this);
     }

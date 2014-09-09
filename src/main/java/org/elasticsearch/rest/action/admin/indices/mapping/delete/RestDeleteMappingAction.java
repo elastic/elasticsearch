@@ -38,8 +38,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteMappingAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteMappingAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestDeleteMappingAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(DELETE, "/{index}/{type}/_mapping", this);
         controller.registerHandler(DELETE, "/{index}/{type}", this);
         controller.registerHandler(DELETE, "/{index}/_mapping/{type}", this);

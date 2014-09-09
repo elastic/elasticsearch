@@ -55,7 +55,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
     @Test
     public void testAddUsefulHeaders() throws InterruptedException {
 
-        final ClientFactory clientFactory = new ClientFactory(null);
+        final RestClientFactory restClientFactory = new RestClientFactory(null);
         int iterations = randomIntBetween(1, 5);
 
         Set<String> headers = new HashSet<>();
@@ -72,14 +72,14 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
             executorService.submit(new Runnable() {
                 @Override
                 public void run() {
-                    clientFactory.addUsefulHeaders(newHeaders.toArray(new String[newHeaders.size()]));
+                    restClientFactory.addRelevantHeaders(newHeaders.toArray(new String[newHeaders.size()]));
                 }
             });
         }
 
         executorService.shutdown();
         assertThat(executorService.awaitTermination(1, TimeUnit.SECONDS), equalTo(true));
-        String[] usefulHeaders = clientFactory.usefulHeaders().toArray(new String[clientFactory.usefulHeaders().size()]);
+        String[] usefulHeaders = restClientFactory.relevantHeaders().toArray(new String[restClientFactory.relevantHeaders().size()]);
         assertThat(usefulHeaders.length, equalTo(headers.size()));
 
         Arrays.sort(usefulHeaders);
@@ -375,7 +375,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
     }
 
     private static Client client(Client noOpClient, RestRequest restRequest, Set<String> usefulRestHeaders) {
-        return new ClientFactory.HeadersAndContextCopyClient(noOpClient, restRequest, usefulRestHeaders);
+        return new RestClientFactory.HeadersAndContextCopyClient(noOpClient, restRequest, usefulRestHeaders);
     }
 
     private static void putHeaders(ActionRequest<?> request, Map<String, String> headers) {

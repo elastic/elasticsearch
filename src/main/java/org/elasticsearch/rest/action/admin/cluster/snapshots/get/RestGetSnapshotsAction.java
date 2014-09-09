@@ -37,8 +37,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetSnapshotsAction extends BaseRestHandler {
 
     @Inject
-    public RestGetSnapshotsAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestGetSnapshotsAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_snapshot/{repository}/{snapshot}", this);
     }
 

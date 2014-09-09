@@ -46,8 +46,8 @@ public class RestNodesInfoAction extends BaseRestHandler {
 
     @Inject
     public RestNodesInfoAction(Settings settings, RestController controller,
-                               SettingsFilter settingsFilter, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+                               SettingsFilter settingsFilter, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_nodes", this);
         // this endpoint is used for metrics, not for nodeIds, like /_nodes/fs
         controller.registerHandler(GET, "/_nodes/{nodeId}", this);

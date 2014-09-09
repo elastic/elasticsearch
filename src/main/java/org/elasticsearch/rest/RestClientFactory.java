@@ -35,13 +35,13 @@ import java.util.Set;
  * Makes it possible to register useful headers that will be copied over from REST requests
  * to corresponding transport requests at execution time.
  */
-public final class ClientFactory {
+public final class RestClientFactory {
 
-    private Set<String> usefulHeaders = Sets.newCopyOnWriteArraySet();
+    private Set<String> relevantHeaders = Sets.newCopyOnWriteArraySet();
     private final Client client;
 
     @Inject
-    public ClientFactory(Client client) {
+    public RestClientFactory(Client client) {
         this.client = client;
     }
 
@@ -49,7 +49,7 @@ public final class ClientFactory {
      * Returns a proper {@link Client client} given the provided {@link org.elasticsearch.rest.RestRequest}
      */
     public Client client(RestRequest restRequest) {
-        return usefulHeaders.size() == 0 ? client : new HeadersAndContextCopyClient(client, restRequest, usefulHeaders);
+        return relevantHeaders.size() == 0 ? client : new HeadersAndContextCopyClient(client, restRequest, relevantHeaders);
     }
 
     /**
@@ -58,12 +58,12 @@ public final class ClientFactory {
      *
      * By default no headers get copied but it is possible to extend this behaviour via plugins by calling this method.
      */
-    public void addUsefulHeaders(String... headers) {
-        Collections.addAll(usefulHeaders, headers);
+    public void addRelevantHeaders(String... headers) {
+        Collections.addAll(relevantHeaders, headers);
     }
 
-    Set<String> usefulHeaders() {
-        return usefulHeaders;
+    Set<String> relevantHeaders() {
+        return relevantHeaders;
     }
 
     static final class HeadersAndContextCopyClient extends FilterClient {

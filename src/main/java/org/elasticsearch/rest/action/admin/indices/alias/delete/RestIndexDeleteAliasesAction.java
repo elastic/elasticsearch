@@ -34,8 +34,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestIndexDeleteAliasesAction extends BaseRestHandler {
 
     @Inject
-    public RestIndexDeleteAliasesAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestIndexDeleteAliasesAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(DELETE, "/{index}/_alias/{name}", this);
         controller.registerHandler(DELETE, "/{index}/_aliases/{name}", this);
     }

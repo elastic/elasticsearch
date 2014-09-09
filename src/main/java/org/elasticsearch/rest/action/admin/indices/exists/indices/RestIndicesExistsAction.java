@@ -43,8 +43,8 @@ public class RestIndicesExistsAction extends BaseRestHandler {
 
     @Inject
     public RestIndicesExistsAction(Settings settings, RestController controller,
-                                   SettingsFilter settingsFilter, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+                                   SettingsFilter settingsFilter, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(HEAD, "/{index}", this);
 
         this.settingsFilter = settingsFilter;

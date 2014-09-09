@@ -20,7 +20,7 @@ package org.elasticsearch.rest.action.template;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.ClientFactory;
+import org.elasticsearch.rest.RestClientFactory;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.script.RestGetIndexedScriptAction;
@@ -33,8 +33,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetSearchTemplateAction extends RestGetIndexedScriptAction {
 
     @Inject
-    public RestGetSearchTemplateAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestGetSearchTemplateAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_search/template/{id}", this);
     }
 

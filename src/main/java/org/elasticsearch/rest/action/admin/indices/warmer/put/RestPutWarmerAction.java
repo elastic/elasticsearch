@@ -37,8 +37,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutWarmerAction extends BaseRestHandler {
 
     @Inject
-    public RestPutWarmerAction(Settings settings, RestController controller, ClientFactory clientFactory) {
-        super(settings, clientFactory);
+    public RestPutWarmerAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
+        super(settings, restClientFactory);
         controller.registerHandler(PUT, "/_warmer/{name}", this);
         controller.registerHandler(PUT, "/{index}/_warmer/{name}", this);
         controller.registerHandler(PUT, "/{index}/{type}/_warmer/{name}", this);

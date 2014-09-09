@@ -1316,6 +1316,18 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     }
 
+    /** Disables translog flushing for the specified index */
+    public static void disableTranslogFlush(String index) {
+        Settings settings = ImmutableSettings.builder().put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+    }
+
+    /** Enables translog flushing for the specified index */
+    public static void enableTranslogFlush(String index) {
+        Settings settings = ImmutableSettings.builder().put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, false).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+    }
+
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {
         CountDownLatch l = new CountDownLatch(1);
         latches.add(l);

@@ -20,9 +20,9 @@ Downloads and extracts elasticsearch for backwards compatibility tests.
 
 import argparse
 import os
+import platform
 import shutil
-import tarfile
-from urllib.request import urlopen
+import subprocess
 import urllib.request
 import zipfile
 
@@ -43,6 +43,8 @@ def main():
     print('Creating %s' % c.path)
     os.mkdir(c.path)
 
+  is_windows = platform.system() == 'Windows'
+
   os.chdir(c.path)
   version_dir = 'elasticsearch-%s' % c.version
   if os.path.exists(version_dir):
@@ -53,14 +55,23 @@ def main():
       print('Version %s exists at %s' % (c.version, version_dir))
       return 
 
-  filename = '%s.zip' % version_dir
+  # before 1.4.0, the zip file contains windows scripts, and tar.gz contained *nix scripts
+  if is_windows:
+    filename = '%s.zip' % version_dir
+  else:
+    filename = '%s.tar.gz' % version_dir
+
   url = 'https://download.elasticsearch.org/elasticsearch/elasticsearch/%s' % filename
   print('Downloading %s' % url)
   urllib.request.urlretrieve(url, filename)
 
   print('Extracting to %s' % version_dir)
-  tgz = zipfile.ZipFile(filename)
-  tgz.extractall() 
+  if is_windows:
+    archive = zipfile.ZipFile(filename)
+    archive.extractall() 
+  else:
+    # for some reason python's tarfile module has trouble with ES tgz?
+    subprocess.check_call('tar -xzf %s' % filename, shell=True)
 
   print('Cleaning up %s' % filename)
   os.remove(filename)

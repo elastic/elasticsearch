@@ -21,18 +21,12 @@ package org.elasticsearch.test;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -140,21 +134,14 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         assumeTrue("BWC tests are disabled currently for version [< 1.1.0]", compatibilityVersion().onOrAfter(Version.V_1_1_0));
     }
 
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings settings = ImmutableSettings.builder()
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class) // run same transport  / disco as external
-                .put(DiscoveryModule.DISCOVERY_TYPE_KEY, ZenDiscoveryModule.class)
-                .put("node.mode", "network") // we need network mode for this
-                .put("gateway.type", "local") // we require local gateway to mimic upgrades of nodes
-                .put("discovery.type", "zen") // zen is needed since we start external nodes
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName())
-                .build();
+    protected Settings requiredSettings() {
+        return ExternalNode.REQUIRED_SETTINGS;
+    }
 
-        // verify that the end node setting will have network enabled.
-        Tuple<Settings, Environment> finalSettings = InternalSettingsPreparer.prepareSettings(settings, true);
-        assertFalse("backward compatibility tests must run in network mode. You probably have a system property overriding the test settings.",
-                DiscoveryNode.localNode(finalSettings.v1()));
-        return settings;
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder().put(requiredSettings())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName()) // run same transport  / disco as external
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName()).build();
     }
 
     public void assertAllShardsOnNodes(String index, String pattern) {
@@ -172,6 +159,6 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     }
 
     protected Settings externalNodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.EMPTY;
+        return nodeSettings(nodeOrdinal);
     }
 }

@@ -93,7 +93,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
@@ -849,7 +848,7 @@ public final class InternalTestCluster extends TestCluster {
             if (nodeAndClient == null) {
                 changed = true;
                 Builder clientSettingsBuilder = ImmutableSettings.builder().put("node.data", false).put("node.master", false);
-                if (enableRandomBenchNodes && frequently()) {
+                if (enableRandomBenchNodes && usually(random)) {
                     //client nodes might also be bench nodes
                     clientSettingsBuilder.put("node.bench", true);
                 }

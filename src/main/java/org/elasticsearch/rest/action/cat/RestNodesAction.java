@@ -73,7 +73,7 @@ public class RestNodesAction extends AbstractCatAction {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear().jvm(true).os(true).fs(true).indices(true);
+                        nodesStatsRequest.clear().jvm(true).os(true).fs(true).indices(true).process(true);
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
@@ -100,10 +100,15 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("build", "default:false;alias:b;desc:es build hash");
         table.addCell("jdk", "default:false;alias:j;desc:jdk version");
         table.addCell("disk.avail", "default:false;alias:d,disk,diskAvail;text-align:right;desc:available disk space");
+        table.addCell("heap.current", "default:false;alias:hc,heapCurrent;text-align:right;desc:used heap");
         table.addCell("heap.percent", "alias:hp,heapPercent;text-align:right;desc:used heap ratio");
         table.addCell("heap.max", "default:false;alias:hm,heapMax;text-align:right;desc:max configured heap");
+        table.addCell("ram.current", "default:false;alias:rc,ramCurrent;text-align:right;desc:used machine memory");
         table.addCell("ram.percent", "alias:rp,ramPercent;text-align:right;desc:used machine memory ratio");
         table.addCell("ram.max", "default:false;alias:rm,ramMax;text-align:right;desc:total machine memory");
+        table.addCell("file_desc.current", "default:false;alias:fdc,fileDescriptorCurrent;text-align:right;desc:used file descriptors");
+        table.addCell("file_desc.percent", "default:false;alias:fdp,fileDescriptorPercent;text-align:right;desc:used file descriptor ratio");
+        table.addCell("file_desc.max", "default:false;alias:fdm,fileDescriptorMax;text-align:right;desc:max file descriptors");
 
         table.addCell("load", "alias:l;text-align:right;desc:most recent load avg");
         table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
@@ -211,10 +216,16 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(info == null ? null : info.getBuild().hashShort());
             table.addCell(info == null ? null : info.getJvm().version());
             table.addCell(stats == null ? null : stats.getFs() == null ? null : stats.getFs().total().getAvailable());
+            table.addCell(stats == null ? null : stats.getJvm().getMem().getHeapUsed());
             table.addCell(stats == null ? null : stats.getJvm().getMem().getHeapUsedPrecent());
             table.addCell(info == null ? null : info.getJvm().getMem().getHeapMax());
+            table.addCell(stats == null ? null : stats.getOs().mem() == null ? null : stats.getOs().mem().used());
             table.addCell(stats == null ? null : stats.getOs().mem() == null ? null : stats.getOs().mem().usedPercent());
             table.addCell(info == null ? null : info.getOs().mem() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
+            table.addCell(stats == null ? null : stats.getProcess().getOpenFileDescriptors());
+            table.addCell(stats == null || info == null ? null :
+                          calculatePercentage(stats.getProcess().getOpenFileDescriptors(), info.getProcess().getMaxFileDescriptors()));
+            table.addCell(info == null ? null : info.getProcess().getMaxFileDescriptors());
 
             table.addCell(stats == null ? null : stats.getOs() == null ? null : stats.getOs().getLoadAverage().length < 1 ? null : String.format(Locale.ROOT, "%.2f", stats.getOs().getLoadAverage()[0]));
             table.addCell(stats == null ? null : stats.getJvm().uptime());
@@ -295,5 +306,15 @@ public class RestNodesAction extends AbstractCatAction {
         }
 
         return table;
+    }
+
+    /**
+     * Calculate the percentage of {@code used} from the {@code max} number.
+     * @param used The currently used number.
+     * @param max The maximum number.
+     * @return 0 if {@code max} is 0. Otherwise 100 * {@code used} / {@code max}.
+     */
+    private short calculatePercentage(long used, long max) {
+        return max == 0 ? 0 : (short)((100d * used) / max);
     }
 }

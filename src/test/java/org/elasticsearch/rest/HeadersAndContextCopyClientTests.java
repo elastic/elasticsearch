@@ -50,7 +50,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.*;
 
-public class HeadersCopyClientTests extends ElasticsearchTestCase {
+public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
 
     @Test
     public void testAddUsefulHeaders() throws InterruptedException {
@@ -360,14 +360,6 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
         return headers;
     }
 
-    private static Map<String, String> randomContext(int count, String prefix) {
-        Map<String, String> headers = new HashMap<>();
-        for (int i = 0; i < count; i++) {
-            headers.put(prefix + randomInt(30), randomRealisticUnicodeOfLengthBetween(1, 20));
-        }
-        return headers;
-    }
-
     private static Map<String, String> randomHeadersFrom(Map<String, String> headers) {
         Map<String, String> newHeaders = new HashMap<>();
         if (headers.isEmpty()) {
@@ -383,9 +375,6 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
     }
 
     private static Client client(Client noOpClient, RestRequest restRequest, Set<String> usefulRestHeaders) {
-        if (usefulRestHeaders.isEmpty() && randomBoolean()) {
-            return noOpClient;
-        }
         return new BaseRestHandler.HeadersAndContextCopyClient(noOpClient, restRequest, usefulRestHeaders);
     }
 

@@ -80,6 +80,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < builders.length; i++) {
             builders[i] = client().prepareIndex("test", "type").setSource("foo", "bar");
         }
+        disableTranslogFlush("test");
         indexRandom(false, false, builders);
 
         // Corrupt the translog file(s)
@@ -89,6 +90,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
         internalCluster().fullRestart();
         // node needs time to start recovery and discover the translog corruption
         sleep(1000);
+        enableTranslogFlush("test");
 
         try {
             client().prepareSearch("test").setQuery(matchAllQuery()).get();

@@ -79,6 +79,10 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
      * an empty map is returned
      */
     public static ImmutableMap<String, String[]> parseFile(Path path, @Nullable ESLogger logger) {
+        if (logger != null) {
+            logger.trace("Reading users roles file located at [{}]", path);
+        }
+
         if (!Files.exists(path)) {
             return ImmutableMap.of();
         }

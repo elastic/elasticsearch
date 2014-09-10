@@ -12,6 +12,7 @@ import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.plugin.SecurityPlugin;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -57,7 +59,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
     public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Listener listener) {
         super(settings);
         file = resolveFile(componentSettings, env);
-        permissions = parseFile(file);
+        permissions = parseFile(file, logger);
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
@@ -72,12 +74,18 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
     public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("files.roles");
         if (location == null) {
-            return env.configFile().toPath().resolve(".roles.yml");
+            File shieldDirectory = new File(env.configFile(), SecurityPlugin.NAME);
+            return shieldDirectory.toPath().resolve(".roles.yml");
         }
+
         return Paths.get(location);
     }
 
-    public static ImmutableMap<String, Permission.Global> parseFile(Path path) {
+    public static ImmutableMap<String, Permission.Global> parseFile(Path path, ESLogger logger) {
+        if (logger != null) {
+            logger.trace("Reading roles file located at [{}]", path);
+        }
+
         if (!Files.exists(path)) {
             return ImmutableMap.of();
         }
@@ -218,7 +226,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
         @Override
         public void onFileChanged(File file) {
             if (file.equals(FileRolesStore.this.file.toFile())) {
-                permissions = parseFile(file.toPath());
+                permissions = parseFile(file.toPath(), logger);
                 listener.onRefresh();
             }
         }

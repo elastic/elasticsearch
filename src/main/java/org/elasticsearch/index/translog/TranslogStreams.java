@@ -22,7 +22,6 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.InputStreamDataInput;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -87,22 +86,17 @@ public class TranslogStreams {
      * optionally-existing header in the file. If the file does not exist, or
      * has zero length, returns the latest version. If the header does not
      * exist, assumes Version 0 of the translog file format.
-     *
+     * <p/>
      * The caller is responsible for closing the TranslogStream.
      *
      * @throws IOException
      */
     public static TranslogStream translogStreamFor(File translogFile) throws IOException {
-        // This stream will be passed to the translog stream, so closing the
-        // TranslogStream will close this. It is not closed here on purpose.
-        InputStreamStreamInput in = new InputStreamStreamInput(new FileInputStream(translogFile));
 
-        boolean success = false;
         try (InputStreamStreamInput headerStream = new InputStreamStreamInput(new FileInputStream(translogFile));) {
             if (translogFile.exists() == false || translogFile.length() == 0) {
                 // if it doesn't exist or has no data, use the latest version,
                 // there aren't any backwards compatibility issues
-                success = true;
                 return CHECKSUMMED_TRANSLOG_STREAM;
             }
             // Lucene's CodecUtil writes a magic number of 0x3FD76C17 with the
@@ -138,25 +132,17 @@ public class TranslogStreams {
                 int version = CodecUtil.checkHeaderNoMagic(new InputStreamDataInput(headerStream), TRANSLOG_CODEC, 1, Integer.MAX_VALUE);
                 switch (version) {
                     case ChecksummedTranslogStream.VERSION:
-                        success = true;
                         return CHECKSUMMED_TRANSLOG_STREAM;
                     default:
                         throw new TranslogCorruptedException("No known translog stream version: " + version);
                 }
             } else if (b1 == UNVERSIONED_TRANSLOG_HEADER_BYTE) {
-                success = true;
                 return LEGACY_TRANSLOG_STREAM;
             } else {
                 throw new TranslogCorruptedException("Invalid first byte in translog file, got: " + Long.toHexString(b1) + ", expected 0x00 or 0x3f");
             }
         } catch (CorruptIndexException e) {
             throw new TranslogCorruptedException("Translog header corrupted", e);
-        } finally {
-            // something happened, we should close the stream just so it's
-            // not dangling
-            if (success == false) {
-                IOUtils.close(in);
-            }
         }
     }
 }

@@ -170,7 +170,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
             TopHits topHits = childrenBucket.getAggregations().get("top_comments");
             logger.info("total_hits={}", topHits.getHits().getTotalHits());
             for (SearchHit searchHit : topHits.getHits()) {
-                logger.info("hit= {} {}", searchHit.sortValues()[0], searchHit.getId());
+                logger.info("hit= {} {} {}", searchHit.sortValues()[0], searchHit.getType(), searchHit.getId());
             }
         }
 
@@ -185,8 +185,10 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         assertThat(topHits.getHits().totalHits(), equalTo(2l));
         assertThat(topHits.getHits().getAt(0).sortValues()[0].toString(), equalTo("a"));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("a"));
+        assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
         assertThat(topHits.getHits().getAt(1).sortValues()[0].toString(), equalTo("c"));
         assertThat(topHits.getHits().getAt(1).getId(), equalTo("c"));
+        assertThat(topHits.getHits().getAt(1).getType(), equalTo("comment"));
 
         categoryBucket = categoryTerms.getBucketByKey("b");
         assertThat(categoryBucket.getKey(), equalTo("b"));
@@ -198,6 +200,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         topHits = childrenBucket.getAggregations().get("top_comments");
         assertThat(topHits.getHits().totalHits(), equalTo(1l));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
+        assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
 
         categoryBucket = categoryTerms.getBucketByKey("c");
         assertThat(categoryBucket.getKey(), equalTo("c"));
@@ -209,6 +212,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         topHits = childrenBucket.getAggregations().get("top_comments");
         assertThat(topHits.getHits().totalHits(), equalTo(1l));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
+        assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
     }
 
     private static final class Control {

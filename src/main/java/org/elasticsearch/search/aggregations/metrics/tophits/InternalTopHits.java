@@ -58,18 +58,16 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
 
     private int from;
     private int size;
-    private Sort sort;
     private TopDocs topDocs;
     private InternalSearchHits searchHits;
 
     InternalTopHits() {
     }
 
-    public InternalTopHits(String name, int from, int size, Sort sort, TopDocs topDocs, InternalSearchHits searchHits) {
+    public InternalTopHits(String name, int from, int size, TopDocs topDocs, InternalSearchHits searchHits) {
         this.name = name;
         this.from = from;
         this.size = size;
-        this.sort = sort;
         this.topDocs = topDocs;
         this.searchHits = searchHits;
     }
@@ -103,6 +101,13 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
         }
 
         try {
+            final Sort sort;
+            if (topDocs instanceof TopFieldDocs) {
+                sort = new Sort(((TopFieldDocs) topDocs).fields);
+            } else {
+                sort = null;
+            }
+
             int[] tracker = new int[shardHits.length];
             TopDocs reducedTopDocs = TopDocs.merge(sort, from, size, shardDocs);
             InternalSearchHit[] hits = new InternalSearchHit[reducedTopDocs.scoreDocs.length];
@@ -126,9 +131,6 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
         from = in.readVInt();
         size = in.readVInt();
         topDocs = Lucene.readTopDocs(in);
-        if (topDocs instanceof TopFieldDocs) {
-            sort = new Sort(((TopFieldDocs) topDocs).fields);
-        }
         searchHits = InternalSearchHits.readSearchHits(in);
     }
 

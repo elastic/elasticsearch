@@ -2,6 +2,9 @@
 
 SETLOCAL
 
+FOR /F "skip=2 tokens=2*" %%A IN ('REG QUERY "HKLM\Software\JavaSoft\Java Runtime Environment" /v CurrentVersion') DO set CurVer=%%B
+FOR /F "skip=2 tokens=2*" %%A IN ('REG QUERY "HKLM\Software\JavaSoft\Java Runtime Environment\%CurVer%" /v JavaHome') DO set JAVA_HOME=%%B
+
 if NOT DEFINED JAVA_HOME goto err
 
 set SCRIPT_DIR=%~dp0

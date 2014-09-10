@@ -47,8 +47,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodesAction extends AbstractCatAction {
 
     @Inject
-    public RestNodesAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestNodesAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/nodes", this);
     }
 

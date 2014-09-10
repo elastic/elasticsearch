@@ -43,8 +43,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestSuggestAction extends BaseRestHandler {
 
     @Inject
-    public RestSuggestAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestSuggestAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/_suggest", this);
         controller.registerHandler(GET, "/_suggest", this);
         controller.registerHandler(POST, "/{index}/_suggest", this);

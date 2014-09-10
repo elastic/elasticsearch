@@ -36,8 +36,8 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 public class RestNodesShutdownAction extends BaseRestHandler {
 
     @Inject
-    public RestNodesShutdownAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestNodesShutdownAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         controller.registerHandler(RestRequest.Method.POST, "/_shutdown", this);
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/nodes/_shutdown", this);

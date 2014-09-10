@@ -46,8 +46,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestIndicesAction extends AbstractCatAction {
 
     @Inject
-    public RestIndicesAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestIndicesAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/indices", this);
         controller.registerHandler(GET, "/_cat/indices/{index}", this);
     }

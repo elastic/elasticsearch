@@ -36,8 +36,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestAnalyzeAction extends BaseRestHandler {
 
     @Inject
-    public RestAnalyzeAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestAnalyzeAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_analyze", this);
         controller.registerHandler(GET, "/{index}/_analyze", this);
         controller.registerHandler(POST, "/_analyze", this);

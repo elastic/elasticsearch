@@ -36,8 +36,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestMasterAction extends AbstractCatAction {
 
     @Inject
-    public RestMasterAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestMasterAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/master", this);
     }
 

@@ -35,8 +35,8 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 public class RestNodesRestartAction extends BaseRestHandler {
 
     @Inject
-    public RestNodesRestartAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestNodesRestartAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/nodes/_restart", this);
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/nodes/{nodeId}/_restart", this);

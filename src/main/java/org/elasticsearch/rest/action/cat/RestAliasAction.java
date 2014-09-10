@@ -41,8 +41,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestAliasAction extends AbstractCatAction {
 
     @Inject
-    public RestAliasAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestAliasAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/aliases", this);
         controller.registerHandler(GET, "/_cat/aliases/{alias}", this);
     }

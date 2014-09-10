@@ -32,8 +32,8 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     @Inject
-    public RestPutIndexTemplateAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestPutIndexTemplateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.PUT, "/_template/{name}", this);
         controller.registerHandler(RestRequest.Method.POST, "/_template/{name}", this);
     }

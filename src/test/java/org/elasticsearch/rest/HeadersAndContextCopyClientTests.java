@@ -36,6 +36,7 @@ import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.support.AbstractClusterAdminClient;
 import org.elasticsearch.client.support.AbstractIndicesAdminClient;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,9 +54,10 @@ import static org.hamcrest.Matchers.*;
 public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
 
     @Test
-    public void testAddRelevantHeaders() throws InterruptedException {
+    public void testRegisterRelevantHeaders() throws InterruptedException {
 
-        final RestClientFactory restClientFactory = new RestClientFactory(null);
+        final RestController restController = new RestController(ImmutableSettings.EMPTY);
+
         int iterations = randomIntBetween(1, 5);
 
         Set<String> headers = new HashSet<>();
@@ -72,14 +74,14 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
             executorService.submit(new Runnable() {
                 @Override
                 public void run() {
-                    restClientFactory.addRelevantHeaders(newHeaders.toArray(new String[newHeaders.size()]));
+                    restController.registerRelevantHeaders(newHeaders.toArray(new String[newHeaders.size()]));
                 }
             });
         }
 
         executorService.shutdown();
         assertThat(executorService.awaitTermination(1, TimeUnit.SECONDS), equalTo(true));
-        String[] relevantHeaders = restClientFactory.relevantHeaders().toArray(new String[restClientFactory.relevantHeaders().size()]);
+        String[] relevantHeaders = restController.relevantHeaders().toArray(new String[restController.relevantHeaders().size()]);
         assertThat(relevantHeaders.length, equalTo(headers.size()));
 
         Arrays.sort(relevantHeaders);
@@ -375,7 +377,7 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
     }
 
     private static Client client(Client noOpClient, RestRequest restRequest, Set<String> usefulRestHeaders) {
-        return new RestClientFactory.HeadersAndContextCopyClient(noOpClient, restRequest, usefulRestHeaders);
+        return new BaseRestHandler.HeadersAndContextCopyClient(noOpClient, restRequest, usefulRestHeaders);
     }
 
     private static void putHeaders(ActionRequest<?> request, Map<String, String> headers) {

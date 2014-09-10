@@ -49,8 +49,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetIndicesAction extends BaseRestHandler {
 
     @Inject
-    public RestGetIndicesAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestGetIndicesAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/{index}", this);
         controller.registerHandler(GET, "/{index}/{type}", this);
     }

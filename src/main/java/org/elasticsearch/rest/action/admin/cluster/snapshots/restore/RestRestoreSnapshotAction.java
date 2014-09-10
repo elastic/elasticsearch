@@ -36,8 +36,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestRestoreSnapshotAction extends BaseRestHandler {
 
     @Inject
-    public RestRestoreSnapshotAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestRestoreSnapshotAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/_snapshot/{repository}/{snapshot}/_restore", this);
     }
 

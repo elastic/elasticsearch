@@ -52,8 +52,8 @@ import static org.elasticsearch.rest.RestStatus.*;
 public class RestBenchAction extends BaseRestHandler {
 
     @Inject
-    public RestBenchAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestBenchAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         // List active benchmarks
         controller.registerHandler(GET, "/_bench", this);

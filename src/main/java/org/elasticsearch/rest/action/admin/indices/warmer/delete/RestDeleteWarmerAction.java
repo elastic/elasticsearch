@@ -35,8 +35,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteWarmerAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteWarmerAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestDeleteWarmerAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(DELETE, "/{index}/_warmer", this);
         controller.registerHandler(DELETE, "/{index}/_warmer/{name}", this);
         controller.registerHandler(DELETE, "/{index}/_warmers", this);

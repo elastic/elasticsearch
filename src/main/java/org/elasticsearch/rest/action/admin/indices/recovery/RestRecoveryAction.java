@@ -39,8 +39,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestRecoveryAction extends BaseRestHandler {
 
     @Inject
-    public RestRecoveryAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestRecoveryAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_recovery", this);
         controller.registerHandler(GET, "/{index}/_recovery", this);
     }

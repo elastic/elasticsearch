@@ -45,9 +45,8 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     private static String DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray());
 
     @Inject
-    public RestClusterRerouteAction(Settings settings, RestController controller,
-                                    SettingsFilter settingsFilter, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestClusterRerouteAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
+        super(settings, controller, client);
         this.settingsFilter = settingsFilter;
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/reroute", this);
     }

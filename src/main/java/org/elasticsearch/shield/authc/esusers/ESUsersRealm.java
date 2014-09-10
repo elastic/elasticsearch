@@ -10,7 +10,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.name.Named;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
@@ -25,20 +25,18 @@ import org.elasticsearch.transport.TransportMessage;
  */
 public class ESUsersRealm extends AbstractComponent implements Realm<UsernamePasswordToken> {
 
-    static {
-        BaseRestHandler.addUsefulHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
-    }
-
     public static final String TYPE = "esusers";
 
     final UserPasswdStore userPasswdStore;
     final UserRolesStore userRolesStore;
 
     @Inject
-    public ESUsersRealm(Settings settings, @Named("file") UserPasswdStore userPasswdStore, @Named("file") UserRolesStore userRolesStore) {
+    public ESUsersRealm(Settings settings, @Named("file") UserPasswdStore userPasswdStore,
+                        @Named("file") UserRolesStore userRolesStore, RestController restController) {
         super(settings);
         this.userPasswdStore = userPasswdStore;
         this.userRolesStore = userRolesStore;
+        restController.registerRelevantHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
     }
 
     @Override

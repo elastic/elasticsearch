@@ -5,16 +5,21 @@
  */
 package org.elasticsearch.shield.transport;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.SecurityFilter;
+import org.elasticsearch.shield.support.AbstractShieldModule;
 
 /**
  *
  */
-public class SecuredRestModule extends AbstractModule {
+public class SecuredRestModule extends AbstractShieldModule.Node {
+
+    public SecuredRestModule(Settings settings) {
+        super(settings);
+    }
 
     @Override
-    protected void configure() {
+    protected void configureNode() {
         bind(SecurityFilter.Rest.class).asEagerSingleton();
     }
 }

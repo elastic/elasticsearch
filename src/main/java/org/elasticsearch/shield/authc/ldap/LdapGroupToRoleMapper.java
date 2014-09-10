@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -32,7 +33,7 @@ import java.util.*;
  */
 public class LdapGroupToRoleMapper extends AbstractComponent {
 
-    public static final String ROLE_MAPPING_DEFAULT_FILE_NAME = ".role_mapping";
+    public static final String DEFAULT_FILE_NAME = ".role_mapping";
     public static final String ROLE_MAPPING_FILE_SETTING = "files.role_mapping";
     public static final String USE_UNMAPPED_GROUPS_AS_ROLES_SETTING = "unmapped_groups_as_roles";
 
@@ -55,6 +56,14 @@ public class LdapGroupToRoleMapper extends AbstractComponent {
         watcher.addListener(new FileListener());
         watcherService.add(watcher);
         this.listener = listener;
+    }
+
+    public static Path resolveFile(Settings settings, Environment env) {
+        String location = settings.get(ROLE_MAPPING_FILE_SETTING);
+        if (location == null) {
+            return ShieldPlugin.resolveConfigFile(env, DEFAULT_FILE_NAME);
+        }
+        return Paths.get(location);
     }
 
     public static ImmutableMap<LdapName, Set<String>> parseFile(Path path, ESLogger logger)  {
@@ -90,14 +99,6 @@ public class LdapGroupToRoleMapper extends AbstractComponent {
         } catch (IOException e) {
             throw new ElasticsearchException("unable to load ldap role mapper file [" + path.toAbsolutePath() + "]", e);
         }
-    }
-
-    public static Path resolveFile(Settings settings, Environment env) {
-        String location = settings.get(ROLE_MAPPING_FILE_SETTING);
-        if (location == null) {
-            return env.configFile().toPath().resolve(ROLE_MAPPING_DEFAULT_FILE_NAME);
-        }
-        return Paths.get(location);
     }
 
     /**

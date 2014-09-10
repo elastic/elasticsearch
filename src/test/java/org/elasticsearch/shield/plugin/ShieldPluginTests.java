@@ -22,7 +22,7 @@ public class ShieldPluginTests extends ShieldIntegrationTest {
         logger.info("--> Checking nodes info that shield plugin is loaded");
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             assertThat(nodeInfo.getPlugins().getInfos(), hasSize(1));
-            assertThat(nodeInfo.getPlugins().getInfos().get(0).getName(), is(SecurityPlugin.NAME));
+            assertThat(nodeInfo.getPlugins().getInfos().get(0).getName(), is(ShieldPlugin.NAME));
         }
     }
 

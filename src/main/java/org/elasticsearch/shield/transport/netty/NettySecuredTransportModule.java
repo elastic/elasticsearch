@@ -5,25 +5,30 @@
  */
 package org.elasticsearch.shield.transport.netty;
 
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PreProcessModule;
-import org.elasticsearch.shield.plugin.SecurityPlugin;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.plugin.ShieldPlugin;
+import org.elasticsearch.shield.support.AbstractShieldModule;
 import org.elasticsearch.transport.TransportModule;
 
 /**
  *
  */
-public class NettySecuredTransportModule extends AbstractModule implements PreProcessModule {
+public class NettySecuredTransportModule extends AbstractShieldModule implements PreProcessModule {
+
+    public NettySecuredTransportModule(Settings settings) {
+        super(settings);
+    }
 
     @Override
     public void processModule(Module module) {
         if (module instanceof TransportModule) {
-            ((TransportModule) module).setTransport(NettySecuredTransport.class, SecurityPlugin.NAME);
+            ((TransportModule) module).setTransport(NettySecuredTransport.class, ShieldPlugin.NAME);
         }
     }
 
     @Override
-    protected void configure() {}
+    protected void configure(boolean clientMode) {}
 
 }

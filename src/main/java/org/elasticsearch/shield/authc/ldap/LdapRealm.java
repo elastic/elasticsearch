@@ -7,10 +7,10 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
-import org.elasticsearch.shield.SecurityException;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -25,21 +25,17 @@ import java.util.Set;
  */
 public class LdapRealm extends CachingUsernamePasswordRealm implements Realm<UsernamePasswordToken> {
 
-    static {
-        BaseRestHandler.addUsefulHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
-    }
-
     public static final String TYPE = "ldap";
 
     private final LdapConnectionFactory connectionFactory;
     private final LdapGroupToRoleMapper roleMapper;
 
     @Inject
-    public LdapRealm(Settings settings, LdapConnectionFactory ldap, LdapGroupToRoleMapper roleMapper) {
+    public LdapRealm(Settings settings, LdapConnectionFactory ldap, LdapGroupToRoleMapper roleMapper, RestController restController) {
         super(settings);
-
         this.connectionFactory = ldap;
         this.roleMapper = roleMapper;
+        restController.registerRelevantHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
     }
 
     @Override
@@ -68,7 +64,7 @@ public class LdapRealm extends CachingUsernamePasswordRealm implements Realm<Use
             User.Simple user = new User.Simple(token.principal(), roles.toArray(new String[roles.size()]));
             Arrays.fill(token.credentials(), '\0');
             return user;
-        } catch (SecurityException e){
+        } catch (ShieldException e){
             logger.info("Authentication Failed for user [{}]", e, token.principal());
             return null;
         }

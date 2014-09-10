@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.shield.plugin.SecurityPlugin;
+import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.transport.Transport;
@@ -65,7 +65,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.type", "zen")
                 .put("node.mode", "network")
-                .put("plugin.types", SecurityPlugin.class.getName())
+                .put("plugin.types", ShieldPlugin.class.getName())
                 .put("shield.authc.esusers.files.users", writeFile(folder, "users", CONFIG_STANDARD_USER))
                 .put("shield.authc.esusers.files.users_roles", writeFile(folder, "users_roles", CONFIG_STANDARD_USER_ROLES))
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", CONFIG_ROLE_ALLOW_ALL))

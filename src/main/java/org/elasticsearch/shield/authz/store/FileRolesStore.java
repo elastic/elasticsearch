@@ -21,7 +21,7 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.Privilege;
-import org.elasticsearch.shield.plugin.SecurityPlugin;
+import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -74,8 +74,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
     public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("files.roles");
         if (location == null) {
-            File shieldDirectory = new File(env.configFile(), SecurityPlugin.NAME);
-            return shieldDirectory.toPath().resolve(".roles.yml");
+            return ShieldPlugin.resolveConfigFile(env, ".roles.yml");
         }
 
         return Paths.get(location);

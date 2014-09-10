@@ -6,11 +6,12 @@
 package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.shield.ShieldException;
 
 /**
  *
  */
-public class AuthenticationException extends org.elasticsearch.shield.SecurityException {
+public class AuthenticationException extends ShieldException {
 
     public AuthenticationException(String msg) {
         super(msg);

@@ -10,6 +10,7 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.ShieldException;
 
 import javax.naming.Context;
 import javax.naming.NamingException;
@@ -43,11 +44,11 @@ public class StandardLdapConnectionFactory extends AbstractComponent implements 
         super(settings);
         userDnTemplates = componentSettings.getAsArray(USER_DN_TEMPLATES_SETTING);
         if (userDnTemplates == null) {
-            throw new org.elasticsearch.shield.SecurityException("Missing required ldap setting [" + USER_DN_TEMPLATES_SETTING + "]");
+            throw new ShieldException("Missing required ldap setting [" + USER_DN_TEMPLATES_SETTING + "]");
         }
         String[] ldapUrls = componentSettings.getAsArray(URLS_SETTING);
         if (ldapUrls == null) {
-            throw new org.elasticsearch.shield.SecurityException("Missing required ldap setting [" + URLS_SETTING + "]");
+            throw new ShieldException("Missing required ldap setting [" + URLS_SETTING + "]");
         }
         sharedLdapEnv = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")

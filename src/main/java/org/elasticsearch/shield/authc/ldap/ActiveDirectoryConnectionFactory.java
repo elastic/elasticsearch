@@ -10,6 +10,7 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.ShieldException;
 
 import javax.naming.Context;
 import javax.naming.NamingEnumeration;
@@ -42,7 +43,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
         super(settings);
         domainName = componentSettings.get(AD_DOMAIN_NAME_SETTING);
         if (domainName == null) {
-            throw new org.elasticsearch.shield.SecurityException("Missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
+            throw new ShieldException("Missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
         }
         userSearchDN = componentSettings.get(AD_USER_SEARCH_BASEDN_SETTING, buildDnFromDomain(domainName));
         int port = componentSettings.getAsInt(AD_PORT, 389);

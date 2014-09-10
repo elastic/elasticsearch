@@ -25,6 +25,7 @@ indices:admin/cache/clear
 indices:admin/close
 indices:admin/create
 indices:admin/delete
+indices:admin/get
 indices:admin/exists
 indices:admin/flush
 indices:admin/mapping/delete

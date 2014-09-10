@@ -22,9 +22,6 @@ package org.elasticsearch.gateway.local;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
-import org.elasticsearch.action.admin.indices.status.IndexShardStatus;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
-import org.elasticsearch.action.admin.indices.status.ShardStatus;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -57,7 +54,7 @@ import static org.hamcrest.Matchers.*;
  */
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 @Slow
-@TestLogging("index.shard.service:TRACE")
+@TestLogging("index.shard.service:TRACE,index.gateway.local:TRACE")
 public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTest {
 
     private ImmutableSettings.Builder settingsBuilder() {

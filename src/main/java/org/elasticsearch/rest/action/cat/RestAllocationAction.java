@@ -44,8 +44,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestAllocationAction extends AbstractCatAction {
 
     @Inject
-    public RestAllocationAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestAllocationAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/allocation", this);
         controller.registerHandler(GET, "/_cat/allocation/{nodes}", this);
     }

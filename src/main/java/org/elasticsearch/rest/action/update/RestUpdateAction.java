@@ -47,8 +47,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestUpdateAction extends BaseRestHandler {
 
     @Inject
-    public RestUpdateAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestUpdateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
     }
 

@@ -33,20 +33,20 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutSearchTemplateAction extends RestPutIndexedScriptAction {
 
     @Inject
-    public RestPutSearchTemplateAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestPutSearchTemplateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, false, client);
 
         //controller.registerHandler(GET, "/template", this);
         controller.registerHandler(POST, "/_search/template/{id}", this);
         controller.registerHandler(PUT, "/_search/template/{id}", this);
 
-        controller.registerHandler(PUT, "/_search/template/{id}/_create", new CreateHandler(settings, restClientFactory));
-        controller.registerHandler(POST, "/_search/template/{id}/_create", new CreateHandler(settings, restClientFactory));
+        controller.registerHandler(PUT, "/_search/template/{id}/_create", new CreateHandler(settings, controller, client));
+        controller.registerHandler(POST, "/_search/template/{id}/_create", new CreateHandler(settings, controller, client));
     }
 
     final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings, RestClientFactory restClientFactory) {
-            super(settings, restClientFactory);
+        protected CreateHandler(Settings settings, RestController controller, Client client) {
+            super(settings, controller, client);
         }
 
         @Override

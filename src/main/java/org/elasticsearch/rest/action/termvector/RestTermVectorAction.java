@@ -43,8 +43,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestTermVectorAction extends BaseRestHandler {
 
     @Inject
-    public RestTermVectorAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestTermVectorAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/{index}/{type}/_termvector", this);
         controller.registerHandler(POST, "/{index}/{type}/_termvector", this);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_termvector", this);

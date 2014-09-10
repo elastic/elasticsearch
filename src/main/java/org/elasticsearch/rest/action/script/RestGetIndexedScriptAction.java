@@ -43,13 +43,15 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetIndexedScriptAction extends BaseRestHandler {
 
     @Inject
-    public RestGetIndexedScriptAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
-        controller.registerHandler(GET, "/_scripts/{lang}/{id}", this);
+    public RestGetIndexedScriptAction(Settings settings, RestController controller, Client client) {
+        this(settings, controller, true, client);
     }
 
-    protected RestGetIndexedScriptAction(Settings settings, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    protected RestGetIndexedScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
+        super(settings, controller, client);
+        if (registerDefaultHandlers) {
+            controller.registerHandler(GET, "/_scripts/{lang}/{id}", this);
+        }
     }
 
     protected String getScriptLang(RestRequest request) {

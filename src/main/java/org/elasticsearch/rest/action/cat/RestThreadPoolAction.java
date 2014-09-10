@@ -105,8 +105,8 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     @Inject
-    public RestThreadPoolAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestThreadPoolAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/thread_pool", this);
     }
 

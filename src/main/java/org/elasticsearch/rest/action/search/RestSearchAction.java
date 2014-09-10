@@ -49,8 +49,8 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 public class RestSearchAction extends BaseRestHandler {
 
     @Inject
-    public RestSearchAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestSearchAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
@@ -64,7 +64,7 @@ public class RestSearchAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
         controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
 
-        RestExistsAction restExistsAction = new RestExistsAction(settings, restClientFactory);
+        RestExistsAction restExistsAction = new RestExistsAction(settings, controller, client);
         controller.registerHandler(GET, "/_search/exists", restExistsAction);
         controller.registerHandler(POST, "/_search/exists", restExistsAction);
         controller.registerHandler(GET, "/{index}/_search/exists", restExistsAction);

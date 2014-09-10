@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
@@ -152,7 +151,6 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "Order is incorrect, c is sometimes before a...")
     public void testParentWithMultipleBuckets() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(matchQuery("randomized", false))
@@ -165,6 +163,16 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
 
         Terms categoryTerms = searchResponse.getAggregations().get("category");
         assertThat(categoryTerms.getBuckets().size(), equalTo(3));
+
+        for (Terms.Bucket bucket : categoryTerms.getBuckets()) {
+            logger.info("bucket=" + bucket.getKey());
+            Children childrenBucket = bucket.getAggregations().get("to_comment");
+            TopHits topHits = childrenBucket.getAggregations().get("top_comments");
+            logger.info("total_hits={}", topHits.getHits().getTotalHits());
+            for (SearchHit searchHit : topHits.getHits()) {
+                logger.info("hit= {} {}", searchHit.sortValues()[0], searchHit.getId());
+            }
+        }
 
         Terms.Bucket categoryBucket = categoryTerms.getBucketByKey("a");
         assertThat(categoryBucket.getKey(), equalTo("a"));

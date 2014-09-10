@@ -43,9 +43,9 @@ public class RestIndicesStatusAction extends BaseRestHandler {
     private final SettingsFilter settingsFilter;
 
     @Inject
-    public RestIndicesStatusAction(Settings settings, Client client, RestController controller,
+    public RestIndicesStatusAction(Settings settings, RestClientFactory restClientFactory, RestController controller,
                                    SettingsFilter settingsFilter) {
-        super(settings, client);
+        super(settings, restClientFactory);
         controller.registerHandler(GET, "/_status", this);
         controller.registerHandler(GET, "/{index}/_status", this);
 

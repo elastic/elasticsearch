@@ -921,6 +921,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
         }
         assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        logger.debug("indices {} are green", indices.length == 0 ? "[_all]" : indices);
         return actionGet.getStatus();
     }
 
@@ -1041,6 +1042,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             logger.info("ensureYellow timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
             assertThat("timed out waiting for yellow", actionGet.isTimedOut(), equalTo(false));
         }
+        logger.debug("indices {} are yellow", indices.length == 0 ? "[_all]" : indices);
         return actionGet.getStatus();
     }
 

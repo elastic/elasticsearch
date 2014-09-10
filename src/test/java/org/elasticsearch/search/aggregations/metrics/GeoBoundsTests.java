@@ -24,6 +24,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.BigArray;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -156,6 +159,8 @@ public class GeoBoundsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("high_card_idx").addField(NUMBER_FIELD_NAME).addSort(SortBuilders.fieldSort(NUMBER_FIELD_NAME).order(SortOrder.ASC)).setSize(5000).get();
         assertSearchResponse(response);
         long totalHits = response.getHits().totalHits();
+        XContentBuilder builder = response.toXContent(XContentBuilder.builder(JsonXContent.jsonXContent), ToXContent.EMPTY_PARAMS);
+        logger.info("Full high_card_idx Response Content:\n{ {} }", builder.string());
         for (int i = 0; i < totalHits; i++) {
             SearchHit searchHit = response.getHits().getAt(i);
             assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getIndex(), equalTo("high_card_idx"));

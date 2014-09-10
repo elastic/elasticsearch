@@ -38,12 +38,14 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -52,6 +54,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @Slow
+@TestLogging("action.search:TRACE,index.shard.service:TRACE")
 public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(LocalGatewayIndexStateTests.class);
@@ -246,7 +249,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
         }
 
         logger.info("--> closing test index...");
@@ -264,9 +267,9 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
-        assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
         }
     }
 
@@ -287,7 +290,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
         }
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
@@ -343,7 +346,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
         }
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
@@ -404,7 +407,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 1l);
         }
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
@@ -467,7 +470,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
         }
 
         logger.info("--> restarting the nodes");

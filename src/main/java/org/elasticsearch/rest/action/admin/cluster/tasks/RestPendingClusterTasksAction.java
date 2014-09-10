@@ -32,8 +32,8 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 public class RestPendingClusterTasksAction extends BaseRestHandler {
 
     @Inject
-    public RestPendingClusterTasksAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestPendingClusterTasksAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/pending_tasks", this);
     }
 

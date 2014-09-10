@@ -33,8 +33,8 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 public class RestCreateIndexAction extends BaseRestHandler {
 
     @Inject
-    public RestCreateIndexAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestCreateIndexAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}", this);
     }

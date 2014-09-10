@@ -38,8 +38,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestTypesExistsAction extends BaseRestHandler {
 
     @Inject
-    public RestTypesExistsAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestTypesExistsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(HEAD, "/{index}/{type}", this);
     }
 

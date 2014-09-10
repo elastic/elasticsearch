@@ -34,8 +34,8 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 public class RestClusterStatsAction extends BaseRestHandler {
 
     @Inject
-    public RestClusterStatsAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestClusterStatsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/stats", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/stats/nodes/{nodeId}", this);
     }

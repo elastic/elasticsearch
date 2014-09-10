@@ -40,8 +40,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestMoreLikeThisAction extends BaseRestHandler {
 
     @Inject
-    public RestMoreLikeThisAction(Settings settings, RestController controller, RestClientFactory restClientFactory) {
-        super(settings, restClientFactory);
+    public RestMoreLikeThisAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_mlt", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_mlt", this);
     }

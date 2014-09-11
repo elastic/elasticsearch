@@ -148,7 +148,7 @@ public class NestedFilterParser implements FilterParser {
             // expects FixedBitSet instances
             parentFilter = parseContext.fixedBitSetFilter(parentFilter);
 
-            Filter nestedFilter = Queries.wrap(new ToParentBlockJoinQuery(query, parentFilter, ScoreMode.None));
+            Filter nestedFilter = Queries.wrap(new ToParentBlockJoinQuery(query, parentFilter, ScoreMode.None), parseContext);
 
             if (cache) {
                 nestedFilter = parseContext.cacheFilter(nestedFilter, cacheKey);

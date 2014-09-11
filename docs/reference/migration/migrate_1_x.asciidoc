@@ -36,7 +36,7 @@ pointed to by the alias.
 Add or update a mapping via the <<indices-create-index,create index>> or
 <<indices-put-mapping,put mapping>> apis.
 
-===== Bulk UDP
+==== Bulk UDP
 
 <<docs-bulk-udp,Bulk UDP>> has been deprecated and will be removed in 2.0.
 You should use <<docs-bulk,the standard bulk API>> instead.

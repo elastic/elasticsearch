@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.bench.AbortBenchmarkAction;
 import org.elasticsearch.action.bench.BenchmarkAction;
 import org.elasticsearch.action.bench.BenchmarkService;
@@ -123,6 +124,7 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
         actionsVersions.put(BenchmarkAction.NAME, Version.V_1_4_0);
         actionsVersions.put(BenchmarkStatusAction.NAME, Version.V_1_4_0);
         actionsVersions.put(AbortBenchmarkAction.NAME, Version.V_1_4_0);
+        actionsVersions.put(GetIndexAction.NAME, Version.V_1_4_0);
 
         actionsVersions.put(ExistsAction.NAME, Version.V_1_4_0);
         actionsVersions.put(ExistsAction.NAME + "[s]", Version.V_1_4_0);

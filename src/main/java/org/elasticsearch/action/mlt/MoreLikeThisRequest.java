@@ -600,7 +600,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         }
 
         searchType = SearchType.fromId(in.readByte());
-        if (in.getVersion().before(Version.V_1_4_0)) {
+        if (in.getVersion().before(Version.V_1_4_0_Beta)) {
             //searchQueryHint was unused and removed in 1.4
             if (in.readBoolean()) {
                 in.readString();
@@ -676,7 +676,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         }
 
         out.writeByte(searchType.id());
-        if (out.getVersion().before(Version.V_1_4_0)) {
+        if (out.getVersion().before(Version.V_1_4_0_Beta)) {
             //searchQueryHint was unused and removed in 1.4
             out.writeBoolean(false);
         }

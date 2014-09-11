@@ -62,7 +62,7 @@ public class OriginalIndices implements IndicesRequest {
     }
 
     public static OriginalIndices readOptionalOriginalIndices(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             boolean empty = in.readBoolean();
             if (!empty) {
                 return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
@@ -72,7 +72,7 @@ public class OriginalIndices implements IndicesRequest {
     }
 
     public static void writeOptionalOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             boolean empty = originalIndices == EMPTY;
             out.writeBoolean(empty);
             if (!empty) {
@@ -83,7 +83,7 @@ public class OriginalIndices implements IndicesRequest {
     }
 
     public static OriginalIndices readOriginalIndices(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
         }
         return OriginalIndices.EMPTY;
@@ -91,7 +91,7 @@ public class OriginalIndices implements IndicesRequest {
 
 
     public static void writeOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             out.writeStringArrayNullable(originalIndices.indices);
             originalIndices.indicesOptions.writeIndicesOptions(out);
         }

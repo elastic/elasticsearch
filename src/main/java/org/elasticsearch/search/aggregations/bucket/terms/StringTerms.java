@@ -115,14 +115,14 @@ public class StringTerms extends InternalTerms {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         this.name = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             this.docCountError = in.readLong();
         } else {
             this.docCountError = -1;
         }
         this.order = InternalOrder.Streams.readOrder(in);
         this.requiredSize = readSize(in);
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             this.shardSize = readSize(in);
             this.showTermDocCountError = in.readBoolean();
         } else {
@@ -136,7 +136,7 @@ public class StringTerms extends InternalTerms {
             BytesRef termBytes = in.readBytesRef();
             long docCount = in.readVLong();
             long bucketDocCountError = -1;
-            if (in.getVersion().onOrAfter(Version.V_1_4_0) && showTermDocCountError) {
+            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta) && showTermDocCountError) {
                 bucketDocCountError = in.readLong();
         }
             InternalAggregations aggregations = InternalAggregations.readAggregations(in);
@@ -149,12 +149,12 @@ public class StringTerms extends InternalTerms {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             out.writeLong(docCountError);
         }
         InternalOrder.Streams.writeOrder(order, out);
         writeSize(requiredSize, out);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             writeSize(shardSize, out);
             out.writeBoolean(showTermDocCountError);
         }
@@ -163,7 +163,7 @@ public class StringTerms extends InternalTerms {
         for (InternalTerms.Bucket bucket : buckets) {
             out.writeBytesRef(((Bucket) bucket).termBytes);
             out.writeVLong(bucket.getDocCount());
-            if (out.getVersion().onOrAfter(Version.V_1_4_0) && showTermDocCountError) {
+            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta) && showTermDocCountError) {
                 out.writeLong(bucket.docCountError);
             }
             ((InternalAggregations) bucket.getAggregations()).writeTo(out);

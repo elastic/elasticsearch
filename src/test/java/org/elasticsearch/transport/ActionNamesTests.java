@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.exists.ExistsAction;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -129,5 +130,6 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
         post_1_4_actions.add(ExistsAction.NAME);
         post_1_4_actions.add(ExistsAction.NAME + "[s]");
         post_1_4_actions.add(GetIndexAction.NAME);
+        post_1_4_actions.add(UnicastZenPing.ACTION_NAME_GTE_1_4);
     }
 }

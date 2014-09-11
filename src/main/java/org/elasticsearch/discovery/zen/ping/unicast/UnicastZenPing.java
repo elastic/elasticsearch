@@ -21,10 +21,7 @@ package org.elasticsearch.discovery.zen.ping.unicast;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.Version;
+import org.elasticsearch.*;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -61,6 +58,18 @@ import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.readPing
 public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
+
+
+    /**
+     * when pinging the initial configured target hosts, we do not know their version. We therefore use
+     * the lowest possible version (i.e., 1.0.0) for serializing information on the wire. As of 1.4, we needed to extend
+     * the information sent in a ping, to prefer nodes which have previously joined the cluster during master election.
+     * This information is only needed if all the cluster is on version 1.4 or up. To bypass this issue we introduce
+     * a second action name which is guaranteed to exist only on nodes from version 1.4.0 and up. Using this action,
+     * we can safely use 1.4.0 as a serialization format. If this fails with a {@link ActionNotFoundTransportException}
+     * we know we speak to a node with <1.4 version, and fall back to use {@link #ACTION_NAME}.
+     */
+    public static final String ACTION_NAME_GTE_1_4 = "internal:discovery/zen/unicast_gte_1_4";
 
     public static final int LIMIT_PORTS_COUNT = 1;
 
@@ -127,7 +136,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
         this.configuredTargetNodes = configuredTargetNodes.toArray(new DiscoveryNode[configuredTargetNodes.size()]);
 
-        transportService.registerHandler(ACTION_NAME, new UnicastPingRequestHandler());
+        UnicastPingRequestHandler unicastPingHanlder = new UnicastPingRequestHandler();
+        transportService.registerHandler(ACTION_NAME, unicastPingHanlder);
+        transportService.registerHandler(ACTION_NAME_GTE_1_4, unicastPingHanlder);
     }
 
     @Override
@@ -334,7 +345,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                             logger.trace("[{}] connected to {}", sendPingsHandler.id(), node);
                             if (receivedResponses.containsKey(sendPingsHandler.id())) {
                                 // we are connected and still in progress, send the ping request
-                                sendPingRequestToNode(sendPingsHandler.id(), timeout, pingRequest, latch, node, finalNodeToSend);
+                                if (nodeFoundByAddress) {
+                                    // we're good - we know what version to use for serialization
+                                    sendPingRequestToNode(sendPingsHandler.id(), timeout, pingRequest, latch, node, finalNodeToSend);
+                                } else {
+                                    sendPingRequestTo14NodeWithFallback(sendPingsHandler.id(), timeout, pingRequest, latch, node, finalNodeToSend);
+                                }
                             } else {
                                 // connect took too long, just log it and bail
                                 latch.countDown();
@@ -366,6 +382,46 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
+    /** See {@link #ACTION_NAME_GTE_1_4} for an explanation for why this needed */
+    private void sendPingRequestTo14NodeWithFallback(final int id, final TimeValue timeout, final UnicastPingRequest pingRequest, final CountDownLatch latch, final DiscoveryNode node, final DiscoveryNode nodeToSend) {
+        logger.trace("[{}] sending to {}, using >=1.4.0 serialization", id, nodeToSend);
+        DiscoveryNode actualNodeToSend = new DiscoveryNode(nodeToSend.name(), nodeToSend.id(), nodeToSend.getHostName(), nodeToSend.getHostAddress(),
+                nodeToSend.address(), nodeToSend.attributes(), Version.largest(nodeToSend.version(), Version.V_1_4_0_Beta1));
+        transportService.sendRequest(actualNodeToSend, ACTION_NAME_GTE_1_4, pingRequest, TransportRequestOptions.options().withTimeout((long) (timeout.millis() * 1.25)), new BaseTransportResponseHandler<UnicastPingResponse>() {
+
+            @Override
+            public UnicastPingResponse newInstance() {
+                return new UnicastPingResponse();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public void handleResponse(UnicastPingResponse response) {
+                handlePingResponse(response, id, nodeToSend, latch);
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                if (ExceptionsHelper.unwrapCause(exp) instanceof ActionNotFoundTransportException) {
+                    logger.trace("failed to ping {}, falling back to <=1.4.0 ping action", node);
+                    sendPingRequestToNode(id, timeout, pingRequest, latch, node, nodeToSend);
+                    return;
+                }
+                latch.countDown();
+                if (exp instanceof ConnectTransportException) {
+                    // ok, not connected...
+                    logger.trace("failed to connect to {}", exp, nodeToSend);
+                } else {
+                    logger.warn("failed to send ping to [{}]", exp, node);
+                }
+            }
+        });
+    }
+
     private void sendPingRequestToNode(final int id, final TimeValue timeout, final UnicastPingRequest pingRequest, final CountDownLatch latch, final DiscoveryNode node, final DiscoveryNode nodeToSend) {
         logger.trace("[{}] sending to {}", id, nodeToSend);
         transportService.sendRequest(nodeToSend, ACTION_NAME, pingRequest, TransportRequestOptions.options().withTimeout((long) (timeout.millis() * 1.25)), new BaseTransportResponseHandler<UnicastPingResponse>() {
@@ -382,40 +438,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
             @Override
             public void handleResponse(UnicastPingResponse response) {
-                logger.trace("[{}] received response from {}: {}", id, nodeToSend, Arrays.toString(response.pingResponses));
-                try {
-                    DiscoveryNodes discoveryNodes = contextProvider.nodes();
-                    for (PingResponse pingResponse : response.pingResponses) {
-                        if (pingResponse.node().id().equals(discoveryNodes.localNodeId())) {
-                            // that's us, ignore
-                            continue;
-                        }
-                        if (!pingResponse.clusterName().equals(clusterName)) {
-                            // not part of the cluster
-                            logger.debug("[{}] filtering out response from {}, not same cluster_name [{}]", id, pingResponse.node(), pingResponse.clusterName().value());
-                            continue;
-                        }
-                        ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.get(response.id);
-                        if (responses == null) {
-                            logger.warn("received ping response {} with no matching id [{}]", pingResponse, response.id);
-                        } else {
-                            PingResponse existingResponse = responses.get(pingResponse.node());
-                            if (existingResponse == null) {
-                                responses.put(pingResponse.node(), pingResponse);
-                            } else {
-                                // try and merge the best ping response for it, i.e. if the new one
-                                // doesn't have the master node set, and the existing one does, then
-                                // the existing one is better, so we keep it
-                                // if both have a master or both have none, we prefer the latest ping
-                                if (existingResponse.master() == null || pingResponse.master() != null) {
-                                    responses.put(pingResponse.node(), pingResponse);
-                                }
-                            }
-                        }
-                    }
-                } finally {
-                    latch.countDown();
-                }
+                handlePingResponse(response, id, nodeToSend, latch);
             }
 
             @Override
@@ -429,6 +452,43 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 }
             }
         });
+    }
+
+    private void handlePingResponse(UnicastPingResponse response, int id, DiscoveryNode nodeToSend, CountDownLatch latch) {
+        logger.trace("[{}] received response from {}: {}", id, nodeToSend, Arrays.toString(response.pingResponses));
+        try {
+            DiscoveryNodes discoveryNodes = contextProvider.nodes();
+            for (PingResponse pingResponse : response.pingResponses) {
+                if (pingResponse.node().id().equals(discoveryNodes.localNodeId())) {
+                    // that's us, ignore
+                    continue;
+                }
+                if (!pingResponse.clusterName().equals(clusterName)) {
+                    // not part of the cluster
+                    logger.debug("[{}] filtering out response from {}, not same cluster_name [{}]", id, pingResponse.node(), pingResponse.clusterName().value());
+                    continue;
+                }
+                ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.get(response.id);
+                if (responses == null) {
+                    logger.warn("received ping response {} with no matching id [{}]", pingResponse, response.id);
+                } else {
+                    PingResponse existingResponse = responses.get(pingResponse.node());
+                    if (existingResponse == null) {
+                        responses.put(pingResponse.node(), pingResponse);
+                    } else {
+                        // try and merge the best ping response for it, i.e. if the new one
+                        // doesn't have the master node set, and the existing one does, then
+                        // the existing one is better, so we keep it
+                        // if both have a master or both have none, we prefer the latest ping
+                        if (existingResponse.master() == null || pingResponse.master() != null) {
+                            responses.put(pingResponse.node(), pingResponse);
+                        }
+                    }
+                }
+            }
+        } finally {
+            latch.countDown();
+        }
     }
 
     private UnicastPingResponse handlePingRequest(final UnicastPingRequest request) {

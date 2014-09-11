@@ -395,6 +395,13 @@ public class Version implements Serializable {
     }
 
     /**
+     * Returns the largest version between the 2.
+     */
+    public static Version largest(Version version1, Version version2) {
+        return version1.id > version2.id ? version1 : version2;
+    }
+
+    /**
      * Returns the version given its string representation, current version if the argument is null or empty
      */
     public static Version fromString(String version) {
@@ -426,7 +433,7 @@ public class Version implements Serializable {
 
             return fromId(major + minor + revision + build);
 
-        } catch(NumberFormatException e) {
+        } catch (NumberFormatException e) {
             throw new IllegalArgumentException("unable to parse version " + version, e);
         }
     }

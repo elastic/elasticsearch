@@ -201,11 +201,12 @@ public class BenchmarkExecutor {
                     }
                 }
 
-                final int numMeasurements = settings.multiplier() * searchRequests.size();
-                final long[] timeBuckets  = new long[numMeasurements];
-                final long[] docBuckets   = new long[numMeasurements];
-
                 for (int i = 0; i < settings.iterations(); i++) {
+
+                    final int numMeasurements = settings.multiplier() * searchRequests.size();
+                    final long[] timeBuckets  = new long[numMeasurements];
+                    final long[] docBuckets   = new long[numMeasurements];
+
                     // Run the iteration
                     CompetitionIteration ci =
                             iterate(request.benchmarkId(),competitor, searchRequests, timeBuckets,
@@ -323,7 +324,7 @@ public class BenchmarkExecutor {
             final long avg = sum / multiplier;
             if (topNQueue.size() < topN) {
                 topNQueue.add(new IndexAndTime(i, max, avg));
-            } else if (topNQueue.top().avgTime < max) {
+            } else if (topNQueue.top().avgTime < avg) {
                 topNQueue.top().update(i, max, avg);
                 topNQueue.updateTop();
 

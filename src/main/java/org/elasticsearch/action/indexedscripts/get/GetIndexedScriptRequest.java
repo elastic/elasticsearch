@@ -96,7 +96,6 @@ public class GetIndexedScriptRequest extends ActionRequest<GetIndexedScriptReque
         return new String[]{ScriptService.SCRIPT_INDEX};
     }
 
-
     @Override
     public IndicesOptions indicesOptions() {
         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();

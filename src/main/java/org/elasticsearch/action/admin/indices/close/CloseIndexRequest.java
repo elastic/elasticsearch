@@ -34,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to close an index.
  */
-public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> implements IndicesRequest {
+public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
@@ -72,6 +72,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
      * @param indices the indices to be closed
      * @return the request itself
      */
+    @Override
     public CloseIndexRequest indices(String... indices) {
         this.indices = indices;
         return this;

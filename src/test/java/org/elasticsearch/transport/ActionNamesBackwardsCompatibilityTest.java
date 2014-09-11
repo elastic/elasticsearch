@@ -32,6 +32,7 @@ import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptAction;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
@@ -134,6 +135,8 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
         actionsVersions.put(GetIndexedScriptAction.NAME, Version.V_1_3_0);
         actionsVersions.put(DeleteIndexedScriptAction.NAME, Version.V_1_3_0);
         actionsVersions.put(PutIndexedScriptAction.NAME, Version.V_1_3_0);
+
+        actionsVersions.put(UnicastZenPing.ACTION_NAME_GTE_1_4, Version.V_1_4_0_Beta1);
 
     }
 }

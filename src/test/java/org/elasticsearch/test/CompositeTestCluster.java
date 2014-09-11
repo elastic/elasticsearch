@@ -36,10 +36,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Random;
+import java.util.*;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -51,15 +48,19 @@ import static org.junit.Assert.assertThat;
  */
 public class CompositeTestCluster extends TestCluster {
     private final InternalTestCluster cluster;
-    private final ExternalNode[] externalNodes;
+    private final ExternalNode baseExternalNode;
+    private final List<ExternalNode> externalNodes;
     private final ExternalClient client = new ExternalClient();
     private static final String NODE_PREFIX = "external_";
 
     public CompositeTestCluster(InternalTestCluster cluster, int numExternalNodes, ExternalNode externalNode) throws IOException {
         this.cluster = cluster;
-        this.externalNodes = new ExternalNode[numExternalNodes];
-        for (int i = 0; i < externalNodes.length; i++) {
-            externalNodes[i] = externalNode;
+        this.externalNodes = new ArrayList<>();
+        this.baseExternalNode = externalNode;
+
+        // initialize external nodes with non-started copies
+        for (int i = 0; i < numExternalNodes; i++) {
+            externalNodes.add(baseExternalNode);
         }
     }
 
@@ -73,17 +74,23 @@ public class CompositeTestCluster extends TestCluster {
         super.beforeTest(random, transportClientRatio);
         cluster.beforeTest(random, transportClientRatio);
         Settings defaultSettings = cluster.getDefaultSettings();
+
+        if (externalNodes.size() == 0) {
+            // bail out, nothing do here (and no need to initialize a client node)
+            return;
+        }
+
         final Client client = cluster.size() > 0 ? cluster.client() : cluster.clientNodeClient();
-        for (int i = 0; i < externalNodes.length; i++) {
-            if (!externalNodes[i].running()) {
+        for (int i = 0; i < externalNodes.size(); i++) {
+            if (!externalNodes.get(i).running()) {
                 try {
-                    externalNodes[i] = externalNodes[i].start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName(), i);
+                    externalNodes.set(i, baseExternalNode.start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName(), i));
                 } catch (InterruptedException e) {
                     Thread.interrupted();
                     return;
                 }
             }
-            externalNodes[i].reset(random.nextLong());
+            externalNodes.get(i).reset(random.nextLong());
         }
         if (size() > 0) {
             client().admin().cluster().prepareHealth().setWaitForNodes(">=" + Integer.toString(this.size())).get();
@@ -91,7 +98,7 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     private Collection<ExternalNode> runningNodes() {
-        return Collections2.filter(Arrays.asList(externalNodes), new Predicate<ExternalNode>() {
+        return Collections2.filter(externalNodes, new Predicate<ExternalNode>() {
             @Override
             public boolean apply(ExternalNode input) {
                 return input.running();
@@ -106,12 +113,13 @@ public class CompositeTestCluster extends TestCluster {
      * external node is running it returns <tt>false</tt>
      */
     public synchronized boolean upgradeOneNode() throws InterruptedException, IOException {
-      return upgradeOneNode(ImmutableSettings.EMPTY);
+        return upgradeOneNode(ImmutableSettings.EMPTY);
     }
 
     /**
      * Upgrades all external running nodes to a node from the version running the tests.
      * All nodes are shut down before the first upgrade happens.
+     *
      * @return <code>true</code> iff at least one node as upgraded.
      */
     public synchronized boolean upgradeAllNodes() throws InterruptedException, IOException {
@@ -122,12 +130,13 @@ public class CompositeTestCluster extends TestCluster {
     /**
      * Upgrades all external running nodes to a node from the version running the tests.
      * All nodes are shut down before the first upgrade happens.
-     * @return <code>true</code> iff at least one node as upgraded.
+     *
      * @param nodeSettings settings for the upgrade nodes
+     * @return <code>true</code> iff at least one node as upgraded.
      */
     public synchronized boolean upgradeAllNodes(Settings nodeSettings) throws InterruptedException, IOException {
         boolean upgradedOneNode = false;
-        while(upgradeOneNode(nodeSettings)) {
+        while (upgradeOneNode(nodeSettings)) {
             upgradedOneNode = true;
         }
         return upgradedOneNode;
@@ -144,9 +153,12 @@ public class CompositeTestCluster extends TestCluster {
         if (!runningNodes.isEmpty()) {
             final Client existingClient = cluster.client();
             ExternalNode externalNode = RandomPicks.randomFrom(random, runningNodes);
+            String externalNodeName = externalNode.getName();
+            logger.info("upgrading [{}]", externalNodeName);
             externalNode.stop();
             String s = cluster.startNode(nodeSettings);
             ExternalNode.waitForNode(existingClient, s);
+            logger.info("done upgrading [{}], new node name: [{}]", externalNodeName, s);
             return true;
         }
         return false;
@@ -192,10 +204,18 @@ public class CompositeTestCluster extends TestCluster {
         cluster.startNode();
     }
 
+    /**
+     * Starts a new external node with an old version
+     */
+    public synchronized void startNewExternalNode() throws IOException, InterruptedException {
+        int ordinal = externalNodes.size() + 1;
+        externalNodes.add(baseExternalNode.start(client, cluster.getDefaultSettings(), NODE_PREFIX + ordinal, cluster.getClusterName(), ordinal));
+    }
+
 
     @Override
     public synchronized Client client() {
-       return client;
+        return client;
     }
 
     @Override

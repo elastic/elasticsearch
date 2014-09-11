@@ -257,7 +257,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         }
 
         for (int i = 0; i < weights.length; i++) {
-            float functionScore = weights[i] * scores[i];
+            double functionScore = (double) weights[i] * scores[i];
 
             if ("avg".equals(scoreMode)) {
                 expectedScore += functionScore;

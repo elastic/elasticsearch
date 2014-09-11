@@ -48,7 +48,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(
                 prepareCreate("test")
-                    .addMapping("article")
+                    .addMapping("article", "_id", "index=not_analyzed")
                     .addMapping("comment", "_parent", "type=article", "_id", "index=not_analyzed")
         );
 

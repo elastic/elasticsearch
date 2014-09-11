@@ -78,7 +78,9 @@ import java.util.zip.Checksum;
 public class Store extends AbstractIndexShardComponent implements CloseableIndexComponent, Closeable {
 
     private static final String CODEC = "store";
-    private static final int VERSION = 0;
+    private static final int VERSION_STACK_TRACE = 1; // we write the stack trace too since 1.4.0
+    private static final int VERSION_START = 0;
+    private static final int VERSION = VERSION_STACK_TRACE;
     private static final String CORRUPTED = "corrupted_";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -356,12 +358,16 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         for (String file : files) {
             if (file.startsWith(CORRUPTED)) {
                 try(ChecksumIndexInput input = directory.openChecksumInput(file, IOContext.READONCE)) {
-                    CodecUtil.checkHeader(input, CODEC, VERSION, VERSION);
+                    int version = CodecUtil.checkHeader(input, CODEC, VERSION_START, VERSION);
                     String msg = input.readString();
                     StringBuilder builder = new StringBuilder(shardId.toString());
-                    builder.append(" Corrupted index [");
+                    builder.append(" Preexisting corrupted index [");
                     builder.append(file).append("] caused by: ");
                     builder.append(msg);
+                    if (version == VERSION_STACK_TRACE) {
+                        builder.append(System.lineSeparator());
+                        builder.append(input.readString());
+                    }
                     ex.add(new CorruptIndexException(builder.toString()));
                     CodecUtil.checkFooter(input);
                 }
@@ -1032,6 +1038,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             try(IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(output, CODEC, VERSION);
                 output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0)); // handles null exception
+                output.writeString(ExceptionsHelper.stackTrace(exception));
                 CodecUtil.writeFooter(output);
             } catch (IOException ex) {
                 logger.warn("Can't mark store as corrupted", ex);

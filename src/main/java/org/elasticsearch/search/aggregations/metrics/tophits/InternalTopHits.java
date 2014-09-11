@@ -94,20 +94,23 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         TopDocs[] shardDocs = new TopDocs[aggregations.size()];
         InternalSearchHits[] shardHits = new InternalSearchHits[aggregations.size()];
+        TopDocs topDocs = this.topDocs;
         for (int i = 0; i < shardDocs.length; i++) {
             InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
             shardDocs[i] = topHitsAgg.topDocs;
             shardHits[i] = topHitsAgg.searchHits;
+            if (topDocs.scoreDocs.length == 0) {
+                topDocs = topHitsAgg.topDocs;
+            }
+        }
+        final Sort sort;
+        if (topDocs instanceof TopFieldDocs) {
+            sort = new Sort(((TopFieldDocs) topDocs).fields);
+        } else {
+            sort = null;
         }
 
         try {
-            final Sort sort;
-            if (topDocs instanceof TopFieldDocs) {
-                sort = new Sort(((TopFieldDocs) topDocs).fields);
-            } else {
-                sort = null;
-            }
-
             int[] tracker = new int[shardHits.length];
             TopDocs reducedTopDocs = TopDocs.merge(sort, from, size, shardDocs);
             InternalSearchHit[] hits = new InternalSearchHit[reducedTopDocs.scoreDocs.length];

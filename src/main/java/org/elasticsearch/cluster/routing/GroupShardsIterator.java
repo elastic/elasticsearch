@@ -19,19 +19,25 @@
 
 package org.elasticsearch.cluster.routing;
 
-import java.util.Collection;
-import java.util.Iterator;
+import org.apache.lucene.util.CollectionUtil;
+
+import java.util.*;
 
 /**
  * This class implements a compilation of {@link ShardIterator}s. Each {@link ShardIterator}
  * iterated by this {@link Iterable} represents a group of shards.
- *  
+ * ShardsIterators are always returned in ascending order independently of their order at construction
+ * time. The incoming iterators are sorted to ensure consistent iteration behavior across Nodes / JVMs.
 */
 public class GroupShardsIterator implements Iterable<ShardIterator> {
 
-    private final Collection<ShardIterator> iterators;
+    private final List<ShardIterator> iterators;
 
-    public GroupShardsIterator(Collection<ShardIterator> iterators) {
+    /**
+     * Constructs a enw GroupShardsIterator from the given list.
+     */
+    public GroupShardsIterator(List<ShardIterator> iterators) {
+        CollectionUtil.timSort(iterators);
         this.iterators = iterators;
     }
 
@@ -70,14 +76,6 @@ public class GroupShardsIterator implements Iterable<ShardIterator> {
      */
     public int size() {
         return iterators.size();
-    }
-
-    /**
-     * Return all group iterators
-     * @return
-     */
-    public Collection<ShardIterator> iterators() {
-        return iterators;
     }
 
     @Override

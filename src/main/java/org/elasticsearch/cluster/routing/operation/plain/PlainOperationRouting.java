@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing.operation.plain;
 
+import com.google.common.collect.Lists;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -41,10 +43,7 @@ import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  *
@@ -107,7 +106,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
             }
             set.add(indexShard.shardsRandomIt());
         }
-        return new GroupShardsIterator(set);
+        return new GroupShardsIterator(Lists.newArrayList(set));
     }
 
     @Override
@@ -126,7 +125,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                 set.add(iterator);
             }
         }
-        return new GroupShardsIterator(set);
+        return new GroupShardsIterator(Lists.newArrayList(set));
     }
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();

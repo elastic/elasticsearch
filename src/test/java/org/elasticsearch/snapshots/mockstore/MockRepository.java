@@ -21,25 +21,26 @@ package org.elasticsearch.snapshots.mockstore;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.fs.FsRepository;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
  */
@@ -68,8 +69,8 @@ public class MockRepository extends FsRepository {
     private volatile boolean blocked = false;
 
     @Inject
-    public MockRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
-        super(name, repositorySettings, indexShardRepository);
+    public MockRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, ClusterService clusterService) throws IOException {
+        super(name, overrideSettings(repositorySettings, clusterService), indexShardRepository);
         randomControlIOExceptionRate = repositorySettings.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = repositorySettings.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         blockOnControlFiles = repositorySettings.settings().getAsBoolean("block_on_control", false);
@@ -78,6 +79,22 @@ public class MockRepository extends FsRepository {
         waitAfterUnblock = repositorySettings.settings().getAsLong("wait_after_unblock", 0L);
         logger.info("starting mock repository with random prefix " + randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
+    }
+
+    private static RepositorySettings overrideSettings(RepositorySettings repositorySettings, ClusterService clusterService) {
+        if (repositorySettings.settings().getAsBoolean("localize_location", false)) {
+            return new RepositorySettings(
+                    repositorySettings.globalSettings(),
+                    localizeLocation(repositorySettings.settings(), clusterService));
+        } else {
+            return repositorySettings;
+        }
+    }
+
+    private static Settings localizeLocation(Settings settings, ClusterService clusterService) {
+        File location = new File(settings.get("location"));
+        location = new File(location, clusterService.localNode().getId());
+        return settingsBuilder().put(settings).put("location", location.getAbsolutePath()).build();
     }
 
     private void addFailure() {

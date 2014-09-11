@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.action.admin.cluster.repositories.verify.RestVerifyRepositoryAction;
 import org.elasticsearch.rest.action.exists.RestExistsAction;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
@@ -146,6 +147,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestPutRepositoryAction.class).asEagerSingleton();
         bind(RestGetRepositoriesAction.class).asEagerSingleton();
         bind(RestDeleteRepositoryAction.class).asEagerSingleton();
+        bind(RestVerifyRepositoryAction.class).asEagerSingleton();
         bind(RestGetSnapshotsAction.class).asEagerSingleton();
         bind(RestCreateSnapshotAction.class).asEagerSingleton();
         bind(RestRestoreSnapshotAction.class).asEagerSingleton();

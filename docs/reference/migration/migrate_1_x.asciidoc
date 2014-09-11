@@ -48,7 +48,7 @@ curl -XGET 'http://localhost:9200/_all/_warmers'
 curl -XGET 'http://localhost:9200/_warmers'
 --------------------------------------------------
 
-Similarly, the <<alias-retrieving, get alias api>> will return a section for `aliases` even if there are 
+The <<alias-retrieving, get alias api>> will return a section for `aliases` even if there are 
 no aliases.  This ensures that the following two examples are equivalent:
 
 [source,js]
@@ -57,4 +57,15 @@ curl -XGET 'http://localhost:9200/_all/_aliases'
 
 curl -XGET 'http://localhost:9200/_aliases'
 --------------------------------------------------
+
+The <<indices-get-mapping, get mapping api>> will return a section for `mappings` even if there are 
+no mappings.  This ensures that the following two examples are equivalent:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/_all/_mappings'
+
+curl -XGET 'http://localhost:9200/_mappings'
+--------------------------------------------------
+
 

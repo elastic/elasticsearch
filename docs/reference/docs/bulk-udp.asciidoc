@@ -1,6 +1,9 @@
 [[docs-bulk-udp]]
 == Bulk UDP API
 
+WARNING: Bulk UDP has been deprecated and will be removed in Elasticsearch 2.0.
+You should use <<docs-bulk,the standard bulk API>> instead.
+
 A Bulk UDP service is a service listening over UDP for bulk format
 requests. The idea is to provide a low latency UDP service that allows
 to easily index data that is not of critical nature.

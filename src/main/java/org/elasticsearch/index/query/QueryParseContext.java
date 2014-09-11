@@ -42,6 +42,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -78,6 +79,8 @@ public class QueryParseContext {
     private final Index index;
 
     private boolean propagateNoCache = false;
+
+    private boolean requireCustomQueryWrappingFilter = false;
 
     final IndexQueryParserService indexQueryParser;
 
@@ -118,6 +121,8 @@ public class QueryParseContext {
         this.lookup = null;
         this.parser = jp;
         this.namedFilters.clear();
+        this.requireCustomQueryWrappingFilter = false;
+        this.propagateNoCache = false;
     }
 
     public Index index() {
@@ -200,7 +205,7 @@ public class QueryParseContext {
     }
 
     public void addNamedQuery(String name, Query query) {
-        namedFilters.put(name, Queries.wrap(query));
+        namedFilters.put(name, Queries.wrap(query, this));
     }
 
     public ImmutableMap<String, Filter> copyNamedFilters() {
@@ -239,6 +244,13 @@ public class QueryParseContext {
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();
+        }
+        if (CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(result)) {
+            requireCustomQueryWrappingFilter = true;
+            // If later on, either directly or indirectly this query gets wrapped in a query filter it must never
+            // get cached even if a filter higher up the chain is configured to do this. This will happen, because
+            // the result filter will be instance of NoCacheFilter (CustomQueryWrappingFilter) which will in
+            // #executeFilterParser() set propagateNoCache to true.
         }
         return result;
     }
@@ -381,5 +393,9 @@ public class QueryParseContext {
             return current.nowInMillis();
         }
         return System.currentTimeMillis();
+    }
+
+    public boolean requireCustomQueryWrappingFilter() {
+        return requireCustomQueryWrappingFilter;
     }
 }

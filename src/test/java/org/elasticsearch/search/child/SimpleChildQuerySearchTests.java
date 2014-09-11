@@ -66,6 +66,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.factorFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -1063,6 +1064,79 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
+    }
+
+    @Test
+    public void testHasChildAndHasParentWrappedInAQueryFilter() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent"));
+        ensureGreen();
+
+        // query filter in case for p/c shouldn't execute per segment, but rather
+        client().prepareIndex("test", "parent", "1").setSource("p_field", 1).get();
+        client().admin().indices().prepareFlush("test").setForce(true).get();
+        client().prepareIndex("test", "child", "2").setParent("1").setSource("c_field", 1).get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), queryFilter(hasChildQuery("child", matchQuery("c_field", 1))))).get();
+        assertSearchHit(searchResponse, 1, hasId("1"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), queryFilter(topChildrenQuery("child", matchQuery("c_field", 1))))).get();
+        assertSearchHit(searchResponse, 1, hasId("1"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), queryFilter(hasParentQuery("parent", matchQuery("p_field", 1))))).get();
+        assertSearchHit(searchResponse, 1, hasId("2"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), queryFilter(boolQuery().must(hasChildQuery("child", matchQuery("c_field", 1)))))).get();
+        assertSearchHit(searchResponse, 1, hasId("1"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), queryFilter(boolQuery().must(topChildrenQuery("child", matchQuery("c_field", 1)))))).get();
+        assertSearchHit(searchResponse, 1, hasId("1"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), queryFilter(boolQuery().must(hasParentQuery("parent", matchQuery("p_field", 1)))))).get();
+        assertSearchHit(searchResponse, 1, hasId("2"));
+    }
+
+    @Test
+    public void testHasChildAndHasParentWrappedInAQueryFilterShouldNeverGetCached() throws Exception {
+        assertAcked(prepareCreate("test")
+                .setSettings(ImmutableSettings.builder().put("index.cache.filter.type", "weighted"))
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent"));
+        ensureGreen();
+
+        client().prepareIndex("test", "parent", "1").setSource("p_field", 1).get();
+        client().prepareIndex("test", "child", "2").setParent("1").setSource("c_field", 1).get();
+        refresh();
+
+        for (int i = 0; i < 10; i++) {
+            SearchResponse searchResponse = client().prepareSearch("test")
+                    .setExplain(true)
+                    .setQuery(constantScoreQuery(boolFilter()
+                                    .must(queryFilter(hasChildQuery("child", matchQuery("c_field", 1))))
+                                    .cache(true)
+                    )).get();
+            assertSearchHit(searchResponse, 1, hasId("1"));
+            // Can't start with ConstantScore(cache(BooleanFilter(
+            assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), startsWith("ConstantScore(BooleanFilter("));
+
+            searchResponse = client().prepareSearch("test")
+                    .setExplain(true)
+                    .setQuery(constantScoreQuery(boolFilter()
+                                    .must(queryFilter(boolQuery().must(matchAllQuery()).must(hasChildQuery("child", matchQuery("c_field", 1)))))
+                                    .cache(true)
+                    )).get();
+            assertSearchHit(searchResponse, 1, hasId("1"));
+            // Can't start with ConstantScore(cache(BooleanFilter(
+            assertThat(searchResponse.getHits().getAt(0).explanation().getDescription(), startsWith("ConstantScore(BooleanFilter("));
+        }
     }
 
     @Test

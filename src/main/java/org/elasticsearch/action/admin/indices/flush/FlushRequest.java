@@ -107,7 +107,7 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
         super.writeTo(out);
         out.writeBoolean(full);
         out.writeBoolean(force);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             out.writeBoolean(waitIfOngoing);
         }
     }
@@ -117,7 +117,7 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
         super.readFrom(in);
         full = in.readBoolean();
         force = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             waitIfOngoing = in.readBoolean();
         } else {
             waitIfOngoing = false;

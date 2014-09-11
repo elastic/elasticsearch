@@ -323,14 +323,14 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_1_4_0)) {
+        if (in.getVersion().before(Version.V_1_4_0_Beta)) {
             //term vector used to read & write the index twice, here and in the parent class
             in.readString();
         }
         type = in.readString();
         id = in.readString();
 
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             if (in.readBoolean()) {
                 doc = in.readBytesReference();
             }
@@ -357,14 +357,14 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_1_4_0)) {
+        if (out.getVersion().before(Version.V_1_4_0_Beta)) {
             //term vector used to read & write the index twice, here and in the parent class
             out.writeString(index);
         }
         out.writeString(type);
         out.writeString(id);
 
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeBytesReference(doc);

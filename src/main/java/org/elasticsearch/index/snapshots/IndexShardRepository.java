@@ -69,4 +69,10 @@ public interface IndexShardRepository {
      */
     IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, ShardId shardId);
 
+    /**
+     * Verifies repository settings on data node
+     * @param verificationToken value returned by {@link org.elasticsearch.repositories.Repository#startVerification()}
+     */
+    void verify(String verificationToken);
+
 }

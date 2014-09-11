@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositorySettings;
+import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.*;
 
 import java.io.FileNotFoundException;
@@ -116,6 +118,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     private static final String SNAPSHOT_PREFIX = "snapshot-";
 
     private static final String SNAPSHOTS_FILE = "index";
+
+    private static final String TESTS_FILE = "tests-";
 
     private static final String METADATA_PREFIX = "metadata-";
 
@@ -397,7 +401,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             String blobName = snapshotBlobName(snapshotId);
             int retryCount = 0;
             while (true) {
-                try (InputStream blob = snapshotsBlobContainer.openInput(blobName)){
+                try (InputStream blob = snapshotsBlobContainer.openInput(blobName)) {
                     byte[] data = ByteStreams.toByteArray(blob);
                     // Because we are overriding snapshot during finalization, it's possible that
                     // we can get an empty or incomplete snapshot for a brief moment
@@ -427,7 +431,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     private MetaData readSnapshotMetaData(SnapshotId snapshotId, ImmutableList<String> indices, boolean ignoreIndexErrors) {
         MetaData metaData;
-        try (InputStream blob = snapshotsBlobContainer.openInput(metaDataBlobName(snapshotId))){
+        try (InputStream blob = snapshotsBlobContainer.openInput(metaDataBlobName(snapshotId))) {
             byte[] data = ByteStreams.toByteArray(blob);
             metaData = readMetaData(data);
         } catch (FileNotFoundException | NoSuchFileException ex) {
@@ -580,7 +584,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * @throws IOException
      */
     private void writeGlobalMetaData(MetaData metaData, OutputStream outputStream) throws IOException {
-        StreamOutput stream = new OutputStreamStreamOutput(outputStream) ;
+        StreamOutput stream = new OutputStreamStreamOutput(outputStream);
         if (isCompress()) {
             stream = CompressorFactory.defaultCompressor().streamOutput(stream);
         }
@@ -629,7 +633,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * @throws IOException I/O errors
      */
     protected ImmutableList<SnapshotId> readSnapshotList() throws IOException {
-        try (InputStream blob = snapshotsBlobContainer.openInput(SNAPSHOTS_FILE)){
+        try (InputStream blob = snapshotsBlobContainer.openInput(SNAPSHOTS_FILE)) {
             final byte[] data = ByteStreams.toByteArray(blob);
             ArrayList<SnapshotId> snapshots = new ArrayList<>();
             try (XContentParser parser = XContentHelper.createParser(data, 0, data.length)) {
@@ -668,5 +672,32 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     @Override
     public long restoreThrottleTimeInNanos() {
         return restoreRateLimitingTimeInNanos.count();
+    }
+
+    @Override
+    public String startVerification() {
+        try {
+            String seed = Strings.randomBase64UUID();
+            byte[] testBytes = Strings.toUTF8Bytes(seed);
+            try (OutputStream outputStream = snapshotsBlobContainer.createOutput(testBlobPrefix(seed) + "-master")) {
+                outputStream.write(testBytes);
+            }
+            return seed;
+        } catch (IOException exp) {
+            throw new RepositoryVerificationException(repositoryName, "path " + basePath() + " is not accessible on master node", exp);
+        }
+    }
+
+    @Override
+    public void endVerification(String seed) {
+        try {
+            snapshotsBlobContainer.deleteBlobsByPrefix(testBlobPrefix(seed));
+        } catch (IOException exp) {
+            throw new RepositoryVerificationException(repositoryName, "cannot delete test data at " + basePath(), exp);
+        }
+    }
+
+    public static String testBlobPrefix(String seed) {
+        return TESTS_FILE + seed;
     }
 }

@@ -211,6 +211,11 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     @Override
+    public int numDataAndMasterNodes() {
+        return runningNodes().size() + cluster.numDataAndMasterNodes();
+    }
+
+    @Override
     public int numBenchNodes() {
         return cluster.numBenchNodes();
     }

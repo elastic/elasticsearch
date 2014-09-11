@@ -98,6 +98,11 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     public abstract int numDataNodes();
 
     /**
+     * Returns the number of data and master eligible nodes in the cluster.
+     */
+    public abstract int numDataAndMasterNodes();
+
+    /**
      * Returns the number of bench nodes in the cluster.
      */
     public abstract int numBenchNodes();

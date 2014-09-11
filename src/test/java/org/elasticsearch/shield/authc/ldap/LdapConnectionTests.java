@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.util.List;
 import java.util.Map;
@@ -20,7 +21,10 @@ public class LdapConnectionTests extends ElasticsearchTestCase {
     public static String SETTINGS_PREFIX = LdapRealm.class.getPackage().getName().substring("com.elasticsearch.".length()) + '.';
 
     @Rule
-    public static ApacheDsRule apacheDsRule = new ApacheDsRule();
+    public static TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    @Rule
+    public static ApacheDsRule apacheDsRule = new ApacheDsRule(temporaryFolder);
 
     @Test
     public void testBindWithTemplates() {

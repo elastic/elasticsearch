@@ -18,6 +18,7 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
@@ -41,7 +42,10 @@ public class LdapRealmTest extends ElasticsearchTestCase {
     }
 
     @Rule
-    public static ApacheDsRule apacheDsRule = new ApacheDsRule();
+    public static TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    @Rule
+    public static ApacheDsRule apacheDsRule = new ApacheDsRule(temporaryFolder);
 
     @Test
     public void testRestHeaderRegistration() {

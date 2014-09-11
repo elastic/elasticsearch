@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc.ldap;
 
 import org.junit.rules.MethodRule;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runners.model.FrameworkMethod;
 import org.junit.runners.model.Statement;
 
@@ -15,6 +16,11 @@ import org.junit.runners.model.Statement;
 public class ApacheDsRule implements MethodRule {
 
     private ApacheDsEmbedded ldap;
+    private final TemporaryFolder temporaryFolder;
+
+    public ApacheDsRule(TemporaryFolder temporaryFolder) {
+        this.temporaryFolder = temporaryFolder;
+    }
 
     @Override
     public Statement apply(final Statement base, final FrameworkMethod method, final Object target) {
@@ -23,7 +29,7 @@ public class ApacheDsRule implements MethodRule {
             @Override
             public void evaluate() throws Throwable {
                 try {
-                    ldap = new ApacheDsEmbedded("o=sevenSeas", "seven-seas.ldif", target.getClass().getName());
+                    ldap = new ApacheDsEmbedded("o=sevenSeas", "seven-seas.ldif", temporaryFolder.newFolder());
                     ldap.startServer();
                     base.evaluate();
                 } finally {

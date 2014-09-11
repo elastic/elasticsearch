@@ -34,7 +34,6 @@ import org.elasticsearch.rest.support.RestUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.rest.RestStatus.*;
@@ -95,7 +94,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
      * its corresponding {@link org.elasticsearch.transport.TransportRequest}(s).
      * By default no headers get copied but it is possible to extend this behaviour via plugins by calling {@link #registerRelevantHeaders(String...)}.
      */
-    public Set<String> relevantHeaders() {
+    public ImmutableSet<String> relevantHeaders() {
         return relevantHeaders;
     }
 

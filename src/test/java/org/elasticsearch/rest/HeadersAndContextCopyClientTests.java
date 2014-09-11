@@ -91,12 +91,6 @@ public class HeadersAndContextCopyClientTests extends ElasticsearchTestCase {
         assertThat(relevantHeaders, equalTo(headersArray));
     }
 
-    @Test(expected = UnsupportedOperationException.class)
-    public void testRelevantHeadersAreImmutable() {
-        final RestController restController = new RestController(ImmutableSettings.EMPTY);
-        restController.relevantHeaders().add("foo");
-    }
-
     @Test
     public void testCopyHeadersRequest() {
         Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));

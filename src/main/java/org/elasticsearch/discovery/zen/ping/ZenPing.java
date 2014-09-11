@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -58,7 +59,8 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
 
         private DiscoveryNode master;
 
-        private boolean hasJoinedOnce;
+        @Nullable
+        private Boolean hasJoinedOnce;
 
         private PingResponse() {
         }
@@ -90,8 +92,9 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             return master;
         }
 
-        /** true if the joined has successfully joined the cluster before */
-        public boolean hasJoinedOnce() {
+        /** true if the joined has successfully joined the cluster before, null for nodes with a <1.4.0 version */
+        @Nullable
+        public Boolean hasJoinedOnce() {
             return hasJoinedOnce;
         }
 
@@ -111,11 +114,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
                 this.hasJoinedOnce = in.readBoolean();
             } else {
-                // As of 1.4.0 we prefer to elect nodes which have previously successfully joined the cluster.
-                // Nodes before 1.4.0 do not take this into consideration. If pre<1.4.0 node elects it self as master
-                // based on the pings, we need to make sure we do the same. We therefore can not demote it
-                // and thus mark it as if it has previously joined.
-                this.hasJoinedOnce = true;
+                this.hasJoinedOnce = null;
             }
 
         }

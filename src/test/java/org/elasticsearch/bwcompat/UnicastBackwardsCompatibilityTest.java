@@ -22,20 +22,29 @@ package org.elasticsearch.bwcompat;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
+
+import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
 
+
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, minNumDataNodes = 0, maxNumDataNodes = 0)
 public class UnicastBackwardsCompatibilityTest extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("transport.tcp.port", 9380 + nodeOrdinal)
+                .put("transport.tcp.port", "9380-9390")
                 .put("discovery.zen.ping.multicast.enabled", false)
-                .put("discovery.zen.ping.unicast.hosts", "localhost:9380,localhost:9381,localhost:9390,localhost:9391")
+                        // we need to accommodate for the client node
+                .put("discovery.zen.ping.unicast.hosts", "localhost:9381,localhost:9382,localhost:9383")
                 .build();
     }
 
@@ -43,15 +52,66 @@ public class UnicastBackwardsCompatibilityTest extends ElasticsearchBackwardsCom
     protected Settings externalNodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
                 .put(super.externalNodeSettings(nodeOrdinal))
-                .put("transport.tcp.port", 9390 + nodeOrdinal)
+                .put("transport.tcp.port", "9380-9390")
                 .put("discovery.zen.ping.multicast.enabled", false)
-                .put("discovery.zen.ping.unicast.hosts", "localhost:9380,localhost:9381,localhost:9390,localhost:9391")
+                        // we need to accommodate for the client node
+                .put("discovery.zen.ping.unicast.hosts", "localhost:9381,localhost:9382,localhost:9383")
                 .build();
     }
 
+    protected int minExternalNodes() {
+        return 0;
+    }
+
+    protected int maxExternalNodes() {
+        return 0;
+    }
+
+
     @Test
-    public void testUnicastDiscovery() {
-        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().get();
-        assertThat(healthResponse.getNumberOfDataNodes(), equalTo(cluster().numDataNodes()));
+    @TestLogging("discovery.zen:TRACE")
+    public void testUnicastDiscovery() throws ExecutionException, InterruptedException, IOException {
+        // start a client node now, to make sure it grabs the first port
+        backwardsCluster().internalCluster().startNode(ImmutableSettings.builder()
+                .put("node.client", "true")
+                .put(DiscoveryService.SETTING_INITIAL_STATE_TIMEOUT, "10ms")); // don't wait there is nothing out there.
+
+
+        // start cluster in a random order, making sure there is at least 1 external node
+        final int numOfDataNodes = randomIntBetween(1, 4);
+        final int totalNumberOfNodes = numOfDataNodes + 1;
+        boolean[] external = new boolean[numOfDataNodes];
+
+        boolean hadExternal = false;
+        for (int i = 0; i < external.length; i++) {
+            boolean b = randomBoolean();
+            hadExternal = hadExternal || b;
+            external[i] = b;
+        }
+        if (!hadExternal) {
+            external[randomIntBetween(0, external.length - 1)] = true;
+        }
+
+        logger.info("starting [{}] nodes", external.length);
+        for (int i = 0; i < external.length; i++) {
+            if (external[i]) {
+                backwardsCluster().startNewExternalNode();
+            } else {
+                backwardsCluster().startNewNode();
+            }
+        }
+
+        logger.info("waiting for nodes to join");
+        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("" + totalNumberOfNodes).get();
+        assertThat(healthResponse.getNumberOfDataNodes(), equalTo(numOfDataNodes));
+
+
+        boolean upgraded;
+        do {
+            logClusterState();
+            upgraded = backwardsCluster().upgradeOneNode();
+            healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("" + totalNumberOfNodes).get();
+            assertThat(healthResponse.getNumberOfDataNodes(), equalTo(numOfDataNodes));
+        } while (upgraded);
     }
 }

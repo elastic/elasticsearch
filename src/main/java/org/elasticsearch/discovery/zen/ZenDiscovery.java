@@ -620,7 +620,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 processNewClusterStates.drainTo(pendingNewClusterStates);
                 logger.trace("removed [{}] pending cluster states", pendingNewClusterStates.size());
 
-                if (rejoinOnMasterGone) {
+                boolean rejoin = true;
+                if (!rejoinOnMasterGone) {
+                    logger.debug("not rejoining cluster due to rejoinOnMasterGone [{}]", rejoinOnMasterGone);
+                    rejoin = false;
+                } else if (discoveryNodes.smallestNonClientNodeVersion().before(Version.V_1_4_0)) {
+                    logger.debug("not rejoining cluster due a minimum node version of [{}]", discoveryNodes.smallestNonClientNodeVersion());
+                    rejoin = false;
+                }
+
+                if (rejoin) {
                     return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "master left (reason = " + reason + ")");
                 }
 
@@ -991,11 +1000,20 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 joinedOnceActiveNodes.add(localNode);
             }
         }
+
+        Version minimumPingVersion = localNode.version();
         for (ZenPing.PingResponse pingResponse : pingResponses) {
             activeNodes.add(pingResponse.node());
-            if (pingResponse.hasJoinedOnce()) {
+            minimumPingVersion = Version.smallest(pingResponse.node().version(), minimumPingVersion);
+            if (pingResponse.hasJoinedOnce() != null && pingResponse.hasJoinedOnce()) {
+                assert minimumPingVersion.onOrAfter(Version.V_1_4_0);
                 joinedOnceActiveNodes.add(pingResponse.node());
             }
+        }
+
+        if (minimumPingVersion.before(Version.V_1_4_0)) {
+            logger.trace("ignoring joined once flags in ping responses, minimum ping version [{}]", minimumPingVersion);
+            joinedOnceActiveNodes.clear();
         }
 
         if (pingMasters.isEmpty()) {

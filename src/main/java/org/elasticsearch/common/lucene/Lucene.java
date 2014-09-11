@@ -42,7 +42,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
-import java.util.Locale;
 
 import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
 
@@ -424,7 +423,7 @@ public class Lucene {
 
     public static Explanation readExplanation(StreamInput in) throws IOException {
         Explanation explanation;
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0) && in.readBoolean()) {
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0_Beta) && in.readBoolean()) {
             Boolean match = in.readOptionalBoolean();
             explanation = new ComplexExplanation();
             ((ComplexExplanation) explanation).setMatch(match);
@@ -445,7 +444,7 @@ public class Lucene {
 
     public static void writeExplanation(StreamOutput out, Explanation explanation) throws IOException {
 
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0_Beta)) {
             if (explanation instanceof ComplexExplanation) {
                 out.writeBoolean(true);
                 out.writeOptionalBoolean(((ComplexExplanation) explanation).getMatch());

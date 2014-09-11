@@ -127,7 +127,7 @@ final class ActionNames {
     }
 
     static String incomingAction(String action, Version version) {
-        if (version.before(Version.V_1_4_0)) {
+        if (version.before(Version.V_1_4_0_Beta)) {
             String post_1_4_action = post_1_4_action(action);
             //custom action e.g. registered through plugin are not mapped, fallback to the original one
             if (post_1_4_action != null) {
@@ -138,7 +138,7 @@ final class ActionNames {
     }
 
     static String outgoingAction(String action, Version version) {
-        if (version.before(Version.V_1_4_0)) {
+        if (version.before(Version.V_1_4_0_Beta)) {
             String pre_1_4_Action = pre_1_4_Action(action);
             //custom actions e.g. registered through plugins are not mapped, fallback to the original one
             if (pre_1_4_Action != null) {

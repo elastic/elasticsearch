@@ -118,16 +118,16 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
     private static final Map<String, Version> actionsVersions = new HashMap<>();
 
     static {
-        actionsVersions.put(BenchmarkService.STATUS_ACTION_NAME, Version.V_1_4_0);
-        actionsVersions.put(BenchmarkService.START_ACTION_NAME, Version.V_1_4_0);
-        actionsVersions.put(BenchmarkService.ABORT_ACTION_NAME, Version.V_1_4_0);
-        actionsVersions.put(BenchmarkAction.NAME, Version.V_1_4_0);
-        actionsVersions.put(BenchmarkStatusAction.NAME, Version.V_1_4_0);
-        actionsVersions.put(AbortBenchmarkAction.NAME, Version.V_1_4_0);
-        actionsVersions.put(GetIndexAction.NAME, Version.V_1_4_0);
+        actionsVersions.put(BenchmarkService.STATUS_ACTION_NAME, Version.V_1_4_0_Beta);
+        actionsVersions.put(BenchmarkService.START_ACTION_NAME, Version.V_1_4_0_Beta);
+        actionsVersions.put(BenchmarkService.ABORT_ACTION_NAME, Version.V_1_4_0_Beta);
+        actionsVersions.put(BenchmarkAction.NAME, Version.V_1_4_0_Beta);
+        actionsVersions.put(BenchmarkStatusAction.NAME, Version.V_1_4_0_Beta);
+        actionsVersions.put(AbortBenchmarkAction.NAME, Version.V_1_4_0_Beta);
+        actionsVersions.put(GetIndexAction.NAME, Version.V_1_4_0_Beta);
 
-        actionsVersions.put(ExistsAction.NAME, Version.V_1_4_0);
-        actionsVersions.put(ExistsAction.NAME + "[s]", Version.V_1_4_0);
+        actionsVersions.put(ExistsAction.NAME, Version.V_1_4_0_Beta);
+        actionsVersions.put(ExistsAction.NAME + "[s]", Version.V_1_4_0_Beta);
 
         actionsVersions.put(IndicesStore.ACTION_SHARD_EXISTS, Version.V_1_3_0);
 

@@ -57,7 +57,8 @@ the OpenJDK are supported.
 
 We recommend installing the *Java 8 update 20 or later*, or *Java 7 update 55
 or later*.  Previous versions of Java 7 are known to have bugs that can cause
-index corruption and data loss.
+index corruption and data loss.  Elasticsearch will refuse to start if a
+known-bad version of Java is used. coming[1.5.0]
 
 The version of Java to use can be configured by setting the `JAVA_HOME`
 environment variable.

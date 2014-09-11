@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -512,6 +513,16 @@ public class Requests {
      */
     public static DeleteRepositoryRequest deleteRepositoryRequest(String name) {
         return new DeleteRepositoryRequest(name);
+    }
+
+    /**
+     * Verifies snapshot repository
+     *
+     * @param name repository name
+     * @return repository verification request
+     */
+    public static VerifyRepositoryRequest verifyRepositoryRequest(String name) {
+        return new VerifyRepositoryRequest(name);
     }
 
 

@@ -346,14 +346,14 @@ public class XNRTSuggester extends XLookup {
         return tsta;
     }
 
-    private XLookupResult getLookupResult(CharsRef term, Long output1, BytesRef payload, List<XLookupResult.XStoredField> storedFields) {
-        return new XLookupResult(term.toString(), decodeWeight(output1), payload, storedFields);
+    private Result getLookupResult(CharsRef term, Long output1, BytesRef payload, List<Result.XStoredField> storedFields) {
+        return new Result(term.toString(), decodeWeight(output1), payload, storedFields);
     }
 
-    private static List<XLookupResult.XStoredField> getPayloadFields(int docID, Set<String> payloadFieldNames, final AtomicReader reader) throws IOException {
+    private static List<Result.XStoredField> getPayloadFields(int docID, Set<String> payloadFieldNames, final AtomicReader reader) throws IOException {
         if (payloadFieldNames != null) {
             final Document document = reader.document(docID, payloadFieldNames);
-            return XLookupResult.getStoredFieldsFromDocument(document, payloadFieldNames);
+            return Result.getStoredFieldsFromDocument(document, payloadFieldNames);
         }
         return null;
     }
@@ -363,11 +363,7 @@ public class XNRTSuggester extends XLookup {
     }
 
     @Override
-    public List<XLookupResult> lookup(final XLookupOptions lookupOptions) {
-        final CharSequence key = lookupOptions.key;
-        final int num = lookupOptions.num;
-        final AtomicReader reader = lookupOptions.reader;
-        final Set<String> payloadFields = lookupOptions.payloadFields;
+    public List<Result> lookup(final CharSequence key, final int num, final AtomicReader reader, final Set<String> payloadFields, final boolean duplicateSurfaceForm) {
         /* DEBUG
         try {
             PrintWriter pw = new PrintWriter("/tmp/out.dot");
@@ -377,7 +373,7 @@ public class XNRTSuggester extends XLookup {
             e.printStackTrace();
         }
         */
-        assert num > 0;
+        assert num > 0 : "num must be > 0, found num="+num;
         if (fst == null) {
             return Collections.emptyList();
         }
@@ -411,7 +407,7 @@ public class XNRTSuggester extends XLookup {
 
             //System.out.println("  prefixPaths: " + prefixPaths.size());
 
-            final List<XLookupResult> results = new ArrayList<>();
+            final List<Result> results = new ArrayList<>();
 
             List<FSTUtil.Path<Pair<Long,BytesRef>>> prefixPaths = FSTUtil.intersectPrefixPaths(convertAutomaton(lookupAutomaton), fst);
 
@@ -425,7 +421,7 @@ public class XNRTSuggester extends XLookup {
                 private CharsRefBuilder spare = new CharsRefBuilder();
 
                 @Override
-                protected boolean acceptResult(IntsRef input, Pair<Long,BytesRef> output) {
+                protected boolean collectResult(IntsRef input, Pair<Long, BytesRef> output) throws IOException {
 
                     XPayLoadProcessor.PayloadMetaData metaData = XPayLoadProcessor.parse(output.output2, hasPayloads, payloadSep, spare);
                     if (liveDocs != null && metaData.hasDocID()) {
@@ -435,19 +431,15 @@ public class XNRTSuggester extends XLookup {
                     }
                     // Dedup: when the input analyzes to a graph we
                     // can get duplicate surface forms:
-                    if (!lookupOptions.duplicateSurfaceForm && seen.contains(metaData.surfaceForm)) {
+                    if (!duplicateSurfaceForm && seen.contains(metaData.surfaceForm)) {
                         return false;
                     }
                     seen.add(metaData.surfaceForm);
 
-                    try {
-                        XLookupResult result = getLookupResult(spare.get(), output.output1, metaData.payload,
-                                                               getPayloadFields(metaData.docID, payloadFields, reader));
-                        results.add(result);
-                        return true;
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+                    Result result = getLookupResult(spare.get(), output.output1, metaData.payload,
+                                                           getPayloadFields(metaData.docID, payloadFields, reader));
+                    results.add(result);
+                    return true;
                 }
             };
 

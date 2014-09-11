@@ -44,7 +44,7 @@ public abstract class XLookup extends Lookup {
      * Result of a lookup.
      * @lucene.experimental
      */
-    public static final class XLookupResult implements Comparable<XLookupResult> {
+    public static final class Result implements Comparable<Result> {
         /** the key's text */
         public final CharSequence key;
 
@@ -183,14 +183,14 @@ public abstract class XLookup extends Lookup {
         /**
          * Create a new result from a key+weight+payload+storedFields.
          */
-        public XLookupResult(CharSequence key, long value, BytesRef payload, List<XStoredField> storedFields) {
+        public Result(CharSequence key, long value, BytesRef payload, List<XStoredField> storedFields) {
             this(key, null, value, payload, storedFields);
         }
 
         /**
          * Create a new result from a key+highlightKey+weight+payload+storedFields.
          */
-        public XLookupResult(CharSequence key, Object highlightKey, long value, BytesRef payload, List<XStoredField> storedFields) {
+        public Result(CharSequence key, Object highlightKey, long value, BytesRef payload, List<XStoredField> storedFields) {
             this.key = key;
             this.highlightKey = highlightKey;
             this.value = value;
@@ -205,65 +205,8 @@ public abstract class XLookup extends Lookup {
 
         /** Compare alphabetically. */
         @Override
-        public int compareTo(XLookupResult o) {
+        public int compareTo(Result o) {
             return CHARSEQUENCE_COMPARATOR.compare(key, o.key);
-        }
-    }
-
-    /**
-     * Encapsulates all options that are accepted by the lookup method
-     */
-    public final static class XLookupOptions {
-        final CharSequence key;
-        final int num;
-        final AtomicReader reader;
-        final Set<String> payloadFields;
-        boolean duplicateSurfaceForm = false;
-
-        /**
-         * Creates a LookupOptions instance with a <code>key</code> to lookup with at most <code>num</code>
-         * results. Uses the <code>reader</code> to enable NRT functionality
-         */
-        public XLookupOptions(CharSequence key, int num, AtomicReader reader) {
-            this(key, num, reader, null, false);
-        }
-
-        /**
-         * Creates a LookupOptions instance with a <code>key</code> to lookup with at most <code>num</code>
-         * results. Results can be duplicated (useful if they have different meta data associated with them), if
-         * <code>duplicateSurfaceForm</code> is set to <code>true</code>. <code>duplicateSurfaceForm</code> defaults
-         * to <code>false</code>.
-         * Uses the <code>reader</code> to enable NRT functionality.
-         */
-        public XLookupOptions(CharSequence key, int num, AtomicReader reader, boolean duplicateSurfaceForm) {
-            this(key, num, reader, null, duplicateSurfaceForm);
-        }
-
-        /**
-         * Creates a LookupOptions instance with a <code>key</code> to lookup with at most <code>num</code>
-         * results. Additionally return field values for the specified {@link org.apache.lucene.document.StoredField}s
-         * using <code>payloadFields</code> associated with the suggestion document.
-         * Uses the <code>reader</code> to enable NRT functionality.
-         */
-        public XLookupOptions(CharSequence key, int num, AtomicReader reader, Set<String> payloadFields) {
-            this(key, num, reader, payloadFields, false);
-        }
-
-        /**
-         * Creates a LookupOptions instance with a <code>key</code> to lookup with at most <code>num</code>
-         * results. Additionally return field values for the specified {@link org.apache.lucene.document.StoredField}s
-         * using <code>payloadFields</code> associated with the suggestion document.
-         * Results can be duplicated (useful if they have different meta data associated with them), if
-         * <code>duplicateSurfaceForm</code> is set to <code>true</code>. <code>duplicateSurfaceForm</code> defaults
-         * to <code>false</code>.
-         * Uses the <code>reader</code> to enable NRT functionality.
-         */
-        public XLookupOptions(CharSequence key, int num, AtomicReader reader, Set<String> payloadFields, boolean duplicateSurfaceForm) {
-            this.key = key;
-            this.num = num;
-            this.reader = reader;
-            this.payloadFields = payloadFields;
-            this.duplicateSurfaceForm = duplicateSurfaceForm;
         }
     }
 
@@ -279,25 +222,34 @@ public abstract class XLookup extends Lookup {
         throw new UnsupportedOperationException();
     }
 
-    public List<XLookupResult> lookup(CharSequence key, int num) {
-        return lookup(key, num, null, null);
+    public List<Result> lookup(CharSequence key, int num) {
+        return lookup(key, num, null, null, false);
     }
 
-    public List<XLookupResult> lookup(CharSequence key, int num, AtomicReader reader) {
-        return lookup(key, num, reader, null);
+    public List<Result> lookup(CharSequence key, int num, AtomicReader reader) {
+        return lookup(key, num, reader, null, false);
     }
 
-    public List<XLookupResult> lookup(final CharSequence key, int num, final AtomicReader reader, Set<String> payloadFields) {
-        return lookup(new XLookupOptions(key, num, reader, payloadFields));
+    public List<Result> lookup(CharSequence key, int num, AtomicReader reader, boolean duplicateSurfaceForm) {
+        return lookup(key, num, reader, null, duplicateSurfaceForm);
+    }
+
+    public List<Result> lookup(CharSequence key, int num, AtomicReader reader, final Set<String> payloadFields) {
+        return lookup(key, num, reader, payloadFields, false);
     }
 
     /**
-     * Return possible suggestions for a given {@link org.apache.lucene.search.suggest.analyzing.XLookup.XLookupOptions}
+     * Return possible suggestions for <code>key</code>
      *
-     * @param lookupOptions containing all the configuration to perform a lookup
+     * @param key used to lookup suggestions
+     * @param num maximum number of suggestions to return
+     * @param reader used to enable NRT functionality
+     * @param payloadFields used to return associated field values for retrieved suggestions
+     * @param duplicateSurfaceForm enables returning duplicate suggestions (useful if they have different meta data associated with them), Defaults to <code>false</code>
+     *
      * @return a list of possible completions, along with their meta data
      */
-    public abstract List<XLookupResult> lookup(final XLookupOptions lookupOptions);
+    public abstract List<Result> lookup(final CharSequence key, final int num, final AtomicReader reader, final Set<String> payloadFields, final boolean duplicateSurfaceForm);
 
     /**
      * Persist the constructed lookup data to a directory. Optional operation.

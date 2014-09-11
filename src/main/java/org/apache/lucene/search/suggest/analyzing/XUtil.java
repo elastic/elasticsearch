@@ -148,7 +148,7 @@ public class XUtil {
 
 
         /**
-         * The results for the search can be collected using {@link #acceptResult(org.apache.lucene.util.IntsRef, Object)}
+         * The results for the search can be collected using {@link #collectResult(org.apache.lucene.util.IntsRef, Object)}
          *
          * @return <code>true</code> iff this is a complete result ie. if
          * the specified queue size was large enough to find the complete list of results. This might
@@ -277,7 +277,7 @@ public class XUtil {
                             System.out.println("    done!: " + path);
                         }
                         T finalOutput = fst.outputs.add(path.cost, path.arc.output);
-                        if (acceptResult(path.input.get(), finalOutput)) {
+                        if (collectResult(path.input.get(), finalOutput)) {
                             if (DEBUG) {
                                 System.out.println("    add result: " + path);
                             }
@@ -296,8 +296,8 @@ public class XUtil {
             return rejectCount + topN <= maxQueueDepth;
         }
 
-        protected boolean acceptResult(IntsRef input, T output) {
-            throw new UnsupportedOperationException("accept result method is not implemented");
+        protected boolean collectResult(IntsRef input, T output) throws IOException {
+            throw new UnsupportedOperationException("collectResult is not implemented");
         }
     }
     /** Compares first by the provided comparator, and then

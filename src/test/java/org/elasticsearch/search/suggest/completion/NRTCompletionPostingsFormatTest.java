@@ -162,13 +162,13 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
         });
         String firstTerm = builder.toString();
         String prefix = firstTerm.isEmpty() ? "" : firstTerm.substring(0, between(1, firstTerm.length()));
-        List<XLookup.XLookupResult> lookupResults = suggester.lookup(prefix, res, atomicReader, strings);
-        for(XLookup.XLookupResult lookupResult : lookupResults) {
+        List<XLookup.Result> lookupResults = suggester.lookup(prefix, res, atomicReader, strings);
+        for(XLookup.Result lookupResult : lookupResults) {
             String key = lookupResult.key.toString();
             long weight = lookupResult.value;
             // ensure all requested storedFields are returned
             assertThat(strings.size(), equalTo(lookupResult.storedFields.size()));
-            for (XLookup.XLookupResult.XStoredField storedField : lookupResult.storedFields) {
+            for (XLookup.Result.XStoredField storedField : lookupResult.storedFields) {
                 assertTrue(strings.contains(storedField.name));
                 // ensure all values of storedFields are correct
                 Class clazz = storedFieldsToType.get(storedField.name);
@@ -257,9 +257,9 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
         assertTrue(lookup instanceof XNRTSuggester);
         XNRTSuggester suggester = (XNRTSuggester) lookup;
 
-        List<XLookup.XLookupResult> lookupResults = suggester.lookup(prefix, res);
+        List<XLookup.Result> lookupResults = suggester.lookup(prefix, res);
 
-        for (XLookup.XLookupResult result : lookupResults) {
+        for (XLookup.Result result : lookupResults) {
             if (randomBoolean()) {
                 String key = result.key.toString();
                 IndexReader indexReader = completionProvider.getReader();
@@ -285,7 +285,7 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
         lookupResults = suggesterWithDeletes.lookup(prefix, res, atomicReader);
 
         if (lookupResults.size() > 0) {
-            for(XLookup.XLookupResult result : lookupResults) {
+            for(XLookup.Result result : lookupResults) {
                 final String key = result.key.toString();
                 Integer counter = deletedTerms.get(key);
                 if (counter != null) {
@@ -342,18 +342,18 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
         final Tuple<XLookup, AtomicReader> lookupAndReader = completionProvider.getLookup(reader);
         XLookup lookup = lookupAndReader.v1();
         AtomicReader atomicReader = lookupAndReader.v2();
-        List<XLookup.XLookupResult> defaultLookupResults = lookup.lookup(new XLookup.XLookupOptions(prefix, res, atomicReader));
+        List<XLookup.Result> defaultLookupResults = lookup.lookup(prefix, res, atomicReader);
 
         // sanity check (default should not duplicate output form)
         assertThat(defaultLookupResults.size(), equalTo(1));
 
-        List<XLookup.XLookupResult> duplicateOutputLookupResults = lookup.lookup(new XLookup.XLookupOptions(prefix, res, atomicReader, true));
+        List<XLookup.Result> duplicateOutputLookupResults = lookup.lookup(prefix, res, atomicReader, true);
         reader.close();
 
         // should duplicate output form (size == res)
         assertThat(duplicateOutputLookupResults.size(), equalTo(res));
 
-        for (XLookup.XLookupResult result : duplicateOutputLookupResults) {
+        for (XLookup.Result result : duplicateOutputLookupResults) {
             // weight should be highest to lowest
             assertThat(result.value, lessThanOrEqualTo(topScore));
             topScore = result.value;
@@ -417,9 +417,9 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
             AtomicReader atomicReader = lookupAndReader.v2();
             assertTrue(lookup instanceof XNRTSuggester);
             XNRTSuggester suggester = (XNRTSuggester) lookup;
-            List<XLookup.XLookupResult> lookupResults = suggester.lookup(prefix, res, atomicReader);
+            List<XLookup.Result> lookupResults = suggester.lookup(prefix, res, atomicReader);
             reader.close();
-            for (XLookup.XLookupResult result : lookupResults) {
+            for (XLookup.Result result : lookupResults) {
                 String key = result.key.toString();
                 // check weight should be highest to lowest
                 assertThat(result.value, lessThanOrEqualTo(topScore));
@@ -571,7 +571,7 @@ public class NRTCompletionPostingsFormatTest extends ElasticsearchTestCase {
             String firstTerm = builder.toString();
             String prefix = firstTerm.isEmpty() ? "" : firstTerm.substring(0, between(1, firstTerm.length()));
             List<LookupResult> refLookup = reference.lookup(prefix, false, res);
-            List<XLookup.XLookupResult> lookup = nrtLookup.lookup(prefix, res);
+            List<XLookup.Result> lookup = nrtLookup.lookup(prefix, res);
             assertThat(refLookup.toString(), lookup.size(), equalTo(refLookup.size()));
             for (int j = 0; j < refLookup.size(); j++) {
                 assertThat(lookup.get(j).key, equalTo(refLookup.get(j).key));

@@ -37,7 +37,7 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 /**
  *
  */
-public class ClusterHealthRequest extends MasterNodeReadOperationRequest<ClusterHealthRequest> implements IndicesRequest {
+public class ClusterHealthRequest extends MasterNodeReadOperationRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private TimeValue timeout = new TimeValue(30, TimeUnit.SECONDS);
@@ -59,6 +59,7 @@ public class ClusterHealthRequest extends MasterNodeReadOperationRequest<Cluster
         return indices;
     }
 
+    @Override
     public ClusterHealthRequest indices(String[] indices) {
         this.indices = indices;
         return this;

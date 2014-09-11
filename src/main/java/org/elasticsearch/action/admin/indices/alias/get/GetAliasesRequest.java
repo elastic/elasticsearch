@@ -31,7 +31,7 @@ import java.io.IOException;
 
 /**
  */
-public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliasesRequest> implements IndicesRequest {
+public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliasesRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
@@ -49,6 +49,7 @@ public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliases
     public GetAliasesRequest() {
     }
 
+    @Override
     public GetAliasesRequest indices(String... indices) {
         this.indices = indices;
         return this;

@@ -33,7 +33,7 @@ import java.io.IOException;
 
 /**
  */
-public class ClusterSearchShardsRequest extends MasterNodeReadOperationRequest<ClusterSearchShardsRequest> implements IndicesRequest {
+public class ClusterSearchShardsRequest extends MasterNodeReadOperationRequest<ClusterSearchShardsRequest> implements IndicesRequest.Replaceable {
     private String[] indices;
     @Nullable
     private String routing;
@@ -58,6 +58,7 @@ public class ClusterSearchShardsRequest extends MasterNodeReadOperationRequest<C
     /**
      * Sets the indices the search will be executed on.
      */
+    @Override
     public ClusterSearchShardsRequest indices(String... indices) {
         if (indices == null) {
             throw new ElasticsearchIllegalArgumentException("indices must not be null");

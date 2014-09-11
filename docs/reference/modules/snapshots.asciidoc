@@ -69,6 +69,7 @@ on all data and master nodes. The following settings are supported:
 `compress`:: Turns on compression of the snapshot files. Compression is applied only to metadata files (index mapping and settings). Data files are not compressed. Defaults to `true`.
 `chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by
  using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
+`verify`:: Verify repository upon creation. Defaults to `true`.
 
 [float]
 ===== Read-only URL Repository
@@ -98,6 +99,21 @@ Other repository backends are available in these official plugins:
 * https://github.com/elasticsearch/elasticsearch-cloud-aws#s3-repository[AWS Cloud Plugin] for S3 repositories
 * https://github.com/elasticsearch/elasticsearch-hadoop/tree/master/repository-hdfs[HDFS Plugin] for Hadoop environments
 * https://github.com/elasticsearch/elasticsearch-cloud-azure#azure-repository[Azure Cloud Plugin] for Azure storage repositories
+
+
+===== Repository Verification
+added[1.4.0]
+
+When repository is registered, it's immediately verified on all master and data nodes to make sure that it's functional
+on all nodes currently present in the cluster. The verification process can also be executed manually by running the
+following command:
+
+[source,js]
+-----------------------------------
+$ curl -XPOST 'http://localhost:9200/_snapshot/my_backup/_verify'
+-----------------------------------
+
+It returns a list of nodes
 
 [float]
 === Snapshot

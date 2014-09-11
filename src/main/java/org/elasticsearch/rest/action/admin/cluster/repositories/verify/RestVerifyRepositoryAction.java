@@ -17,41 +17,42 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.admin.cluster.repositories.put;
+package org.elasticsearch.rest.action.admin.cluster.repositories.verify;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 
-import static org.elasticsearch.client.Requests.putRepositoryRequest;
+import static org.elasticsearch.client.Requests.verifyRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
  * Registers repositories
  */
-public class RestPutRepositoryAction extends BaseRestHandler {
+public class RestVerifyRepositoryAction extends BaseRestHandler {
 
     @Inject
-    public RestPutRepositoryAction(Settings settings, RestController controller, Client client) {
+    public RestVerifyRepositoryAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
-        controller.registerHandler(PUT, "/_snapshot/{repository}", this);
-        controller.registerHandler(POST, "/_snapshot/{repository}", this);
+        controller.registerHandler(POST, "/_snapshot/{repository}/_verify", this);
     }
 
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        PutRepositoryRequest putRepositoryRequest = putRepositoryRequest(request.param("repository"));
-        putRepositoryRequest.listenerThreaded(false);
-        putRepositoryRequest.source(request.content().toUtf8());
-        putRepositoryRequest.verify(request.paramAsBoolean("verify", true));
-        putRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRepositoryRequest.masterNodeTimeout()));
-        putRepositoryRequest.timeout(request.paramAsTime("timeout", putRepositoryRequest.timeout()));
-        client.admin().cluster().putRepository(putRepositoryRequest, new AcknowledgedRestListener<PutRepositoryResponse>(channel));
+        VerifyRepositoryRequest verifyRepositoryRequest = verifyRepositoryRequest(request.param("repository"));
+        verifyRepositoryRequest.listenerThreaded(false);
+        verifyRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", verifyRepositoryRequest.masterNodeTimeout()));
+        verifyRepositoryRequest.timeout(request.paramAsTime("timeout", verifyRepositoryRequest.timeout()));
+        client.admin().cluster().verifyRepository(verifyRepositoryRequest, new RestToXContentListener<VerifyRepositoryResponse>(channel));
     }
 }

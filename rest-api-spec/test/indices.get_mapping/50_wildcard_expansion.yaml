@@ -100,7 +100,7 @@ setup:
         index: test-x*
         expand_wildcards: none
 
- - match: { $body: "{}" }
+ - match: { $body: {} }
 
 ---
 "Get test-* with wildcard_expansion=open,closed":

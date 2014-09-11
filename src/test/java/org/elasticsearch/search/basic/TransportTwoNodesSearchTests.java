@@ -73,7 +73,7 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
     }
 
     private Set<String> prepareData(int numShards) throws Exception {
-        Set<String> fullExpectedIds = Sets.newHashSet();
+        Set<String> fullExpectedIds = Sets.newTreeSet();
 
         ImmutableSettings.Builder settingsBuilder = settingsBuilder()
                 .put(indexSettings())
@@ -209,7 +209,7 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
                 .query(matchAllQuery())
                 .explain(true);
 
-        Set<String> collectedIds = Sets.newHashSet();
+        Set<String> collectedIds = Sets.newTreeSet();
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
         assertNoFailures(searchResponse);

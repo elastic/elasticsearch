@@ -131,7 +131,7 @@ setup:
         index: test_not_found
         ignore_unavailable: true
 
-  - match: { $body: "{}" }
+  - match: { $body: {} }
 
 ---
 "Should return empty object if allow_no_indices":
@@ -140,7 +140,7 @@ setup:
       indices.get:
         index: test_not*
 
-  - match: { $body: "{}" }
+  - match: { $body: {} }
 
 ---
 "Should throw error if allow_no_indices=false":

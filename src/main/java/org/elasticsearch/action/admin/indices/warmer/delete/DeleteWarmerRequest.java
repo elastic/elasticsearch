@@ -36,7 +36,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request that deletes a index warmer (name, {@link org.elasticsearch.action.search.SearchRequest})
  * tuple from the clusters metadata.
  */
-public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest> implements IndicesRequest {
+public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest> implements IndicesRequest.Replaceable {
 
     private String[] names = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
@@ -103,6 +103,7 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
     /**
      * Sets the indices this put mapping operation will execute on.
      */
+    @Override
     public DeleteWarmerRequest indices(String... indices) {
         this.indices = indices;
         return this;

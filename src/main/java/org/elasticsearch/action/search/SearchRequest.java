@@ -59,7 +59,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest {
+public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest.Replaceable {
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -173,6 +173,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * Sets the indices the search will be executed on.
      */
+    @Override
     public SearchRequest indices(String... indices) {
         if (indices == null) {
             throw new ElasticsearchIllegalArgumentException("indices must not be null");

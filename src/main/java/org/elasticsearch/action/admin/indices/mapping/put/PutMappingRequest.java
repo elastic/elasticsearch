@@ -50,7 +50,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
  * @see PutMappingResponse
  */
-public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest {
+public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
 
     private static ObjectOpenHashSet<String> RESERVED_FIELDS = ObjectOpenHashSet.from(
             "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_boost", "_parent", "_routing", "_index",
@@ -97,6 +97,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     /**
      * Sets the indices this put mapping operation will execute on.
      */
+    @Override
     public PutMappingRequest indices(String[] indices) {
         this.indices = indices;
         return this;

@@ -125,7 +125,12 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         } catch (EOFException eof) {
             // TODO this should be caught by lucene - EOF is almost certainly an index corruption
             throw new CorruptIndexException("Read past EOF while reading segment infos", eof);
+        } catch (IOException exception) {
+            throw exception; // IOExceptions like too many open files are not necessarily a corruption - just bubble it up
+        } catch (Exception ex) {
+            throw new CorruptIndexException("Hit unexpected exception while reading segment infos", ex);
         }
+
     }
 
     final void ensureOpen() { // for testing

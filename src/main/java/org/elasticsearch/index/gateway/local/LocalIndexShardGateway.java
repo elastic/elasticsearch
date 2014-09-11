@@ -135,6 +135,11 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 if (si != null) {
                     if (indexShouldExists) {
                         version = si.getVersion();
+                        /**
+                         * We generate the translog ID before each lucene commit to ensure that
+                         * we can read the current translog ID safely when we recover. The commits metadata
+                         * therefor contains always the current / active translog ID.
+                         */
                         if (si.getUserData().containsKey(Translog.TRANSLOG_ID_KEY)) {
                             translogId = Long.parseLong(si.getUserData().get(Translog.TRANSLOG_ID_KEY));
                         } else {

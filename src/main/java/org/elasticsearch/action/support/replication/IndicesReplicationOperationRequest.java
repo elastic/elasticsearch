@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class IndicesReplicationOperationRequest<T extends IndicesReplicationOperationRequest> extends ActionRequest<T> implements IndicesRequest {
+public abstract class IndicesReplicationOperationRequest<T extends IndicesReplicationOperationRequest> extends ActionRequest<T> implements IndicesRequest.Replaceable {
 
     protected TimeValue timeout = ShardReplicationOperationRequest.DEFAULT_TIMEOUT;
     protected String[] indices;
@@ -94,6 +94,7 @@ public abstract class IndicesReplicationOperationRequest<T extends IndicesReplic
      * The indices the request will execute against.
      */
     @SuppressWarnings("unchecked")
+    @Override
     public final T indices(String[] indices) {
         this.indices = indices;
         return (T) this;

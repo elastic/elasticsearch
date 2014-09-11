@@ -32,7 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 
 /** Request the mappings of specific fields */
-public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsRequest> implements IndicesRequest {
+public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsRequest> implements IndicesRequest.Replaceable {
 
     protected boolean local = false;
 
@@ -71,6 +71,7 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
         return local;
     }
 
+    @Override
     public GetFieldMappingsRequest indices(String... indices) {
         this.indices = indices;
         return this;

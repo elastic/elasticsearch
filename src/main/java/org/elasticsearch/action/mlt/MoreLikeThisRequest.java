@@ -136,13 +136,19 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
                 return MoreLikeThisRequest.this.indicesOptions();
             }
         });
-        requests.add(new IndicesRequest() {
+        requests.add(new IndicesRequest.Replaceable() {
             @Override
             public String[] indices() {
                 if (searchIndices != null) {
                     return searchIndices;
                 }
                 return new String[]{index};
+            }
+
+            @Override
+            public IndicesRequest indices(String[] indices) {
+                searchIndices = indices;
+                return this;
             }
 
             @Override

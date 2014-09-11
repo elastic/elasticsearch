@@ -204,7 +204,7 @@ public class GetIndexedScriptRequest extends ActionRequest<GetIndexedScriptReque
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_1_4_0)) {
+        if (in.getVersion().before(Version.V_1_4_0_Beta)) {
             //the index was previously serialized although not needed
             in.readString();
         }
@@ -228,7 +228,7 @@ public class GetIndexedScriptRequest extends ActionRequest<GetIndexedScriptReque
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_1_4_0)) {
+        if (out.getVersion().before(Version.V_1_4_0_Beta)) {
             //the index was previously serialized although not needed
             out.writeString(ScriptService.SCRIPT_INDEX);
         }

@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
@@ -179,7 +178,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         searchTimedOut = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             terminatedEarly = in.readOptionalBoolean();
         }
     }
@@ -215,7 +214,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             suggest.writeTo(out);
         }
         out.writeBoolean(searchTimedOut);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
             out.writeOptionalBoolean(terminatedEarly);
         }
     }

@@ -32,6 +32,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
 
+import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 
@@ -85,15 +86,19 @@ public class InternalTestClusterTests extends ElasticsearchTestCase {
         long clusterSeed = randomLong();
         int minNumDataNodes = randomIntBetween(0, 3);
         int maxNumDataNodes = randomIntBetween(minNumDataNodes, 4);
-        String clusterName = this.getClass().getName()  + ":" + this.getTestName();
+        final String clusterName = clusterName("shared", Integer.toString(CHILD_JVM_ID), clusterSeed);
+        String clusterName1 = clusterName("shared", Integer.toString(CHILD_JVM_ID), clusterSeed);
+        while (clusterName.equals(clusterName1)) {
+            clusterName1 = clusterName("shared", Integer.toString(CHILD_JVM_ID), clusterSeed);   // spin until the time changes
+        }
         SettingsSource settingsSource = SettingsSource.EMPTY;
         int numClientNodes = randomIntBetween(0, 2);
         boolean enableRandomBenchNodes = randomBoolean();
         int jvmOrdinal = randomIntBetween(0, 10);
         String nodePrefix = "foobar";
 
-        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName+"1", settingsSource, numClientNodes, enableRandomBenchNodes, jvmOrdinal, nodePrefix);
-        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName+"2", settingsSource, numClientNodes, enableRandomBenchNodes, jvmOrdinal, nodePrefix);
+        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableRandomBenchNodes, jvmOrdinal, nodePrefix);
+        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName1, settingsSource, numClientNodes, enableRandomBenchNodes, jvmOrdinal, nodePrefix);
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();
@@ -114,8 +119,10 @@ public class InternalTestClusterTests extends ElasticsearchTestCase {
                 assertSettings(client.settings(), other.settings(), false);
             }
             assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
-
+            cluster0.afterTest();
+            cluster1.afterTest();
         } finally {
+
             IOUtils.close(cluster0, cluster1);
         }
     }

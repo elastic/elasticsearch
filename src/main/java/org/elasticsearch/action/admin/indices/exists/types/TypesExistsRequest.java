@@ -32,7 +32,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExistsRequest> implements IndicesRequest {
+public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExistsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private String[] types;
@@ -52,8 +52,10 @@ public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExis
         return indices;
     }
 
-    public void indices(String[] indices) {
+    @Override
+    public TypesExistsRequest indices(String[] indices) {
         this.indices = indices;
+        return this;
     }
 
     public String[] types() {

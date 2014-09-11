@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterStateRequest> implements IndicesRequest {
+public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterStateRequest> implements IndicesRequest.Replaceable {
 
     private boolean routingTable = true;
     private boolean nodes = true;
@@ -108,6 +108,7 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
         return indices;
     }
 
+    @Override
     public ClusterStateRequest indices(String... indices) {
         this.indices = indices;
         return this;

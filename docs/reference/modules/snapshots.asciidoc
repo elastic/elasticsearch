@@ -71,7 +71,7 @@ on all data and master nodes. The following settings are supported:
  using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
 `max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `20mb` per second.
 `max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `20mb` per second.
-
+`verify`:: Verify repository upon creation. Defaults to `true`.
 
 [float]
 ===== Read-only URL Repository
@@ -91,6 +91,21 @@ Other repository backends are available in these official plugins:
 * https://github.com/elasticsearch/elasticsearch-cloud-aws#s3-repository[AWS Cloud Plugin] for S3 repositories
 * https://github.com/elasticsearch/elasticsearch-hadoop/tree/master/repository-hdfs[HDFS Plugin] for Hadoop environments
 * https://github.com/elasticsearch/elasticsearch-cloud-azure#azure-repository[Azure Cloud Plugin] for Azure storage repositories
+
+
+===== Repository Verification
+added[1.4.0]
+
+When repository is registered, it's immediately verified on all master and data nodes to make sure that it's functional
+on all nodes currently present in the cluster. The verification process can also be executed manually by running the
+following command:
+
+[source,js]
+-----------------------------------
+$ curl -XPOST 'http://localhost:9200/_snapshot/my_backup/_verify'
+-----------------------------------
+
+It returns a list of nodes
 
 [float]
 === Snapshot

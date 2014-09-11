@@ -1400,6 +1400,11 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
+    public int numDataAndMasterNodes() {
+        return dataAndMasterNodes().size();
+    }
+
+    @Override
     public int numBenchNodes() {
         return benchNodeAndClients().size();
     }
@@ -1455,10 +1460,22 @@ public final class InternalTestCluster extends TestCluster {
         return Collections2.filter(nodes.values(), new DataNodePredicate());
     }
 
+    private synchronized Collection<NodeAndClient> dataAndMasterNodes() {
+        return Collections2.filter(nodes.values(), new DataOrMasterNodePredicate());
+    }
+
     private static final class DataNodePredicate implements Predicate<NodeAndClient> {
         @Override
         public boolean apply(NodeAndClient nodeAndClient) {
-            return nodeAndClient.node.settings().getAsBoolean("node.data", true) && nodeAndClient.node.settings().getAsBoolean("node.client", false) == false;
+            return DiscoveryNode.dataNode(nodeAndClient.node.settings());
+        }
+    }
+
+    private static final class DataOrMasterNodePredicate implements Predicate<NodeAndClient> {
+        @Override
+        public boolean apply(NodeAndClient nodeAndClient) {
+            return DiscoveryNode.dataNode(nodeAndClient.node.settings()) ||
+                    DiscoveryNode.masterNode(nodeAndClient.node.settings());
         }
     }
 
@@ -1478,7 +1495,7 @@ public final class InternalTestCluster extends TestCluster {
     private static final class ClientNodePredicate implements Predicate<NodeAndClient> {
         @Override
         public boolean apply(NodeAndClient nodeAndClient) {
-            return nodeAndClient.node.settings().getAsBoolean("node.client", false);
+            return DiscoveryNode.clientNode(nodeAndClient.node.settings());
         }
     }
 

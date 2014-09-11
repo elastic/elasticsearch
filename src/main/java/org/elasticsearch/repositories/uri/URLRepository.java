@@ -102,4 +102,16 @@ public class URLRepository extends BlobStoreRepository {
             }
         }
     }
+
+    @Override
+    public String startVerification() {
+        //TODO: #7831 Add check that URL exists and accessible
+        return null;
+    }
+
+    @Override
+    public void endVerification(String seed) {
+        throw new UnsupportedOperationException("shouldn't be called");
+    }
+
 }

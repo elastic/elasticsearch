@@ -17,70 +17,71 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.repositories.put;
+package org.elasticsearch.action.admin.cluster.repositories.verify;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * Transport action for register repository operation
+ * Transport action for verifying repository operation
  */
-public class TransportPutRepositoryAction extends TransportMasterNodeOperationAction<PutRepositoryRequest, PutRepositoryResponse> {
+public class TransportVerifyRepositoryAction extends TransportMasterNodeOperationAction<VerifyRepositoryRequest, VerifyRepositoryResponse> {
 
     private final RepositoriesService repositoriesService;
 
+    protected final ClusterName clusterName;
+
     @Inject
-    public TransportPutRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                        RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters) {
-        super(settings, PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters);
+    public TransportVerifyRepositoryAction(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
+                                           RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, VerifyRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.repositoriesService = repositoriesService;
+        this.clusterName = clusterName;
     }
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.SAME;
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override
-    protected PutRepositoryRequest newRequest() {
-        return new PutRepositoryRequest();
+    protected VerifyRepositoryRequest newRequest() {
+        return new VerifyRepositoryRequest();
     }
 
     @Override
-    protected PutRepositoryResponse newResponse() {
-        return new PutRepositoryResponse();
+    protected VerifyRepositoryResponse newResponse() {
+        return new VerifyRepositoryResponse();
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutRepositoryRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(VerifyRepositoryRequest request, ClusterState state) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
     }
 
     @Override
-    protected void masterOperation(final PutRepositoryRequest request, ClusterState state, final ActionListener<PutRepositoryResponse> listener) throws ElasticsearchException {
-
-        repositoriesService.registerRepository(
-                new RepositoriesService.RegisterRepositoryRequest("put_repository [" + request.name() + "]",
-                        request.name(), request.type(), request.verify())
-                .settings(request.settings())
-                .masterNodeTimeout(request.masterNodeTimeout())
-                .ackTimeout(request.timeout()), new ActionListener<ClusterStateUpdateResponse>() {
-
+    protected void masterOperation(final VerifyRepositoryRequest request, ClusterState state, final ActionListener<VerifyRepositoryResponse> listener) throws ElasticsearchException {
+        repositoriesService.verifyRepository(request.name(), new  ActionListener<RepositoriesService.VerifyResponse>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new PutRepositoryResponse(response.isAcknowledged()));
+            public void onResponse(RepositoriesService.VerifyResponse verifyResponse) {
+                if (verifyResponse.failed()) {
+                    listener.onFailure(new RepositoryVerificationException(request.name(), verifyResponse.failureDescription()));
+                } else {
+                    listener.onResponse(new VerifyRepositoryResponse(clusterName, verifyResponse.nodes()));
+                }
             }
 
             @Override
@@ -89,5 +90,4 @@ public class TransportPutRepositoryAction extends TransportMasterNodeOperationAc
             }
         });
     }
-
 }

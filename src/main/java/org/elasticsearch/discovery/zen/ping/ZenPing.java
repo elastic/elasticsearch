@@ -170,7 +170,13 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             }
         }
 
-        public synchronized PingResponse[] asArray() {
+        public synchronized void addPings(PingResponse[] pings) {
+            for (PingResponse ping : pings) {
+                addPing(ping);
+            }
+        }
+
+        public synchronized PingResponse[] toArray() {
             return pings.values().toArray(new PingResponse[pings.size()]);
         }
 

@@ -40,7 +40,7 @@ public class GaussDecayFunctionParser extends DecayFunctionParser {
         public double evaluate(double value, double scale) {
             // note that we already computed scale^2 in processScale() so we do
             // not need to square it here.
-            return (float) Math.exp(0.5 * Math.pow(value, 2.0) / scale);
+            return Math.exp(0.5 * Math.pow(value, 2.0) / scale);
         }
 
         @Override

@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.rest.client.RestClient;
 import org.elasticsearch.test.rest.client.RestException;
@@ -115,11 +116,11 @@ public class RestTestExecutionContext implements Closeable {
     }
 
     /**
-     * Recreates the embedded REST client which will point to the given addresses
+     * Resets (or creates) the embedded REST client which will point to the given addresses
      */
-    public void resetClient(InetSocketAddress[] addresses) throws IOException, RestException {
+    public void resetClient(InetSocketAddress[] addresses, Settings settings) throws IOException, RestException {
         if (restClient == null) {
-            restClient = new RestClient(addresses, restSpec);
+            restClient = new RestClient(restSpec, settings, addresses);
         } else {
             restClient.updateAddresses(addresses);
         }

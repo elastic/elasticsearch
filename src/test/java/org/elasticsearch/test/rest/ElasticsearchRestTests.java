@@ -24,6 +24,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.RestException;
@@ -173,6 +175,13 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
         restTestExecutionContext = null;
     }
 
+    /**
+     * Used to obtain settings for the REST client that is used to send REST requests.
+     */
+    protected Settings restClientSettings() {
+        return ImmutableSettings.EMPTY;
+    }
+
     @Before
     public void reset() throws IOException, RestException {
         //skip test if it matches one of the blacklist globs
@@ -183,7 +192,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
             assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.matches(Paths.get(testPath)));
         }
 
-        restTestExecutionContext.resetClient(cluster().httpAddresses());
+        restTestExecutionContext.resetClient(cluster().httpAddresses(), restClientSettings());
         restTestExecutionContext.clear();
 
         //skip test if the whole suite (yaml file) is disabled

@@ -53,9 +53,12 @@ public class Headers {
         return message;
     }
 
+    public Settings headers() {
+        return headers;
+    }
+
     static Settings resolveHeaders(Settings settings) {
         Settings headers = settings.getAsSettings(PREFIX);
         return headers != null ? headers : ImmutableSettings.EMPTY;
     }
-
 }

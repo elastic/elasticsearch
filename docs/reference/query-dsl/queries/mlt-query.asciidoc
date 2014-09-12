@@ -16,8 +16,6 @@ running it against one or more fields.
 }
 --------------------------------------------------
 
-added[1.3.0,The ability to run the `mlt` query on multiple docs is only available from 1.3.0 onwards]
-
 Additionally, More Like This can find documents that are "like" a set of
 chosen documents. The syntax to specify one or more documents is similar to
 the <<docs-multi-get,Multi GET API>>, and supports the `ids` or `docs` array.
@@ -82,14 +80,14 @@ for `ids` or `docs`.
 |`like_text` |The text to find documents like it, *required* if `ids` or `docs` are
 not specified.
 
-|`ids` or `docs` | added[1.3.0] A list of documents following the same syntax as the
+|`ids` or `docs` | A list of documents following the same syntax as the
 <<docs-multi-get,Multi GET API>>. The text is fetched from `fields`
 unless specified otherwise in each `doc`.
 
-|`include` | added[1.3.0] When using `ids` or `docs`, specifies whether the documents should be
+|`include` | When using `ids` or `docs`, specifies whether the documents should be
 included from the search. Defaults to `false`.
 
-|`exclude` | deprecated[1.3.0,Replaced by `include`] When using `ids` or `docs`, specifies whether
+|`exclude` | When using `ids` or `docs`, specifies whether
 the documents should be excluded from the search. Defaults to `true`.
 
 |`percent_terms_to_match` |The percentage of terms to match on (float

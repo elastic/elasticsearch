@@ -148,7 +148,7 @@ the client. If set to `0`, the `shard_size` will be set to `Integer.MAX_VALUE`.
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
         override it and reset it to be equal to `size`.
 
-added[1.1.0] It is possible to not limit the number of terms that are returned by setting `size` to `0`. Don't use this
+It is possible to not limit the number of terms that are returned by setting `size` to `0`. Don't use this
 on high-cardinality fields as this will kill both your CPU since terms need to be return sorted, and your network.
 
 ==== Calculating Document Count Error
@@ -365,7 +365,7 @@ The above aggregation would only return tags which have been found in 10 hits or
 
 Terms are collected and ordered on a shard level and merged with the terms collected from other shards in a second step. However, the shard does not have the information about the global document count available. The decision if a term is added to a candidate list depends only on the order computed on the shard using local shard frequencies. The `min_doc_count` criterion is only applied after merging local terms statistics of all shards. In a way the decision to add the term as a candidate is made without being very _certain_ about if the term will actually reach the required `min_doc_count`. This might cause many (globally) high frequent terms to be missing in the final result if low frequent terms populated the candidate lists. To avoid this, the `shard_size` parameter can be increased to allow more candidate terms on the shards. However, this increases memory consumption and network traffic.
 
-added[1.2.0] `shard_min_doc_count` parameter
+`shard_min_doc_count` parameter
 
 The parameter `shard_min_doc_count` regulates the _certainty_ a shard has if the term should actually be added to the candidate list or not with respect to the `min_doc_count`. Terms will only be considered if their local shard frequency within the set is higher than the `shard_min_doc_count`. If your dictionary contains many low frequent terms and you are not interested in those (for example misspellings), then you can set the `shard_min_doc_count` parameter to filter out candidate terms on a shard level that will with a reasonable certainty not reach the required `min_doc_count` even after merging the local counts. `shard_min_doc_count` is set to `0` per default and has no effect unless you explicitly set it.
 
@@ -506,7 +506,7 @@ this single field, which will benefit from the global ordinals optimization.
 
 ==== Collect mode
 
-added[1.3.0] Deferring calculation of child aggregations
+Deferring calculation of child aggregations
 
 For fields with many unique terms and a small number of required results it can be more efficient to delay the calculation
 of child aggregations until the top parent-level aggs have been pruned. Ordinarily, all branches of the aggregation tree
@@ -579,9 +579,9 @@ this would typically be too costly in terms of RAM.
 [[search-aggregations-bucket-terms-aggregation-execution-hint]]
 ==== Execution hint
 
-added[1.2.0] Added the `global_ordinals`, `global_ordinals_hash` and `global_ordinals_low_cardinality` execution modes
+Added the `global_ordinals`, `global_ordinals_hash` and `global_ordinals_low_cardinality` execution modes
 
-deprecated[1.3.0] Removed the `ordinals` execution mode
+Removed the `ordinals` execution mode
 
 There are different mechanisms by which terms aggregations can be executed:
 

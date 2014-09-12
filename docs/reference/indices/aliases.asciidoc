@@ -242,8 +242,6 @@ curl -XPUT 'localhost:9200/users/_alias/user_12' -d '{
 [[alias-index-creation]]
 === Aliases during index creation
 
-added[1.1.0]
-
 Aliases can also be specified during <<create-index-aliases,index creation>>:
 
 [source,js]

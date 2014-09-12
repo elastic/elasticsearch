@@ -62,7 +62,7 @@ query.
 |`explain` |For each hit, contain an explanation of how scoring of the
 hits was computed.
 
-|`_source`| added[1.0.0.Beta1]Set to `false` to disable retrieval of the `_source` field. You can also retrieve
+|`_source`|Set to `false` to disable retrieval of the `_source` field. You can also retrieve
 part of the document by using `_source_include` & `_source_exclude` (see the <<search-request-source-filtering, request body>>
 documentation for more details)
 

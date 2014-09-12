@@ -22,9 +22,10 @@ use HTTP::Tiny;
 use IO::Socket::SSL 1.52;
 use utf8;
 
-my $Base_URL  = 'https://api.github.com/repos/';
-my $User_Repo = 'elasticsearch/elasticsearch/';
-my $Issue_URL = "http://github.com/${User_Repo}issues/";
+my $Github_Key = load_github_key();
+my $Base_URL   = "https://${Github_Key}api.github.com/repos/";
+my $User_Repo  = 'elasticsearch/elasticsearch/';
+my $Issue_URL  = "http://github.com/${User_Repo}issues/";
 
 my @Groups       = qw(breaking feature enhancement bug regression doc test);
 my %Group_Labels = (
@@ -190,6 +191,25 @@ sub fetch {
 
     #    print $response->{content};
     return $json->decode( $response->{content} );
+}
+
+#===================================
+sub load_github_key {
+#===================================
+    my ($file) = glob("~/.github_auth");
+    unless ( -e $file ) {
+        warn "File ~/.github_auth doesn't exist - using anonymous API. "
+            . "Generate a Personal Access Token at https://github.com/settings/applications\n";
+        return '';
+    }
+    open my $fh, $file or die "Couldn't open $file: $!";
+    my ($key) = <$fh> || die "Couldn't read $file: $!";
+    $key =~ s/^\s+//;
+    $key =~ s/\s+$//;
+    die "Invalid GitHub key: $key"
+        unless $key =~ /^[0-9a-f]{40}$/;
+    return "$key:x-oauth-basic@";
+
 }
 
 #===================================

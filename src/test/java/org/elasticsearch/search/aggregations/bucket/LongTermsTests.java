@@ -255,7 +255,38 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
     }
+    
+    @Test
+    public void singleValueFieldWithFiltering() throws Exception {
+        long includes[] = { 1, 2, 3, 98 };
+        long excludes[] = { -1, 2, 4 };
+        long empty[] = {};
+        testIncludeExcludeResults(includes, empty, new long[] { 1, 2, 3 });
+        testIncludeExcludeResults(includes, excludes, new long[] { 1, 3 });
+        testIncludeExcludeResults(empty, excludes, new long[] { 0, 1, 3 });
+    }
 
+    private void testIncludeExcludeResults(long[] includes, long[] excludes, long[] expecteds) {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .field(SINGLE_VALUED_FIELD_NAME)
+                        .include(includes)
+                        .exclude(excludes)
+                        .collectMode(randomFrom(SubAggCollectionMode.values())))
+                .execute().actionGet();
+        assertSearchResponse(response);
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(expecteds.length));
+
+        for (int i = 0; i < expecteds.length; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + expecteds[i]);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+    }
+    
     @Test
     public void singleValueField_WithMaxSize() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")

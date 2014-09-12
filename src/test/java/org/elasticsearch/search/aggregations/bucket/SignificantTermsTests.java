@@ -123,6 +123,23 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         Number topCategory = topTerms.getBuckets().iterator().next().getKeyAsNumber();
         assertTrue(topCategory.equals(new Long(SNOWBOARDING_CATEGORY)));
     }
+    
+    @Test
+    public void structuredAnalysisWithIncludeExclude() throws Exception {
+        long[] excludeTerms = { MUSIC_CATEGORY };
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("_all", "paul"))
+                .setFrom(0).setSize(60).setExplain(true)
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
+                           .minDocCount(1).exclude(excludeTerms))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        Number topCategory = topTerms.getBuckets().iterator().next().getKeyAsNumber();
+        assertTrue(topCategory.equals(new Long(OTHER_CATEGORY)));
+    }
 
     @Test
     public void includeExclude() throws Exception {
@@ -159,6 +176,43 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         assertThat(terms, hasSize(1));
         assertThat(terms.contains("weller"), is(true));
     }
+    
+    @Test
+    public void includeExcludeExactValues() throws Exception {
+        String []incExcTerms={"weller","nosuchterm"};
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
+                        .exclude(incExcTerms))
+                .get();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        Set<String> terms  = new HashSet<>();
+        for (Bucket topTerm : topTerms) {
+            terms.add(topTerm.getKey());
+        }
+        assertThat(terms, hasSize(6));
+        assertThat(terms.contains("jam"), is(true));
+        assertThat(terms.contains("council"), is(true));
+        assertThat(terms.contains("style"), is(true));
+        assertThat(terms.contains("paul"), is(true));
+        assertThat(terms.contains("of"), is(true));
+        assertThat(terms.contains("the"), is(true));
+
+        response = client().prepareSearch("test")
+                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
+                        .include(incExcTerms))
+                .get();
+        assertSearchResponse(response);
+        topTerms = response.getAggregations().get("mySignificantTerms");
+        terms  = new HashSet<>();
+        for (Bucket topTerm : topTerms) {
+            terms.add(topTerm.getKey());
+        }
+        assertThat(terms, hasSize(1));
+        assertThat(terms.contains("weller"), is(true));
+    }    
     
     @Test
     public void unmapped() throws Exception {

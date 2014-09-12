@@ -75,7 +75,7 @@ public class FilterCacheStats implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         memorySize = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
             evictionStats = new EvictionStats();
             evictionStats.readFrom(in);
         } else {
@@ -86,7 +86,7 @@ public class FilterCacheStats implements Streamable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(memorySize);
-        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
             evictionStats.writeTo(out);
         } else {
             out.writeVLong(evictionStats.getEvictions());

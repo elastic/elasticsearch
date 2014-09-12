@@ -26,7 +26,7 @@ import org.elasticsearch.client.Client;
 public class PrecisionAtAction extends ClientAction<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtRequestBuilder> {
 
     public static final PrecisionAtAction INSTANCE = new PrecisionAtAction();
-    public static final String NAME = "precision_at";
+    public static final String NAME = "indices:data/read/precision_at";
 
     private PrecisionAtAction() {
         super(NAME);

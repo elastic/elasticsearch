@@ -317,11 +317,12 @@ public class ActionModule extends AbstractModule {
         registerAction(AbortBenchmarkAction.INSTANCE, TransportAbortBenchmarkAction.class);
         registerAction(BenchmarkStatusAction.INSTANCE, TransportBenchmarkStatusAction.class);
 
+        registerAction(PrecisionAtAction.INSTANCE, TransportPrecisionAtAction.class);
+
         //Indexed scripts
         registerAction(PutIndexedScriptAction.INSTANCE, TransportPutIndexedScriptAction.class);
         registerAction(GetIndexedScriptAction.INSTANCE, TransportGetIndexedScriptAction.class);
         registerAction(DeleteIndexedScriptAction.INSTANCE, TransportDeleteIndexedScriptAction.class);
-        registerAction(PrecisionAtAction.INSTANCE, TransportPrecisionAtAction.class);
 
         // register Name -> GenericAction Map that can be injected to instances.
         MapBinder<String, GenericAction> actionsBinder

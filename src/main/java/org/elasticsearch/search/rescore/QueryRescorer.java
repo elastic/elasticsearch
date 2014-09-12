@@ -109,7 +109,19 @@ public final class QueryRescorer implements Rescorer {
         if (topDocs == null || topDocs.totalHits == 0 || topDocs.scoreDocs.length == 0) {
             return topDocs;
         }
-        org.apache.lucene.search.Rescorer rescorer = newRescorer((QueryRescoreContext) rescoreContext);
+
+        final QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
+
+        org.apache.lucene.search.Rescorer rescorer = new org.apache.lucene.search.QueryRescorer(rescore.query()) {
+
+            @Override
+            protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
+                if (secondPassMatches) {
+                    return rescore.scoreMode.combine(firstPassScore * rescore.queryWeight(), secondPassScore * rescore.rescoreQueryWeight());
+                }
+                return firstPassScore * rescore.queryWeight();
+            }
+        };
 
         // First take top slice of incoming docs, to be rescored:
         TopDocs topNFirstPass = topN(topDocs, rescoreContext.window());
@@ -121,23 +133,10 @@ public final class QueryRescorer implements Rescorer {
         return combine(topDocs, rescored, (QueryRescoreContext) rescoreContext);
     }
 
-
-    // THIS RETURNS BOGUS explains
-//    @Override
-//    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
-//            Explanation sourceExplanation) throws IOException {
-//        if (sourceExplanation == null) {
-//            // this should not happen but just in case
-//            return new ComplexExplanation(false, 0.0f, "nothing matched");
-//        }
-//        return newRescorer((QueryRescoreContext) rescoreContext).explain(context.searcher(), sourceExplanation, topLevelDocId);
-//    }
-
-
     @Override
     public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
                                Explanation sourceExplanation) throws IOException {
-        QueryRescoreContext rescore = ((QueryRescoreContext) rescoreContext);
+        QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
         ContextIndexSearcher searcher = context.searcher();
         if (sourceExplanation == null) {
             // this should not happen but just in case
@@ -152,6 +151,9 @@ public final class QueryRescorer implements Rescorer {
                 "product of:");
         prim.addDetail(sourceExplanation);
         prim.addDetail(new Explanation(primaryWeight, "primaryWeight"));
+
+        // NOTE: we don't use Lucene's Rescorer.explain because we want to insert our own description with which ScoreMode was used.  Maybe
+        // we should add QueryRescorer.explainCombine to Lucene?
         if (rescoreExplain != null && rescoreExplain.isMatch()) {
             float secondaryWeight = rescore.rescoreQueryWeight();
             ComplexExplanation sec = new ComplexExplanation(rescoreExplain.isMatch(),
@@ -170,19 +172,6 @@ public final class QueryRescorer implements Rescorer {
         } else {
             return prim;
         }
-    }
-
-    private org.apache.lucene.search.Rescorer newRescorer(final QueryRescoreContext ctx) {
-        return new org.apache.lucene.search.QueryRescorer(ctx.query()) {
-
-            @Override
-            protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
-                if (secondPassMatches) {
-                    return ctx.scoreMode.combine(firstPassScore * ctx.queryWeight(), secondPassScore * ctx.rescoreQueryWeight());
-                }
-                return firstPassScore * ctx.queryWeight();
-            }
-        };
     }
 
     @Override

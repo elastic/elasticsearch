@@ -231,16 +231,26 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             return execution.create(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError);
         }
 
-        if (includeExclude != null) {
-            throw new AggregationExecutionException("Aggregation [" + name + "] cannot support the include/exclude " +
-                    "settings as it can only be applied to string values");
+        if ((includeExclude != null) && (includeExclude.isRegexBased())) {
+            throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude " +
+                    "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses used to filter numeric fields");
         }
 
         if (valuesSource instanceof ValuesSource.Numeric) {
+            IncludeExclude.LongFilter longFilter = null;
             if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
-                return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount, order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode, showTermDocCountError);
+                if (includeExclude != null) {
+                    longFilter = includeExclude.convertToDoubleFilter();
+                }
+                return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
+                        estimatedBucketCount, order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode,
+                        showTermDocCountError, longFilter);
             }
-            return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount, order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode, showTermDocCountError);
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToLongFilter();
+            }
+            return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount,
+                    order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode, showTermDocCountError, longFilter);
         }
 
         throw new AggregationExecutionException("terms aggregation cannot be applied to field [" + config.fieldContext().field() +

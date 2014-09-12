@@ -136,8 +136,7 @@ sub fetch_issues {
                 next unless $issue->{pull_request};
                 for ( $issue->{body} =~ m{(?:#|${User_Repo}issues/)(\d+)}g ) {
                     $seen{$_}++;
-                    $issue->{related_issues} ||= [];
-                    push @{$issue}{related_issues}, $_;
+                    push @{ $issue->{related_issues} }, $_;
                 }
             }
             $page++;

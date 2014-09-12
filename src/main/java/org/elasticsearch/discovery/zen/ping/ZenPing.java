@@ -30,6 +30,9 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.ClusterName.readClusterName;
 import static org.elasticsearch.cluster.node.DiscoveryNode.readNode;
@@ -52,6 +55,12 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
 
         public static final PingResponse[] EMPTY = new PingResponse[0];
 
+        private static final AtomicLong idGenerator = new AtomicLong();
+
+        // an always increasing unique identifier for this ping response.
+        // lower values means older pings.
+        private long id;
+
         private ClusterName clusterName;
 
         private DiscoveryNode node;
@@ -70,10 +79,19 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
          * @param hasJoinedOnce true if the joined has successfully joined the cluster before
          */
         public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, boolean hasJoinedOnce) {
+            this.id = idGenerator.incrementAndGet();
             this.node = node;
             this.master = master;
             this.clusterName = clusterName;
             this.hasJoinedOnce = hasJoinedOnce;
+        }
+
+        /**
+         * an always increasing unique identifier for this ping response.
+         * lower values means older pings.
+         */
+        public long id() {
+            return this.id;
         }
 
         public ClusterName clusterName() {
@@ -108,16 +126,8 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             if (in.readBoolean()) {
                 master = readNode(in);
             }
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                this.hasJoinedOnce = in.readBoolean();
-            } else {
-                // As of 1.4.0 we prefer to elect nodes which have previously successfully joined the cluster.
-                // Nodes before 1.4.0 do not take this into consideration. If pre<1.4.0 node elects it self as master
-                // based on the pings, we need to make sure we do the same. We therefore can not demote it
-                // and thus mark it as if it has previously joined.
-                this.hasJoinedOnce = true;
-            }
-
+            this.hasJoinedOnce = in.readBoolean();
+            this.id = in.readLong();
         }
 
         @Override
@@ -130,14 +140,55 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
                 out.writeBoolean(true);
                 master.writeTo(out);
             }
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                out.writeBoolean(hasJoinedOnce);
-            }
+            out.writeBoolean(hasJoinedOnce);
+            out.writeLong(id);
         }
 
         @Override
         public String toString() {
-            return "ping_response{node [" + node + "], master [" + master + "], hasJoinedOnce [" + hasJoinedOnce + "], cluster_name[" + clusterName.value() + "]}";
+            return "ping_response{node [" + node + "], id[" + id + "], master [" + master + "], hasJoinedOnce [" + hasJoinedOnce + "], cluster_name[" + clusterName.value() + "]}";
         }
+    }
+
+
+    /**
+     * a utility collection of pings where only the most recent ping is stored per node
+     */
+    public static class PingCollection {
+
+        Map<DiscoveryNode, PingResponse> pings;
+
+        public PingCollection() {
+            pings = new HashMap<>();
+        }
+
+        /**
+         * adds a ping if newer than previous pings from the same node
+         *
+         * @return true if added, false o.w.
+         */
+        public synchronized boolean addPing(PingResponse ping) {
+            PingResponse existingResponse = pings.get(ping.node());
+            // in case both existing and new ping have the same id (probably because they come
+            // from nodes from version <1.4.0) we prefer to use the last added one.
+            if (existingResponse == null || existingResponse.id() <= ping.id()) {
+                pings.put(ping.node(), ping);
+                return true;
+            }
+            return false;
+        }
+
+        /** adds multiple pings if newer than previous pings from the same node */
+        public synchronized void addPings(PingResponse[] pings) {
+            for (PingResponse ping : pings) {
+                addPing(ping);
+            }
+        }
+
+        /** serialize current pings to an array */
+        public synchronized PingResponse[] toArray() {
+            return pings.values().toArray(new PingResponse[pings.size()]);
+        }
+
     }
 }

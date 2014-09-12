@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms.support;
 
+import com.carrotsearch.hppc.LongOpenHashSet;
+import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.LongBitSet;
+import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.regex.Regex;
@@ -43,6 +42,35 @@ import java.util.regex.Pattern;
  * exclusion has precedence, where the {@code include} is evaluated first and then the {@code exclude}.
  */
 public class IncludeExclude {
+
+    // The includeValue and excludeValue ByteRefs which are the result of the parsing 
+    // process are converted into a LongFilter when used on numeric fields 
+    // in the index.
+    public static class LongFilter {
+        private LongSet valids;
+        private LongSet invalids;
+
+        private LongFilter(int numValids, int numInvalids) {
+            if (numValids > 0) {
+                valids = new LongOpenHashSet(numValids);
+            }
+            if (numInvalids > 0) {
+                invalids = new LongOpenHashSet(numInvalids);
+            }
+        }
+
+        public boolean accept(long value) {
+            return ((valids == null) || (valids.contains(value))) && ((invalids == null) || (!invalids.contains(value)));
+        }
+
+        private void addAccept(long val) {
+            valids.add(val);
+        }
+
+        private void addReject(long val) {
+            invalids.add(val);
+        }
+    }
 
     private final Matcher include;
     private final Matcher exclude;
@@ -279,6 +307,45 @@ public class IncludeExclude {
             Pattern excludePattern = exclude != null ? Pattern.compile(exclude, excludeFlags) : null;
             return new IncludeExclude(includePattern, excludePattern, includeValues, excludeValues);
         }
+    }
+
+    public boolean isRegexBased() {
+        return hasRegexTest;
+    }
+
+    public LongFilter convertToLongFilter() {
+        int numValids = includeValues == null ? 0 : includeValues.size();
+        int numInvalids = excludeValues == null ? 0 : excludeValues.size();
+        LongFilter result = new LongFilter(numValids, numInvalids);
+        if (includeValues != null) {
+            for (BytesRef val : includeValues) {
+                result.addAccept(Long.parseLong(val.utf8ToString()));
+            }
+        }
+        if (excludeValues != null) {
+            for (BytesRef val : excludeValues) {
+                result.addReject(Long.parseLong(val.utf8ToString()));
+            }
+        }
+        return result;
+    }
+    public LongFilter convertToDoubleFilter() {
+        int numValids = includeValues == null ? 0 : includeValues.size();
+        int numInvalids = excludeValues == null ? 0 : excludeValues.size();
+        LongFilter result = new LongFilter(numValids, numInvalids);
+        if (includeValues != null) {
+            for (BytesRef val : includeValues) {
+                double dval=Double.parseDouble(val.utf8ToString());
+                result.addAccept( NumericUtils.doubleToSortableLong(dval));
+            }
+        }
+        if (excludeValues != null) {
+            for (BytesRef val : excludeValues) {
+                double dval=Double.parseDouble(val.utf8ToString());
+                result.addReject( NumericUtils.doubleToSortableLong(dval));
+            }
+        }
+        return result;
     }
 
 }

@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope= Scope.SUITE, numClientNodes = 0)
-//@ClusterScope(scope= Scope.SUITE, numDataNodes =1, numClientNodes = 0, randomDynamicTemplates = false)
 public class EvictionTests extends ElasticsearchIntegrationTest {
 
     @Override

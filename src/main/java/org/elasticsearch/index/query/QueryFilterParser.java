@@ -48,6 +48,6 @@ public class QueryFilterParser implements FilterParser {
         if (query == null) {
             return null;
         }
-        return Queries.wrap(query);
+        return Queries.wrap(query, parseContext);
     }
 }

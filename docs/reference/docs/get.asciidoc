@@ -73,8 +73,6 @@ to fetch the first document matching the id across all types.
 [[get-source-filtering]]
 === Source filtering
 
-added[1.0.0.Beta1]
-
 By default, the get operation returns the contents of the `_source` field unless
 you have used the `fields` parameter or if the `_source` field is disabled. 
 You can turn off `_source` retrieval by using the `_source` parameter:

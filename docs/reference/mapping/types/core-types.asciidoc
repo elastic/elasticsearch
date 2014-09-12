@@ -181,7 +181,6 @@ you don't need scoring on a specific field, it is highly recommended to disable
 norms on it. In  particular, this is the case for fields that are used solely
 for filtering or aggregations.
 
-added[1.2.0]
 In case you would like to disable norms after the fact, it is possible to do so
 by using the <<indices-put-mapping,PUT mapping API>>. Please however note that
 norms won't be removed instantly, but as your index will receive new insertions
@@ -556,8 +555,6 @@ The following Similarities are configured out-of-box:
 [float]
 ===== Copy to field
 
-added[1.0.0.RC2]
-
 Adding `copy_to` parameter to any field mapping will cause all values of this field to be copied to fields specified in
 the parameter. In the following example all values from fields `title` and `abstract` will be copied to the field
 `meta_data`.
@@ -589,8 +586,6 @@ Multiple fields are also supported:
 
 [float]
 ===== Multi fields
-
-added[1.0.0.RC1]
 
 The `fields` options allows to map several core types fields into a single
 json source field. This can be useful if a single field need to be

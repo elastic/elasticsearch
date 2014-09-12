@@ -82,8 +82,6 @@ for <<query-dsl-function-score-query,`function query`>> rescores.
 
 ==== Multiple Rescores
 
-added[1.1.0]
-
 It is also possible to execute multiple rescores in sequence:
 [source,js]
 --------------------------------------------------

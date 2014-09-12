@@ -1,8 +1,6 @@
 [[docs-termvectors]]
 == Term Vectors
 
-added[1.0.0.Beta1]
-
 Returns information and statistics on terms in the fields of a particular
 document. The document could be stored in the index or artificially provided
 by the user coming[1.4.0.Beta]. Note that for documents stored in the index, this

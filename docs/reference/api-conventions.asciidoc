@@ -82,7 +82,7 @@ The human readable values can be turned off by adding `?human=false`
 to the query string. This makes sense when the stats results are
 being consumed by a monitoring tool, rather than intended for human
 consumption.  The default for the `human` flag is
-`false`. added[1.00.Beta,Previously defaulted to `true`]
+`false`.
 
 [float]
 === Flat Settings
@@ -245,8 +245,6 @@ document indexed.
 
 [float]
 === JSONP
-
-added[1.3.0, JSONP responses are disabled by default since version 1.3.0]
 
 When enabled, all REST APIs accept a `callback` parameter
 resulting in a http://en.wikipedia.org/wiki/JSONP[JSONP] result. You can enable

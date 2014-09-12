@@ -85,8 +85,6 @@ sorted results have to be retrieved from each shard and resorted in order to
 return just 10 results.  This process has to be repeated for every page
 requested.
 
-added[1.2.0,Before 1.2.0, scrolling of sorted results was just as heavy as deep pagination]
-
 The `scroll` API keeps track of which results have already been returned and
 so is able to return sorted results more efficiently than with deep
 pagination.  However, sorting results (which happens by default) still has a

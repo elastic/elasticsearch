@@ -162,8 +162,6 @@ field data format.
 [float]
 ==== Global ordinals
 
-added[1.2.0]
-
 Global ordinals is a data-structure on top of field data, that maintains an
 incremental numbering for all the terms in field data in a lexicographic order.
 Each term has a unique number and the number of term 'A' is lower than the number

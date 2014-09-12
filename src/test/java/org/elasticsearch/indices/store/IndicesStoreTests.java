@@ -19,97 +19,189 @@
 
 package org.elasticsearch.indices.store;
 
-import com.google.common.base.Predicate;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.ImmutableShardRouting;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.client.Requests.createIndexRequest;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
- *
  */
-@ClusterScope(scope= Scope.TEST, numDataNodes =0)
-public class IndicesStoreTests extends ElasticsearchIntegrationTest {
-    private static final Settings SETTINGS = settingsBuilder().put("gateway.type", "local").build();
+public class IndicesStoreTests extends ElasticsearchTestCase {
+
+    private final static ShardRoutingState[] NOT_STARTED_STATES;
+
+    static {
+        Set<ShardRoutingState> set = new HashSet<>();
+        set.addAll(Arrays.asList(ShardRoutingState.values()));
+        set.remove(ShardRoutingState.STARTED);
+        NOT_STARTED_STATES = set.toArray(new ShardRoutingState[set.size()]);
+    }
+
+    private IndicesStore indicesStore;
+    private DiscoveryNode localNode;
+
+    @Before
+    public void before() {
+        localNode = new DiscoveryNode("abc", new LocalTransportAddress("abc"), Version.CURRENT);
+        indicesStore = new IndicesStore();
+    }
 
     @Test
-    public void shardsCleanup() throws Exception {
-        final String node_1 = internalCluster().startNode(SETTINGS);
-        final String node_2 = internalCluster().startNode(SETTINGS);
-        logger.info("--> creating index [test] with one shard and on replica");
-        client().admin().indices().create(createIndexRequest("test")
-                .settings(settingsBuilder().put("index.numberOfReplicas", 1).put("index.numberOfShards", 1))).actionGet();
+    public void testShardCanBeDeleted_noShardRouting() throws Exception {
+        int numShards = randomIntBetween(1, 7);
+        int numReplicas = randomInt(2);
 
-        logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+        ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
+        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(numShards).numberOfReplicas(numReplicas)));
+        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
 
-
-        logger.info("--> making sure that shard and its replica are allocated on node_1 and node_2");
-        assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
-        assertThat(shardDirectory(node_2, "test", 0).exists(), equalTo(true));
-
-        logger.info("--> starting node server3");
-        String node_3 = internalCluster().startNode(SETTINGS);
-
-        logger.info("--> making sure that shard is not allocated on server3");
-        assertThat(waitForShardDeletion(node_3, "test", 0), equalTo(false));
-
-        File server2Shard = shardDirectory(node_2, "test", 0);
-        logger.info("--> stopping node node_2");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
-        assertThat(server2Shard.exists(), equalTo(true));
-
-        logger.info("--> running cluster_health");
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-
-        logger.info("--> making sure that shard and its replica exist on server1, server2 and server3");
-        assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
-        assertThat(server2Shard.exists(), equalTo(true));
-        assertThat(shardDirectory(node_3, "test", 0).exists(), equalTo(true));
-
-        logger.info("--> starting node node_4");
-        final String node_4 = internalCluster().startNode(SETTINGS);
-
-        logger.info("--> running cluster_health");
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-
-        logger.info("--> making sure that shard and its replica are allocated on server1 and server3 but not on server2");
-        assertThat(shardDirectory(node_1, "test", 0).exists(), equalTo(true));
-        assertThat(shardDirectory(node_3, "test", 0).exists(), equalTo(true));
-        assertThat(waitForShardDeletion(node_4, "test", 0), equalTo(false));
+        assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
     }
 
-    private File shardDirectory(String server, String index, int shard) {
-        NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, server);
-        return env.shardLocations(new ShardId(index, shard))[0];
-    }
+    @Test
+    public void testShardCanBeDeleted_noShardStarted() throws Exception {
+        int numShards = randomIntBetween(1, 7);
+        int numReplicas = randomInt(2);
 
-    private boolean waitForShardDeletion(final String server, final  String index, final int shard) throws InterruptedException {
-        awaitBusy(new Predicate<Object>() {
-            public boolean apply(Object o) {
-                return !shardDirectory(server, index, shard).exists();
+        ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
+        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(numShards).numberOfReplicas(numReplicas)));
+        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
+
+        for (int i = 0; i < numShards; i++) {
+            int unStartedShard = randomInt(numReplicas);
+            for (int j=0; j <= numReplicas; j++) {
+                ShardRoutingState state;
+                if (j == unStartedShard) {
+                    state = randomFrom(NOT_STARTED_STATES);
+                } else {
+                    state = randomFrom(ShardRoutingState.values());
+                }
+                routingTable.addShard(new ImmutableShardRouting("test", i, "xyz", null, j == 0, state, 0));
             }
-        });
-        return shardDirectory(server, index, shard).exists();
+        }
+        assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
     }
 
+    @Test
+    public void testShardCanBeDeleted_shardExistsLocally() throws Exception {
+        int numShards = randomIntBetween(1, 7);
+        int numReplicas = randomInt(2);
+
+        ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
+        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(numShards).numberOfReplicas(numReplicas)));
+        clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode).put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), Version.CURRENT)));
+        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
+        int localShardId = randomInt(numShards - 1);
+        for (int i = 0; i < numShards; i++) {
+            String nodeId = i == localShardId ? localNode.getId() : randomBoolean() ? "abc" : "xyz";
+            String relocationNodeId = randomBoolean() ? null : randomBoolean() ? localNode.getId() : "xyz";
+            routingTable.addShard(new ImmutableShardRouting("test", i, nodeId, relocationNodeId, true, ShardRoutingState.STARTED, 0));
+            for (int j = 0; j < numReplicas; j++) {
+                routingTable.addShard(new ImmutableShardRouting("test", i, nodeId, relocationNodeId, false, ShardRoutingState.STARTED, 0));
+            }
+        }
+
+        // Shard exists locally, can't delete shard
+        assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
+    }
+
+    @Test
+    public void testShardCanBeDeleted_nodeNotInList() throws Exception {
+        int numShards = randomIntBetween(1, 7);
+        int numReplicas = randomInt(2);
+
+        ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
+        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(numShards).numberOfReplicas(numReplicas)));
+        clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode));
+        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
+        for (int i = 0; i < numShards; i++) {
+            String relocatingNodeId = randomBoolean() ? null : "def";
+            routingTable.addShard(new ImmutableShardRouting("test", i, "xyz", relocatingNodeId, true, ShardRoutingState.STARTED, 0));
+            for (int j = 0; j < numReplicas; j++) {
+                routingTable.addShard(new ImmutableShardRouting("test", i, "xyz", relocatingNodeId, false, ShardRoutingState.STARTED, 0));
+            }
+        }
+
+        // null node -> false
+        assertFalse(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()));
+    }
+
+    @Test
+    public void testShardCanBeDeleted_nodeVersion() throws Exception {
+        int numShards = randomIntBetween(1, 7);
+        int numReplicas = randomInt(2);
+
+        // Most of the times don't test bwc and use current version
+        final Version nodeVersion = randomBoolean() ? Version.CURRENT : randomVersion();
+        ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
+        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(numShards).numberOfReplicas(numReplicas)));
+        clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id()).put(localNode).put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), nodeVersion)));
+        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
+        for (int i = 0; i < numShards; i++) {
+            routingTable.addShard(new ImmutableShardRouting("test", i, "xyz", null, true, ShardRoutingState.STARTED, 0));
+            for (int j = 0; j < numReplicas; j++) {
+                routingTable.addShard(new ImmutableShardRouting("test", i, "xyz", null, false, ShardRoutingState.STARTED, 0));
+            }
+        }
+
+        final boolean canBeDeleted;
+        if (nodeVersion.before(Version.V_1_3_0)) {
+            canBeDeleted = false;
+        } else {
+            canBeDeleted = true;
+        }
+
+        // shard exist on other node (abc)
+        assertThat(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()), is(canBeDeleted));
+    }
+
+    @Test
+    public void testShardCanBeDeleted_relocatingNode() throws Exception {
+        int numShards = randomIntBetween(1, 7);
+        int numReplicas = randomInt(2);
+
+        ClusterState.Builder clusterState = ClusterState.builder(new ClusterName("test"));
+        clusterState.metaData(MetaData.builder().put(IndexMetaData.builder("test").numberOfShards(numShards).numberOfReplicas(numReplicas)));
+        final Version nodeVersion = randomBoolean() ? Version.CURRENT : randomVersion();
+
+        clusterState.nodes(DiscoveryNodes.builder().localNodeId(localNode.id())
+                .put(localNode)
+                .put(new DiscoveryNode("xyz", new LocalTransportAddress("xyz"), Version.CURRENT))
+                .put(new DiscoveryNode("def", new LocalTransportAddress("def"), nodeVersion) // <-- only set relocating, since we're testing that in this test
+                ));
+        IndexShardRoutingTable.Builder routingTable = new IndexShardRoutingTable.Builder(new ShardId("test", 1), false);
+        for (int i = 0; i < numShards; i++) {
+            routingTable.addShard(new ImmutableShardRouting("test", i, "xyz", "def", true, ShardRoutingState.STARTED, 0));
+            for (int j = 0; j < numReplicas; j++) {
+                routingTable.addShard(new ImmutableShardRouting("test", i, "xyz", "def", false, ShardRoutingState.STARTED, 0));
+            }
+        }
+
+        final boolean canBeDeleted;
+        if (nodeVersion.before(Version.V_1_3_0)) {
+            canBeDeleted = false;
+        } else {
+            canBeDeleted = true;
+        }
+        // shard exist on other node (abc and def)
+        assertThat(indicesStore.shardCanBeDeleted(clusterState.build(), routingTable.build()), is(canBeDeleted));
+    }
 
 }

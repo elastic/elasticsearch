@@ -86,7 +86,7 @@ Parameter value: *count*.
 
 A special search type that returns the count that matched the search
 request without any docs (represented in `total_hits`), and possibly,
-including facets as well. In general, this is preferable to the `count`
+including aggregations as well. In general, this is preferable to the `count`
 API as it provides more options.
 
 [[scan]]

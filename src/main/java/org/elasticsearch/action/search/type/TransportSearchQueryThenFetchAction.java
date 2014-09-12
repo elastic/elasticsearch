@@ -23,13 +23,16 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -38,7 +41,7 @@ import org.elasticsearch.search.fetch.FetchSearchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,8 +53,8 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
     @Inject
     public TransportSearchQueryThenFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                               SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
-        super(settings, threadPool, clusterService, searchService, searchPhaseController);
+                                               SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController, ActionFilters actionFilters) {
+        super(settings, threadPool, clusterService, searchService, searchPhaseController, actionFilters);
     }
 
     @Override
@@ -59,7 +62,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
         new AsyncAction(searchRequest, listener).start();
     }
 
-    private class AsyncAction extends BaseAsyncAction<QuerySearchResult> {
+    private class AsyncAction extends BaseAsyncAction<QuerySearchResultProvider> {
 
         final AtomicArray<FetchSearchResult> fetchResults;
         final AtomicArray<IntArrayList> docIdsToLoad;
@@ -76,7 +79,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
         }
 
         @Override
-        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<QuerySearchResult> listener) {
+        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<QuerySearchResultProvider> listener) {
             searchService.sendExecuteQuery(node, request, listener);
         }
 
@@ -96,9 +99,9 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             );
             final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
             for (AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
-                QuerySearchResult queryResult = firstResults.get(entry.index);
+                QuerySearchResultProvider queryResult = firstResults.get(entry.index);
                 DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
-                FetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult, entry, lastEmittedDocPerShard);
+                FetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult(), entry, lastEmittedDocPerShard);
                 executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
             }
         }
@@ -134,27 +137,36 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             }
         }
 
-        void finishHim() {
+        private void finishHim() {
             try {
-                innerFinishHim();
-            } catch (Throwable e) {
-                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("fetch", "", e, buildShardFailures());
-                if (logger.isDebugEnabled()) {
-                    logger.debug("failed to reduce search", failure);
+                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, fetchResults);
+                            String scrollId = null;
+                            if (request.scroll() != null) {
+                                scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
+                            }
+                            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
+                        } catch (Throwable e) {
+                            ReduceSearchPhaseException failure = new ReduceSearchPhaseException("fetch", "", e, buildShardFailures());
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("failed to reduce search", failure);
+                            }
+                            listener.onFailure(failure);
+                        } finally {
+                            releaseIrrelevantSearchContexts(firstResults, docIdsToLoad);
+                        }
+                    }
+                });
+            } catch (EsRejectedExecutionException ex) {
+                try {
+                    releaseIrrelevantSearchContexts(firstResults, docIdsToLoad);
+                } finally {
+                    listener.onFailure(ex);
                 }
-                listener.onFailure(failure);
-            } finally {
-                releaseIrrelevantSearchContexts(firstResults, docIdsToLoad);
             }
-        }
-
-        void innerFinishHim() throws Exception {
-            InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, fetchResults);
-            String scrollId = null;
-            if (request.scroll() != null) {
-                scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
-            }
-            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
         }
     }
 }

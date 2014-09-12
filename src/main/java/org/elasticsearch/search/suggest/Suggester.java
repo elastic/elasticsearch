@@ -20,21 +20,21 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 
 import java.io.IOException;
 
 public abstract class Suggester<T extends SuggestionSearchContext.SuggestionContext> {
 
     protected abstract Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>
-        innerExecute(String name, T suggestion, IndexReader indexReader, CharsRef spare) throws IOException;
+        innerExecute(String name, T suggestion, IndexReader indexReader, CharsRefBuilder spare) throws IOException;
 
     public abstract String[] names();
 
     public abstract SuggestContextParser getContextParser();
 
     public Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>
-        execute(String name, T suggestion, IndexReader indexReader, CharsRef spare) throws IOException {
+        execute(String name, T suggestion, IndexReader indexReader, CharsRefBuilder spare) throws IOException {
         // #3469 We want to ignore empty shards
         if (indexReader.numDocs() == 0) {
             return null;

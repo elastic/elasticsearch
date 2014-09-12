@@ -95,14 +95,12 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         boolean hasValue = !Double.isInfinite(max);
         builder.field(CommonFields.VALUE, hasValue ? max : null);
         if (hasValue && valueFormatter != null) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(max));
         }
-        builder.endObject();
         return builder;
     }
 }

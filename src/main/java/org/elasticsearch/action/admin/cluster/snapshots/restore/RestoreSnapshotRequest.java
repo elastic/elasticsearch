@@ -70,6 +70,8 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
 
     private boolean partial = false;
 
+    private boolean includeAliases = true;
+
     private Settings settings = EMPTY_SETTINGS;
 
     RestoreSnapshotRequest() {
@@ -385,6 +387,26 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
     }
 
     /**
+     * If set to true the restore procedure will restore aliases
+     *
+     * @param includeAliases true if aliases should be restored from the snapshot
+     * @return this request
+     */
+    public RestoreSnapshotRequest includeAliases(boolean includeAliases) {
+        this.includeAliases = includeAliases;
+        return this;
+    }
+
+    /**
+     * Returns true if aliases should be restored from this snapshot
+     *
+     * @return true if aliases should be restored
+     */
+    public boolean includeAliases() {
+        return includeAliases;
+    }
+
+    /**
      * Parses restore definition
      *
      * @param source restore definition
@@ -437,6 +459,8 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
                 includeGlobalState = nodeBooleanValue(entry.getValue());
+            } else if (name.equals("include_aliases")) {
+                includeAliases = nodeBooleanValue(entry.getValue());
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());
@@ -538,6 +562,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         includeGlobalState = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
             partial = in.readBoolean();
+            includeAliases = in.readBoolean();
         }
         settings = readSettingsFromStream(in);
     }
@@ -555,6 +580,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
         out.writeBoolean(includeGlobalState);
         if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
             out.writeBoolean(partial);
+            out.writeBoolean(includeAliases);
         }
         writeSettingsToStream(settings, out);
     }

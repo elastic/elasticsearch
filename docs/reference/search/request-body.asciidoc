@@ -46,33 +46,50 @@ And here is a sample response:
 [float]
 === Parameters
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Name |Description
-|`timeout` |A search timeout, bounding the search request to be executed
-within the specified time value and bail with the hits accumulated up to
-that point when expired. Defaults to no timeout.
+[horizontal]
+`timeout`::
 
-|`from` |The starting from index of the hits to return. Defaults to `0`.
+    A search timeout, bounding the search request to be executed within the
+    specified time value and bail with the hits accumulated up to that point
+    when expired. Defaults to no timeout. See <<time-units>>.
 
-|`size` |The number of hits to return. Defaults to `10`.
+`from`::
 
-|`search_type` |The type of the search operation to perform. Can be
-`dfs_query_then_fetch`, `dfs_query_and_fetch`, `query_then_fetch`,
-`query_and_fetch`. Defaults to `query_then_fetch`. See
-<<search-request-search-type,_Search Type_>> for
-more details on the different types of search that can be performed.
-|=======================================================================
+    The starting from index of the hits to return. Defaults to `0`.
 
-Out of the above, the `search_type` is the one that can not be passed
-within the search request body, and in order to set it, it must be
-passed as a request REST parameter.
+`size`::
 
-The rest of the search request should be passed within the body itself.
-The body content can also be passed as a REST parameter named `source`.
+    The number of hits to return. Defaults to `10`.
 
-Both HTTP GET and HTTP POST can be used to execute search with body.
-Since not all clients support GET with body, POST is allowed as well.
+`search_type`::
+
+    The type of the search operation to perform. Can be
+    `dfs_query_then_fetch`, `dfs_query_and_fetch`, `query_then_fetch`,
+    `query_and_fetch`. Defaults to `query_then_fetch`. See
+    <<search-request-search-type,_Search Type_>> for more.
+
+`query_cache`::
+
+    coming[1.4.0] Set to `true` or `false` to enable or disable the caching
+    of search results for requests where `?search_type=count`, ie
+    aggregations and suggestions.  See <<index-modules-shard-query-cache>>.
+
+`terminate_after`::
+
+    coming[1.4.0] The maximum number of documents to collect for each shard,
+    upon reaching which the query execution will terminate early. If set, the
+    response will have a boolean field `terminated_early` to indicate whether
+    the query execution has actually terminated_early. Defaults to no
+    terminate_after.
+
+
+Out of the above, the `search_type` and the `query_cache` must be passed as
+query-string parameters. The rest of the search request should be passed
+within the body itself. The body content can also be passed as a REST
+parameter named `source`.
+
+Both HTTP GET and HTTP POST can be used to execute search with body. Since not
+all clients support GET with body, POST is allowed as well.
 
 
 include::request/query.asciidoc[]
@@ -102,8 +119,6 @@ include::request/scroll.asciidoc[]
 include::request/preference.asciidoc[]
 
 include::request/explain.asciidoc[]
-
-include::request/search-shards.asciidoc[]
 
 include::request/version.asciidoc[]
 

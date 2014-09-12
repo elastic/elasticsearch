@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class UpdateSettingsAction extends IndicesAction<UpdateSettingsRequest, UpdateSettingsResponse, UpdateSettingsRequestBuilder> {
 
     public static final UpdateSettingsAction INSTANCE = new UpdateSettingsAction();
-    public static final String NAME = "indices/settings/update";
+    public static final String NAME = "indices:admin/settings/update";
 
     private UpdateSettingsAction() {
         super(NAME);

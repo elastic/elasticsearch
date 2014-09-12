@@ -133,7 +133,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
-        assertSearchResponse(response);
+        assertSearchResponse(response);System.out.println(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -1152,7 +1152,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithUknownMetric() throws Exception {
         try {
-            client().prepareSearch("idx").setTypes("type")
+            SearchResponse response = client().prepareSearch("idx").setTypes("type")
                     .addAggregation(terms("terms")
                             .executionHint(randomExecutionHint())
                             .field(SINGLE_VALUED_FIELD_NAME)
@@ -1160,9 +1160,8 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                             .order(Terms.Order.aggregation("stats.foo", true))
                             .subAggregation(stats("stats").field("i"))
                     ).execute().actionGet();
-
             fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
-                    "with an unknown specified metric to order by");
+                    "with an unknown specified metric to order by. response had " + response.getFailedShards() + " failed shards.");
 
         } catch (ElasticsearchException e) {
             // expected
@@ -1322,7 +1321,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         }
 
     }
-    
+
     @Test
     public void singleValuedField_OrderedByStatsAggAscWithTermsSubAgg() throws Exception {
         boolean asc = true;
@@ -1352,7 +1351,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             ExtendedStats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
             assertThat(stats.getMax(), equalTo((double) i));
-            
+
             Terms subTermsAgg = bucket.getAggregations().get("subTerms");
             assertThat(subTermsAgg, notNullValue());
             assertThat(subTermsAgg.getBuckets().size(), equalTo(2));

@@ -46,7 +46,6 @@ final class TermVectorWriter {
     }
 
     void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields) throws IOException {
-
         int numFieldsWritten = 0;
         TermsEnum iterator = null;
         DocsAndPositionsEnum docsAndPosEnum = null;
@@ -59,6 +58,11 @@ final class TermVectorWriter {
 
             Terms fieldTermVector = termVectorsByField.terms(field);
             Terms topLevelTerms = topLevelFields.terms(field);
+
+            // if no terms found, take the retrieved term vector fields for stats
+            if (topLevelTerms == null) {
+                topLevelTerms = fieldTermVector;
+            }
 
             topLevelIterator = topLevelTerms.iterator(topLevelIterator);
             boolean positions = flags.contains(Flag.Positions) && fieldTermVector.hasPositions();
@@ -75,7 +79,6 @@ final class TermVectorWriter {
                 // get the doc frequency
                 BytesRef term = iterator.term();
                 boolean foundTerm = topLevelIterator.seekExact(term);
-                assert (foundTerm);
                 startTerm(term);
                 if (flags.contains(Flag.TermStatistics)) {
                     writeTermStatistics(topLevelIterator);
@@ -197,23 +200,23 @@ final class TermVectorWriter {
 
     private void writeTermStatistics(TermsEnum topLevelIterator) throws IOException {
         int docFreq = topLevelIterator.docFreq();
-        assert (docFreq >= 0);
+        assert (docFreq >= -1);
         writePotentiallyNegativeVInt(docFreq);
         long ttf = topLevelIterator.totalTermFreq();
-        assert (ttf >= 0);
+        assert (ttf >= -1);
         writePotentiallyNegativeVLong(ttf);
 
     }
 
     private void writeFieldStatistics(Terms topLevelTerms) throws IOException {
         long sttf = topLevelTerms.getSumTotalTermFreq();
-        assert (sttf >= 0);
+        assert (sttf >= -1);
         writePotentiallyNegativeVLong(sttf);
         long sdf = topLevelTerms.getSumDocFreq();
-        assert (sdf >= 0);
+        assert (sdf >= -1);
         writePotentiallyNegativeVLong(sdf);
         int dc = topLevelTerms.getDocCount();
-        assert (dc >= 0);
+        assert (dc >= -1);
         writePotentiallyNegativeVInt(dc);
 
     }

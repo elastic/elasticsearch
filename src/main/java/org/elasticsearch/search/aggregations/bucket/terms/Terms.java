@@ -22,8 +22,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
-import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
 
 /**
  * A {@code terms} aggregation. Defines multiple bucket, each associated with a unique term for a specific field.
@@ -65,12 +65,25 @@ public interface Terms extends MultiBucketsAggregation {
         public abstract Number getKeyAsNumber();
 
         abstract int compareTerm(Terms.Bucket other);
+        
+        public abstract long getDocCountError();
 
     }
 
-    Collection<Bucket> getBuckets();
+    /**
+     * Return the sorted list of the buckets in this terms aggregation.
+     */
+    List<Bucket> getBuckets();
 
+    /**
+     * Get the bucket for the given term, or null if there is no such bucket.
+     */
     Bucket getBucketByKey(String term);
+    
+    /**
+     * Get an upper bound of the error on document counts in this aggregation.
+     */
+    long getDocCountError();
 
     /**
      * Determines the order by which the term buckets will be sorted

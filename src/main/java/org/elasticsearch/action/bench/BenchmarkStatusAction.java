@@ -28,7 +28,7 @@ import org.elasticsearch.client.Client;
 public class BenchmarkStatusAction extends ClientAction<BenchmarkStatusRequest, BenchmarkStatusResponse, BenchmarkStatusRequestBuilder> {
 
     public static final BenchmarkStatusAction INSTANCE = new BenchmarkStatusAction();
-    public static final String NAME = "benchmark/status";
+    public static final String NAME = "indices:data/benchmark/status";
 
     public BenchmarkStatusAction() {
         super(NAME);

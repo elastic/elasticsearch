@@ -28,7 +28,7 @@ import org.joda.time.DateTime;
 import java.io.IOException;
 
 /**
- *
+ * Builder for the {@link DateHistogram} aggregation.
  */
 public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHistogramBuilder> {
 
@@ -41,81 +41,134 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     private String postZone;
     private boolean preZoneAdjustLargeInterval;
     private String format;
-    long preOffset = 0;
-    long postOffset = 0;
-    float factor = 1.0f;
+    private String preOffset;
+    private String postOffset;
+    private float factor = 1.0f;
 
+    /**
+     * Sole constructor.
+     */
     public DateHistogramBuilder(String name) {
         super(name, InternalDateHistogram.TYPE.name());
     }
 
+    /**
+     * Set the interval in milliseconds.
+     */
     public DateHistogramBuilder interval(long interval) {
         this.interval = interval;
         return this;
     }
 
+    /**
+     * Set the interval.
+     */
     public DateHistogramBuilder interval(DateHistogram.Interval interval) {
         this.interval = interval;
         return this;
     }
 
+    /**
+     * Set the order by which the buckets will be returned.
+     */
     public DateHistogramBuilder order(DateHistogram.Order order) {
         this.order = order;
         return this;
     }
 
+    /**
+     * Set the minimum document count per bucket. Buckets with less documents
+     * than this min value will not be returned.
+     */
     public DateHistogramBuilder minDocCount(long minDocCount) {
         this.minDocCount = minDocCount;
         return this;
     }
 
+    /**
+     * Set the timezone in which to translate dates before computing buckets.
+     */
     public DateHistogramBuilder preZone(String preZone) {
         this.preZone = preZone;
         return this;
     }
 
+    /**
+     * Set the timezone in which to translate dates after having computed buckets.
+     */
     public DateHistogramBuilder postZone(String postZone) {
         this.postZone = postZone;
         return this;
     }
 
+    /**
+     * Set whether to adjust large intervals, when using days or larger intervals.
+     */
     public DateHistogramBuilder preZoneAdjustLargeInterval(boolean preZoneAdjustLargeInterval) {
         this.preZoneAdjustLargeInterval = preZoneAdjustLargeInterval;
         return this;
     }
 
-    public DateHistogramBuilder preOffset(long preOffset) {
+    /**
+     * Set the offset to apply prior to computing buckets.
+     */
+    public DateHistogramBuilder preOffset(String preOffset) {
         this.preOffset = preOffset;
         return this;
     }
 
-    public DateHistogramBuilder postOffset(long postOffset) {
+    /**
+     * Set the offset to apply after having computed buckets.
+     */
+    public DateHistogramBuilder postOffset(String postOffset) {
         this.postOffset = postOffset;
         return this;
     }
 
+    /**
+     * Set a factor to apply to values of the field, typically used if times
+     * are stored in seconds instead of milliseconds.
+     */
     public DateHistogramBuilder factor(float factor) {
         this.factor = factor;
         return this;
     }
 
+    /**
+     * Set the format to use for dates.
+     */
     public DateHistogramBuilder format(String format) {
         this.format = format;
         return this;
     }
 
+    /**
+     * Set extended bounds for the histogram. In case the lower value in the
+     * histogram would be greater than <code>min</code> or the upper value would
+     * be less than <code>max</code>, empty buckets will be generated.
+     */
     public DateHistogramBuilder extendedBounds(Long min, Long max) {
         extendedBoundsMin = min;
         extendedBoundsMax = max;
         return this;
     }
 
+    /**
+     * Set extended bounds for the histogram. In case the lower value in the
+     * histogram would be greater than <code>min</code> or the upper value would
+     * be less than <code>max</code>, empty buckets will be generated.
+     */
     public DateHistogramBuilder extendedBounds(String min, String max) {
         extendedBoundsMin = min;
         extendedBoundsMax = max;
         return this;
     }
 
+    /**
+     * Set extended bounds for the histogram. In case the lower value in the
+     * histogram would be greater than <code>min</code> or the upper value would
+     * be less than <code>max</code>, empty buckets will be generated.
+     */
     public DateHistogramBuilder extendedBounds(DateTime min, DateTime max) {
         extendedBoundsMin = min;
         extendedBoundsMax = max;
@@ -125,7 +178,7 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (interval == null) {
-            throw new SearchSourceBuilderException("[interval] must be defined for histogram aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("[interval] must be defined for histogram aggregation [" + getName() + "]");
         }
         if (interval instanceof Number) {
             interval = TimeValue.timeValueMillis(((Number) interval).longValue()).toString();
@@ -153,11 +206,11 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
             builder.field("pre_zone_adjust_large_interval", true);
         }
 
-        if (preOffset != 0) {
+        if (preOffset != null) {
             builder.field("pre_offset", preOffset);
         }
 
-        if (postOffset != 0) {
+        if (postOffset != null) {
             builder.field("post_offset", postOffset);
         }
 

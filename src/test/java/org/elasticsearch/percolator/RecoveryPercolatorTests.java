@@ -65,14 +65,14 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return builder().put("gateway.type", "local").build();
+        return builder().put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local").build();
     }
 
     @Test
     @Slow
     public void testRestartNodePercolator1() throws Exception {
         internalCluster().startNode();
-        createIndex("test");
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string"));
 
         logger.info("--> register a query");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
@@ -112,7 +112,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testRestartNodePercolator2() throws Exception {
         internalCluster().startNode();
-        createIndex("test");
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string"));
 
         logger.info("--> register a query");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")

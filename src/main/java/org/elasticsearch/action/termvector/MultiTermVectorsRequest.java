@@ -21,16 +21,14 @@ package org.elasticsearch.action.termvector;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.*;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +36,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> {
+public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> implements CompositeIndicesRequest {
 
     String preference;
     List<TermVectorRequest> requests = new ArrayList<>();
@@ -52,6 +50,11 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
 
     public MultiTermVectorsRequest add(String index, @Nullable String type, String id) {
         requests.add(new TermVectorRequest(index, type, id));
+        return this;
+    }
+
+    public MultiTermVectorsRequest add(MultiGetRequest.Item item) {
+        requests.add(new TermVectorRequest(item));
         return this;
     }
 
@@ -73,9 +76,12 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
         return validationException;
     }
 
-    public void add(TermVectorRequest template, BytesReference data)
-            throws Exception {
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
+        return requests;
+    }
 
+    public void add(TermVectorRequest template, BytesReference data) throws Exception {
         XContentParser.Token token;
         String currentFieldName = null;
         if (data.length() > 0) {
@@ -84,7 +90,6 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_ARRAY) {
-
                         if ("docs".equals(currentFieldName)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 if (token != XContentParser.Token.START_OBJECT) {

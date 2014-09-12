@@ -24,6 +24,9 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.aggregations.bucket.terms.AbstractTermsParametersParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
@@ -34,12 +37,19 @@ import java.io.IOException;
 public class SignificantTermsParametersParser extends AbstractTermsParametersParser {
 
     private static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(3, 0, 10, -1);
+    private final SignificanceHeuristicParserMapper significanceHeuristicParserMapper;
+
+    public SignificantTermsParametersParser(SignificanceHeuristicParserMapper significanceHeuristicParserMapper) {
+        this.significanceHeuristicParserMapper = significanceHeuristicParserMapper;
+    }
 
     public Filter getFilter() {
         return filter;
     }
 
     private Filter filter = null;
+
+    private SignificanceHeuristic significanceHeuristic;
 
     public TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds() {
         return new TermsAggregator.BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
@@ -49,9 +59,12 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
 
     @Override
     public void parseSpecial(String aggregationName, XContentParser parser, SearchContext context, XContentParser.Token token, String currentFieldName) throws IOException {
-
+        
         if (token == XContentParser.Token.START_OBJECT) {
-            if (BACKGROUND_FILTER.match(currentFieldName)) {
+            SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserMapper.get(currentFieldName);
+            if (significanceHeuristicParser != null) {
+                significanceHeuristic = significanceHeuristicParser.parse(parser);
+            } else if (BACKGROUND_FILTER.match(currentFieldName)) {
                 filter = context.queryParserService().parseInnerFilter(parser).filter();
             } else {
                 throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
@@ -59,5 +72,9 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
         } else {
             throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
         }
+    }
+
+    public SignificanceHeuristic getSignificanceHeuristic() {
+        return significanceHeuristic;
     }
 }

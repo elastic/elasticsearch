@@ -100,7 +100,7 @@ settings API.
 [[disk]]
 === Disk-based Shard Allocation
 
-coming[1.3.0] disk based shard allocation is enabled from version 1.3.0 onward
+added[1.3.0] disk based shard allocation is enabled from version 1.3.0 onward
 
 Elasticsearch can be configured to prevent shard
 allocation on nodes depending on disk usage for the node. This

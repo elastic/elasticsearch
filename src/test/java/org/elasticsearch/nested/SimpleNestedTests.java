@@ -21,26 +21,28 @@ package org.elasticsearch.nested;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.facet.FacetBuilders;
-import org.elasticsearch.search.facet.filter.FilterFacet;
-import org.elasticsearch.search.facet.statistical.StatisticalFacet;
-import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Assert;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -53,21 +55,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleNested() throws Exception {
-        XContentBuilder builder = jsonBuilder().
-                startObject().
-                field("type1").
-                startObject().
-                field("properties").
-                startObject().
-                field("nested1").
-                startObject().
-                field("type").
-                value("nested").
-                endObject().
-                endObject().
-                endObject().
-                endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", builder));
+        assertAcked(prepareCreate("test").addMapping("type1", "nested1", "type=nested").addMapping("type2", "nested1", "type=nested"));
         ensureGreen();
 
         // check on no data, see it works
@@ -169,6 +157,102 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        searchResponse = client().prepareSearch("test").setTypes("type1", "type2").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+    }
+
+    @Test
+    public void simpleNestedMatchQueries() throws Exception {
+        XContentBuilder builder = jsonBuilder().startObject()
+                .startObject("type1")
+                    .startObject("properties")
+                        .startObject("nested1")
+                            .field("type", "nested")
+                        .endObject()
+                        .startObject("field1")
+                            .field("type", "long")
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", builder));
+        ensureGreen();
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        int numDocs = randomIntBetween(2, 35);
+        requests.add(client().prepareIndex("test", "type1", "0").setSource(jsonBuilder().startObject()
+                .field("field1", 0)
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_1")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_2")
+                .field("n_field2", "n_value2_2")
+                .endObject()
+                .endArray()
+                .endObject()));
+        requests.add(client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", 1)
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_8")
+                .field("n_field2", "n_value2_5")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_3")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .endArray()
+                .endObject()));
+
+        for (int i = 2; i < numDocs; i++) {
+            requests.add(client().prepareIndex("test", "type1", String.valueOf(i)).setSource(jsonBuilder().startObject()
+                    .field("field1", i)
+                    .startArray("nested1")
+                    .startObject()
+                    .field("n_field1", "n_value1_8")
+                    .field("n_field2", "n_value2_5")
+                    .endObject()
+                    .startObject()
+                    .field("n_field1", "n_value1_2")
+                    .field("n_field2", "n_value2_2")
+                    .endObject()
+                    .endArray()
+                    .endObject()));
+        }
+
+        indexRandom(true, requests);
+        waitForRelocation(ClusterHealthStatus.GREEN);
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(nestedQuery("nested1", boolQuery()
+                        .should(termQuery("nested1.n_field1", "n_value1_1").queryName("test1"))
+                        .should(termQuery("nested1.n_field1", "n_value1_3").queryName("test2"))
+                        .should(termQuery("nested1.n_field2", "n_value2_2").queryName("test3"))
+                ))
+                .setSize(numDocs)
+                .addSort("field1", SortOrder.ASC)
+                .get();
+        assertNoFailures(searchResponse);
+        assertAllSuccessful(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("0"));
+        assertThat(searchResponse.getHits().getAt(0).matchedQueries(), arrayWithSize(2));
+        assertThat(searchResponse.getHits().getAt(0).matchedQueries(), arrayContainingInAnyOrder("test1", "test3"));
+
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).matchedQueries(), arrayWithSize(1));
+        assertThat(searchResponse.getHits().getAt(1).matchedQueries(), arrayContaining("test2"));
+
+        for (int i = 2; i < numDocs; i++) {
+            assertThat(searchResponse.getHits().getAt(i).id(), equalTo(String.valueOf(i)));
+            assertThat(searchResponse.getHits().getAt(i).matchedQueries(), arrayWithSize(1));
+            assertThat(searchResponse.getHits().getAt(i).matchedQueries(), arrayContaining("test3"));
+        }
     }
 
     @Test
@@ -349,141 +433,6 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testFacetsSingleShard() throws Exception {
-        testFacets(1);
-    }
-
-    @Test
-    public void testFacetsMultiShards() throws Exception {
-        testFacets(between(2, DEFAULT_MAX_NUM_SHARDS));
-    }
-
-    private void testFacets(int numberOfShards) throws Exception {
-
-        assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put(indexSettings())
-                        .put("index.number_of_shards", numberOfShards))
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("nested1")
-                        .field("type", "nested").startObject("properties")
-                        .startObject("nested2").field("type", "nested")
-                        .startObject("properties")
-                        .startObject("field2_1").field("type", "string").endObject()
-                        .startObject("field2_2").field("type", "long").endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject().endObject()
-                        .endObject().endObject().endObject()));
-
-        ensureGreen();
-
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .startArray("nested1")
-                .startObject().field("field1_1", "1").startArray("nested2").startObject().field("field2_1", "blue").field("field2_2", 5).endObject().startObject().field("field2_1", "yellow").field("field2_2", 3).endObject().endArray().endObject()
-                .startObject().field("field1_1", "4").startArray("nested2").startObject().field("field2_1", "green").field("field2_2", 6).endObject().startObject().field("field2_1", "blue").field("field2_2", 1).endObject().endArray().endObject()
-                .endArray()
-                .endObject()).execute().actionGet();
-
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .startArray("nested1")
-                .startObject().field("field1_1", "2").startArray("nested2").startObject().field("field2_1", "yellow").field("field2_2", 10).endObject().startObject().field("field2_1", "green").field("field2_2", 8).endObject().endArray().endObject()
-                .startObject().field("field1_1", "1").startArray("nested2").startObject().field("field2_1", "blue").field("field2_2", 2).endObject().startObject().field("field2_1", "red").field("field2_2", 12).endObject().endArray().endObject()
-                .endArray()
-                .endObject()).execute().actionGet();
-
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery())
-                .addFacet(FacetBuilders.termsStatsFacet("facet1").keyField("nested1.nested2.field2_1").valueField("nested1.nested2.field2_2").nested("nested1.nested2"))
-                .addFacet(FacetBuilders.statisticalFacet("facet2").field("field2_2").nested("nested1.nested2"))
-                .addFacet(FacetBuilders.statisticalFacet("facet2_blue").field("field2_2").nested("nested1.nested2")
-                        .facetFilter(boolFilter().must(termFilter("field2_1", "blue"))))
-                .execute().actionGet();
-
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
-
-        TermsStatsFacet termsStatsFacet = searchResponse.getFacets().facet("facet1");
-        assertThat(termsStatsFacet.getEntries().size(), equalTo(4));
-        assertThat(termsStatsFacet.getEntries().get(0).getTerm().string(), equalTo("blue"));
-        assertThat(termsStatsFacet.getEntries().get(0).getCount(), equalTo(3l));
-        assertThat(termsStatsFacet.getEntries().get(0).getTotal(), equalTo(8d));
-        assertThat(termsStatsFacet.getEntries().get(1).getTerm().string(), equalTo("yellow"));
-        assertThat(termsStatsFacet.getEntries().get(1).getCount(), equalTo(2l));
-        assertThat(termsStatsFacet.getEntries().get(1).getTotal(), equalTo(13d));
-        assertThat(termsStatsFacet.getEntries().get(2).getTerm().string(), equalTo("green"));
-        assertThat(termsStatsFacet.getEntries().get(2).getCount(), equalTo(2l));
-        assertThat(termsStatsFacet.getEntries().get(2).getTotal(), equalTo(14d));
-        assertThat(termsStatsFacet.getEntries().get(3).getTerm().string(), equalTo("red"));
-        assertThat(termsStatsFacet.getEntries().get(3).getCount(), equalTo(1l));
-        assertThat(termsStatsFacet.getEntries().get(3).getTotal(), equalTo(12d));
-
-        StatisticalFacet statsFacet = searchResponse.getFacets().facet("facet2");
-        assertThat(statsFacet.getCount(), equalTo(8l));
-        assertThat(statsFacet.getMin(), equalTo(1d));
-        assertThat(statsFacet.getMax(), equalTo(12d));
-        assertThat(statsFacet.getTotal(), equalTo(47d));
-
-        StatisticalFacet blueFacet = searchResponse.getFacets().facet("facet2_blue");
-        assertThat(blueFacet.getCount(), equalTo(3l));
-        assertThat(blueFacet.getMin(), equalTo(1d));
-        assertThat(blueFacet.getMax(), equalTo(5d));
-        assertThat(blueFacet.getTotal(), equalTo(8d));
-
-        // test scope ones (collector based)
-        searchResponse = client().prepareSearch("test")
-                .setQuery(
-                        nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue"))
-                )
-                .addFacet(
-                        FacetBuilders.termsStatsFacet("facet1")
-                                .keyField("nested1.nested2.field2_1")
-                                .valueField("nested1.nested2.field2_2")
-                                .nested("nested1.nested2")
-                                        // Maybe remove the `join` option?
-                                        // The following also works:
-                                        // .facetFilter(termFilter("nested1.nested2.field2_1", "blue"))
-                                .facetFilter(nestedFilter("nested1.nested2", termFilter("nested1.nested2.field2_1", "blue")).join(false))
-                )
-                .execute().actionGet();
-
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
-
-        termsStatsFacet = searchResponse.getFacets().facet("facet1");
-        assertThat(termsStatsFacet.getEntries().size(), equalTo(1));
-        assertThat(termsStatsFacet.getEntries().get(0).getTerm().string(), equalTo("blue"));
-        assertThat(termsStatsFacet.getEntries().get(0).getCount(), equalTo(3l));
-        assertThat(termsStatsFacet.getEntries().get(0).getTotal(), equalTo(8d));
-
-        // test scope ones (post based)
-        searchResponse = client().prepareSearch("test")
-                .setQuery(
-                        nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue"))
-                )
-                .addFacet(
-                        FacetBuilders.filterFacet("facet1")
-                                .global(true)
-                                .filter(rangeFilter("nested1.nested2.field2_2").gte(0).lte(2))
-                                .nested("nested1.nested2")
-                                .facetFilter(nestedFilter("nested1.nested2", termFilter("nested1.nested2.field2_1", "blue")).join(false))
-                )
-                .execute().actionGet();
-
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
-
-        FilterFacet filterFacet = searchResponse.getFacets().facet("facet1");
-        assertThat(filterFacet.getCount(), equalTo(2l));
-        assertThat(filterFacet.getName(), equalTo("facet1"));
-    }
-
-    @Test
     // When IncludeNestedDocsQuery is wrapped in a FilteredQuery then a in-finite loop occurs b/c of a bug in IncludeNestedDocsQuery#advance()
     // This IncludeNestedDocsQuery also needs to be aware of the filter from alias
     public void testDeleteNestedDocsWithAlias() throws Exception {
@@ -491,6 +440,9 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test")
                 .setSettings(settingsBuilder().put(indexSettings()).put("index.referesh_interval", -1).build())
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field1")
+                        .field("type", "string")
+                        .endObject()
                         .startObject("nested1")
                         .field("type", "nested")
                         .endObject()
@@ -1167,11 +1119,11 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
-        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("0"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
-        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -1186,11 +1138,11 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 3);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
-        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
-        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("0"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("1"));
 
         // Sort mode: avg with filter
         searchResponse = client().prepareSearch()
@@ -1212,6 +1164,64 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
+    }
+
+    @Test
+    public void testCheckFixedBitSetCache() throws Exception {
+        boolean loadFixedBitSeLazily = randomBoolean();
+        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder().put(indexSettings())
+                .put("index.refresh_interval", -1);
+        if (loadFixedBitSeLazily) {
+            settingsBuilder.put("index.load_fixed_bitset_filters_eagerly", false);
+        }
+        assertAcked(prepareCreate("test")
+                        .setSettings(settingsBuilder)
+                        .addMapping("type")
+        );
+
+        client().prepareIndex("test", "type", "0").setSource("field", "value").get();
+        client().prepareIndex("test", "type", "1").setSource("field", "value").get();
+        refresh();
+        ensureSearchable("test");
+
+        // No nested mapping yet, there shouldn't be anything in the fixed bit set cache
+        ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+
+        // Now add nested mapping
+        assertAcked(
+                client().admin().indices().preparePutMapping("test").setType("type").setSource("array1", "type=nested")
+        );
+
+        XContentBuilder builder = jsonBuilder().startObject()
+                    .startArray("array1").startObject().field("field1", "value1").endObject().endArray()
+                .endObject();
+        // index simple data
+        client().prepareIndex("test", "type", "2").setSource(builder).get();
+        client().prepareIndex("test", "type", "3").setSource(builder).get();
+        client().prepareIndex("test", "type", "4").setSource(builder).get();
+        client().prepareIndex("test", "type", "5").setSource(builder).get();
+        client().prepareIndex("test", "type", "6").setSource(builder).get();
+        refresh();
+        ensureSearchable("test");
+
+        if (loadFixedBitSeLazily) {
+            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+
+            // only when querying with nested the fixed bitsets are loaded
+            SearchResponse searchResponse = client().prepareSearch("test")
+                    .setQuery(nestedQuery("array1", termQuery("field1", "value1")))
+                    .get();
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().totalHits(), equalTo(5l));
+        }
+        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), greaterThan(0l));
+
+        assertAcked(client().admin().indices().prepareDelete("test"));
+        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
     }
 
     /**

@@ -40,20 +40,20 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestPercolateAction extends BaseRestHandler {
 
     @Inject
-    public RestPercolateAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestPercolateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/{index}/{type}/_percolate", this);
         controller.registerHandler(POST, "/{index}/{type}/_percolate", this);
 
-        RestPercolateExistingDocHandler existingDocHandler = new RestPercolateExistingDocHandler(settings, client);
+        RestPercolateExistingDocHandler existingDocHandler = new RestPercolateExistingDocHandler(settings, controller, client);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_percolate", existingDocHandler);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_percolate", existingDocHandler);
 
-        RestCountPercolateDocHandler countHandler = new RestCountPercolateDocHandler(settings, client);
+        RestCountPercolateDocHandler countHandler = new RestCountPercolateDocHandler(settings, controller, client);
         controller.registerHandler(GET, "/{index}/{type}/_percolate/count", countHandler);
         controller.registerHandler(POST, "/{index}/{type}/_percolate/count", countHandler);
 
-        RestCountPercolateExistingDocHandler countExistingDocHandler = new RestCountPercolateExistingDocHandler(settings, client);
+        RestCountPercolateExistingDocHandler countExistingDocHandler = new RestCountPercolateExistingDocHandler(settings, controller, client);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_percolate/count", countExistingDocHandler);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_percolate/count", countExistingDocHandler);
     }
@@ -107,8 +107,8 @@ public class RestPercolateAction extends BaseRestHandler {
 
     final class RestCountPercolateDocHandler extends BaseRestHandler {
 
-        private RestCountPercolateDocHandler(Settings settings, final Client client) {
-            super(settings, client);
+        private RestCountPercolateDocHandler(Settings settings, final RestController controller, Client client) {
+            super(settings, controller, client);
         }
 
         @Override
@@ -121,8 +121,8 @@ public class RestPercolateAction extends BaseRestHandler {
 
     final class RestPercolateExistingDocHandler extends BaseRestHandler {
 
-        protected RestPercolateExistingDocHandler(Settings settings, final Client client) {
-            super(settings, client);
+        protected RestPercolateExistingDocHandler(Settings settings, final RestController controller, Client client) {
+            super(settings, controller, client);
         }
 
         @Override
@@ -134,8 +134,8 @@ public class RestPercolateAction extends BaseRestHandler {
 
     final class RestCountPercolateExistingDocHandler extends BaseRestHandler {
 
-        protected RestCountPercolateExistingDocHandler(Settings settings, final Client client) {
-            super(settings, client);
+        protected RestCountPercolateExistingDocHandler(Settings settings, final RestController controller, Client client) {
+            super(settings, controller, client);
         }
 
         @Override

@@ -21,6 +21,7 @@ package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.*;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -358,7 +359,9 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
             current.intersect = current.coordinate;
             final int intersections = intersections(current.coordinate.x, edges);
             final int pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER);
-            assert pos < 0 : "illegal state: two edges cross the datum at the same position";
+            if (pos >= 0) {
+                throw new ElasticsearchParseException("Invaild shape: Hole is not within polygon");
+            }
             final int index = -(pos+2);
             final int component = -edges[index].component - numHoles - 1;
 
@@ -417,7 +420,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                 in.next = new Edge(in.intersect, out.next, in.intersect);
             }
             out.next = new Edge(out.intersect, e1, out.intersect);
-        } else {
+        } else if (in.next != out){
             // first edge intersects with dateline
             Edge e2 = new Edge(out.intersect, in.next, out.intersect);
 

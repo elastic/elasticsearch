@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongsRef;
-import org.apache.lucene.util.packed.AppendingPackedLongBuffer;
-import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.BytesValues.WithOrdinals;
+import org.apache.lucene.util.packed.PackedLongValues;
+import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
 
 /**
  * {@link Ordinals} implementation which is efficient at storing field data ordinals for multi-valued or sparse fields.
@@ -54,25 +55,27 @@ public class MultiOrdinals extends Ordinals {
     }
 
     private final boolean multiValued;
-    private final long maxOrd;
-    private final MonotonicAppendingLongBuffer endOffsets;
-    private final AppendingPackedLongBuffer ords;
+    private final long valueCount;
+    private final PackedLongValues endOffsets;
+    private final PackedLongValues ords;
 
     public MultiOrdinals(OrdinalsBuilder builder, float acceptableOverheadRatio) {
         multiValued = builder.getNumMultiValuesDocs() > 0;
-        maxOrd = builder.getMaxOrd();
-        endOffsets = new MonotonicAppendingLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
-        ords = new AppendingPackedLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
+        valueCount = builder.getValueCount();
+        PackedLongValues.Builder endOffsetsBuilder = PackedLongValues.monotonicBuilder(OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
+        PackedLongValues.Builder ordsBuilder = PackedLongValues.packedBuilder(OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
         long lastEndOffset = 0;
         for (int i = 0; i < builder.maxDoc(); ++i) {
             final LongsRef docOrds = builder.docOrds(i);
             final long endOffset = lastEndOffset + docOrds.length;
-            endOffsets.add(endOffset);
+            endOffsetsBuilder.add(endOffset);
             for (int j = 0; j < docOrds.length; ++j) {
-                ords.add(docOrds.longs[docOrds.offset + j]);
+                ordsBuilder.add(docOrds.longs[docOrds.offset + j]);
             }
             lastEndOffset = endOffset;
         }
+        endOffsets = endOffsetsBuilder.build();
+        ords = ordsBuilder.build();
         assert endOffsets.size() == builder.maxDoc();
         assert ords.size() == builder.getTotalNumOrds() : ords.size() + " != " + builder.getTotalNumOrds();
     }
@@ -83,61 +86,89 @@ public class MultiOrdinals extends Ordinals {
     }
 
     @Override
-    public WithOrdinals ordinals(ValuesHolder values) {
-        return new MultiDocs(this, values);
+    public RandomAccessOrds ordinals(ValuesHolder values) {
+        if (multiValued) {
+            return new MultiDocs(this, values);
+        } else {
+            return (RandomAccessOrds) DocValues.singleton(new SingleDocs(this, values));
+        }
     }
 
-    public static class MultiDocs extends BytesValues.WithOrdinals {
+    private static class SingleDocs extends SortedDocValues {
 
-        private final long maxOrd;
-        private final MonotonicAppendingLongBuffer endOffsets;
-        private final AppendingPackedLongBuffer ords;
-        private long offset;
-        private long limit;
+        private final int valueCount;
+        private final PackedLongValues endOffsets;
+        private final PackedLongValues ords;
         private final ValuesHolder values;
 
-        MultiDocs(MultiOrdinals ordinals, ValuesHolder values) {
-            super(ordinals.multiValued);
-            this.maxOrd = ordinals.maxOrd;
+        SingleDocs(MultiOrdinals ordinals, ValuesHolder values) {
+            this.valueCount = (int) ordinals.valueCount;
             this.endOffsets = ordinals.endOffsets;
             this.ords = ordinals.ords;
             this.values = values;
         }
 
         @Override
-        public long getMaxOrd() {
-            return maxOrd;
-        }
-
-        @Override
-        public long getOrd(int docId) {
-            final long startOffset = docId > 0 ? endOffsets.get(docId - 1) : 0;
+        public int getOrd(int docId) {
+            final long startOffset = docId != 0 ? endOffsets.get(docId - 1) : 0;
             final long endOffset = endOffsets.get(docId);
-            if (startOffset == endOffset) {
-                return MISSING_ORDINAL; // ord for missing values
-            } else {
-                return ords.get(startOffset);
-            }
+            return startOffset == endOffset ? -1 : (int) ords.get(startOffset);
         }
 
         @Override
-        public long nextOrd() {
-            assert offset < limit;
-            return ords.get(offset++);
+        public BytesRef lookupOrd(int ord) {
+            return values.lookupOrd(ord);
         }
 
         @Override
-        public int setDocument(int docId) {
-            final long startOffset = docId > 0 ? endOffsets.get(docId - 1) : 0;
+        public int getValueCount() {
+            return valueCount;
+        }
+
+    }
+
+    private static class MultiDocs extends AbstractRandomAccessOrds {
+
+        private final long valueCount;
+        private final PackedLongValues endOffsets;
+        private final PackedLongValues ords;
+        private long offset;
+        private int cardinality;
+        private final ValuesHolder values;
+
+        MultiDocs(MultiOrdinals ordinals, ValuesHolder values) {
+            this.valueCount = ordinals.valueCount;
+            this.endOffsets = ordinals.endOffsets;
+            this.ords = ordinals.ords;
+            this.values = values;
+        }
+
+        @Override
+        public long getValueCount() {
+            return valueCount;
+        }
+
+        @Override
+        public void doSetDocument(int docId) {
+            final long startOffset = docId != 0 ? endOffsets.get(docId - 1) : 0;
             final long endOffset = endOffsets.get(docId);
             offset = startOffset;
-            limit = endOffset;
-            return (int) (endOffset - startOffset);
+            cardinality = (int) (endOffset - startOffset);
         }
 
         @Override
-        public BytesRef getValueByOrd(long ord) {
-            return values.getValueByOrd(ord);
+        public int cardinality() {
+            return cardinality;
+        }
+
+        @Override
+        public long ordAt(int index) {
+            return ords.get(offset + index);
+        }
+
+        @Override
+        public BytesRef lookupOrd(long ord) {
+            return values.lookupOrd(ord);
         }
     }
 }

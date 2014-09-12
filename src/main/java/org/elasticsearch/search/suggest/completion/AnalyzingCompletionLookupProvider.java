@@ -187,7 +187,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         @Override
         public void addPosition(int position, BytesRef payload, int startOffset, int endOffset) throws IOException {
             analyzingSuggestLookupProvider.parsePayload(payload, spare);
-            builder.addSurface(spare.surfaceForm, spare.payload, spare.weight);
+            builder.addSurface(spare.surfaceForm.get(), spare.payload.get(), spare.weight);
             // multi fields have the same surface form so we sum up here
             maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, position + 1);
         }

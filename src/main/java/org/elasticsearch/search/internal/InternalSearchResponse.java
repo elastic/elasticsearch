@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -27,8 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.facet.Facets;
-import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -41,12 +40,10 @@ import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHit
 public class InternalSearchResponse implements Streamable, ToXContent {
 
     public static InternalSearchResponse empty() {
-        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, null, false);
+        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, false, null);
     }
 
     private InternalSearchHits hits;
-
-    private InternalFacets facets;
 
     private InternalAggregations aggregations;
 
@@ -54,27 +51,29 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private boolean timedOut;
 
+    private Boolean terminatedEarly = null;
+
     private InternalSearchResponse() {
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets, InternalAggregations aggregations, Suggest suggest, boolean timedOut) {
+    public InternalSearchResponse(InternalSearchHits hits, InternalAggregations aggregations, Suggest suggest, boolean timedOut, Boolean terminatedEarly) {
         this.hits = hits;
-        this.facets = facets;
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.timedOut = timedOut;
+        this.terminatedEarly = terminatedEarly;
     }
 
     public boolean timedOut() {
         return this.timedOut;
     }
 
-    public SearchHits hits() {
-        return hits;
+    public Boolean terminatedEarly() {
+        return this.terminatedEarly;
     }
 
-    public Facets facets() {
-        return facets;
+    public SearchHits hits() {
+        return hits;
     }
 
     public Aggregations aggregations() {
@@ -88,9 +87,6 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         hits.toXContent(builder, params);
-        if (facets != null) {
-            facets.toXContent(builder, params);
-        }
         if (aggregations != null) {
             aggregations.toXContent(builder, params);
         }
@@ -110,26 +106,21 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         hits = readSearchHits(in);
         if (in.readBoolean()) {
-            facets = InternalFacets.readFacets(in);
-        }
-        if (in.readBoolean()) {
             aggregations = InternalAggregations.readAggregations(in);
         }
         if (in.readBoolean()) {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         timedOut = in.readBoolean();
+
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            terminatedEarly = in.readOptionalBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         hits.writeTo(out);
-        if (facets == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            facets.writeTo(out);
-        }
         if (aggregations == null) {
             out.writeBoolean(false);
         } else {
@@ -143,5 +134,10 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             suggest.writeTo(out);
         }
         out.writeBoolean(timedOut);
+
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            out.writeOptionalBoolean(terminatedEarly);
+
+        }
     }
 }

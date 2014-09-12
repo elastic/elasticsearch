@@ -45,7 +45,7 @@ public interface Mapper extends ToXContent {
         private final Settings indexSettings;
         private final ContentPath contentPath;
 
-        public BuilderContext(@Nullable Settings indexSettings, ContentPath contentPath) {
+        public BuilderContext(Settings indexSettings, ContentPath contentPath) {
             this.contentPath = contentPath;
             this.indexSettings = indexSettings;
         }

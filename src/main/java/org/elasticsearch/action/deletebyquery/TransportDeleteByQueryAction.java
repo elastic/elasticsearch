@@ -21,6 +21,7 @@ package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.replication.TransportIndicesReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -46,8 +47,8 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
     @Inject
     public TransportDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                         ThreadPool threadPool, TransportIndexDeleteByQueryAction indexDeleteByQueryAction,
-                                        NodeSettingsService nodeSettingsService) {
-        super(settings, transportService, clusterService, threadPool, indexDeleteByQueryAction);
+                                        NodeSettingsService nodeSettingsService, ActionFilters actionFilters) {
+        super(settings, DeleteByQueryAction.NAME, transportService, clusterService, threadPool, indexDeleteByQueryAction, actionFilters);
         this.destructiveOperations = new DestructiveOperations(logger, settings, nodeSettingsService);
     }
 
@@ -82,11 +83,6 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
     @Override
     protected boolean accumulateExceptions() {
         return false;
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteByQueryAction.NAME;
     }
 
     @Override

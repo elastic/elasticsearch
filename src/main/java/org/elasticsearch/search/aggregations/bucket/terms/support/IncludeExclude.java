@@ -18,15 +18,14 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms.support;
 
+import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.LongBitSet;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
@@ -43,7 +42,7 @@ public class IncludeExclude {
 
     private final Matcher include;
     private final Matcher exclude;
-    private final CharsRef scratch = new CharsRef();
+    private final CharsRefBuilder scratch = new CharsRefBuilder();
 
     /**
      * @param include   The regular expression pattern for the terms to be included
@@ -61,26 +60,26 @@ public class IncludeExclude {
      * Returns whether the given value is accepted based on the {@code include} & {@code exclude} patterns.
      */
     public boolean accept(BytesRef value) {
-        UnicodeUtil.UTF8toUTF16(value, scratch);
+        scratch.copyUTF8Bytes(value);
         if (include == null) {
             // exclude must not be null
-            return !exclude.reset(scratch).matches();
+            return !exclude.reset(scratch.get()).matches();
         }
-        if (!include.reset(scratch).matches()) {
+        if (!include.reset(scratch.get()).matches()) {
             return false;
         }
         if (exclude == null) {
             return true;
         }
-        return !exclude.reset(scratch).matches();
+        return !exclude.reset(scratch.get()).matches();
     }
 
     /**
      * Computes which global ordinals are accepted by this IncludeExclude instance.
      */
-    public LongBitSet acceptedGlobalOrdinals(BytesValues.WithOrdinals globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) {
-        TermsEnum globalTermsEnum = valueSource.globalBytesValues().getTermsEnum();
-        LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getMaxOrd());
+    public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) {
+        TermsEnum globalTermsEnum = valueSource.globalOrdinalsValues().termsEnum();
+        LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
         try {
             for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
                 if (accept(term)) {

@@ -40,8 +40,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestMoreLikeThisAction extends BaseRestHandler {
 
     @Inject
-    public RestMoreLikeThisAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestMoreLikeThisAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_mlt", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_mlt", this);
     }
@@ -70,7 +70,6 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
         mltRequest.searchType(SearchType.fromString(request.param("search_type")));
         mltRequest.searchIndices(request.paramAsStringArray("search_indices", null));
         mltRequest.searchTypes(request.paramAsStringArray("search_types", null));
-        mltRequest.searchQueryHint(request.param("search_query_hint"));
         mltRequest.searchSize(request.paramAsInt("search_size", mltRequest.searchSize()));
         mltRequest.searchFrom(request.paramAsInt("search_from", mltRequest.searchFrom()));
         String searchScroll = request.param("search_scroll");

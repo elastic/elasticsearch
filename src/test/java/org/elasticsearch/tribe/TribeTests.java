@@ -19,7 +19,6 @@
 
 package org.elasticsearch.tribe;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
@@ -54,6 +53,8 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class TribeTests extends ElasticsearchIntegrationTest {
 
+    public static final String SECOND_CLUSTER_NODE_PREFIX = "node_tribe2";
+
     private static InternalTestCluster cluster2;
 
     private Node tribeNode;
@@ -63,7 +64,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     public static void setupSecondCluster() throws Exception {
         ElasticsearchIntegrationTest.beforeClass();
         // create another cluster
-        cluster2 = new InternalTestCluster(randomLong(), 2, 2, Strings.randomBase64UUID(getRandom()), 0, false);
+        cluster2 = new InternalTestCluster(randomLong(), 2, 2, Strings.randomBase64UUID(getRandom()), 0, false, CHILD_JVM_ID, SECOND_CLUSTER_NODE_PREFIX);
         cluster2.beforeTest(getRandom(), 0.1);
         cluster2.ensureAtLeastNumDataNodes(2);
     }
@@ -111,6 +112,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
                 .put(tribe1Defaults.build())
                 .put(tribe2Defaults.build())
                 .put(internalCluster().getDefaultSettings())
+                .put("node.name", "tribe_node") // make sure we can identify threads from this node
                 .build();
 
         tribeNode = NodeBuilder.nodeBuilder()

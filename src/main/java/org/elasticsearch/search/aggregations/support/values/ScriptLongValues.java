@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.support.values;
 
-import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.index.fielddata.LongValues;
+import org.apache.lucene.util.LongValues;
+import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.support.ScriptValues;
@@ -31,17 +31,12 @@ import java.util.Iterator;
 /**
  * {@link LongValues} implementation which is based on a script
  */
-public class ScriptLongValues extends LongValues implements ScriptValues {
+public class ScriptLongValues extends SortingNumericDocValues implements ScriptValues {
 
     final SearchScript script;
 
-    private Object value;
-    private long[] values = new long[1];
-    private int valueCount;
-    private int valueOffset;
-
     public ScriptLongValues(SearchScript script) {
-        super(true); // assume multi-valued
+        super();
         this.script = script;
     }
 
@@ -51,50 +46,41 @@ public class ScriptLongValues extends LongValues implements ScriptValues {
     }
 
     @Override
-    public int setDocument(int docId) {
-        this.docId = docId;
+    public void setDocument(int docId) {
         script.setNextDocId(docId);
-        value = script.run();
+        final Object value = script.run();
 
         if (value == null) {
-            valueCount = 0;
+            count = 0;
         }
 
         else if (value instanceof Number) {
-            valueCount = 1;
+            count = 1;
             values[0] = ((Number) value).longValue();
         }
 
         else if (value.getClass().isArray()) {
-            valueCount = Array.getLength(value);
-            values = ArrayUtil.grow(values, valueCount);
-            for (int i = 0; i < valueCount; ++i) {
+            count = Array.getLength(value);
+            grow();
+            for (int i = 0; i < count; ++i) {
                 values[i] = ((Number) Array.get(value, i)).longValue();
             }
         }
 
         else if (value instanceof Collection) {
-            valueCount = ((Collection<?>) value).size();
-            values = ArrayUtil.grow(values, valueCount);
+            count = ((Collection<?>) value).size();
+            grow();
             int i = 0;
             for (Iterator<?> it = ((Collection<?>) value).iterator(); it.hasNext(); ++i) {
                 values[i] = ((Number) it.next()).longValue();
             }
-            assert i == valueCount;
+            assert i == count;
         }
 
         else {
             throw new AggregationExecutionException("Unsupported script value [" + value + "]");
         }
 
-        valueOffset = 0;
-        return valueCount;
+        sort();
     }
-
-    @Override
-    public long nextValue() {
-        assert valueOffset < valueCount;
-        return values[valueOffset++];
-    }
-
 }

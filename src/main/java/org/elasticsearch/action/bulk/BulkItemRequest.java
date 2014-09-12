@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -43,6 +44,7 @@ public class BulkItemRequest implements Streamable {
     }
 
     public BulkItemRequest(int id, ActionRequest request) {
+        assert request instanceof IndicesRequest;
         this.id = id;
         this.request = request;
     }
@@ -53,6 +55,12 @@ public class BulkItemRequest implements Streamable {
 
     public ActionRequest request() {
         return request;
+    }
+
+    public String index() {
+        IndicesRequest indicesRequest = (IndicesRequest) request;
+        assert indicesRequest.indices().length == 1;
+        return indicesRequest.indices()[0];
     }
 
     public static BulkItemRequest readBulkItem(StreamInput in) throws IOException {

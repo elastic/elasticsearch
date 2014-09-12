@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
@@ -72,8 +73,8 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
     public TransportDeleteMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
                                         TransportDeleteByQueryAction deleteByQueryAction, TransportRefreshAction refreshAction,
-                                        TransportFlushAction flushAction, NodeSettingsService nodeSettingsService) {
-        super(settings, transportService, clusterService, threadPool);
+                                        TransportFlushAction flushAction, NodeSettingsService nodeSettingsService, ActionFilters actionFilters) {
+        super(settings, DeleteMappingAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.metaDataMappingService = metaDataMappingService;
         this.deleteByQueryAction = deleteByQueryAction;
         this.refreshAction = refreshAction;
@@ -85,11 +86,6 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
     protected String executor() {
         // no need for fork on another thread pool, we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteMappingAction.NAME;
     }
 
     @Override
@@ -142,7 +138,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                 request.types(types.toArray(new String[types.size()]));
                 QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder()
                         .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), filterBuilder));
-                deleteByQueryAction.execute(Requests.deleteByQueryRequest(concreteIndices).source(querySourceBuilder), new ActionListener<DeleteByQueryResponse>() {
+                deleteByQueryAction.execute(Requests.deleteByQueryRequest(concreteIndices).types(request.types()).source(querySourceBuilder), new ActionListener<DeleteByQueryResponse>() {
                     @Override
                     public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
                         if (logger.isTraceEnabled()) {

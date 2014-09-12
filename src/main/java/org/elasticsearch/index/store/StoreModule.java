@@ -30,6 +30,10 @@ import org.elasticsearch.index.store.distributor.RandomWeightedDistributor;
  */
 public class StoreModule extends AbstractModule {
 
+    public static final String DISTIBUTOR_KEY = "index.store.distributor";
+    public static final String LEAST_USED_DISTRIBUTOR = "least_used";
+    public static final String RANDOM_WEIGHT_DISTRIBUTOR = "random";
+
     private final Settings settings;
 
     private final IndexStore indexStore;
@@ -57,13 +61,13 @@ public class StoreModule extends AbstractModule {
 
     private Class<? extends Distributor> loadDistributor(Settings settings) {
         final Class<? extends Distributor> distributor;
-        final String type = settings.get("index.store.distributor");
+        final String type = settings.get(DISTIBUTOR_KEY);
         if ("least_used".equals(type)) {
             distributor = LeastUsedDistributor.class;
         } else if ("random".equals(type)) {
             distributor = RandomWeightedDistributor.class;
         } else {
-            distributor = settings.getAsClass("index.store.distributor", LeastUsedDistributor.class,
+            distributor = settings.getAsClass(DISTIBUTOR_KEY, LeastUsedDistributor.class,
                     "org.elasticsearch.index.store.distributor.", "Distributor");
         }
         return distributor;

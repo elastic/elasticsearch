@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 public class ClearScrollAction extends ClientAction<ClearScrollRequest, ClearScrollResponse, ClearScrollRequestBuilder> {
 
     public static final ClearScrollAction INSTANCE = new ClearScrollAction();
-    public static final String NAME = "clear_sc";
+    public static final String NAME = "indices:data/read/scroll/clear";
 
     private ClearScrollAction() {
         super(NAME);

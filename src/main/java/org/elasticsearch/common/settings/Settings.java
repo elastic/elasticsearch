@@ -29,6 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Immutable settings allowing to control the configuration.
@@ -57,6 +58,11 @@ public interface Settings extends ToXContent {
      * A settings that are filtered (and key is removed) with the specified prefix.
      */
     Settings getByPrefix(String prefix);
+
+    /**
+     * Returns the settings mapped to the given setting name.
+     */
+    Settings getAsSettings(String setting);
 
     /**
      * The class loader associated with this settings, or {@link org.elasticsearch.common.Classes#getDefaultClassLoader()}
@@ -311,6 +317,11 @@ public interface Settings extends ToXContent {
      * Returns a parsed version.
      */
     Version getAsVersion(String setting, Version defaultVersion) throws SettingsException;
+
+    /**
+     * @return  The direct keys of this settings
+     */
+    Set<String> names();
 
     /**
      * Returns the settings as delimited string.

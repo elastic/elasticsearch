@@ -37,13 +37,13 @@ public class BytesReferenceTests extends ElasticsearchTestCase {
         final BytesArray b1 = new BytesArray(array1, offset1, len);
         final BytesArray b2 = new BytesArray(array2, offset2, len);
         assertTrue(BytesReference.Helper.bytesEqual(b1, b2));
-        assertTrue(BytesReference.Helper.slowBytesEquals(b1, b2));
+        assertTrue(BytesReference.Helper.bytesEquals(b1, b2));
         assertEquals(Arrays.hashCode(b1.toBytes()), b1.hashCode());
         assertEquals(BytesReference.Helper.bytesHashCode(b1), BytesReference.Helper.slowHashCode(b2));
 
         // test same instance
         assertTrue(BytesReference.Helper.bytesEqual(b1, b1));
-        assertTrue(BytesReference.Helper.slowBytesEquals(b1, b1));
+        assertTrue(BytesReference.Helper.bytesEquals(b1, b1));
         assertEquals(BytesReference.Helper.bytesHashCode(b1), BytesReference.Helper.slowHashCode(b1));
 
         if (len > 0) {
@@ -54,7 +54,7 @@ public class BytesReferenceTests extends ElasticsearchTestCase {
             // test changed bytes
             array1[offset1 + randomInt(len - 1)] += 13;
             assertFalse(BytesReference.Helper.bytesEqual(b1, b2));
-            assertFalse(BytesReference.Helper.slowBytesEquals(b1, b2));
+            assertFalse(BytesReference.Helper.bytesEquals(b1, b2));
         }
     }
 

@@ -21,7 +21,9 @@ package org.elasticsearch.search.aggregations;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.search.aggregations.bucket.children.ChildrenParser;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterParser;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersParser;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridParser;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramParser;
@@ -35,17 +37,18 @@ import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanc
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IpRangeParser;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsParser;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgParser;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityParser;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsParser;
 import org.elasticsearch.search.aggregations.metrics.max.MaxParser;
 import org.elasticsearch.search.aggregations.metrics.min.MinParser;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesParser;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksParser;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesParser;
+import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricParser;
 import org.elasticsearch.search.aggregations.metrics.stats.StatsParser;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsParser;
 import org.elasticsearch.search.aggregations.metrics.sum.SumParser;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsParser;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser;
 
 import java.util.List;
@@ -72,6 +75,7 @@ public class AggregationModule extends AbstractModule {
         parsers.add(GlobalParser.class);
         parsers.add(MissingParser.class);
         parsers.add(FilterParser.class);
+        parsers.add(FiltersParser.class);
         parsers.add(TermsParser.class);
         parsers.add(SignificantTermsParser.class);
         parsers.add(RangeParser.class);
@@ -85,6 +89,8 @@ public class AggregationModule extends AbstractModule {
         parsers.add(ReverseNestedParser.class);
         parsers.add(TopHitsParser.class);
         parsers.add(GeoBoundsParser.class);
+        parsers.add(ScriptedMetricParser.class);
+        parsers.add(ChildrenParser.class);
     }
 
     /**

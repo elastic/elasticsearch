@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class RefreshAction extends IndicesAction<RefreshRequest, RefreshResponse, RefreshRequestBuilder> {
 
     public static final RefreshAction INSTANCE = new RefreshAction();
-    public static final String NAME = "indices/refresh";
+    public static final String NAME = "indices:admin/refresh";
 
     private RefreshAction() {
         super(NAME);

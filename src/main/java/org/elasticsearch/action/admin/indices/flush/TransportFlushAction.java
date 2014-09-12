@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
@@ -51,19 +52,14 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     private final IndicesService indicesService;
 
     @Inject
-    public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
-        super(settings, threadPool, clusterService, transportService);
+    public TransportFlushAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
+        super(settings, FlushAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.FLUSH;
-    }
-
-    @Override
-    protected String transportAction() {
-        return FlushAction.NAME;
     }
 
     @Override
@@ -100,7 +96,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
 
     @Override
     protected ShardFlushRequest newShardRequest(int numShards, ShardRouting shard, FlushRequest request) {
-        return new ShardFlushRequest(shard.index(), shard.id(), request);
+        return new ShardFlushRequest(shard.shardId(), request);
     }
 
     @Override
@@ -110,9 +106,10 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
 
     @Override
     protected ShardFlushResponse shardOperation(ShardFlushRequest request) throws ElasticsearchException {
-        IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
-        indexShard.flush(new Engine.Flush().type(request.full() ? Engine.Flush.Type.NEW_WRITER : Engine.Flush.Type.COMMIT_TRANSLOG).force(request.force()));
-        return new ShardFlushResponse(request.index(), request.shardId());
+        IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
+        indexShard.flush(new Engine.Flush().waitIfOngoing(request.waitIfOngoing()).
+                type(request.full() ? Engine.Flush.Type.NEW_WRITER : Engine.Flush.Type.COMMIT_TRANSLOG).force(request.force()));
+        return new ShardFlushResponse(request.shardId());
     }
 
     /**

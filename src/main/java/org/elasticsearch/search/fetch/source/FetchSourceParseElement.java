@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,17 +44,19 @@ public class FetchSourceParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
+        context.fetchSourceContext(parse(parser));
+    }
+
+    public FetchSourceContext parse(XContentParser parser) throws IOException {
         XContentParser.Token token;
 
         List<String> includes = null, excludes = null;
         String currentFieldName = null;
         token = parser.currentToken(); // we get it on the value
         if (parser.isBooleanValue()) {
-            context.fetchSourceContext(new FetchSourceContext(parser.booleanValue()));
-            return;
+            return new FetchSourceContext(parser.booleanValue());
         } else if (token == XContentParser.Token.VALUE_STRING) {
-            context.fetchSourceContext(new FetchSourceContext(new String[]{parser.text()}));
-            return;
+            return new FetchSourceContext(new String[]{parser.text()});
         } else if (token == XContentParser.Token.START_ARRAY) {
             includes = new ArrayList<>();
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -87,10 +90,8 @@ public class FetchSourceParseElement implements SearchParseElement {
             throw new ElasticsearchParseException("source element value can be of type " + token.name());
         }
 
-
-        context.fetchSourceContext(new FetchSourceContext(
+        return new FetchSourceContext(
                 includes == null ? Strings.EMPTY_ARRAY : includes.toArray(new String[includes.size()]),
-                excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(new String[excludes.size()])));
-
+                excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(new String[excludes.size()]));
     }
 }

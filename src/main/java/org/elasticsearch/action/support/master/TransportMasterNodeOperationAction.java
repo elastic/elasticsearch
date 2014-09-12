@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -45,21 +46,17 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     protected final ClusterService clusterService;
 
-    final String transportAction;
     final String executor;
 
-    protected TransportMasterNodeOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, threadPool);
+    protected TransportMasterNodeOperationAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, actionName, threadPool, actionFilters);
         this.transportService = transportService;
         this.clusterService = clusterService;
 
-        this.transportAction = transportAction();
         this.executor = executor();
 
-        transportService.registerHandler(transportAction, new TransportHandler());
+        transportService.registerHandler(actionName, new TransportHandler());
     }
-
-    protected abstract String transportAction();
 
     protected abstract String executor();
 
@@ -82,11 +79,10 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
     }
 
     @Override
-    public void execute(Request request, ActionListener<Response> listener) {
+    protected boolean forceThreadedListener() {
         // since the callback is async, we typically can get called from within an event in the cluster service
         // or something similar, so make sure we are threaded so we won't block it.
-        request.listenerThreaded(true);
-        super.execute(request, listener);
+        return true;
     }
 
     @Override
@@ -186,7 +182,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                 return;
             }
             processBeforeDelegationToMaster(request, clusterState);
-            transportService.sendRequest(nodes.masterNode(), transportAction, request, new BaseTransportResponseHandler<Response>() {
+            transportService.sendRequest(nodes.masterNode(), actionName, request, new BaseTransportResponseHandler<Response>() {
                 @Override
                 public Response newInstance() {
                     return newResponse();

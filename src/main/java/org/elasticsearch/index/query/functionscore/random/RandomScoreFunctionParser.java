@@ -24,6 +24,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
@@ -32,9 +34,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class RandomScoreFunctionParser implements ScoreFunctionParser {
 
     public static String[] NAMES = { "random_score", "randomScore" };
@@ -51,7 +50,7 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
     @Override
     public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
 
-        long seed = -1;
+        int seed = -1;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -60,28 +59,26 @@ public class RandomScoreFunctionParser implements ScoreFunctionParser {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if ("seed".equals(currentFieldName)) {
-                    seed = parser.longValue();
+                    seed = parser.intValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
-        if (seed == -1) {
-            seed = parseContext.nowInMillis();
+        final FieldMapper<?> mapper = SearchContext.current().mapperService().smartNameFieldMapper("_uid");
+        if (mapper == null) {
+            // mapper could be null if we are on a shard with no docs yet, so this won't actually be used
+            return new RandomScoreFunction();
         }
 
-        ShardId shardId = SearchContext.current().indexShard().shardId();
-        seed = salt(seed, shardId.index().name(), shardId.id());
+        if (seed == -1) {
+            seed = (int)parseContext.nowInMillis();
+        }
+        final ShardId shardId = SearchContext.current().indexShard().shardId();
+        final int salt = (shardId.index().name().hashCode() << 10) | shardId.id();
+        final IndexFieldData<?> uidFieldData = SearchContext.current().fieldData().getForField(mapper);
 
-        return new RandomScoreFunction(seed);
+        return new RandomScoreFunction(seed, salt, uidFieldData);
     }
-
-    public static long salt(long seed, String index, int shardId) {
-        long salt = index.hashCode();
-        salt = salt << 32;
-        salt |= shardId;
-        return salt^seed;
-    }
-
 }

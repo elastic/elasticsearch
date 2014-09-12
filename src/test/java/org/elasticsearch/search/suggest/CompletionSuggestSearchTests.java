@@ -458,7 +458,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         ensureGreen(INDEX);
 
         SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
+                SuggestBuilders.completionSuggestion("suggs").field("suggest").text("f").size(10)
         ).execute().actionGet();
         assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
     }
@@ -495,7 +495,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertThat(putMappingResponse.isAcknowledged(), is(true));
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
+                SuggestBuilders.completionSuggestion("suggs").field("suggest").text("f").size(10)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, "suggs");
 
@@ -503,7 +503,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         ensureGreen(INDEX);
 
         SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
+                SuggestBuilders.completionSuggestion("suggs").field("suggest").text("f").size(10)
         ).execute().actionGet();
         assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
     }
@@ -521,12 +521,12 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nirv").size(10)
+                SuggestBuilders.fuzzyCompletionSuggestion("foo").field(FIELD).text("Nirv").size(10)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
 
         suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nirw").size(10)
+                SuggestBuilders.fuzzyCompletionSuggestion("foo").field(FIELD).text("Nirw").size(10)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
     }
@@ -545,13 +545,13 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         // edit distance 1
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Norw").size(10)
+                SuggestBuilders.fuzzyCompletionSuggestion("foo").field(FIELD).text("Norw").size(10)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo");
 
         // edit distance 2
         suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Norw").size(10).setFuzziness(Fuzziness.TWO)
+                SuggestBuilders.fuzzyCompletionSuggestion("foo").field(FIELD).text("Norw").size(10).setFuzziness(Fuzziness.TWO)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
     }
@@ -569,12 +569,12 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nriv").size(10).setFuzzyTranspositions(false).setFuzziness(Fuzziness.ONE)
+                SuggestBuilders.fuzzyCompletionSuggestion("foo").field(FIELD).text("Nriv").size(10).setFuzzyTranspositions(false).setFuzziness(Fuzziness.ONE)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo");
 
         suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nriv").size(10).setFuzzyTranspositions(true).setFuzziness(Fuzziness.ONE)
+                SuggestBuilders.fuzzyCompletionSuggestion("foo").field(FIELD).text("Nriv").size(10).setFuzzyTranspositions(true).setFuzziness(Fuzziness.ONE)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
     }
@@ -592,12 +592,12 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nriva").size(10).setFuzzyMinLength(6)
+                SuggestBuilders.fuzzyCompletionSuggestion("foo").field(FIELD).text("Nriva").size(10).setFuzzyMinLength(6)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo");
 
         suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nrivan").size(10).setFuzzyMinLength(6)
+                SuggestBuilders.fuzzyCompletionSuggestion("foo").field(FIELD).text("Nrivan").size(10).setFuzzyMinLength(6)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
     }
@@ -615,12 +615,12 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nirw").size(10).setFuzzyPrefixLength(4)
+                SuggestBuilders.fuzzyCompletionSuggestion("foo").field(FIELD).text("Nirw").size(10).setFuzzyPrefixLength(4)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo");
 
         suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("Nirvo").size(10).setFuzzyPrefixLength(4)
+                SuggestBuilders.fuzzyCompletionSuggestion("foo").field(FIELD).text("Nirvo").size(10).setFuzzyPrefixLength(4)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
     }
@@ -639,7 +639,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         // suggestion with a character, which needs unicode awareness
         CompletionSuggestionFuzzyBuilder completionSuggestionBuilder =
-                new CompletionSuggestionFuzzyBuilder("foo").field(FIELD).text("öööи").size(10).setUnicodeAware(true);
+                SuggestBuilders.fuzzyCompletionSuggestion("foo").field(FIELD).text("öööи").size(10).setUnicodeAware(true);
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(completionSuggestionBuilder).execute().actionGet();
         assertSuggestions(suggestResponse, false, "foo", "ööööö");
@@ -773,7 +773,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void assertSuggestions(String suggestion, String... suggestions) {
         String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggestion).size(10)
+                SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggestion).size(10)
         ).execute().actionGet();
 
         assertSuggestions(suggestResponse, suggestionName, suggestions);
@@ -782,7 +782,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void assertSuggestionsNotInOrder(String suggestString, String... suggestions) {
         String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggestString).size(10)
+                SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggestString).size(10)
         ).execute().actionGet();
 
         assertSuggestions(suggestResponse, false, suggestionName, suggestions);
@@ -831,21 +831,21 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
-        client().admin().indices().prepareCreate(INDEX)
+        assertAcked(client().admin().indices().prepareCreate(INDEX)
                 .setSettings(ImmutableSettings.settingsBuilder().put(indexSettings()).put(settings))
-                .get();
-        assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
-                .startObject(FIELD)
-                .field("type", "completion")
-                .field("index_analyzer", completionMappingBuilder.indexAnalyzer)
-                .field("search_analyzer", completionMappingBuilder.searchAnalyzer)
-                .field("payloads", completionMappingBuilder.payloads)
-                .field("preserve_separators", completionMappingBuilder.preserveSeparators)
-                .field("preserve_position_increments", completionMappingBuilder.preservePositionIncrements)
-                .endObject()
-                .endObject().endObject()
-                .endObject()));
+                .addMapping(TYPE, jsonBuilder().startObject()
+                        .startObject(TYPE).startObject("properties")
+                        .startObject(FIELD)
+                        .field("type", "completion")
+                        .field("index_analyzer", completionMappingBuilder.indexAnalyzer)
+                        .field("search_analyzer", completionMappingBuilder.searchAnalyzer)
+                        .field("payloads", completionMappingBuilder.payloads)
+                        .field("preserve_separators", completionMappingBuilder.preserveSeparators)
+                        .field("preserve_position_increments", completionMappingBuilder.preservePositionIncrements)
+                        .endObject()
+                        .endObject().endObject()
+                        .endObject())
+                .get());
         ensureYellow();
     }
 
@@ -934,11 +934,12 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     @Test
     public void testMaxFieldLength() throws IOException {
         client().admin().indices().prepareCreate(INDEX).get();
+        ensureGreen();
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {
             int maxInputLen = between(3, 50);
             String str = replaceReservedChars(randomRealisticUnicodeOfCodepointLengthBetween(maxInputLen + 1, maxInputLen + scaledRandomIntBetween(2, 50)), (char) 0x01);
-            ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+            assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                     .startObject(TYPE).startObject("properties")
                     .startObject(FIELD)
                     .field("type", "completion")
@@ -948,7 +949,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                     .endObject()
                     .endObject().endObject()
                     .endObject()));
-            ensureYellow();
             client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
                     .startObject().startObject(FIELD)
                     .startArray("input").value(str).endArray()
@@ -972,14 +972,13 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     @Test
     // see #3596
     public void testVeryLongInput() throws IOException {
-        client().admin().indices().prepareCreate(INDEX).get();
-        ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion")
                 .endObject()
                 .endObject().endObject()
-                .endObject()));
+                .endObject()).get());
         ensureYellow();
         // can cause stack overflow without the default max_input_length
         String longString = replaceReservedChars(randomRealisticUnicodeOfLength(randomIntBetween(5000, 10000)), (char) 0x01);
@@ -995,14 +994,13 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     // see #3648
     @Test(expected = MapperParsingException.class)
     public void testReservedChars() throws IOException {
-        client().admin().indices().prepareCreate(INDEX).get();
-        ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion")
                 .endObject()
                 .endObject().endObject()
-                .endObject()));
+                .endObject()).get());
         ensureYellow();
         // can cause stack overflow without the default max_input_length
         String string = "foo" + (char) 0x00 + "bar";
@@ -1016,14 +1014,13 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test // see #5930
     public void testIssue5930() throws IOException {
-        client().admin().indices().prepareCreate(INDEX).get();
-        ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion")
                 .endObject()
                 .endObject().endObject()
-                .endObject()));
+                .endObject()).get());
         ensureYellow();
         String string = "foo bar";
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
@@ -1040,6 +1037,38 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         } catch (SearchPhaseExecutionException e) {
             assertTrue(e.getDetailedMessage().contains("found no fielddata type for field [" + FIELD + "]"));
         }
+    }
+
+    // see issue #6399
+    @Test
+    public void testIndexingUnrelatedNullValue() throws Exception {
+        String mapping = jsonBuilder()
+                .startObject()
+                .startObject(TYPE)
+                .startObject("properties")
+                .startObject(FIELD)
+                .field("type", "completion")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .string();
+
+        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping).get());
+        ensureGreen();
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")
+        .setRefresh(true).get();
+
+        try {
+            client().prepareIndex(INDEX, TYPE, "2").setSource(FIELD, null, FIELD + "_1", "nulls make me sad")
+                    .setRefresh(true).get();
+            fail("Expected MapperParsingException for null value");
+        } catch (MapperParsingException e) {
+            // make sure that the exception has the name of the field causing the error
+            assertTrue(e.getDetailedMessage().contains(FIELD));
+        }
+
     }
 
     private static String replaceReservedChars(String input, char replacement) {

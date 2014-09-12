@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
@@ -32,7 +33,7 @@ import java.io.IOException;
 
 /**
  */
-public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettingsRequest> {
+public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettingsRequest> implements IndicesRequest {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
@@ -48,10 +49,12 @@ public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettin
         return this;
     }
 
+    @Override
     public String[] indices() {
         return indices;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

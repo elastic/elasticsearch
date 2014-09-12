@@ -25,6 +25,7 @@ following types are supported:
 <<indonesian-analyzer,`indonesian`>>,
 <<irish-analyzer,`irish`>>,
 <<italian-analyzer,`italian`>>,
+<<latvian-analyzer,`latvian`>>,
 <<norwegian-analyzer,`norwegian`>>,
 <<persian-analyzer,`persian`>>,
 <<portuguese-analyzer,`portuguese`>>,
@@ -56,7 +57,7 @@ with the `keywords` set to the value of the `stem_exclusion` parameter.
 The following analyzers support setting custom `stem_exclusion` list:
 `arabic`, `armenian`, `basque`, `catalan`, `bulgarian`, `catalan`,
 `czech`, `finnish`, `dutch`, `english`, `finnish`, `french`, `galician`,
-`german`, `irish`, `hindi`, `hungarian`, `indonesian`, `italian`, `norwegian`,
+`german`, `irish`, `hindi`, `hungarian`, `indonesian`, `italian`, `latvian`, `norwegian`,
 `portuguese`, `romanian`, `russian`, `sorani`, `spanish`, `swedish`, `turkish`.
 
 ==== Reimplementing language analyzers
@@ -367,7 +368,7 @@ The `cjk` analyzer could be reimplemented as a `custom` analyzer as follows:
         "cjk": {
           "tokenizer":  "standard",
           "filter": [
-            "cjk_width"
+            "cjk_width",
             "lowercase",
             "cjk_bigram",
             "english_stop"
@@ -1047,6 +1048,50 @@ The `italian` analyzer could be reimplemented as a `custom` analyzer as follows:
 <2> This filter should be removed unless there are words which should
     be excluded from stemming.
 
+[[latvian-analyzer]]
+===== `latvian` analyzer
+
+The `latvian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,js]
+----------------------------------------------------
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "latvian_stop": {
+          "type":       "stop",
+          "stopwords":  "_latvian_" <1>
+        },
+        "latvian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] <2>
+        },
+        "latvian_stemmer": {
+          "type":       "stemmer",
+          "language":   "latvian"
+        }
+      },
+      "analyzer": {
+        "latvian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "latvian_stop",
+            "latvian_keywords",
+            "latvian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.
+<2> This filter should be removed unless there are words which should
+    be excluded from stemming.
+
 [[norwegian-analyzer]]
 ===== `norwegian` analyzer
 
@@ -1116,7 +1161,7 @@ The `persian` analyzer could be reimplemented as a `custom` analyzer as follows:
       "analyzer": {
         "persian": {
           "tokenizer":     "standard",
-          "char_filter": [ "zero_width_spaces" ]
+          "char_filter": [ "zero_width_spaces" ],
           "filter": [
             "lowercase",
             "arabic_normalization",

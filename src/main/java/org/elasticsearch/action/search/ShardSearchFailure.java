@@ -43,15 +43,9 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     private SearchShardTarget shardTarget;
     private String reason;
     private RestStatus status;
-    private transient Throwable failure;
 
     private ShardSearchFailure() {
 
-    }
-
-    @Nullable
-    public Throwable failure() {
-        return failure;
     }
 
     public ShardSearchFailure(Throwable t) {
@@ -59,7 +53,6 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     }
 
     public ShardSearchFailure(Throwable t, @Nullable SearchShardTarget shardTarget) {
-        this.failure = t;
         Throwable actual = ExceptionsHelper.unwrapCause(t);
         if (actual != null && actual instanceof SearchException) {
             this.shardTarget = ((SearchException) actual).shard();

@@ -107,9 +107,10 @@ The following parameters are supported:
 `output`::
     The string to return, if a suggestion matches. This is very
     useful to normalize outputs (i.e. have them always in the format
-    `artist - songname`). The result is de-duplicated if several documents
+    `artist - songname`). This is optional.
+    *Note*: The result is de-duplicated if several documents
     have the same output, i.e. only one is returned as part of the
-    suggest result. This is optional.
+    suggest result.
 
 `payload`::
     An arbitrary JSON object, which is simply returned in the

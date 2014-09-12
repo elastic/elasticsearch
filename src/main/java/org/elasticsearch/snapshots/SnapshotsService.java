@@ -87,6 +87,8 @@ import static com.google.common.collect.Sets.newHashSet;
  */
 public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsService> implements ClusterStateListener {
 
+    public static final String UPDATE_SNAPSHOT_ACTION_NAME = "internal:cluster/snapshot/update_snapshot";
+
     private final ClusterService clusterService;
 
     private final RepositoriesService repositoriesService;
@@ -116,7 +118,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         this.indicesService = indicesService;
         this.transportService = transportService;
 
-        transportService.registerHandler(UpdateSnapshotStateRequestHandler.ACTION, new UpdateSnapshotStateRequestHandler());
+        transportService.registerHandler(UPDATE_SNAPSHOT_ACTION_NAME, new UpdateSnapshotStateRequestHandler());
 
         // addLast to make sure that Repository will be created before snapshot
         clusterService.addLast(this);
@@ -760,42 +762,44 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         Map<SnapshotId, Map<ShardId, IndexShardSnapshotStatus>> newSnapshots = newHashMap();
         // Now go through all snapshots and update existing or create missing
         final String localNodeId = clusterService.localNode().id();
-        for (SnapshotMetaData.Entry entry : snapshotMetaData.entries()) {
-            if (entry.state() == State.STARTED) {
-                Map<ShardId, IndexShardSnapshotStatus> startedShards = newHashMap();
-                SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshotId());
-                for (Map.Entry<ShardId, SnapshotMetaData.ShardSnapshotStatus> shard : entry.shards().entrySet()) {
-                    // Add all new shards to start processing on
-                    if (localNodeId.equals(shard.getValue().nodeId())) {
-                        if (shard.getValue().state() == State.INIT && (snapshotShards == null || !snapshotShards.shards.containsKey(shard.getKey()))) {
-                            logger.trace("[{}] - Adding shard to the queue", shard.getKey());
-                            startedShards.put(shard.getKey(), new IndexShardSnapshotStatus());
+        if (snapshotMetaData != null) {
+            for (SnapshotMetaData.Entry entry : snapshotMetaData.entries()) {
+                if (entry.state() == State.STARTED) {
+                    Map<ShardId, IndexShardSnapshotStatus> startedShards = newHashMap();
+                    SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshotId());
+                    for (Map.Entry<ShardId, SnapshotMetaData.ShardSnapshotStatus> shard : entry.shards().entrySet()) {
+                        // Add all new shards to start processing on
+                        if (localNodeId.equals(shard.getValue().nodeId())) {
+                            if (shard.getValue().state() == State.INIT && (snapshotShards == null || !snapshotShards.shards.containsKey(shard.getKey()))) {
+                                logger.trace("[{}] - Adding shard to the queue", shard.getKey());
+                                startedShards.put(shard.getKey(), new IndexShardSnapshotStatus());
+                            }
                         }
                     }
-                }
-                if (!startedShards.isEmpty()) {
-                    newSnapshots.put(entry.snapshotId(), startedShards);
-                    if (snapshotShards != null) {
-                        // We already saw this snapshot but we need to add more started shards
-                        ImmutableMap.Builder<ShardId, IndexShardSnapshotStatus> shards = ImmutableMap.builder();
-                        // Put all shards that were already running on this node
-                        shards.putAll(snapshotShards.shards);
-                        // Put all newly started shards
-                        shards.putAll(startedShards);
-                        survivors.put(entry.snapshotId(), new SnapshotShards(shards.build()));
-                    } else {
-                        // Brand new snapshot that we haven't seen before
-                        survivors.put(entry.snapshotId(), new SnapshotShards(ImmutableMap.copyOf(startedShards)));
+                    if (!startedShards.isEmpty()) {
+                        newSnapshots.put(entry.snapshotId(), startedShards);
+                        if (snapshotShards != null) {
+                            // We already saw this snapshot but we need to add more started shards
+                            ImmutableMap.Builder<ShardId, IndexShardSnapshotStatus> shards = ImmutableMap.builder();
+                            // Put all shards that were already running on this node
+                            shards.putAll(snapshotShards.shards);
+                            // Put all newly started shards
+                            shards.putAll(startedShards);
+                            survivors.put(entry.snapshotId(), new SnapshotShards(shards.build()));
+                        } else {
+                            // Brand new snapshot that we haven't seen before
+                            survivors.put(entry.snapshotId(), new SnapshotShards(ImmutableMap.copyOf(startedShards)));
+                        }
                     }
-                }
-            } else if (entry.state() == State.ABORTED) {
-                // Abort all running shards for this snapshot
-                SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshotId());
-                if (snapshotShards != null) {
-                    for (Map.Entry<ShardId, SnapshotMetaData.ShardSnapshotStatus> shard : entry.shards().entrySet()) {
-                        IndexShardSnapshotStatus snapshotStatus = snapshotShards.shards.get(shard.getKey());
-                        if (snapshotStatus != null) {
-                            snapshotStatus.abort();
+                } else if (entry.state() == State.ABORTED) {
+                    // Abort all running shards for this snapshot
+                    SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshotId());
+                    if (snapshotShards != null) {
+                        for (Map.Entry<ShardId, SnapshotMetaData.ShardSnapshotStatus> shard : entry.shards().entrySet()) {
+                            IndexShardSnapshotStatus snapshotStatus = snapshotShards.shards.get(shard.getKey());
+                            if (snapshotStatus != null) {
+                                snapshotStatus.abort();
+                            }
                         }
                     }
                 }
@@ -853,7 +857,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 innerUpdateSnapshotState(request);
             } else {
                 transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                        UpdateSnapshotStateRequestHandler.ACTION, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+                        UPDATE_SNAPSHOT_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
             }
         } catch (Throwable t) {
             logger.warn("[{}] [{}] failed to update snapshot state", t, request.snapshotId(), request.status());
@@ -1540,8 +1544,6 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * Transport request handler that is used to send changes in snapshot status to master
      */
     private class UpdateSnapshotStateRequestHandler extends BaseTransportRequestHandler<UpdateIndexShardSnapshotStatusRequest> {
-
-        static final String ACTION = "cluster/snapshot/update_snapshot";
 
         @Override
         public UpdateIndexShardSnapshotStatusRequest newInstance() {

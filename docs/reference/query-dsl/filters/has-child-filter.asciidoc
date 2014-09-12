@@ -45,7 +45,7 @@ The `has_child` filter also accepts a filter instead of a query:
 [float]
 ==== Min/Max Children
 
-coming[1.3.0]
+added[1.3.0]
 
 The `has_child` filter allows you to specify that a minimum and/or maximum
 number of children are required to match for the parent doc to be considered

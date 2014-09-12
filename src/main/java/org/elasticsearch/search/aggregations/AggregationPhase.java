@@ -96,11 +96,12 @@ public class AggregationPhase implements SearchPhase {
     @Override
     public void execute(SearchContext context) throws ElasticsearchException {
         if (context.aggregations() == null) {
+            context.queryResult().aggregations(null);
             return;
         }
 
         if (context.queryResult().aggregations() != null) {
-            // no need to compute the facets twice, they should be computed on a per context basis
+            // no need to compute the aggs twice, they should be computed on a per context basis
             return;
         }
 
@@ -133,6 +134,9 @@ public class AggregationPhase implements SearchPhase {
             aggregations.add(aggregator.buildAggregation(0));
         }
         context.queryResult().aggregations(new InternalAggregations(aggregations));
+
+        // disable aggregations so that they don't run on next pages in case of scrolling
+        context.aggregations(null);
     }
 
 

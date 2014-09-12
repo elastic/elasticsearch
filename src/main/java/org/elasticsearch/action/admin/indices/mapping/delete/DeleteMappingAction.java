@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class DeleteMappingAction extends IndicesAction<DeleteMappingRequest, DeleteMappingResponse, DeleteMappingRequestBuilder> {
 
     public static final DeleteMappingAction INSTANCE = new DeleteMappingAction();
-    public static final String NAME = "indices/mapping/delete";
+    public static final String NAME = "indices:admin/mapping/delete";
 
     private DeleteMappingAction() {
         super(NAME);

@@ -28,5 +28,5 @@ import org.elasticsearch.index.shard.IndexShardComponent;
  */
 public interface MergePolicyProvider<T extends MergePolicy> extends IndexShardComponent, CloseableIndexComponent {
 
-    T newMergePolicy();
+    T getMergePolicy();
 }

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.blobstore.url;
 
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -38,8 +38,6 @@ import java.util.concurrent.Executor;
  */
 public class URLBlobStore extends AbstractComponent implements BlobStore {
 
-    private final ThreadPool threadPool;
-
     private final URL path;
 
     private final int bufferSizeInBytes;
@@ -54,14 +52,12 @@ public class URLBlobStore extends AbstractComponent implements BlobStore {
      * </dl>
      *
      * @param settings settings
-     * @param threadPool thread pool for read operations
      * @param path     base URL
      */
-    public URLBlobStore(Settings settings, ThreadPool threadPool, URL path) {
+    public URLBlobStore(Settings settings, URL path) {
         super(settings);
         this.path = path;
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
-        this.threadPool = threadPool;
     }
 
     /**
@@ -91,21 +87,12 @@ public class URLBlobStore extends AbstractComponent implements BlobStore {
     }
 
     /**
-     * Returns executor used for read operations
-     *
-     * @return executor
-     */
-    public Executor executor() {
-        return threadPool.executor(ThreadPool.Names.SNAPSHOT_DATA);
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
-    public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
+    public BlobContainer blobContainer(BlobPath path) {
         try {
-            return new URLImmutableBlobContainer(this, path, buildPath(path));
+            return new URLBlobContainer(this, path, buildPath(path));
         } catch (MalformedURLException ex) {
             throw new BlobStoreException("malformed URL " + path, ex);
         }

@@ -131,6 +131,7 @@ public abstract class Decision implements ToXContent {
                     break;
                 case THROTTLE:
                     out.writeVInt(2);
+                    break;
                 default:
                     throw new ElasticsearchIllegalArgumentException("Invalid Type [" + type + "]");
             }

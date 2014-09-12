@@ -82,6 +82,12 @@ scores and return them as part of each hit.
 within the specified time value and bail with the hits accumulated up to
 that point when expired. Defaults to no timeout.
 
+|coming[1.4.0] `terminate_after` |The maximum number of documents to collect for
+each shard, upon reaching which the query execution will terminate early.
+If set, the response will have a boolean field `terminated_early` to
+indicate whether the query execution has actually terminated_early.
+Defaults to no terminate_after.
+
 |`from` |The starting from index of the hits to return. Defaults to `0`.
 
 |`size` |The number of hits to return. Defaults to `10`.

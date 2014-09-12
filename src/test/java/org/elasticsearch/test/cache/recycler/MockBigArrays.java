@@ -29,6 +29,7 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.*;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.util.*;
@@ -68,43 +69,23 @@ public class MockBigArrays extends BigArrays {
                 }
             }
         }
-        // arrays that are not fully released.
-        ArrayList<BigArrays> badBigArrays = new ArrayList<>();
-        synchronized (INSTANCES) {
-            for (final BigArrays bigArrays : INSTANCES) {
-                // BigArrays are used on the network layer and the cluster is shared across tests so nodes might still be talking to
-                // each other a bit after the test finished, wait a bit for things to stabilize if so
-                final boolean sizeIsZero = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
-                    @Override
-                    public boolean apply(Object input) {
-                        return bigArrays.sizeInBytes() == 0;
-                    }
-                });
-                if (!sizeIsZero) {
-                    final long sizeInBytes = bigArrays.sizeInBytes();
-                    if (sizeInBytes != 0) {
-                        badBigArrays.add(bigArrays);
-                    }
-                }
-            }
-        }
-
-        if (!badBigArrays.isEmpty()) {
-            INSTANCES.removeAll(badBigArrays);
-            StringBuilder msg = new StringBuilder("Found [").append(badBigArrays.size()).append("] big arrays which were not fully released. Here is a list of the first 20:");
-            for (int i = 0; i < Math.min(20, badBigArrays.size()); i++) {
-                msg.append("\nbigArray instance with [").append(badBigArrays.get(i).sizeInBytes()).append("] bytes");
-            }
-            throw new AssertionError(msg.toString());
-        }
-
     }
 
     private final Random random;
+    private final Settings settings;
+    private final PageCacheRecycler recycler;
+    private final CircuitBreakerService breakerService;
 
     @Inject
-    public MockBigArrays(Settings settings, PageCacheRecycler recycler) {
-        super(settings, recycler);
+    public MockBigArrays(Settings settings, PageCacheRecycler recycler, CircuitBreakerService breakerService) {
+        this(settings, recycler, breakerService, false);
+    }
+
+    public MockBigArrays(Settings settings, PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
+        super(settings, recycler, breakerService, checkBreaker);
+        this.settings = settings;
+        this.recycler = recycler;
+        this.breakerService = breakerService;
         long seed;
         try {
             seed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());
@@ -113,6 +94,12 @@ public class MockBigArrays extends BigArrays {
         }
         random = new Random(seed);
         INSTANCES.add(this);
+    }
+
+
+    @Override
+    public BigArrays withCircuitBreaking() {
+        return new MockBigArrays(this.settings, this.recycler, this.breakerService, true);
     }
 
     @Override

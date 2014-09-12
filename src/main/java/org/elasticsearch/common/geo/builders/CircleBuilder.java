@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import com.spatial4j.core.shape.Circle;
+import com.vividsolutions.jts.geom.Coordinate;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import com.spatial4j.core.shape.Circle;
-import com.vividsolutions.jts.geom.Coordinate;
 import java.io.IOException;
 
 public class CircleBuilder extends ShapeBuilder {
@@ -109,7 +109,7 @@ public class CircleBuilder extends ShapeBuilder {
 
     @Override
     public Circle build() {
-        return SPATIAL_CONTEXT.makeCircle(center.x, center.y, 180 * radius / unit.getEarthCircumference());
+        return SPATIAL_CONTEXT.makeCircle(center.x, center.y, 360 * radius / unit.getEarthCircumference());
     }
 
     @Override

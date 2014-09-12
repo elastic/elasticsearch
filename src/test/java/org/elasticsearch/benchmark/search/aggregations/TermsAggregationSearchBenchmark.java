@@ -55,8 +55,6 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
-import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
-import static org.elasticsearch.search.facet.FacetBuilders.termsStatsFacet;
 
 /**
  *
@@ -75,17 +73,6 @@ public class TermsAggregationSearchBenchmark {
     static InternalNode[] nodes;
 
     public enum Method {
-        FACET {
-            @Override
-            SearchRequestBuilder addTermsAgg(SearchRequestBuilder builder, String name, String field, String executionHint) {
-                return builder.addFacet(termsFacet(name).field(field).executionHint(executionHint));
-            }
-
-            @Override
-            SearchRequestBuilder addTermsStatsAgg(SearchRequestBuilder builder, String name, String keyField, String valueField) {
-                return builder.addFacet(termsStatsFacet(name).keyField(keyField).valueField(valueField));
-            }
-        },
         AGGREGATION {
             @Override
             SearchRequestBuilder addTermsAgg(SearchRequestBuilder builder, String name, String field, String executionHint) {
@@ -175,10 +162,6 @@ public class TermsAggregationSearchBenchmark {
                 .endObject()
               .endObject())).actionGet();
 
-            long[] lValues = new long[NUMBER_OF_TERMS];
-            for (int i = 0; i < NUMBER_OF_TERMS; i++) {
-                lValues[i] = ThreadLocalRandom.current().nextLong();
-            }
             ObjectOpenHashSet<String> uniqueTerms = ObjectOpenHashSet.newInstance();
             for (int i = 0; i < NUMBER_OF_TERMS; i++) {
                 boolean added;
@@ -203,7 +186,7 @@ public class TermsAggregationSearchBenchmark {
                     XContentBuilder builder = jsonBuilder().startObject();
                     builder.field("id", Integer.toString(counter));
                     final String sValue = sValues[ThreadLocalRandom.current().nextInt(sValues.length)];
-                    final long lValue = lValues[ThreadLocalRandom.current().nextInt(lValues.length)];
+                    final long lValue = ThreadLocalRandom.current().nextInt(NUMBER_OF_TERMS);
                     builder.field("s_value", sValue);
                     builder.field("l_value", lValue);
                     builder.field("s_value_dv", sValue);
@@ -220,7 +203,7 @@ public class TermsAggregationSearchBenchmark {
                     for (String field : new String[] {"lm_value", "lm_value_dv"}) {
                         builder.startArray(field);
                         for (int k = 0; k < NUMBER_OF_MULTI_VALUE_TERMS; k++) {
-                            builder.value(lValues[ThreadLocalRandom.current().nextInt(sValues.length)]);
+                            builder.value(ThreadLocalRandom.current().nextInt(NUMBER_OF_TERMS));
                         }
                         builder.endArray();
                     }
@@ -253,10 +236,6 @@ public class TermsAggregationSearchBenchmark {
 
 
         List<StatsResult> stats = Lists.newArrayList();
-        stats.add(terms("terms_facet_s", Method.FACET, "s_value", null));
-        stats.add(terms("terms_facet_s_dv", Method.FACET, "s_value_dv", null));
-        stats.add(terms("terms_facet_map_s", Method.FACET, "s_value", "map"));
-        stats.add(terms("terms_facet_map_s_dv", Method.FACET, "s_value_dv", "map"));
         stats.add(terms("terms_agg_s", Method.AGGREGATION, "s_value", null));
         stats.add(terms("terms_agg_s_dv", Method.AGGREGATION, "s_value_dv", null));
         stats.add(terms("terms_agg_map_s", Method.AGGREGATION, "s_value", "map"));
@@ -265,16 +244,10 @@ public class TermsAggregationSearchBenchmark {
         stats.add(terms("terms_agg_def_s_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", null));
         stats.add(terms("terms_agg_def_map_s", Method.AGGREGATION_DEFERRED, "s_value", "map"));
         stats.add(terms("terms_agg_def_map_s_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", "map"));
-        stats.add(terms("terms_facet_l", Method.FACET, "l_value", null));
-        stats.add(terms("terms_facet_l_dv", Method.FACET, "l_value_dv", null));
         stats.add(terms("terms_agg_l", Method.AGGREGATION, "l_value", null));
         stats.add(terms("terms_agg_l_dv", Method.AGGREGATION, "l_value_dv", null));
         stats.add(terms("terms_agg_def_l", Method.AGGREGATION_DEFERRED, "l_value", null));
         stats.add(terms("terms_agg_def_l_dv", Method.AGGREGATION_DEFERRED, "l_value_dv", null));
-        stats.add(terms("terms_facet_sm", Method.FACET, "sm_value", null));
-        stats.add(terms("terms_facet_sm_dv", Method.FACET, "sm_value_dv", null));
-        stats.add(terms("terms_facet_map_sm", Method.FACET, "sm_value", "map"));
-        stats.add(terms("terms_facet_map_sm_dv", Method.FACET, "sm_value_dv", "map"));
         stats.add(terms("terms_agg_sm", Method.AGGREGATION, "sm_value", null));
         stats.add(terms("terms_agg_sm_dv", Method.AGGREGATION, "sm_value_dv", null));
         stats.add(terms("terms_agg_map_sm", Method.AGGREGATION, "sm_value", "map"));
@@ -283,51 +256,37 @@ public class TermsAggregationSearchBenchmark {
         stats.add(terms("terms_agg_def_sm_dv", Method.AGGREGATION_DEFERRED, "sm_value_dv", null));
         stats.add(terms("terms_agg_def_map_sm", Method.AGGREGATION_DEFERRED, "sm_value", "map"));
         stats.add(terms("terms_agg_def_map_sm_dv", Method.AGGREGATION_DEFERRED, "sm_value_dv", "map"));
-        stats.add(terms("terms_facet_lm", Method.FACET, "lm_value", null));
-        stats.add(terms("terms_facet_lm_dv", Method.FACET, "lm_value_dv", null));
         stats.add(terms("terms_agg_lm", Method.AGGREGATION, "lm_value", null));
         stats.add(terms("terms_agg_lm_dv", Method.AGGREGATION, "lm_value_dv", null));
         stats.add(terms("terms_agg_def_lm", Method.AGGREGATION_DEFERRED, "lm_value", null));
         stats.add(terms("terms_agg_def_lm_dv", Method.AGGREGATION_DEFERRED, "lm_value_dv", null));
 
-        stats.add(termsStats("terms_stats_facet_s_l", Method.FACET, "s_value", "l_value", null));
-        stats.add(termsStats("terms_stats_facet_s_l_dv", Method.FACET, "s_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_s_l", Method.AGGREGATION, "s_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_s_l_dv", Method.AGGREGATION, "s_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_def_s_l", Method.AGGREGATION_DEFERRED, "s_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_def_s_l_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", "l_value_dv", null));
-        stats.add(termsStats("terms_stats_facet_s_lm", Method.FACET, "s_value", "lm_value", null));
-        stats.add(termsStats("terms_stats_facet_s_lm_dv", Method.FACET, "s_value_dv", "lm_value_dv", null));
         stats.add(termsStats("terms_stats_agg_s_lm", Method.AGGREGATION, "s_value", "lm_value", null));
         stats.add(termsStats("terms_stats_agg_s_lm_dv", Method.AGGREGATION, "s_value_dv", "lm_value_dv", null));
         stats.add(termsStats("terms_stats_agg_def_s_lm", Method.AGGREGATION_DEFERRED, "s_value", "lm_value", null));
         stats.add(termsStats("terms_stats_agg_def_s_lm_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", "lm_value_dv", null));
-        stats.add(termsStats("terms_stats_facet_sm_l", Method.FACET, "sm_value", "l_value", null));
-        stats.add(termsStats("terms_stats_facet_sm_l_dv", Method.FACET, "sm_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_sm_l", Method.AGGREGATION, "sm_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_sm_l_dv", Method.AGGREGATION, "sm_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_def_sm_l", Method.AGGREGATION_DEFERRED, "sm_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_def_sm_l_dv", Method.AGGREGATION_DEFERRED, "sm_value_dv", "l_value_dv", null));
 
-        stats.add(termsStats("terms_stats_facet_s_l", Method.FACET, "s_value", "l_value", null));
-        stats.add(termsStats("terms_stats_facet_s_l_dv", Method.FACET, "s_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_s_l", Method.AGGREGATION, "s_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_s_l_dv", Method.AGGREGATION, "s_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_def_s_l", Method.AGGREGATION_DEFERRED, "s_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_def_s_l_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", "l_value_dv", null));
-        stats.add(termsStats("terms_stats_facet_s_lm", Method.FACET, "s_value", "lm_value", null));
-        stats.add(termsStats("terms_stats_facet_s_lm_dv", Method.FACET, "s_value_dv", "lm_value_dv", null));
         stats.add(termsStats("terms_stats_agg_s_lm", Method.AGGREGATION, "s_value", "lm_value", null));
         stats.add(termsStats("terms_stats_agg_s_lm_dv", Method.AGGREGATION, "s_value_dv", "lm_value_dv", null));
         stats.add(termsStats("terms_stats_agg_def_s_lm", Method.AGGREGATION_DEFERRED, "s_value", "lm_value", null));
         stats.add(termsStats("terms_stats_agg_def_s_lm_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", "lm_value_dv", null));
-        stats.add(termsStats("terms_stats_facet_sm_l", Method.FACET, "sm_value", "l_value", null));
-        stats.add(termsStats("terms_stats_facet_sm_l_dv", Method.FACET, "sm_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_sm_l", Method.AGGREGATION, "sm_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_sm_l_dv", Method.AGGREGATION, "sm_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_def_sm_l", Method.AGGREGATION_DEFERRED, "sm_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_def_sm_l_dv", Method.AGGREGATION_DEFERRED, "sm_value_dv", "l_value_dv", null));
-        
+
         System.out.println("------------------ SUMMARY ----------------------------------------------");
         System.out.format(Locale.ENGLISH, "%35s%10s%10s%15s\n", "name", "took", "millis", "fieldata size");
         for (StatsResult stat : stats) {

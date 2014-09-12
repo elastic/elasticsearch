@@ -27,7 +27,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class PendingClusterTasksAction extends ClusterAction<PendingClusterTasksRequest, PendingClusterTasksResponse, PendingClusterTasksRequestBuilder> {
 
     public static final PendingClusterTasksAction INSTANCE = new PendingClusterTasksAction();
-    public static final String NAME = "cluster/task";
+    public static final String NAME = "cluster:monitor/task";
 
     private PendingClusterTasksAction() {
         super(NAME);

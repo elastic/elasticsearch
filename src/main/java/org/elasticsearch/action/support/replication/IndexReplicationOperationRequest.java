@@ -19,28 +19,41 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.*;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 /**
- *
+ * Request used within {@link org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction}.
+ * Since the corresponding action is internal that gets always executed locally, this request never gets sent over the transport.
+ * The specified index is expected to be a concrete index. Relies on input validation done by the caller actions.
  */
-public class IndexReplicationOperationRequest<T extends IndexReplicationOperationRequest> extends ActionRequest<T> {
+public abstract class IndexReplicationOperationRequest<T extends IndexReplicationOperationRequest> extends ActionRequest<T> implements IndicesRequest {
 
-    protected TimeValue timeout = ShardReplicationOperationRequest.DEFAULT_TIMEOUT;
+    private final TimeValue timeout;
+    private final String index;
+    private final ReplicationType replicationType;
+    private final WriteConsistencyLevel consistencyLevel;
+    private final OriginalIndices originalIndices;
 
-    protected String index;
+    protected IndexReplicationOperationRequest(String index, TimeValue timeout, ReplicationType replicationType, WriteConsistencyLevel consistencyLevel,
+                                               String[] originalIndices, IndicesOptions originalIndicesOptions, ActionRequest request) {
+        super(request);
+        this.index = index;
+        this.timeout = timeout;
+        this.replicationType = replicationType;
+        this.consistencyLevel = consistencyLevel;
+        this.originalIndices = new OriginalIndices(originalIndices, originalIndicesOptions);
+    }
 
-    protected ReplicationType replicationType = ReplicationType.DEFAULT;
-    protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
+    }
 
     public TimeValue timeout() {
         return timeout;
@@ -50,26 +63,14 @@ public class IndexReplicationOperationRequest<T extends IndexReplicationOperatio
         return this.index;
     }
 
-    @SuppressWarnings("unchecked")
-    public T index(String index) {
-        this.index = index;
-        return (T) this;
+    @Override
+    public String[] indices() {
+        return originalIndices.indices();
     }
 
-    /**
-     * Sets the replication type.
-     */
-    @SuppressWarnings("unchecked")
-    public T replicationType(ReplicationType replicationType) {
-        this.replicationType = replicationType;
-        return (T) this;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    public T replicationType(String replicationType) {
-        return replicationType(ReplicationType.fromString(replicationType));
+    @Override
+    public IndicesOptions indicesOptions() {
+        return originalIndices.indicesOptions();
     }
 
     public ReplicationType replicationType() {
@@ -80,39 +81,13 @@ public class IndexReplicationOperationRequest<T extends IndexReplicationOperatio
         return this.consistencyLevel;
     }
 
-    /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
-     */
-    @SuppressWarnings("unchecked")
-    public T consistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        this.consistencyLevel = consistencyLevel;
-        return (T) this;
+    @Override
+    public final void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("IndexReplicationOperationRequest is not supposed to be sent over the transport");
     }
 
     @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (index == null) {
-            validationException = addValidationError("index name missing", validationException);
-        }
-        return validationException;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        replicationType = ReplicationType.fromId(in.readByte());
-        consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
-        timeout = TimeValue.readTimeValue(in);
-        index = in.readString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeByte(replicationType.id());
-        out.writeByte(consistencyLevel.id());
-        timeout.writeTo(out);
-        out.writeString(index);
+    public final void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("IndexReplicationOperationRequest is not supposed to be sent over the transport");
     }
 }

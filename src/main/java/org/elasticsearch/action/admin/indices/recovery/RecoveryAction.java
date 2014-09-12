@@ -28,7 +28,7 @@ import org.elasticsearch.action.admin.indices.IndicesAction;
 public class RecoveryAction extends IndicesAction<RecoveryRequest, RecoveryResponse, RecoveryRequestBuilder> {
 
     public static final RecoveryAction INSTANCE = new RecoveryAction();
-    public static final String NAME = "indices/recovery";
+    public static final String NAME = "indices:monitor/recovery";
 
     private RecoveryAction() {
         super(NAME);

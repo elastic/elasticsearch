@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.action.exists.RestExistsAction;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
@@ -58,6 +59,7 @@ import org.elasticsearch.rest.action.admin.indices.delete.RestDeleteIndexAction;
 import org.elasticsearch.rest.action.admin.indices.exists.indices.RestIndicesExistsAction;
 import org.elasticsearch.rest.action.admin.indices.exists.types.RestTypesExistsAction;
 import org.elasticsearch.rest.action.admin.indices.flush.RestFlushAction;
+import org.elasticsearch.rest.action.admin.indices.get.RestGetIndicesAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.delete.RestDeleteMappingAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetFieldMappingAction;
 import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetMappingAction;
@@ -93,11 +95,17 @@ import org.elasticsearch.rest.action.main.RestMainAction;
 import org.elasticsearch.rest.action.mlt.RestMoreLikeThisAction;
 import org.elasticsearch.rest.action.percolate.RestMultiPercolateAction;
 import org.elasticsearch.rest.action.percolate.RestPercolateAction;
+import org.elasticsearch.rest.action.script.RestDeleteIndexedScriptAction;
+import org.elasticsearch.rest.action.script.RestGetIndexedScriptAction;
+import org.elasticsearch.rest.action.script.RestPutIndexedScriptAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.rest.action.suggest.RestSuggestAction;
+import org.elasticsearch.rest.action.template.RestDeleteSearchTemplateAction;
+import org.elasticsearch.rest.action.template.RestGetSearchTemplateAction;
+import org.elasticsearch.rest.action.template.RestPutSearchTemplateAction;
 import org.elasticsearch.rest.action.termvector.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
@@ -146,6 +154,7 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestIndicesExistsAction.class).asEagerSingleton();
         bind(RestTypesExistsAction.class).asEagerSingleton();
+        bind(RestGetIndicesAction.class).asEagerSingleton();
         bind(RestIndicesStatsAction.class).asEagerSingleton();
         bind(RestIndicesSegmentsAction.class).asEagerSingleton();
         bind(RestGetAliasesAction.class).asEagerSingleton();
@@ -212,6 +221,17 @@ public class RestActionModule extends AbstractModule {
         bind(RestRecoveryAction.class).asEagerSingleton();
         // Benchmark API
         bind(RestBenchAction.class).asEagerSingleton();
+
+        // Templates API
+        bind(RestGetSearchTemplateAction.class).asEagerSingleton();
+        bind(RestPutSearchTemplateAction.class).asEagerSingleton();
+        bind(RestDeleteSearchTemplateAction.class).asEagerSingleton();
+
+        // Scripts API
+        bind(RestGetIndexedScriptAction.class).asEagerSingleton();
+        bind(RestPutIndexedScriptAction.class).asEagerSingleton();
+        bind(RestDeleteIndexedScriptAction.class).asEagerSingleton();
+
 
         // cat API
         Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);

@@ -76,7 +76,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
             docCount += ((InternalSingleBucketAggregation) aggregation).docCount;
             subAggregationsList.add(((InternalSingleBucketAggregation) aggregation).aggregations);
         }
-        final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext.bigArrays());
+        final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
         return newAggregation(getName(), docCount, aggs);
     }
 
@@ -95,10 +95,9 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.DOC_COUNT, docCount);
         aggregations.toXContentInternal(builder, params);
-        return builder.endObject();
+        return builder;
     }
 }

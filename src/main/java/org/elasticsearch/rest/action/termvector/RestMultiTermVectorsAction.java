@@ -36,8 +36,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestMultiTermVectorsAction extends BaseRestHandler {
 
     @Inject
-    public RestMultiTermVectorsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestMultiTermVectorsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_mtermvectors", this);
         controller.registerHandler(POST, "/_mtermvectors", this);
         controller.registerHandler(GET, "/{index}/_mtermvectors", this);

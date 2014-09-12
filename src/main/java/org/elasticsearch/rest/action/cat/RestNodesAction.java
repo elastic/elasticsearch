@@ -35,10 +35,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -50,8 +47,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodesAction extends AbstractCatAction {
 
     @Inject
-    public RestNodesAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestNodesAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/nodes", this);
     }
 
@@ -122,6 +119,11 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("filter_cache.memory_size", "alias:fcm,filterCacheMemory;default:false;text-align:right;desc:used filter cache");
         table.addCell("filter_cache.evictions", "alias:fce,filterCacheEvictions;default:false;text-align:right;desc:filter cache evictions");
 
+        table.addCell("query_cache.memory_size", "alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
+        table.addCell("query_cache.evictions", "alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("query_cache.hit_count", "alias:qchc,queryCacheHitCount;default:false;text-align:right;desc:query cache hit counts");
+        table.addCell("query_cache.miss_count", "alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:query cache miss counts");
+
         table.addCell("flush.total", "alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
         table.addCell("flush.total_time", "alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush");
 
@@ -169,6 +171,10 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
+        table.addCell("segments.index_writer_memory", "alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
+        table.addCell("segments.index_writer_max_memory", "alias:siwmx,segmentsIndexWriterMaxMemory;default:false;text-align:right;desc:maximum memory index writer may use before it must write buffered documents to a new segment");
+        table.addCell("segments.version_map_memory", "alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
+        table.addCell("segments.fixed_bitset_memory", "alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields");
 
         table.addCell("suggest.current", "alias:suc,suggestCurrent;default:false;text-align:right;desc:number of current suggest ops");
         table.addCell("suggest.time", "alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");
@@ -224,6 +230,11 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(stats == null ? null : stats.getIndices().getFilterCache().getMemorySize());
             table.addCell(stats == null ? null : stats.getIndices().getFilterCache().getEvictions());
 
+            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getMemorySize());
+            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getEvictions());
+            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getHitCount());
+            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getMissCount());
+
             table.addCell(stats == null ? null : stats.getIndices().getFlush().getTotal());
             table.addCell(stats == null ? null : stats.getIndices().getFlush().getTotalTime());
 
@@ -271,6 +282,10 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.addCell(stats == null ? null : stats.getIndices().getSegments().getCount());
             table.addCell(stats == null ? null : stats.getIndices().getSegments().getMemory());
+            table.addCell(stats == null ? null : stats.getIndices().getSegments().getIndexWriterMemory());
+            table.addCell(stats == null ? null : stats.getIndices().getSegments().getIndexWriterMaxMemory());
+            table.addCell(stats == null ? null : stats.getIndices().getSegments().getVersionMapMemory());
+            table.addCell(stats == null ? null : stats.getIndices().getSegments().getFixedBitSetMemory());
 
             table.addCell(stats == null ? null : stats.getIndices().getSuggest().getCurrent());
             table.addCell(stats == null ? null : stats.getIndices().getSuggest().getTime());

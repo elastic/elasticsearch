@@ -23,7 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
@@ -40,7 +40,7 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
 
     protected final double[] keys;
     protected final ValuesSource.Numeric valuesSource;
-    private DoubleValues values;
+    private SortedNumericDoubleValues values;
     protected ObjectArray<TDigestState> states;
     protected final double compression;
     protected final boolean keyed;
@@ -75,9 +75,10 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
             states.set(bucketOrd, state);
         }
     
-        final int valueCount = values.setDocument(doc);
+        values.setDocument(doc);
+        final int valueCount = values.count();
         for (int i = 0; i < valueCount; i++) {
-            state.add(values.nextValue());
+            state.add(values.valueAt(i));
         }
     }
 

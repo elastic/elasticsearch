@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -38,11 +37,7 @@ public final class MapperBuilders {
 
     }
 
-    public static DocumentMapper.Builder doc(String index, RootObjectMapper.Builder objectBuilder) {
-        return new DocumentMapper.Builder(index, null, objectBuilder);
-    }
-
-    public static DocumentMapper.Builder doc(String index, @Nullable Settings settings, RootObjectMapper.Builder objectBuilder) {
+    public static DocumentMapper.Builder doc(String index, Settings settings, RootObjectMapper.Builder objectBuilder) {
         return new DocumentMapper.Builder(index, settings, objectBuilder);
     }
 

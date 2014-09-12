@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,19 +44,14 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeOperation
 
     @Inject
     public TransportRestoreSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, RestoreService restoreService) {
-        super(settings, transportService, clusterService, threadPool);
+                                          ThreadPool threadPool, RestoreService restoreService, ActionFilters actionFilters) {
+        super(settings, RestoreSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.restoreService = restoreService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SNAPSHOT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return RestoreSnapshotAction.NAME;
     }
 
     @Override
@@ -78,7 +74,8 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeOperation
         RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(
                 "restore_snapshot[" + request.snapshot() + "]", request.repository(), request.snapshot(),
                 request.indices(), request.indicesOptions(), request.renamePattern(), request.renameReplacement(),
-                request.settings(), request.masterNodeTimeout(), request.includeGlobalState(), request.partial());
+                request.settings(), request.masterNodeTimeout(), request.includeGlobalState(), request.partial(), request.includeAliases());
+
         restoreService.restoreSnapshot(restoreRequest, new RestoreSnapshotListener() {
             @Override
             public void onResponse(RestoreInfo restoreInfo) {

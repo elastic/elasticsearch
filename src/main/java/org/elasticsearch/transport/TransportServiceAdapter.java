@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
@@ -30,11 +31,13 @@ public interface TransportServiceAdapter {
 
     void sent(long size);
 
-    TransportRequestHandler handler(String action);
+    TransportRequestHandler handler(String action, Version version);
 
     TransportResponseHandler remove(long requestId);
 
     void raiseNodeConnected(DiscoveryNode node);
 
     void raiseNodeDisconnected(DiscoveryNode node);
+
+    String action(String action, Version version);
 }

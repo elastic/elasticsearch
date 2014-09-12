@@ -49,7 +49,7 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
     @Test
     public void testBooleanQuery() throws IOException {
         Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random())));
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
         String[] firstNames = new String[]{
                 "simon", "paul"
         };
@@ -102,7 +102,7 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
     @Test
     public void testDismaxQuery() throws IOException {
         Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random())));
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
         String[] username = new String[]{
                 "foo fighters", "some cool fan", "cover band"};
         String[] song = new String[]{

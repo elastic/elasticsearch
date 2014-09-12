@@ -30,6 +30,9 @@ public class GroovyScriptExecutionException extends ElasticsearchException {
     public GroovyScriptExecutionException(String message) {
         super(message);
     }
+    public GroovyScriptExecutionException(String message, Throwable t) {
+        super(message, t);
+    }
 
     @Override
     public RestStatus status() {

@@ -36,8 +36,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteRepositoryAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteRepositoryAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestDeleteRepositoryAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(DELETE, "/_snapshot/{repository}", this);
     }
 

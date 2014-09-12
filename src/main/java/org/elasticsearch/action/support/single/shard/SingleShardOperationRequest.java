@@ -21,7 +21,9 @@ package org.elasticsearch.action.support.single.shard;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -30,16 +32,27 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class SingleShardOperationRequest<T extends SingleShardOperationRequest> extends ActionRequest<T> {
+public abstract class SingleShardOperationRequest<T extends SingleShardOperationRequest> extends ActionRequest<T> implements IndicesRequest {
 
     protected String index;
+
+    public static final IndicesOptions INDICES_OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
 
     private boolean threadedOperation = true;
 
     protected SingleShardOperationRequest() {
     }
 
-    public SingleShardOperationRequest(String index) {
+    protected SingleShardOperationRequest(String index) {
+        this.index = index;
+    }
+
+    protected SingleShardOperationRequest(ActionRequest request) {
+        super(request);
+    }
+
+    protected SingleShardOperationRequest(ActionRequest request, String index) {
+        super(request);
         this.index = index;
     }
 
@@ -63,6 +76,16 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
     public final T index(String index) {
         this.index = index;
         return (T) this;
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[]{index};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return INDICES_OPTIONS;
     }
 
     /**

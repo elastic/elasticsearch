@@ -23,19 +23,15 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.search.MultiValueMode;
 
 public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BinaryDVAtomicFieldData> {
 
     public BinaryDVIndexFieldData(Index index, Names fieldNames, FieldDataType fieldDataType) {
         super(index, fieldNames, fieldDataType);
-    }
-
-    @Override
-    public boolean valuesOrdered() {
-        return false;
     }
 
     @Override
@@ -49,7 +45,7 @@ public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements I
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode) {
-        return new BytesRefFieldComparatorSource(this, missingValue, sortMode);
+    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
+        return new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
     }
 }

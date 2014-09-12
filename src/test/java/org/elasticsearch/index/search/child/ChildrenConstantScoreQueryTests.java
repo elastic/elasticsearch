@@ -30,40 +30,21 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.cache.recycler.CacheRecycler;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
-import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
-import org.elasticsearch.test.index.service.StubIndexService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.hamcrest.Description;
-import org.hamcrest.StringDescription;
+import org.elasticsearch.test.TestSearchContext;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -75,7 +56,7 @@ import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
+public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
 
     @BeforeClass
     public static void before() throws IOException {
@@ -95,8 +76,8 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         Query childQuery = new TermQuery(new Term("field", "value"));
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        Filter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
-        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, NonNestedDocsFilter.INSTANCE);
+        FixedBitSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
+        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, wrap(NonNestedDocsFilter.INSTANCE));
         QueryUtils.check(query);
     }
 
@@ -128,7 +109,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         ));
 
         TermQuery childQuery = new TermQuery(new Term("field1", "value" + (1 + random().nextInt(3))));
-        TermFilter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
+        FixedBitSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
         int shortCircuitParentDocSet = random().nextInt(5);
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
@@ -223,19 +204,10 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        Filter rawParentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
+        FixedBitSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
         Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueChildValues / 4;
         for (int i = 0; i < max; i++) {
-            // Randomly pick a cached version: there is specific logic inside ChildrenQuery that deals with the fact
-            // that deletes are applied at the top level when filters are cached.
-            Filter parentFilter;
-            if (random().nextBoolean()) {
-                parentFilter = SearchContext.current().filterCache().cache(rawParentFilter);
-            } else {
-                parentFilter = rawParentFilter;
-            }
-
             // Using this in FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs
             Filter filterMe;
             if (random().nextBoolean()) {
@@ -275,7 +247,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
             String childValue = childValues[random().nextInt(numUniqueChildValues)];
             TermQuery childQuery = new TermQuery(new Term("field1", childValue));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
-            Filter nonNestedDocsFilter = random().nextBoolean() ? NonNestedDocsFilter.INSTANCE : null;
+            FixedBitSetFilter nonNestedDocsFilter = random().nextBoolean() ? wrap(NonNestedDocsFilter.INSTANCE) : null;
             Query query;
             if (random().nextBoolean()) {
                 // Usage in HasChildQueryParser
@@ -319,56 +291,6 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         indexWriter.close();
         indexReader.close();
         directory.close();
-    }
-
-    static void assertBitSet(FixedBitSet actual, FixedBitSet expected, IndexSearcher searcher) throws IOException {
-        if (!actual.equals(expected)) {
-            Description description = new StringDescription();
-            description.appendText(reason(actual, expected, searcher));
-            description.appendText("\nExpected: ");
-            description.appendValue(expected);
-            description.appendText("\n     got: ");
-            description.appendValue(actual);
-            description.appendText("\n");
-            throw new java.lang.AssertionError(description.toString());
-        }
-    }
-
-    static String reason(FixedBitSet actual, FixedBitSet expected, IndexSearcher indexSearcher) throws IOException {
-        StringBuilder builder = new StringBuilder();
-        builder.append("expected cardinality:").append(expected.cardinality()).append('\n');
-        DocIdSetIterator iterator = expected.iterator();
-        for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-            builder.append("Expected doc[").append(doc).append("] with id value ").append(indexSearcher.doc(doc).get(UidFieldMapper.NAME)).append('\n');
-        }
-        builder.append("actual cardinality: ").append(actual.cardinality()).append('\n');
-        iterator = actual.iterator();
-        for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-            builder.append("Actual doc[").append(doc).append("] with id value ").append(indexSearcher.doc(doc).get(UidFieldMapper.NAME)).append('\n');
-        }
-        return builder.toString();
-    }
-
-    static SearchContext createSearchContext(String indexName, String parentType, String childType) throws IOException {
-        final Index index = new Index(indexName);
-        final CacheRecycler cacheRecycler = new CacheRecycler(ImmutableSettings.EMPTY);
-        ThreadPool threadPool = new ThreadPool("ChildrenConstantScoreQueryTests");
-        final PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(ImmutableSettings.EMPTY, threadPool);
-        final BigArrays bigArrays = new BigArrays(ImmutableSettings.EMPTY, pageCacheRecycler);
-        Settings settings = ImmutableSettings.EMPTY;
-        MapperService mapperService = MapperTestUtils.newMapperService(index, settings);
-        IndexFieldDataService indexFieldDataService = new IndexFieldDataService(index, new NoneCircuitBreakerService());
-        final IndexService indexService = new StubIndexService(mapperService);
-        indexFieldDataService.setIndexService(indexService);
-        // Id_cache is now registered as document type listener, so we can add mappings.
-        mapperService.merge(
-                childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true
-        );
-
-        NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
-        IndicesFilterCache indicesFilterCache = new IndicesFilterCache(settings, threadPool, cacheRecycler, nodeSettingsService);
-        WeightedFilterCache filterCache = new WeightedFilterCache(index, settings, indicesFilterCache);
-        return new TestSearchContext(threadPool, cacheRecycler, pageCacheRecycler, bigArrays, indexService, filterCache, indexFieldDataService);
     }
 
 }

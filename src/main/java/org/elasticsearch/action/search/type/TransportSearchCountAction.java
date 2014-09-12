@@ -22,6 +22,7 @@ package org.elasticsearch.action.search.type;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
@@ -34,6 +35,7 @@ import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.elasticsearch.action.search.type.TransportSearchHelper.buildScrollId;
@@ -45,8 +47,8 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
 
     @Inject
     public TransportSearchCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                      SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
-        super(settings, threadPool, clusterService, searchService, searchPhaseController);
+                                      SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController, ActionFilters actionFilters) {
+        super(settings, threadPool, clusterService, searchService, searchPhaseController, actionFilters);
     }
 
     @Override
@@ -54,7 +56,7 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
         new AsyncAction(searchRequest, listener).start();
     }
 
-    private class AsyncAction extends BaseAsyncAction<QuerySearchResult> {
+    private class AsyncAction extends BaseAsyncAction<QuerySearchResultProvider> {
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
@@ -66,7 +68,7 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
         }
 
         @Override
-        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<QuerySearchResult> listener) {
+        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<QuerySearchResultProvider> listener) {
             searchService.sendExecuteQuery(node, request, listener);
         }
 

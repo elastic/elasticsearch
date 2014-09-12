@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -42,10 +43,16 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -65,6 +72,21 @@ public class PluginManager {
 
     // By default timeout is 0 which means no timeout
     public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMillis(0);
+
+    private static final ImmutableSet<Object> BLACKLIST = ImmutableSet.builder()
+            .add("elasticsearch",
+                    "elasticsearch.bat",
+                    "elasticsearch.in.sh",
+                    "plugin",
+                    "plugin.bat",
+                    "service.bat").build();
+
+    // Valid directory names for plugin ZIP files when it has only one single dir
+    private static final ImmutableSet<Object> VALID_TOP_LEVEL_PLUGIN_DIRS = ImmutableSet.builder()
+            .add("_site",
+                    "bin",
+                    "config",
+                    "_dict").build();
 
     private final Environment environment;
 
@@ -123,6 +145,8 @@ public class PluginManager {
         }
 
         PluginHandle pluginHandle = PluginHandle.parse(name);
+        checkForForbiddenName(pluginHandle.name);
+
         File pluginFile = pluginHandle.distroFile(environment);
         // extract the plugin
         File extractLocation = pluginHandle.extractedDir(environment);
@@ -206,19 +230,46 @@ public class PluginManager {
             throw new IllegalArgumentException("Plugin installation assumed to be site plugin, but contains source code, aborting installation.");
         }
 
+        // It could potentially be a non explicit _site plugin
+        boolean potentialSitePlugin = true;
         File binFile = new File(extractLocation, "bin");
         if (binFile.exists() && binFile.isDirectory()) {
             File toLocation = pluginHandle.binDir(environment);
             debug("Found bin, moving to " + toLocation.getAbsolutePath());
             FileSystemUtils.deleteRecursively(toLocation);
-            binFile.renameTo(toLocation);
+            if (!binFile.renameTo(toLocation)) {
+                throw new IOException("Could not move ["+ binFile.getAbsolutePath() + "] to [" + toLocation.getAbsolutePath() + "]");
+            }
+            // Make everything in bin/ executable
+            Files.walkFileTree(toLocation.toPath(), new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (attrs.isRegularFile()) {
+                        file.toFile().setExecutable(true);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
             debug("Installed " + name + " into " + toLocation.getAbsolutePath());
+            potentialSitePlugin = false;
+        }
+
+        File configFile = new File(extractLocation, "config");
+        if (configFile.exists() && configFile.isDirectory()) {
+            File toLocation = pluginHandle.configDir(environment);
+            debug("Found config, moving to " + toLocation.getAbsolutePath());
+            FileSystemUtils.deleteRecursively(toLocation);
+            if (!configFile.renameTo(toLocation)) {
+                throw new IOException("Could not move ["+ configFile.getAbsolutePath() + "] to [" + configFile.getAbsolutePath() + "]");
+            }
+            debug("Installed " + name + " into " + toLocation.getAbsolutePath());
+            potentialSitePlugin = false;
         }
 
         // try and identify the plugin type, see if it has no .class or .jar files in it
         // so its probably a _site, and it it does not have a _site in it, move everything to _site
         if (!new File(extractLocation, "_site").exists()) {
-            if (!FileSystemUtils.hasExtensions(extractLocation, ".class", ".jar")) {
+            if (potentialSitePlugin && !FileSystemUtils.hasExtensions(extractLocation, ".class", ".jar")) {
                 log("Identified as a _site plugin, moving to _site structure ...");
                 File site = new File(extractLocation, "_site");
                 File tmpLocation = new File(environment.pluginsFile(), extractLocation.getName() + ".tmp");
@@ -241,10 +292,7 @@ public class PluginManager {
         PluginHandle pluginHandle = PluginHandle.parse(name);
         boolean removed = false;
 
-        if (Strings.isNullOrEmpty(pluginHandle.name)) {
-            throw new ElasticsearchIllegalArgumentException("plugin name is incorrect");
-        }
-
+        checkForForbiddenName(pluginHandle.name);
         File pluginToDelete = pluginHandle.extractedDir(environment);
         if (pluginToDelete.exists()) {
             debug("Removing: " + pluginToDelete.getPath());
@@ -272,10 +320,25 @@ public class PluginManager {
             }
             removed = true;
         }
+        File configLocation = pluginHandle.configDir(environment);
+        if (configLocation.exists()) {
+            debug("Removing: " + configLocation.getPath());
+            if (!FileSystemUtils.deleteRecursively(configLocation)) {
+                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
+                        configLocation.toString());
+            }
+            removed = true;
+        }
         if (removed) {
             log("Removed " + name);
         } else {
             log("Plugin " + name + " not found. Run plugin --list to get list of installed plugins.");
+        }
+    }
+
+    private static void checkForForbiddenName(String name) {
+        if (!hasLength(name) || BLACKLIST.contains(name.toLowerCase(Locale.ROOT))) {
+            throw new ElasticsearchIllegalArgumentException("Illegal plugin name: " + name);
         }
     }
 
@@ -317,7 +380,12 @@ public class PluginManager {
                 return false;
             }
         }
-        return topLevelDirNames.size() == 1 && !"_site".equals(topLevelDirNames.iterator().next());
+
+        if (topLevelDirNames.size() == 1) {
+            return !VALID_TOP_LEVEL_PLUGIN_DIRS.contains(topLevelDirNames.iterator().next());
+        }
+
+        return false;
     }
 
     private static final int EXIT_CODE_OK = 0;
@@ -583,6 +651,10 @@ public class PluginManager {
 
         File binDir(Environment env) {
             return new File(new File(env.homeFile(), "bin"), name);
+        }
+
+        File configDir(Environment env) {
+            return new File(new File(env.homeFile(), "config"), name);
         }
 
         static PluginHandle parse(String name) {

@@ -218,6 +218,11 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         }
     }
 
+    public void noopUpdate(String type) {
+        totalStats.noopUpdates.inc();
+        typeStats(type).noopUpdates.inc();
+    }
+
     public void clear() {
         totalStats.clear();
         synchronized (this) {
@@ -253,11 +258,13 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         public final MeanMetric deleteMetric = new MeanMetric();
         public final CounterMetric indexCurrent = new CounterMetric();
         public final CounterMetric deleteCurrent = new CounterMetric();
+        public final CounterMetric noopUpdates = new CounterMetric();
 
         public IndexingStats.Stats stats() {
             return new IndexingStats.Stats(
                     indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(),
-                    deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count());
+                    deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
+                    noopUpdates.count());
         }
 
         public long totalCurrent() {

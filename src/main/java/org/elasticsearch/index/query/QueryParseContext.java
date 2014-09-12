@@ -26,7 +26,7 @@ import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
@@ -37,6 +37,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.cache.query.parser.QueryParserCache;
 import org.elasticsearch.index.engine.IndexEngine;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -78,7 +79,7 @@ public class QueryParseContext {
 
     private boolean propagateNoCache = false;
 
-    IndexQueryParserService indexQueryParser;
+    final IndexQueryParserService indexQueryParser;
 
     private final Map<String, Filter> namedFilters = Maps.newHashMap();
 
@@ -88,20 +89,22 @@ public class QueryParseContext {
 
     private EnumSet<ParseField.Flag> parseFlags = ParseField.EMPTY_FLAGS;
 
-    private final boolean disableCaching;
+    private final boolean disableFilterCaching;
+
+    private boolean allowUnmappedFields;
 
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
         this(index, indexQueryParser, false);
     }
 
-    public QueryParseContext(Index index, IndexQueryParserService indexQueryParser, boolean disableCaching) {
+    public QueryParseContext(Index index, IndexQueryParserService indexQueryParser, boolean disableFilterCaching) {
         this.index = index;
         this.indexQueryParser = indexQueryParser;
-        this.propagateNoCache = disableCaching;
-        this.disableCaching = disableCaching;
+        this.propagateNoCache = disableFilterCaching;
+        this.disableFilterCaching = disableFilterCaching;
     }
 
-    public  void parseFlags(EnumSet<ParseField.Flag> parseFlags) {
+    public void parseFlags(EnumSet<ParseField.Flag> parseFlags) {
         this.parseFlags = parseFlags == null ? ParseField.EMPTY_FLAGS : parseFlags;
     }
 
@@ -110,6 +113,7 @@ public class QueryParseContext {
     }
 
     public void reset(XContentParser jp) {
+        allowUnmappedFields = indexQueryParser.defaultAllowUnmappedFields();
         this.parseFlags = ParseField.EMPTY_FLAGS;
         this.lookup = null;
         this.parser = jp;
@@ -130,10 +134,6 @@ public class QueryParseContext {
 
     public AnalysisService analysisService() {
         return indexQueryParser.analysisService;
-    }
-
-    public CacheRecycler cacheRecycler() {
-        return indexQueryParser.cacheRecycler;
     }
 
     public ScriptService scriptService() {
@@ -174,11 +174,15 @@ public class QueryParseContext {
         return queryParser;
     }
 
+    public FixedBitSetFilter fixedBitSetFilter(Filter filter) {
+        return indexQueryParser.fixedBitSetFilterCache.getFixedBitSetFilter(filter);
+    }
+
     public Filter cacheFilter(Filter filter, @Nullable CacheKeyFilter.Key cacheKey) {
         if (filter == null) {
             return null;
         }
-        if (this.disableCaching || this.propagateNoCache || filter instanceof NoCacheFilter) {
+        if (this.disableFilterCaching || this.propagateNoCache || filter instanceof NoCacheFilter) {
             return filter;
         }
         if (cacheKey != null) {
@@ -188,11 +192,7 @@ public class QueryParseContext {
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper<?> mapper) {
-        if (disableCaching) {
-            return indexQueryParser.fieldDataService.getForFieldDirect(mapper);
-        } else {
-            return indexQueryParser.fieldDataService.getForField(mapper);
-        }
+        return indexQueryParser.fieldDataService.getForField(mapper);
     }
 
     public void addNamedFilter(String name, Filter filter) {
@@ -320,15 +320,32 @@ public class QueryParseContext {
     }
 
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {
-        return indexQueryParser.mapperService.smartName(name, getTypes());
+        return failIfFieldMappingNotFound(name, indexQueryParser.mapperService.smartName(name, getTypes()));
     }
 
     public FieldMapper smartNameFieldMapper(String name) {
-        return indexQueryParser.mapperService.smartNameFieldMapper(name, getTypes());
+        return failIfFieldMappingNotFound(name, indexQueryParser.mapperService.smartNameFieldMapper(name, getTypes()));
     }
 
     public MapperService.SmartNameObjectMapper smartObjectMapper(String name) {
         return indexQueryParser.mapperService.smartNameObjectMapper(name, getTypes());
+    }
+
+    public void setAllowUnmappedFields(boolean allowUnmappedFields) {
+        this.allowUnmappedFields = allowUnmappedFields;
+    }
+
+    private <T> T failIfFieldMappingNotFound(String name, T fieldMapping) {
+        if (allowUnmappedFields) {
+            return fieldMapping;
+        } else {
+            Version indexCreatedVersion = indexQueryParser.getIndexCreatedVersion();
+            if (fieldMapping == null && indexCreatedVersion.onOrAfter(Version.V_1_4_0_Beta)) {
+                throw new QueryParsingException(index, "Strict field resolution and no field mapping can be found for the field with name [" + name + "]");
+            } else {
+                return fieldMapping;
+            }
+        }
     }
 
     /**

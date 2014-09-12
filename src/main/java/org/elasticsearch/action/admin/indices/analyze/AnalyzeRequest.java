@@ -36,8 +36,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest> {
 
-    private String index;
-
     private String text;
 
     private String analyzer;
@@ -70,21 +68,12 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
      * @param text  The text to analyze
      */
     public AnalyzeRequest(@Nullable String index, String text) {
-        this.index = index;
+        this.index(index);
         this.text = text;
     }
 
     public String text() {
         return this.text;
-    }
-
-    public AnalyzeRequest index(String index) {
-        this.index = index;
-        return this;
-    }
-
-    public String index() {
-        return this.index;
     }
 
     public AnalyzeRequest analyzer(String analyzer) {
@@ -150,7 +139,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readOptionalString();
         text = in.readString();
         analyzer = in.readOptionalString();
         tokenizer = in.readOptionalString();
@@ -164,7 +152,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(index);
         out.writeString(text);
         out.writeOptionalString(analyzer);
         out.writeOptionalString(tokenizer);

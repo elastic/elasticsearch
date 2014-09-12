@@ -7,7 +7,7 @@ case "$1" in
         rm -rf /var/log/elasticsearch
         
         # remove **only** empty data dir
-        rmdir -p --ignore-fail-on-non-empty /var/lib/elasticsearch
+        rmdir --ignore-fail-on-non-empty /var/lib/elasticsearch
     ;;
 
     purge)

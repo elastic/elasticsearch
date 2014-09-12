@@ -20,6 +20,7 @@ package org.elasticsearch.action.bench;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,14 +39,9 @@ public class TransportBenchmarkAction extends TransportMasterNodeOperationAction
 
     @Inject
     public TransportBenchmarkAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                    ThreadPool threadPool, BenchmarkService service) {
-        super(settings, transportService, clusterService, threadPool);
+                                    ThreadPool threadPool, BenchmarkService service, ActionFilters actionFilters) {
+        super(settings, BenchmarkAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.service = service;
-    }
-
-    @Override
-    protected String transportAction() {
-        return BenchmarkAction.NAME;
     }
 
     @Override

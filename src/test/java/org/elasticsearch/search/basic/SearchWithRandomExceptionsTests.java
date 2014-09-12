@@ -99,12 +99,12 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
                     .setSettings(settings)
                     .addMapping("type", mapping).execute().actionGet();
             numInitialDocs = between(10, 100);
-            ensureYellow();
+            ensureGreen();
             for (int i = 0; i < numInitialDocs ; i++) {
-                client().prepareIndex("test", "initial", "" + i).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", "init").get();
+                client().prepareIndex("test", "initial", "" + i).setSource("test", "init").get();
             }
             client().admin().indices().prepareRefresh("test").execute().get();
-            client().admin().indices().prepareFlush("test").execute().get();
+            client().admin().indices().prepareFlush("test").setWaitIfOngoing(true).execute().get();
             client().admin().indices().prepareClose("test").execute().get();
             client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
                     .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, true)

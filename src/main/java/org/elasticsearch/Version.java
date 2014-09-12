@@ -184,15 +184,33 @@ public class Version implements Serializable {
     public static final Version V_1_2_1 = new Version(V_1_2_1_ID, false, org.apache.lucene.util.Version.LUCENE_4_8);
     public static final int V_1_2_2_ID = /*00*/1020299;
     public static final Version V_1_2_2 = new Version(V_1_2_2_ID, false, org.apache.lucene.util.Version.LUCENE_4_8);
+    public static final int V_1_2_3_ID = /*00*/1020399;
+    public static final Version V_1_2_3 = new Version(V_1_2_3_ID, false, org.apache.lucene.util.Version.LUCENE_4_8);
+    public static final int V_1_2_4_ID = /*00*/1020499;
+    public static final Version V_1_2_4 = new Version(V_1_2_4_ID, false, org.apache.lucene.util.Version.LUCENE_4_8);
+    public static final int V_1_2_5_ID = /*00*/1020599;
+    public static final Version V_1_2_5 = new Version(V_1_2_5_ID, false, org.apache.lucene.util.Version.LUCENE_4_8);
     public static final int V_1_3_0_ID = /*00*/1030099;
     public static final Version V_1_3_0 = new Version(V_1_3_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
+    public static final int V_1_3_1_ID = /*00*/1030199;
+    public static final Version V_1_3_1 = new Version(V_1_3_1_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
+    public static final int V_1_3_2_ID = /*00*/1030299;
+    public static final Version V_1_3_2 = new Version(V_1_3_2_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
+    public static final int V_1_3_3_ID = /*00*/1030399;
+    public static final Version V_1_3_3 = new Version(V_1_3_3_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
+    public static final int V_1_4_0_Beta_ID = /*00*/1040001;
+    public static final Version V_1_4_0_Beta = new Version(V_1_4_0_Beta_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_0);
+    public static final int V_1_4_0_ID = /*00*/1040099;
+    public static final Version V_1_4_0 = new Version(V_1_4_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_0);
+    public static final int V_1_5_0_ID = /*00*/1050099;
+    public static final Version V_1_5_0 = new Version(V_1_5_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_0);
     public static final int V_2_0_0_ID = /*00*/2000099;
-    public static final Version V_2_0_0 = new Version(V_2_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_4_9);
+    public static final Version V_2_0_0 = new Version(V_2_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_0);
 
     public static final Version CURRENT = V_2_0_0;
 
     static {
-        assert CURRENT.luceneVersion == Lucene.VERSION : "Version must be upgraded to [" + Lucene.VERSION + "] is still set to [" + CURRENT.luceneVersion + "]";
+        assert CURRENT.luceneVersion.equals(Lucene.VERSION) : "Version must be upgraded to [" + Lucene.VERSION + "] is still set to [" + CURRENT.luceneVersion + "]";
     }
 
     public static Version readVersion(StreamInput in) throws IOException {
@@ -203,8 +221,26 @@ public class Version implements Serializable {
         switch (id) {
             case V_2_0_0_ID:
                 return V_2_0_0;
+            case V_1_5_0_ID:
+                return V_1_5_0;
+            case V_1_4_0_ID:
+                return V_1_4_0;
+            case V_1_4_0_Beta_ID:
+                return V_1_4_0_Beta;
+            case V_1_3_3_ID:
+                return V_1_3_3;
+            case V_1_3_2_ID:
+                return V_1_3_2;
+            case V_1_3_1_ID:
+                return V_1_3_1;
             case V_1_3_0_ID:
                 return V_1_3_0;
+            case V_1_2_5_ID:
+                return V_1_2_5;
+            case V_1_2_4_ID:
+                return V_1_2_4;
+            case V_1_2_3_ID:
+                return V_1_2_3;
             case V_1_2_2_ID:
                 return V_1_2_2;
             case V_1_2_1_ID:
@@ -443,6 +479,17 @@ public class Version implements Serializable {
 
     public boolean onOrBefore(Version version) {
         return version.id >= id;
+    }
+
+    /**
+     * Returns the minimum compatible version based on the current
+     * version. Ie a node needs to have at least the return version in order
+     * to communicate with a node running the current version. The returned version
+     * is in most of the cases the smallest major version release unless the current version
+     * is a beta or RC release then the version itself is returned.
+     */
+    public Version minimumCompatibilityVersion() {
+        return Version.smallest(this, fromId(major * 1000000 + 99));
     }
 
     /**

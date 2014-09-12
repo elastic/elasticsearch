@@ -5,10 +5,10 @@ Basic support for hunspell stemming. Hunspell dictionaries will be
 picked up from a dedicated hunspell directory on the filesystem
 (defaults to `<path.conf>/hunspell`). Each dictionary is expected to
 have its own directory named after its associated locale (language).
-This dictionary directory is expected to hold both the `*.aff` and `*.dic`
-files (all of which will automatically be picked up). For example,
-assuming the default hunspell location is used, the following directory
-layout will define the `en_US` dictionary:
+This dictionary directory is expected to hold a single `*.aff` and
+one or more `*.dic` files (all of which will automatically be picked up).
+For example, assuming the default hunspell location is used, the
+following directory layout will define the `en_US` dictionary:
 
 [source,js]
 --------------------------------------------------
@@ -25,7 +25,7 @@ _elasticsearch.yml_.
 
 Each dictionary can be configured with one setting:
 
-`ignore_case`:: 
+`ignore_case`::
     If true, dictionary matching will be case insensitive
     (defaults to `false`)
 
@@ -67,26 +67,36 @@ settings:
 
 The hunspell token filter accepts four options:
 
-`locale`:: 
+`locale`::
     A locale for this filter. If this is unset, the `lang` or
     `language` are used instead - so one of these has to be set.
 
-`dictionary`:: 
+`dictionary`::
     The name of a dictionary. The path to your hunspell
     dictionaries should be configured via
     `indices.analysis.hunspell.dictionary.location` before.
 
-`dedup`:: 
+`dedup`::
     If only unique terms should be returned, this needs to be
     set to `true`. Defaults to `true`.
 
-`longest_only`:: 
+`longest_only`::
     If only the longest term should be returned, set this to `true`.
     Defaults to `false`: all possible stems are returned.
 
 NOTE: As opposed to the snowball stemmers (which are algorithm based)
 this is a dictionary lookup based stemmer and therefore the quality of
 the stemming is determined by the quality of the dictionary.
+
+[float]
+==== Dictionary loading
+
+By default, the configured (`indices.analysis.hunspell.dictionary.location`)
+or default Hunspell directory (`config/hunspell/`) is checked for dictionaries
+when the node starts up, and any dictionaries are automatically loaded.
+
+Dictionary loading can be deferred until they are actually used by setting
+`indices.analysis.hunspell.dictionary.lazy` to `true`in the config file.
 
 [float]
 ==== References

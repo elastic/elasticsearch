@@ -23,7 +23,6 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.Bits;
@@ -91,8 +90,6 @@ public class NestedQueryParser implements QueryParser {
                         path = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
-                    } else if ("_scope".equals(currentFieldName)) {
-                        throw new QueryParsingException(parseContext.index(), "the [_scope] support in [nested] query has been removed, use nested filter as a facet_filter in the relevant facet");
                     } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                         String sScoreMode = parser.text();
                         if ("avg".equals(sScoreMode)) {
@@ -153,12 +150,8 @@ public class NestedQueryParser implements QueryParser {
                 //    // filter based on the type...
                 //    parentFilter = mapper.docMapper().typeFilter();
                 //}
-                parentFilter = parseContext.cacheFilter(parentFilter, null);
             }
-            // if the filter cache is disabled, then we still have a filter that is not cached while ToParentBlockJoinQuery
-            // expects FixedBitSet instances
-            parentFilter = new FixedBitSetCachingWrapperFilter(parentFilter);
-
+            parentFilter = parseContext.fixedBitSetFilter(parentFilter);
             ToParentBlockJoinQuery joinQuery = new ToParentBlockJoinQuery(query, parentFilter, scoreMode);
             joinQuery.setBoost(boost);
             if (queryName != null) {

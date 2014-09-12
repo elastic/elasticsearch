@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,8 +41,8 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
 
     @Inject
     public TransportUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                         MetaDataUpdateSettingsService updateSettingsService) {
-        super(settings, transportService, clusterService, threadPool);
+                                         MetaDataUpdateSettingsService updateSettingsService, ActionFilters actionFilters) {
+        super(settings, UpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.updateSettingsService = updateSettingsService;
     }
 
@@ -49,11 +50,6 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     protected String executor() {
         // we go async right away....
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return UpdateSettingsAction.NAME;
     }
 
     @Override

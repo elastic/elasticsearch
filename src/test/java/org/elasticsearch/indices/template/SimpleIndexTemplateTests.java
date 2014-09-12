@@ -337,12 +337,16 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().preparePutTemplate("template_with_aliases")
                 .setTemplate("te*")
+                .addMapping("type1", "{\"type1\" : {\"properties\" : {\"value\" : {\"type\" : \"string\"}}}}")
                 .addAlias(new Alias("simple_alias"))
                 .addAlias(new Alias("templated_alias-{index}"))
                 .addAlias(new Alias("filtered_alias").filter("{\"type\":{\"value\":\"type2\"}}"))
                 .addAlias(new Alias("complex_filtered_alias")
                         .filter(FilterBuilders.termsFilter("_type",  "typeX", "typeY", "typeZ").execution("bool").cache(true)))
                 .get();
+
+        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
+        ensureGreen();
 
         client().prepareIndex("test_index", "type1", "1").setSource("field", "A value").get();
         client().prepareIndex("test_index", "type2", "2").setSource("field", "B value").get();
@@ -398,7 +402,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
                         "}").get();
 
 
-        createIndex("test_index");
+        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
@@ -434,7 +438,7 @@ public class SimpleIndexTemplateTests extends ElasticsearchIntegrationTest {
                         "        \"alias3\" : { \"routing\" : \"1\" }" +
                         "    }\n").get();
 
-        createIndex("test_index");
+        assertAcked(prepareCreate("test_index").addMapping("type1").addMapping("type2"));
         ensureGreen();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();

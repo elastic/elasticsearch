@@ -29,14 +29,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.util.Map;
 
 /**
- *
+ * A builder the easy to use of defining a percolate request.
  */
 public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<PercolateRequest, PercolateResponse, PercolateRequestBuilder, Client> {
 
@@ -47,7 +46,8 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Sets the type of the document to percolate.
+     * Sets the type of the document to percolate. This is important as it selects the mapping to be used to parse
+     * the document.
      */
     public PercolateRequestBuilder setDocumentType(String type) {
         request.documentType(type);
@@ -98,7 +98,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Limits the maximum number of percolate query matches to be returned.
+     * Delegates to {@link PercolateSourceBuilder#setSize(int)}}
      */
     public PercolateRequestBuilder setSize(int size) {
         sourceBuilder().setSize(size);
@@ -106,7 +106,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Similar as {@link #setScore(boolean)}, but whether to sort by the score descending.
+     * Delegates to {@link PercolateSourceBuilder#setSort(boolean)}}
      */
     public PercolateRequestBuilder setSortByScore(boolean sort) {
         sourceBuilder().setSort(sort);
@@ -114,7 +114,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Adds
+     * Delegates to {@link PercolateSourceBuilder#addSort(SortBuilder)}
      */
     public PercolateRequestBuilder addSort(SortBuilder sort) {
         sourceBuilder().addSort(sort);
@@ -122,8 +122,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Whether to compute a score for each match and include it in the response. The score is based on
-     * {@link #setPercolateQuery(QueryBuilder)}}.
+     * Delegates to {@link PercolateSourceBuilder#setSort(boolean)}}
      */
     public PercolateRequestBuilder setScore(boolean score) {
         sourceBuilder().setTrackScores(score);
@@ -131,8 +130,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Sets a query to reduce the number of percolate queries to be evaluated and score the queries that match based
-     * on this query.
+     * Delegates to {@link PercolateSourceBuilder#setDoc(PercolateSourceBuilder.DocBuilder)}
      */
     public PercolateRequestBuilder setPercolateDoc(PercolateSourceBuilder.DocBuilder docBuilder) {
         sourceBuilder().setDoc(docBuilder);
@@ -140,8 +138,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Sets a query to reduce the number of percolate queries to be evaluated and score the queries that match based
-     * on this query.
+     * Delegates to {@link PercolateSourceBuilder#setQueryBuilder(QueryBuilder)}
      */
     public PercolateRequestBuilder setPercolateQuery(QueryBuilder queryBuilder) {
         sourceBuilder().setQueryBuilder(queryBuilder);
@@ -149,7 +146,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Sets a filter to reduce the number of percolate queries to be evaluated.
+     * Delegates to {@link PercolateSourceBuilder#setFilterBuilder(FilterBuilder)}
      */
     public PercolateRequestBuilder setPercolateFilter(FilterBuilder filterBuilder) {
         sourceBuilder().setFilterBuilder(filterBuilder);
@@ -157,7 +154,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Enables highlighting for the percolate document. Per matched percolate query highlight the percolate document.
+     * Delegates to {@link PercolateSourceBuilder#setHighlightBuilder(HighlightBuilder)}
      */
     public PercolateRequestBuilder setHighlightBuilder(HighlightBuilder highlightBuilder) {
         sourceBuilder().setHighlightBuilder(highlightBuilder);
@@ -165,15 +162,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Add a facet definition.
-     */
-    public PercolateRequestBuilder addFacet(FacetBuilder facetBuilder) {
-        sourceBuilder().addFacet(facetBuilder);
-        return this;
-    }
-
-    /**
-     * Add a aggregation definition.
+     * Delegates to {@link PercolateSourceBuilder#addAggregation(AggregationBuilder)}
      */
     public PercolateRequestBuilder addAggregation(AggregationBuilder aggregationBuilder) {
         sourceBuilder().addAggregation(aggregationBuilder);
@@ -181,53 +170,81 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
     }
 
     /**
-     * Sets the raw percolate request body.
+     * Sets the percolate request definition directly on the request.
+     * This will overwrite any definitions set by any of the delegate methods.
      */
     public PercolateRequestBuilder setSource(PercolateSourceBuilder source) {
         sourceBuilder = source;
         return this;
     }
 
+    /**
+     * Raw variant of {@link #setSource(PercolateSourceBuilder)}
+     */
     public PercolateRequestBuilder setSource(Map<String, Object> source) {
         request.source(source);
         return this;
     }
 
+    /**
+     * Raw variant of {@link #setSource(PercolateSourceBuilder)}
+     */
     public PercolateRequestBuilder setSource(Map<String, Object> source, XContentType contentType) {
         request.source(source, contentType);
         return this;
     }
 
+    /**
+     * Raw variant of {@link #setSource(PercolateSourceBuilder)}
+     */
     public PercolateRequestBuilder setSource(String source) {
         request.source(source);
         return this;
     }
 
+    /**
+     * Raw variant of {@link #setSource(PercolateSourceBuilder)}
+     */
     public PercolateRequestBuilder setSource(XContentBuilder sourceBuilder) {
         request.source(sourceBuilder);
         return this;
     }
 
+    /**
+     * Raw variant of {@link #setSource(PercolateSourceBuilder)}
+     */
     public PercolateRequestBuilder setSource(BytesReference source) {
         request.source(source, false);
         return this;
     }
 
+    /**
+     * Raw variant of {@link #setSource(PercolateSourceBuilder)}
+     */
     public PercolateRequestBuilder setSource(BytesReference source, boolean unsafe) {
         request.source(source, unsafe);
         return this;
     }
 
+    /**
+     * Raw variant of {@link #setSource(PercolateSourceBuilder)}
+     */
     public PercolateRequestBuilder setSource(byte[] source) {
         request.source(source);
         return this;
     }
 
+    /**
+     * Raw variant of {@link #setSource(PercolateSourceBuilder)}
+     */
     public PercolateRequestBuilder setSource(byte[] source, int offset, int length) {
         request.source(source, offset, length);
         return this;
     }
 
+    /**
+     * Raw variant of {@link #setSource(PercolateSourceBuilder)}
+     */
     public PercolateRequestBuilder setSource(byte[] source, int offset, int length, boolean unsafe) {
         request.source(source, offset, length, unsafe);
         return this;

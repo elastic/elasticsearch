@@ -41,10 +41,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.*;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -188,22 +185,21 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         private final Script script;
         private final SearchLookup lookup;
         private final Map<String, Object> variables;
-        private final UpdateableFloat score;
         private final ESLogger logger;
 
         public GroovyScript(Script script, ESLogger logger) {
             this(script, null, logger);
         }
 
-        public GroovyScript(Script script, SearchLookup lookup, ESLogger logger) {
+        public GroovyScript(Script script, @Nullable SearchLookup lookup, ESLogger logger) {
             this.script = script;
             this.lookup = lookup;
             this.logger = logger;
             this.variables = script.getBinding().getVariables();
-            this.score = new UpdateableFloat(0);
-            // Add the _score variable, which will be updated per-document by
-            // setting .value on the UpdateableFloat instance
-            this.variables.put("_score", this.score);
+            if (lookup != null) {
+                // Add the _score variable, which will access score from lookup.doc()
+                this.variables.put("_score", new ScoreAccessor(lookup.doc()));
+            }
         }
 
         @Override
@@ -225,12 +221,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             if (lookup != null) {
                 lookup.setNextDocId(doc);
             }
-        }
-
-        @SuppressWarnings({"unchecked"})
-        @Override
-        public void setNextScore(float score) {
-            this.score.value = score;
         }
 
         @SuppressWarnings({"unchecked"})
@@ -278,40 +268,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             return value;
         }
 
-        /**
-         * Float encapsulation that allows updating the value with public
-         * member access. This is used to encapsulate the _score of a document
-         * so that updating the _score for the next document incurs only the
-         * overhead of setting a member variable
-         */
-        private final class UpdateableFloat extends Number {
-
-            public float value;
-
-            public UpdateableFloat(float value) {
-                this.value = value;
-            }
-
-            @Override
-            public int intValue() {
-                return (int)value;
-            }
-
-            @Override
-            public long longValue() {
-                return (long)value;
-            }
-
-            @Override
-            public float floatValue() {
-                return value;
-            }
-
-            @Override
-            public double doubleValue() {
-                return value;
-            }
-        }
     }
 
     /**
@@ -359,4 +315,5 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             return super.transform(newExpr);
         }
     }
+
 }

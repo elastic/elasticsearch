@@ -41,8 +41,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestIndicesStatsAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesStatsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestIndicesStatsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_stats", this);
         controller.registerHandler(GET, "/_stats/{metric}", this);
         controller.registerHandler(GET, "/_stats/{metric}/{indexMetric}", this);
@@ -80,6 +80,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.fieldData(metrics.contains("fielddata"));
             indicesStatsRequest.completion(metrics.contains("completion"));
             indicesStatsRequest.suggest(metrics.contains("suggest"));
+            indicesStatsRequest.queryCache(metrics.contains("query_cache"));
         }
 
         if (request.hasParam("groups")) {

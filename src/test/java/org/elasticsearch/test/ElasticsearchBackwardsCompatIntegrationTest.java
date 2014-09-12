@@ -20,18 +20,23 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.netty.NettyTransportModule;
+import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.Before;
 import org.junit.Ignore;
 
 import java.io.File;
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.is;
 
 /**
  * Abstract base class for backwards compatibility tests. Subclasses of this class
@@ -81,6 +86,9 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
             throw new IllegalArgumentException("Invalid Backwards tests location path:" + path + " version: " + version);
         }
         File file = new File(path, "elasticsearch-" + version);
+        if (!file.exists()) {
+            throw new IllegalArgumentException("Backwards tests location is missing: " + file.getAbsolutePath());
+        }
         if (!file.isDirectory()) {
             throw new IllegalArgumentException("Backwards tests location is not a directory: " + file.getAbsolutePath());
         }
@@ -93,7 +101,18 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
     protected TestCluster buildTestCluster(Scope scope) throws IOException {
         TestCluster cluster = super.buildTestCluster(scope);
-        return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), new ExternalNode(backwardsCompatibilityPath(), randomLong()));
+        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new SettingsSource() {
+            @Override
+            public Settings node(int nodeOrdinal) {
+                return externalNodeSettings(nodeOrdinal);
+            }
+
+            @Override
+            public Settings transportClient() {
+                return transportClientSettings();
+            }
+        });
+        return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode);
     }
 
     protected int minExternalNodes() {
@@ -115,14 +134,31 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         assumeTrue("BWC tests are disabled currently for version [< 1.1.0]", compatibilityVersion().onOrAfter(Version.V_1_1_0));
     }
 
+    protected Settings requiredSettings() {
+        return ExternalNode.REQUIRED_SETTINGS;
+    }
+
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransportModule.class) // run same transport  / disco as external
-                .put(DiscoveryModule.DISCOVERY_TYPE_KEY, ZenDiscoveryModule.class)
-                .put("node.mode", "network") // we need network mode for this
-                .put("gateway.type", "local") // we require local gateway to mimic upgrades of nodes
-                .put("discovery.type", "zen") // zen is needed since we start external nodes
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName())
-                .build();
+        return ImmutableSettings.builder().put(requiredSettings())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName()) // run same transport  / disco as external
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName()).build();
+    }
+
+    public void assertAllShardsOnNodes(String index, String pattern) {
+        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndex())) {
+                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
+                        assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
+                    }
+                }
+            }
+        }
+    }
+
+    protected Settings externalNodeSettings(int nodeOrdinal) {
+        return nodeSettings(nodeOrdinal);
     }
 }

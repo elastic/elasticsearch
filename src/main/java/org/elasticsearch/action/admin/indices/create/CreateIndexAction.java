@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class CreateIndexAction extends IndicesAction<CreateIndexRequest, CreateIndexResponse, CreateIndexRequestBuilder> {
 
     public static final CreateIndexAction INSTANCE = new CreateIndexAction();
-    public static final String NAME = "indices/create";
+    public static final String NAME = "indices:admin/create";
 
     private CreateIndexAction() {
         super(NAME);

@@ -1,0 +1,66 @@
+== ActiveModel / ActiveRecord
+
+The `elasticsearch-model` http://rubygems.org/gems/elasticsearch-model[Rubygem]
+provides integration with Ruby domain objects ("models"), commonly found e.g. in Ruby on Rails applications.
+
+It uses the `elasticsearch` Rubygem as the client communicating with the Elasticsearch cluster.
+
+
+=== Features at a Glance
+
+* ActiveModel integration with adapters for ActiveRecord and Mongoid
+* Enumerable-based wrapper for search results
+* ActiveRecord::Relation-based wrapper for returning search results as records
+* Convenience model methods such as `search`, `mapping`, `import`, etc
+* Support for Kaminari and WillPaginate pagination
+* Extension implemented via proxy object to shield model namespace from collisions
+* Convenience methods for (re)creating the index, setting up mappings, indexing documents, ...
+
+
+=== Usage
+
+Add the library to your Gemfile:
+
+[source,ruby]
+------------------------------------
+gem 'elasticsearch-rails'
+------------------------------------
+
+Include the extension module in your model class:
+
+[source,ruby]
+------------------------------------
+class Article < ActiveRecord::Base
+  include Elasticsearch::Model
+end
+------------------------------------
+
+Import some data and perform a search:
+
+[source,ruby]
+------------------------------------
+Article.import
+
+response = Article.search 'fox dog'
+response.took
+# => 3
+------------------------------------
+
+It is possible to either return results as model instances, or decorated documents from Elasticsearch,
+with the `records` and `results` methods, respectively:
+
+[source,ruby]
+------------------------------------
+response.records.first
+# Article Load (0.4ms)  SELECT "articles".* FROM "articles"  WHERE ...
+=> #<Article id: 3, title: "Foo " ...>
+
+response.results.first._score
+# => 0.02250402
+
+response.results.first._source.title
+# => "Quick brown fox"
+------------------------------------
+
+Please see the full https://github.com/elasticsearch/elasticsearch-rails/tree/master/elasticsearch-model[documentation]
+for more information.

@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * An internal implementation of {@link ValueCount}.
  */
-public class InternalValueCount extends InternalNumericMetricsAggregation implements ValueCount {
+public class InternalValueCount extends InternalNumericMetricsAggregation.SingleValue implements ValueCount {
 
     public static final Type TYPE = new Type("value_count", "vcount");
 
@@ -62,6 +62,11 @@ public class InternalValueCount extends InternalNumericMetricsAggregation implem
     }
 
     @Override
+    public double value() {
+        return value;
+    }
+
+    @Override
     public Type type() {
         return TYPE;
     }
@@ -88,10 +93,8 @@ public class InternalValueCount extends InternalNumericMetricsAggregation implem
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject(name)
-                .field(CommonFields.VALUE, value)
-                .endObject();
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        return builder.field(CommonFields.VALUE, value);
     }
 
     @Override

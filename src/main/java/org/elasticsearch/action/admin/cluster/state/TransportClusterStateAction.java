@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -43,8 +43,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
 
     @Inject
     public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                       ClusterName clusterName) {
-        super(settings, transportService, clusterService, threadPool);
+                                       ClusterName clusterName, ActionFilters actionFilters) {
+        super(settings, ClusterStateAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.clusterName = clusterName;
     }
 
@@ -52,11 +52,6 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
     protected String executor() {
         // very lightweight operation in memory, no need to fork to a thread
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return ClusterStateAction.NAME;
     }
 
     @Override
@@ -103,7 +98,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
             }
 
             if (request.indices().length > 0) {
-                String[] indices = currentState.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), request.indices());
+                String[] indices = currentState.metaData().concreteIndices(request.indicesOptions(), request.indices());
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
                     if (indexMetaData != null) {

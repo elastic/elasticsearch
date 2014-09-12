@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,6 +35,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.Test;
 
@@ -43,7 +44,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
@@ -53,6 +54,7 @@ import static org.hamcrest.Matchers.*;
  */
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 @Slow
+@TestLogging("index.shard.service:TRACE,index.gateway.local:TRACE")
 public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTest {
 
     private ImmutableSettings.Builder settingsBuilder() {
@@ -61,7 +63,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
 
     @Test
     @Slow
-    public void testX() throws Exception {
+    public void testOneNodeRecoverFromGateway() throws Exception {
 
         internalCluster().startNode(settingsBuilder().build());
 
@@ -69,6 +71,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
                 .startObject("properties").startObject("appAccountIds").field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type1", mapping));
+
 
         client().prepareIndex("test", "type1", "10990239").setSource(jsonBuilder().startObject()
                 .field("_id", "10990239")
@@ -88,6 +91,8 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
 
         refresh();
         assertHitCount(client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
+        ensureYellow("test"); // wait for primary allocations here otherwise if we have a lot of shards we might have a
+        // shard that is still in post recovery when we restart and the ensureYellow() below will timeout
         internalCluster().fullRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
@@ -204,6 +209,9 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         refresh();
 
         assertHitCount(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
+
+        ensureYellow("test"); // wait for primary allocations here otherwise if we have a lot of shards we might have a
+        // shard that is still in post recovery when we restart and the ensureYellow() below will timeout
 
         internalCluster().fullRestart();
 
@@ -341,8 +349,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put("gateway.recover_after_nodes", 4)
-                .put(MockDirectoryHelper.CRASH_INDEX, false)
-                .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f); // use less agressive settings
+                .put(MockDirectoryHelper.CRASH_INDEX, false);
 
         internalCluster().startNodesAsync(4, settings.build()).get();
 
@@ -359,8 +366,16 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         ensureGreen();
 
         logger.info("--> shutting down the nodes");
+        // prevent any rebalance actions during the peer recovery
+        // if we run into a relocation the reuse count will be 0 and this fails the test. We are testing here if
+        // we reuse the files on disk after full restarts for replicas.
+        client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(settingsBuilder().put(BalancedShardsAllocator.SETTING_THRESHOLD, 100.0f)).get();
         // Disable allocations while we are closing nodes
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(settingsBuilder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                .get();
         internalCluster().fullRestart();
 
         logger.info("Running Cluster Health");
@@ -368,7 +383,10 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
 
         logger.info("--> shutting down the nodes");
         // Disable allocations while we are closing nodes
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)).execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(settingsBuilder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE))
+                .get();
         internalCluster().fullRestart();
 
 
@@ -376,13 +394,21 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         ensureGreen();
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+
         for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
             RecoveryState recoveryState = response.recoveryState();
             if (!recoveryState.getPrimary()) {
                 logger.info("--> shard {}, recovered {}, reuse {}", response.getShardId(), recoveryState.getIndex().recoveredTotalSize(), recoveryState.getIndex().reusedByteCount());
-                assertThat(recoveryState.getIndex().recoveredByteCount(), greaterThan(0l));
+                assertThat(recoveryState.getIndex().recoveredByteCount(), equalTo(0l));
                 assertThat(recoveryState.getIndex().reusedByteCount(), greaterThan(0l));
+                assertThat(recoveryState.getIndex().reusedByteCount(), equalTo(recoveryState.getIndex().totalByteCount()));
+                assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));
+                assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
+                assertThat(recoveryState.getIndex().reusedFileCount(), greaterThan(0));
                 assertThat(recoveryState.getIndex().reusedByteCount(), greaterThan(recoveryState.getIndex().numberOfRecoveredBytes()));
+            } else {
+                assertThat(recoveryState.getIndex().recoveredByteCount(), equalTo(recoveryState.getIndex().reusedByteCount()));
+                assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(recoveryState.getIndex().reusedFileCount()));
             }
         }
 

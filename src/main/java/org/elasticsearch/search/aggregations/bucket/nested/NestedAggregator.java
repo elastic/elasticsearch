@@ -21,11 +21,11 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -43,8 +43,8 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     private final String nestedPath;
     private final Aggregator parentAggregator;
-    private Filter parentFilter;
-    private final Filter childFilter;
+    private FixedBitSetFilter parentFilter;
+    private final FixedBitSetFilter childFilter;
 
     private Bits childDocs;
     private FixedBitSet parentDocs;
@@ -65,26 +65,21 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] is not nested");
         }
 
-        childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter());
+        childFilter = aggregationContext.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
     }
 
     @Override
     public void setNextReader(AtomicReaderContext reader) {
         if (parentFilter == null) {
-            NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parentAggregator);
-            final Filter parentFilterNotCached;
-            if (closestNestedAggregator == null) {
+            // The aggs are instantiated in reverse, first the most inner nested aggs and lastly the top level aggs
+            // So at the time a nested 'nested' aggs is parsed its closest parent nested aggs hasn't been constructed.
+            // So the trick to set at the last moment just before needed and we can use its child filter as the
+            // parent filter.
+            Filter parentFilterNotCached = findClosestNestedPath(parentAggregator);
+            if (parentFilterNotCached == null) {
                 parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
-            } else {
-                // The aggs are instantiated in reverse, first the most inner nested aggs and lastly the top level aggs
-                // So at the time a nested 'nested' aggs is parsed its closest parent nested aggs hasn't been constructed.
-                // So the trick to set at the last moment just before needed and we can use its child filter as the
-                // parent filter.
-                parentFilterNotCached = closestNestedAggregator.childFilter;
             }
-            parentFilter = SearchContext.current().filterCache().cache(parentFilterNotCached);
-            // if the filter cache is disabled, we still need to produce bit sets
-            parentFilter = new FixedBitSetCachingWrapperFilter(parentFilter);
+            parentFilter = SearchContext.current().fixedBitSetFilterCache().getFixedBitSetFilter(parentFilterNotCached);
         }
 
         try {
@@ -103,22 +98,20 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     @Override
     public void collect(int parentDoc, long bucketOrd) throws IOException {
-
         // here we translate the parent doc to a list of its nested docs, and then call super.collect for evey one of them
         // so they'll be collected
-
         if (parentDoc == 0 || parentDocs == null) {
             return;
         }
         int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
         int numChildren = 0;
-        for (int i = (parentDoc - 1); i > prevParentDoc; i--) {
-            if (childDocs.get(i)) {
+        for (int childDocId = prevParentDoc + 1; childDocId < parentDoc; childDocId++) {
+            if (childDocs.get(childDocId)) {
                 ++numChildren;
-                collectBucketNoCounts(i, bucketOrd);
+                collectBucketNoCounts(childDocId, bucketOrd);
             }
         }
-        incrementBucketDocCount(numChildren, bucketOrd);
+        incrementBucketDocCount(bucketOrd, numChildren);
     }
 
     @Override
@@ -135,10 +128,12 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         return nestedPath;
     }
 
-    static NestedAggregator findClosestNestedAggregator(Aggregator parent) {
+    private static Filter findClosestNestedPath(Aggregator parent) {
         for (; parent != null; parent = parent.parent()) {
             if (parent instanceof NestedAggregator) {
-                return (NestedAggregator) parent;
+                return ((NestedAggregator) parent).childFilter;
+            } else if (parent instanceof ReverseNestedAggregator) {
+                return ((ReverseNestedAggregator) parent).getParentFilter();
             }
         }
         return null;

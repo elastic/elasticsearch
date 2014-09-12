@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * Builds a {@code terms} aggregation
+ * Builder for the {@link Terms} aggregation.
  */
 public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
 
@@ -42,7 +42,11 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
     private int excludeFlags;
     private String executionHint;
     private SubAggCollectionMode collectionMode;
+    private Boolean showTermDocCountError;
 
+    /**
+     * Sole constructor.
+     */
     public TermsBuilder(String name) {
         super(name, "terms");
     }
@@ -140,13 +144,27 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         return this;
     }
 
+    /**
+     * Expert: provide an execution hint to the aggregation.
+     */
     public TermsBuilder executionHint(String executionHint) {
         this.executionHint = executionHint;
         return this;
     }
-    
+
+    /**
+     * Expert: set the collection mode.
+     */
     public TermsBuilder collectMode(SubAggCollectionMode mode) {
         this.collectionMode = mode;
+        return this;
+    }
+
+    /**
+     * Expert: return document count errors per term in the response.
+     */
+    public TermsBuilder showTermDocCountError(boolean showTermDocCountError) {
+        this.showTermDocCountError = showTermDocCountError;
         return this;
     }
 
@@ -155,6 +173,9 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
 
         bucketCountThresholds.toXContent(builder);
 
+        if (showTermDocCountError != null) {
+            builder.field(AbstractTermsParametersParser.SHOW_TERM_DOC_COUNT_ERROR.getPreferredName(), showTermDocCountError);
+        }
         if (executionHint != null) {
             builder.field(AbstractTermsParametersParser.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
         }

@@ -65,7 +65,7 @@ public class IdsFilterParser implements FilterParser {
                 if ("values".equals(currentFieldName)) {
                     idsProvided = true;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        BytesRef value = parser.bytesOrNull();
+                        BytesRef value = parser.utf8BytesOrNull();
                         if (value == null) {
                             throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
                         }

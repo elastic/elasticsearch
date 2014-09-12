@@ -53,7 +53,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -170,6 +170,8 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testSpecifiedIndexUnavailable_snapshotRestore() throws Exception {
         createIndex("test1");
+        ensureGreen("test1");
+        waitForRelocation();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).get();
@@ -188,9 +190,9 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(restore("snap2", "test1", "test2").setIndicesOptions(options), false);
 
         options = IndicesOptions.strictExpandOpen();
-        assertAcked(prepareCreate("test2"));
+        createIndex("test2");
         //TODO: temporary work-around for #5531
-        ensureGreen();
+        ensureGreen("test2");
         waitForRelocation();
         verify(snapshot("snap3", "test1", "test2").setIndicesOptions(options), false);
         verify(restore("snap3", "test1", "test2").setIndicesOptions(options), false);
@@ -325,6 +327,8 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testWildcardBehaviour_snapshotRestore() throws Exception {
         createIndex("foobar");
+        ensureGreen("foobar");
+        waitForRelocation();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).get();
@@ -341,7 +345,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
 
         assertAcked(prepareCreate("barbaz"));
         //TODO: temporary work-around for #5531
-        ensureGreen();
+        ensureGreen("barbaz");
         waitForRelocation();
         options = IndicesOptions.fromOptions(false, false, true, false);
         verify(snapshot("snap3", "foo*", "bar*").setIndicesOptions(options), false);
@@ -475,7 +479,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testDeleteMapping() throws Exception {
         assertAcked(prepareCreate("foobar").addMapping("type1", "field", "type=string"));
-        ensureYellow();
+        ensureGreen();
 
         verify(client().admin().indices().prepareDeleteMapping("foo").setType("type1"), true);
         assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type1").get().isExists(), equalTo(true));
@@ -491,7 +495,9 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertAcked(prepareCreate("foobar").addMapping("type1", "field", "type=string"));
         assertAcked(prepareCreate("bar").addMapping("type1", "field", "type=string"));
         assertAcked(prepareCreate("barbaz").addMapping("type1", "field", "type=string"));
-        ensureYellow();
+        // we wait for green to make sure indices with mappings have been created on all relevant
+        // nodes, and that recovery won't re-introduce a mapping
+        ensureGreen();
 
         verify(client().admin().indices().prepareDeleteMapping("foo*").setType("type1"), false);
         assertThat(client().admin().indices().prepareTypesExists("foo").setTypes("type1").get().isExists(), equalTo(false));
@@ -575,7 +581,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertAcked(prepareCreate("bar").addMapping("type3", "field", "type=string"));
         assertAcked(prepareCreate("barbaz").addMapping("type4", "field", "type=string"));
         
-        ensureYellow();
+        ensureGreen();
 
         assertThat(client().admin().indices().prepareTypesExists("foo").setTypes("type1").get().isExists(), equalTo(true));
         assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type2").get().isExists(), equalTo(true));
@@ -600,7 +606,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testDeleteWarmer() throws Exception {
         IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry(
-                "test1", new String[]{"typ1"}, new BytesArray("{\"query\" : { \"match_all\" : {}}}")
+                "test1", new String[]{"typ1"}, false, new BytesArray("{\"query\" : { \"match_all\" : {}}}")
         );
         assertAcked(prepareCreate("foobar").addCustom(new IndexWarmersMetaData(entry)));
         ensureYellow();
@@ -616,7 +622,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(client().admin().indices().prepareDeleteWarmer().setIndices("_all").setNames("test1"), true);
 
         IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry(
-                "test1", new String[]{"type1"}, new BytesArray("{\"query\" : { \"match_all\" : {}}}")
+                "test1", new String[]{"type1"}, false, new BytesArray("{\"query\" : { \"match_all\" : {}}}")
         );
         assertAcked(prepareCreate("foo").addCustom(new IndexWarmersMetaData(entry)));
         assertAcked(prepareCreate("foobar").addCustom(new IndexWarmersMetaData(entry)));
@@ -794,7 +800,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     }
 
     private static SuggestRequestBuilder suggest(String... indices) {
-        return client().prepareSuggest(indices).addSuggestion(SuggestBuilder.termSuggestion("name").field("a"));
+        return client().prepareSuggest(indices).addSuggestion(SuggestBuilders.termSuggestion("name").field("a"));
     }
 
     private static GetAliasesRequestBuilder getAliases(String... indices) {

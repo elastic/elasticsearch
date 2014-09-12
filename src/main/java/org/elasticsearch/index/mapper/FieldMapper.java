@@ -248,7 +248,7 @@ public interface FieldMapper<T> extends Mapper {
 
     Filter termsFilter(List values, @Nullable QueryParseContext context);
 
-    Filter termsFilter(QueryParseContext parseContext, List values, @Nullable QueryParseContext context);
+    Filter fieldDataTermsFilter(List values, @Nullable QueryParseContext context);
 
     Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
@@ -286,8 +286,18 @@ public interface FieldMapper<T> extends Mapper {
 
     boolean isSortable();
 
+    boolean supportsNullValue();
+
     boolean hasDocValues();
 
     Loading normsLoading(Loading defaultLoading);
+
+    /**
+     * Fields might not be available before indexing, for example _all, token_count,...
+     * When get is called and these fields are requested, this case needs special treatment.
+     *
+     * @return If the field is available before indexing or not.
+     * */
+    public boolean isGenerated();
 
 }

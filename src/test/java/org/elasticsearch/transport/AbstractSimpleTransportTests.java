@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -37,6 +38,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.transport.TransportRequestOptions.options;
 import static org.hamcrest.Matchers.*;
@@ -1047,5 +1049,71 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         }
 
         serviceA.removeHandler("sayHello");
+    }
+
+
+    @Test
+    public void testHostOnMessages() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(2);
+        final AtomicReference<TransportAddress> addressA = new AtomicReference<>();
+        final AtomicReference<TransportAddress> addressB = new AtomicReference<>();
+        serviceB.registerHandler("action1", new TransportRequestHandler<TestRequest>() {
+            @Override
+            public TestRequest newInstance() {
+                return new TestRequest();
+            }
+
+            @Override
+            public void messageReceived(TestRequest request, TransportChannel channel) throws Exception {
+                addressA.set(request.remoteAddress());
+                channel.sendResponse(new TestResponse());
+                latch.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return false;
+            }
+        });
+        serviceA.sendRequest(nodeB, "action1", new TestRequest(), new TransportResponseHandler<TestResponse>() {
+            @Override
+            public TestResponse newInstance() {
+                return new TestResponse();
+            }
+
+            @Override
+            public void handleResponse(TestResponse response) {
+                addressB.set(response.remoteAddress());
+                latch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                latch.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        });
+
+        if (!latch.await(10, TimeUnit.SECONDS)) {
+            fail("message round trip did not complete within a sensible time frame");
+        }
+
+        assertTrue(nodeA.address().sameHost(addressA.get()));
+        assertTrue(nodeB.address().sameHost(addressB.get()));
+    }
+
+    private static class TestRequest extends TransportRequest {
+    }
+
+    private static class TestResponse extends TransportResponse {
     }
 }

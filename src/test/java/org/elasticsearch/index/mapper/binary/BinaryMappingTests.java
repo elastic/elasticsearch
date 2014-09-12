@@ -22,9 +22,8 @@ package org.elasticsearch.index.mapper.binary;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -32,7 +31,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  */
-public class BinaryMappingTests extends ElasticsearchTestCase {
+public class BinaryMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testDefaultMapping() throws Exception {
@@ -44,7 +43,7 @@ public class BinaryMappingTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");
         assertThat(fieldMapper, instanceOf(BinaryFieldMapper.class));

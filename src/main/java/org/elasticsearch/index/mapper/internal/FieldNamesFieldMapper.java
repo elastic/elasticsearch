@@ -249,4 +249,9 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
         }
         return super.toXContent(builder, params);
     }
+
+    @Override
+    public boolean isGenerated() {
+        return true;
+    }
 }

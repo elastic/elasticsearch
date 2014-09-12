@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class ValidateQueryAction extends IndicesAction<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
 
     public static final ValidateQueryAction INSTANCE = new ValidateQueryAction();
-    public static final String NAME = "indices/validate/query";
+    public static final String NAME = "indices:admin/validate/query";
 
     private ValidateQueryAction() {
         super(NAME);

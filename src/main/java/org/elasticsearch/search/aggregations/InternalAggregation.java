@@ -25,7 +25,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.List;
@@ -81,14 +83,16 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         }
     }
 
-    protected static class ReduceContext {
+    public static class ReduceContext {
 
         private final List<InternalAggregation> aggregations;
         private final BigArrays bigArrays;
+        private ScriptService scriptService;
 
-        public ReduceContext(List<InternalAggregation> aggregations, BigArrays bigArrays) {
+        public ReduceContext(List<InternalAggregation> aggregations, BigArrays bigArrays, ScriptService scriptService) {
             this.aggregations = aggregations;
             this.bigArrays = bigArrays;
+            this.scriptService = scriptService;
         }
 
         public List<InternalAggregation> aggregations() {
@@ -97,6 +101,10 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
         public BigArrays bigArrays() {
             return bigArrays;
+        }
+        
+        public ScriptService scriptService() {
+            return scriptService;
         }
     }
 
@@ -150,6 +158,16 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         }
         out.writeVInt(size);
     }
+    
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
+        doXContentBody(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     /**
      * Common xcontent fields that are shared among addAggregation

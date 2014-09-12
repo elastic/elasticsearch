@@ -27,6 +27,8 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.children.Children;
 
 import java.util.Arrays;
 
@@ -157,6 +159,46 @@ public class ChildSearchBenchmark {
             totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("--> has_child filter with match_all child query, Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+
+        System.out.println("--> Running children agg");
+        totalQueryTime = 0;
+        for (int j = 1; j <= QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch(indexName)
+                    .setQuery(matchQuery("field1", parentChildIndexGenerator.getQueryValue()))
+                    .addAggregation(
+                            AggregationBuilders.children("to-child").childType("child")
+                    )
+                    .execute().actionGet();
+            totalQueryTime += searchResponse.getTookInMillis();
+            if (searchResponse.getFailedShards() > 0) {
+                System.err.println("Search Failures " + Arrays.toString(searchResponse.getShardFailures()));
+            }
+            Children children = searchResponse.getAggregations().get("to-child");
+            if (j % 10 == 0) {
+                System.out.println("--> children doc count [" + j + "], got [" + children.getDocCount() + "]");
+            }
+        }
+        System.out.println("--> children agg, Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+        System.out.println("--> Running children agg with match_all");
+        totalQueryTime = 0;
+        for (int j = 1; j <= QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch(indexName)
+                    .addAggregation(
+                            AggregationBuilders.children("to-child").childType("child")
+                    )
+                    .execute().actionGet();
+            totalQueryTime += searchResponse.getTookInMillis();
+            if (searchResponse.getFailedShards() > 0) {
+                System.err.println("Search Failures " + Arrays.toString(searchResponse.getShardFailures()));
+            }
+            Children children = searchResponse.getAggregations().get("to-child");
+            if (j % 10 == 0) {
+                System.out.println("--> children doc count [" + j + "], got [" + children.getDocCount() + "]");
+            }
+        }
+        System.out.println("--> children agg, Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
         // run parent child constant query
         for (int j = 0; j < QUERY_WARMUP; j++) {

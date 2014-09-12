@@ -23,11 +23,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
@@ -48,8 +50,8 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
 
     @Inject
     public TransportSearchDfsQueryAndFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                                 SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
-        super(settings, threadPool, clusterService, searchService, searchPhaseController);
+                                                 SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController, ActionFilters actionFilters) {
+        super(settings, threadPool, clusterService, searchService, searchPhaseController, actionFilters);
     }
 
     @Override
@@ -118,29 +120,33 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             }
         }
 
-        void finishHim() {
+        private void finishHim() {
             try {
-                innerFinishHim();
-            } catch (Throwable e) {
-                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("query_fetch", "", e, buildShardFailures());
-                if (logger.isDebugEnabled()) {
-                    logger.debug("failed to reduce search", failure);
-                }
-                listener.onFailure(failure);
-            } finally {
-                //
+                threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            boolean useScroll = !useSlowScroll && request.scroll() != null;
+                            sortedShardList = searchPhaseController.sortDocs(useScroll, queryFetchResults);
+                            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
+                            String scrollId = null;
+                            if (request.scroll() != null) {
+                                scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
+                            }
+                            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
+                        } catch (Throwable e) {
+                            ReduceSearchPhaseException failure = new ReduceSearchPhaseException("query_fetch", "", e, buildShardFailures());
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("failed to reduce search", failure);
+                            }
+                            listener.onFailure(failure);
+                        }
+                    }
+                });
+            } catch (EsRejectedExecutionException ex) {
+                listener.onFailure(ex);
             }
-        }
 
-        void innerFinishHim() throws Exception {
-            boolean useScroll = !useSlowScroll && request.scroll() != null;
-            sortedShardList = searchPhaseController.sortDocs(useScroll, queryFetchResults);
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
-            String scrollId = null;
-            if (request.scroll() != null) {
-                scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
-            }
-            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
         }
     }
 }

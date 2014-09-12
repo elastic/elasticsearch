@@ -24,6 +24,11 @@ package org.elasticsearch.common;
  */
 public class Booleans {
 
+    /**
+     * Returns <code>true</code> iff the sequence is neither of the following:
+     *   <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>,
+     *   otherwise <code>false</code>
+     */
     public static boolean parseBoolean(char[] text, int offset, int length, boolean defaultValue) {
         if (text == null || length == 0) {
             return defaultValue;
@@ -73,7 +78,17 @@ public class Booleans {
         return false;
     }
 
-
+    public static Boolean parseBoolean(String value, Boolean defaultValue) {
+        if (value == null) { // only for the null case we do that here!
+            return defaultValue;
+        }
+        return parseBoolean(value, false);
+    }
+    /**
+     * Returns <code>true</code> iff the value is neither of the following:
+     *   <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>
+     *   otherwise <code>false</code>
+     */
     public static boolean parseBoolean(String value, boolean defaultValue) {
         if (value == null) {
             return defaultValue;
@@ -81,19 +96,22 @@ public class Booleans {
         return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
     }
 
-    public static Boolean parseBoolean(String value, Boolean defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        }
-        return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
-    }
-
+    /**
+     * Returns <code>true</code> iff the value is either of the following:
+     *   <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>
+     *   otherwise <code>false</code>
+     */
     public static boolean isExplicitFalse(String value) {
-        return (value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
+        return value != null && (value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
     }
 
+    /**
+     * Returns <code>true</code> iff the value is either of the following:
+     *   <tt>true</tt>, <tt>1</tt>, <tt>on</tt>, <tt>yes</tt>
+     *   otherwise <code>false</code>
+     */
     public static boolean isExplicitTrue(String value) {
-        return (value.equals("true") || value.equals("1") || value.equals("on") || value.equals("yes"));
+        return value != null && (value.equals("true") || value.equals("1") || value.equals("on") || value.equals("yes"));
     }
 
 }

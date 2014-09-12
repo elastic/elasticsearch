@@ -21,7 +21,9 @@ package org.elasticsearch.search.aggregations.metrics.min;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
@@ -38,7 +40,7 @@ import java.io.IOException;
 public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ValuesSource.Numeric valuesSource;
-    private DoubleValues values;
+    private NumericDoubleValues values;
 
     private DoubleArray mins;
 
@@ -59,22 +61,21 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public void setNextReader(AtomicReaderContext reader) {
-        values = valuesSource.doubleValues();
+        final SortedNumericDoubleValues values = valuesSource.doubleValues();
+        this.values = MultiValueMode.MIN.select(values, Double.POSITIVE_INFINITY);
     }
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        if (values.setDocument(doc) == 0) {
-            return;
-        }
-
         if (owningBucketOrdinal >= mins.size()) {
             long from = mins.size();
             mins = bigArrays.grow(mins, owningBucketOrdinal + 1);
             mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
         }
-
-        mins.set(owningBucketOrdinal, Math.min(values.nextValue(), mins.get(owningBucketOrdinal)));
+        final double value = values.get(doc);
+        double min = mins.get(owningBucketOrdinal);
+        min = Math.min(min, value);
+        mins.set(owningBucketOrdinal, min);
     }
 
     @Override

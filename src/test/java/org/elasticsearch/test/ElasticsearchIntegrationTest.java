@@ -28,6 +28,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -56,7 +57,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -74,24 +74,30 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
-import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.translog.TranslogService;
+import org.elasticsearch.index.translog.fs.FsTranslog;
+import org.elasticsearch.index.translog.fs.FsTranslogFile;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
+import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.hamcrest.Matchers;
 import org.junit.*;
 
@@ -109,9 +115,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  * {@link ElasticsearchIntegrationTest} is an abstract base class to run integration
@@ -170,6 +174,12 @@ import static org.hamcrest.Matchers.notNullValue;
 @Ignore
 @AbstractRandomizedTest.Integration
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
+
+    /** node names of the corresponding clusters will start with these prefixes */
+    public static final String GLOBAL_CLUSTER_NODE_PREFIX = "node_";
+    public static final String SUITE_CLUSTER_NODE_PREFIX = "node_s";
+    public static final String TEST_CLUSTER_NODE_PREFIX = "node_t";
+
     private static TestCluster GLOBAL_CLUSTER;
     /**
      * Key used to set the transport client ratio via the commandline -D{@value #TESTS_CLIENT_RATIO}
@@ -267,7 +277,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     numClientNodes = InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
                 }
                 GLOBAL_CLUSTER = new InternalTestCluster(masterSeed, InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES, InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES,
-                        clusterName("shared", ElasticsearchTestCase.CHILD_VM_ID, masterSeed), numClientNodes, InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES);
+                        clusterName("shared", Integer.toString(CHILD_JVM_ID), masterSeed), numClientNodes, InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES,
+                        CHILD_JVM_ID, GLOBAL_CLUSTER_NODE_PREFIX);
             }
         }
     }
@@ -324,9 +335,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .put(SETTING_INDEX_SEED, getRandom().nextLong());
 
             if (randomizeNumberOfShardsAndReplicas()) {
-                randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, between(DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
-                        //use either 0 or 1 replica, yet a higher amount when possible, but only rarely
-                        .put(SETTING_NUMBER_OF_REPLICAS, between(0, getRandom().nextInt(10) > 0 ? 1 : cluster().numDataNodes() - 1));
+                randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
+                        .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
             }
             XContentBuilder mappings = null;
             if (frequently() && randomDynamicTemplates()) {
@@ -334,6 +344,34 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 if (randomBoolean()) {
                     mappings.startObject(IdFieldMapper.NAME)
                             .field("index", randomFrom("not_analyzed", "no"))
+                            .endObject();
+                }
+                if (randomBoolean()) {
+                    mappings.startObject(TypeFieldMapper.NAME)
+                            .field("index", randomFrom("no", "not_analyzed"))
+                            .endObject();
+                }
+                if (randomBoolean()) {
+                    mappings.startObject(TimestampFieldMapper.NAME)
+                            .field("enabled", randomBoolean())
+                            .startObject("fielddata")
+                            .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                            .endObject()
+                            .endObject();
+                }
+                if (randomBoolean()) {
+                    mappings.startObject(SizeFieldMapper.NAME)
+                            .field("enabled", randomBoolean())
+                            .endObject();
+                }
+                if (randomBoolean()) {
+                    mappings.startObject(AllFieldMapper.NAME)
+                            .field("auto_boost", true)
+                            .endObject();
+                }
+                if (randomBoolean()) {
+                    mappings.startObject(SourceFieldMapper.NAME)
+                            .field("compress", randomBoolean())
                             .endObject();
                 }
                 if (compatibilityVersion().onOrAfter(Version.V_1_3_0)) {
@@ -412,6 +450,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         setRandomMerge(random, builder);
         setRandomTranslogSettings(random, builder);
         setRandomNormsLoading(random, builder);
+        setRandomScriptingSettings(random, builder);
         if (random.nextBoolean()) {
             if (random.nextInt(10) == 0) { // do something crazy slow here
                 builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
@@ -424,11 +463,36 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         if (random.nextBoolean()) {
+            builder.put(StoreModule.DISTIBUTOR_KEY, random.nextBoolean() ? StoreModule.LEAST_USED_DISTRIBUTOR : StoreModule.RANDOM_WEIGHT_DISTRIBUTOR);
+        }
+
+        if (random.nextBoolean()) {
             if (random.nextInt(10) == 0) { // do something crazy slow here
                 builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
             } else {
                 builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));
             }
+        }
+        if (random.nextBoolean()) {
+             builder.put(FsTranslog.INDEX_TRANSLOG_FS_TYPE, RandomPicks.randomFrom(random, FsTranslogFile.Type.values()).name());
+        }
+
+        // Randomly load or don't load bloom filters:
+        builder.put(CodecService.INDEX_CODEC_BLOOM_LOAD, random.nextBoolean());
+
+        if (random.nextBoolean()) {
+            builder.put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, random.nextBoolean());
+        }
+        
+        return builder;
+    }
+
+    private static ImmutableSettings.Builder setRandomScriptingSettings(Random random, ImmutableSettings.Builder builder) {
+        if (random.nextBoolean()) {
+            builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING, RandomInts.randomIntBetween(random, -100, 2000));
+        }
+        if (random.nextBoolean()) {
+            builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 750, 10000000)));
         }
         return builder;
     }
@@ -518,6 +582,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         boolean success = false;
         try {
             logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
+            clearDisruptionScheme();
             final Scope currentClusterScope = getCurrentClusterScope();
             try {
                 if (currentClusterScope != Scope.TEST) {
@@ -569,8 +634,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return currentCluster;
     }
 
+    public static boolean isInternalCluster() {
+        return (currentCluster instanceof InternalTestCluster);
+    }
+
     public static InternalTestCluster internalCluster() {
-        if (!(currentCluster instanceof InternalTestCluster)) {
+        if (!isInternalCluster()) {
             throw new UnsupportedOperationException("current test cluster is immutable");
         }
         return (InternalTestCluster) currentCluster;
@@ -581,6 +650,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     public static Client client() {
+        return client(null);
+    }
+
+    public static Client client(@Nullable String node) {
+        if (node != null) {
+            return internalCluster().client(node);
+        }
         Client client = cluster().client();
         if (frequently()) {
             client = new RandomizingClient(client, getRandom());
@@ -617,11 +693,24 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     protected int maximumNumberOfReplicas() {
-        return Math.max(0, cluster().numDataNodes() - 1);
+        //use either 0 or 1 replica, yet a higher amount when possible, but only rarely
+        int maxNumReplicas = Math.max(0, cluster().numDataNodes() - 1);
+        return frequently() ? Math.min(1, maxNumReplicas) : maxNumReplicas;
     }
 
     protected int numberOfReplicas() {
         return between(minimumNumberOfReplicas(), maximumNumberOfReplicas());
+    }
+
+
+    public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
+        internalCluster().setDisruptionScheme(scheme);
+    }
+
+    public void clearDisruptionScheme() {
+        if (isInternalCluster()) {
+            internalCluster().clearDisruptionScheme();
+        }
     }
 
     /**
@@ -824,7 +913,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
      * are now allocated and started.
      */
-    public ClusterHealthStatus ensureGreen(String... indices) {
+    public ClusterHealthStatus  ensureGreen(String... indices) {
         ClusterHealthResponse actionGet = client().admin().cluster()
                 .health(Requests.clusterHealthRequest(indices).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         if (actionGet.isTimedOut()) {
@@ -832,6 +921,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
         }
         assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        logger.debug("indices {} are green", indices.length == 0 ? "[_all]" : indices);
         return actionGet.getStatus();
     }
 
@@ -952,6 +1042,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             logger.info("ensureYellow timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
             assertThat("timed out waiting for yellow", actionGet.isTimedOut(), equalTo(false));
         }
+        logger.debug("indices {} are yellow", indices.length == 0 ? "[_all]" : indices);
         return actionGet.getStatus();
     }
 
@@ -963,8 +1054,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     void ensureClusterSizeConsistency() {
-        logger.trace("Check consistency for [{}] nodes", cluster().size());
-        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(cluster().size())).get());
+        if (cluster() != null) { // if static init fails the cluster can be null
+            logger.trace("Check consistency for [{}] nodes", cluster().size());
+            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(cluster().size())).get());
+        }
     }
 
     /**
@@ -1027,6 +1120,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     /**
+     * Syntactic sugar for:
+     *
+     * <pre>
+     *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+     * </pre>
+     *
+     * where source is a String.
+     */
+    protected final IndexResponse index(String index, String type, String id, String source) {
+        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+    }
+
+    /**
      * Waits for relocations and refreshes all indices in the cluster.
      *
      * @see #waitForRelocation()
@@ -1056,7 +1162,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private FlushResponse flush(boolean ignoreNotAllowed) {
         waitForRelocation();
-        FlushResponse actionGet = client().admin().indices().prepareFlush().execute().actionGet();
+        FlushResponse actionGet = client().admin().indices().prepareFlush().setWaitIfOngoing(true).execute().actionGet();
         if (ignoreNotAllowed) {
             for (ShardOperationFailedException failure : actionGet.getShardFailures()) {
                 assertThat("unexpected flush failure " + failure.reason(), failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
@@ -1109,7 +1215,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     /**
      * Indexes the given {@link IndexRequestBuilder} instances randomly. It shuffles the given builders and either
-     * indexes they in a blocking or async fashion. This is very useful to catch problems that relate to internal document
+     * indexes them in a blocking or async fashion. This is very useful to catch problems that relate to internal document
      * ids or index segment creations. Some features might have bug when a given document is the first or the last in a
      * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
      * layout.
@@ -1132,7 +1238,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * layout.
      *
      * @param forceRefresh   if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
-     * @param dummyDocuments if <tt>true</tt> some empty dummy documents are may be randomly inserted into the document list and deleted once
+     * @param dummyDocuments if <tt>true</tt> some empty dummy documents may be randomly inserted into the document list and deleted once
      *                       all documents are indexed. This is useful to produce deleted documents on the server side.
      * @param builders       the documents to index.
      */
@@ -1210,6 +1316,18 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             assertNoFailures(client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
         }
 
+    }
+
+    /** Disables translog flushing for the specified index */
+    public static void disableTranslogFlush(String index) {
+        Settings settings = ImmutableSettings.builder().put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+    }
+
+    /** Enables translog flushing for the specified index */
+    public static void enableTranslogFlush(String index) {
+        Settings settings = ImmutableSettings.builder().put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, false).build();
+        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
     }
 
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {
@@ -1426,13 +1544,28 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return ImmutableSettings.EMPTY;
     }
 
+    /**
+     * This method is used to obtain additional settings for clients created by the internal cluster.
+     * These settings will be applied on the client in addition to some randomized settings defined in
+     * the cluster. These setttings will also override any other settings the internal cluster might
+     * add by default.
+     */
+    protected Settings transportClientSettings() {
+        return ImmutableSettings.EMPTY;
+    }
+
     protected TestCluster buildTestCluster(Scope scope) throws IOException {
         long currentClusterSeed = randomLong();
 
-        NodeSettingsSource nodeSettingsSource = new NodeSettingsSource() {
+        SettingsSource settingsSource = new SettingsSource() {
             @Override
-            public Settings settings(int nodeOrdinal) {
+            public Settings node(int nodeOrdinal) {
                 return nodeSettings(nodeOrdinal);
+            }
+
+            @Override
+            public Settings transportClient() {
+                return transportClientSettings();
             }
         };
 
@@ -1447,7 +1580,22 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
         int numClientNodes = getNumClientNodes();
         boolean enableRandomBenchNodes = enableRandomBenchNodes();
-        return new InternalTestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource, numClientNodes, enableRandomBenchNodes);
+
+        String nodePrefix;
+        switch (scope) {
+            case TEST:
+                nodePrefix = TEST_CLUSTER_NODE_PREFIX;
+                break;
+            case SUITE:
+                nodePrefix = SUITE_CLUSTER_NODE_PREFIX;
+                break;
+            default:
+                throw new ElasticsearchException("Scope not supported: " + scope);
+        }
+
+        return new InternalTestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes,
+                clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), currentClusterSeed), settingsSource, numClientNodes,
+                enableRandomBenchNodes, CHILD_JVM_ID, nodePrefix);
     }
 
     /**

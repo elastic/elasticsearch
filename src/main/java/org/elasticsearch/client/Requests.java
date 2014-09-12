@@ -55,11 +55,13 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
+import org.elasticsearch.action.exists.ExistsRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 
 /**
@@ -146,6 +148,28 @@ public class Requests {
      */
     public static CountRequest countRequest(String... indices) {
         return new CountRequest(indices);
+    }
+
+    /**
+     * Creates a exists request which checks if any of the hits matched against a query exists. Note, the query itself must be set
+     * either using the JSON source of the query, or using a {@link org.elasticsearch.index.query.QueryBuilder} (using {@link org.elasticsearch.index.query.QueryBuilders}).
+     *
+     * @param indices The indices to count matched documents against a query. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @return The exists request
+     * @see org.elasticsearch.client.Client#exists(org.elasticsearch.action.exists.ExistsRequest)
+     */
+    public static ExistsRequest existsRequest(String... indices) {
+        return new ExistsRequest(indices);
+    }
+
+    /**
+     * Creates a suggest request for getting suggestions from provided <code>indices</code>.
+     * The suggest query has to be set using the JSON source using {@link org.elasticsearch.action.suggest.SuggestRequest#suggest(org.elasticsearch.common.bytes.BytesReference)}.
+     * @param indices The indices to suggest from. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @see org.elasticsearch.client.Client#suggest(org.elasticsearch.action.suggest.SuggestRequest)
+     */
+    public static SuggestRequest suggestRequest(String... indices) {
+        return new SuggestRequest(indices);
     }
 
     /**

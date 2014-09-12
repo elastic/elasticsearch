@@ -65,15 +65,15 @@ http://snowball.tartarus.org/algorithms/danish/stemmer.html[*`danish`*]
 Dutch::
 
 http://snowball.tartarus.org/algorithms/dutch/stemmer.html[*`dutch`*],
-http://snowball.tartarus.org/algorithms/kraaij_pohlmann/stemmer.html[`dutch_kp`] coming[1.3.0,Renamed from `kp`]
+http://snowball.tartarus.org/algorithms/kraaij_pohlmann/stemmer.html[`dutch_kp`] added[1.3.0,Renamed from `kp`]
 
 English::
 
-http://snowball.tartarus.org/algorithms/porter/stemmer.html[*`english`*] coming[1.3.0,Returns the <<analysis-porterstem-tokenfilter,`porter_stem`>> instead of the <<analysis-snowball-tokenfilter,`english` Snowball token filter>>],
-http://ciir.cs.umass.edu/pubfiles/ir-35.pdf[`light_english`] coming[1.3.0,Returns the <<analysis-kstem-tokenfilter,`kstem` token filter>>],
+http://snowball.tartarus.org/algorithms/porter/stemmer.html[*`english`*] added[1.3.0,Returns the <<analysis-porterstem-tokenfilter,`porter_stem`>> instead of the <<analysis-snowball-tokenfilter,`english` Snowball token filter>>],
+http://ciir.cs.umass.edu/pubfiles/ir-35.pdf[`light_english`] added[1.3.0,Returns the <<analysis-kstem-tokenfilter,`kstem` token filter>>],
 http://www.medialab.tfe.umu.se/courses/mdm0506a/material/fulltext_ID%3D10049387%26PLACEBO%3DIE.pdf[`minimal_english`],
 http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/en/EnglishPossessiveFilter.html[`possessive_english`],
-http://snowball.tartarus.org/algorithms/english/stemmer.html[`porter2`] coming[1.3.0,Returns the <<analysis-snowball-tokenfilter,`english` Snowball token filter>> instead of the <<analysis-snowball-tokenfilter,`porter` Snowball token filter>>],
+http://snowball.tartarus.org/algorithms/english/stemmer.html[`porter2`] added[1.3.0,Returns the <<analysis-snowball-tokenfilter,`english` Snowball token filter>> instead of the <<analysis-snowball-tokenfilter,`porter` Snowball token filter>>],
 http://snowball.tartarus.org/algorithms/lovins/stemmer.html[`lovins`]
 
 Finnish::
@@ -89,8 +89,8 @@ http://dl.acm.org/citation.cfm?id=318984[`minimal_french`]
 
 Galician::
 
-http://bvg.udc.es/recursos_lingua/stemming.jsp[*`galician`*] coming[1.3.0],
-http://bvg.udc.es/recursos_lingua/stemming.jsp[`minimal_galician`] (Plural step only) coming[1.3.0]
+http://bvg.udc.es/recursos_lingua/stemming.jsp[*`galician`*] added[1.3.0],
+http://bvg.udc.es/recursos_lingua/stemming.jsp[`minimal_galician`] (Plural step only) added[1.3.0]
 
 German::
 
@@ -127,7 +127,7 @@ http://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf[*`light_italian`*
 
 Kurdish (Sorani)::
 
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/ckb/SoraniStemmer.html[*`sorani`*] coming[1.3.0]
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/ckb/SoraniStemmer.html[*`sorani`*] added[1.3.0]
 
 Latvian::
 
@@ -136,20 +136,20 @@ http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/
 Norwegian (Bokmål)::
 
 http://snowball.tartarus.org/algorithms/norwegian/stemmer.html[*`norwegian`*],
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianLightStemmer.html[*`light_norwegian`*] coming[1.3.0],
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianLightStemmer.html[*`light_norwegian`*] added[1.3.0],
 http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianMinimalStemmer.html[`minimal_norwegian`]
 
 Norwegian (Nynorsk)::
 
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianLightStemmer.html[*`light_nynorsk`*] coming[1.3.0],
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianMinimalStemmer.html[`minimal_nynorsk`] coming[1.3.0]
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianLightStemmer.html[*`light_nynorsk`*] added[1.3.0],
+http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianMinimalStemmer.html[`minimal_nynorsk`] added[1.3.0]
 
 Portuguese::
 
 http://snowball.tartarus.org/algorithms/portuguese/stemmer.html[`portuguese`],
 http://dl.acm.org/citation.cfm?id=1141523&dl=ACM&coll=DL&CFID=179095584&CFTOKEN=80067181[*`light_portuguese`*],
 http://www.inf.ufrgs.br/\~buriol/papers/Orengo_CLEF07.pdf[`minimal_portuguese`],
-http://www.inf.ufrgs.br/\~viviane/rslp/index.htm[`portuguese_rslp`] coming[1.3.0]
+http://www.inf.ufrgs.br/\~viviane/rslp/index.htm[`portuguese_rslp`] added[1.3.0]
 
 Romanian::
 

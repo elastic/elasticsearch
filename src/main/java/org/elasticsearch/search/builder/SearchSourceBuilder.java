@@ -24,6 +24,7 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -37,9 +38,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -97,15 +98,13 @@ public class SearchSourceBuilder implements ToXContent {
     private Float minScore;
 
     private long timeoutInMillis = -1;
+    private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
 
     private List<String> fieldNames;
     private List<String> fieldDataFields;
     private List<ScriptField> scriptFields;
     private List<PartialField> partialFields;
     private FetchSourceContext fetchSourceContext;
-
-    private List<FacetBuilder> facets;
-    private BytesReference facetsBinary;
 
     private List<AbstractAggregationBuilder> aggregations;
     private BytesReference aggregationsBinary;
@@ -190,7 +189,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
-     * (not aggregations or facets). This filter is always executed as last filtering mechanism.
+     * (not aggregations). This filter is always executed as last filtering mechanism.
      */
     public SearchSourceBuilder postFilter(FilterBuilder postFilter) {
         this.postFilterBuilder = postFilter;
@@ -199,7 +198,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchSourceBuilder postFilter(String postFilterString) {
         return postFilter(postFilterString.getBytes(Charsets.UTF_8));
@@ -207,7 +206,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchSourceBuilder postFilter(byte[] postFilter) {
         return postFilter(postFilter, 0, postFilter.length);
@@ -215,7 +214,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchSourceBuilder postFilter(byte[] postFilterBinary, int postFilterBinaryOffset, int postFilterBinaryLength) {
         return postFilter(new BytesArray(postFilterBinary, postFilterBinaryOffset, postFilterBinaryLength));
@@ -223,7 +222,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchSourceBuilder postFilter(BytesReference postFilterBinary) {
         this.filterBinary = postFilterBinary;
@@ -309,6 +308,17 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
+     * An optional terminate_after to terminate the search after
+     * collecting <code>terminateAfter</code> documents
+     */
+    public  SearchSourceBuilder terminateAfter(int terminateAfter) {
+        if (terminateAfter <= 0) {
+            throw new ElasticsearchIllegalArgumentException("terminateAfter must be > 0");
+        }
+        this.terminateAfter = terminateAfter;
+        return this;
+    }
+    /**
      * Adds a sort against the given field name and the sort ordering.
      *
      * @param name  The name of the field
@@ -348,59 +358,6 @@ public class SearchSourceBuilder implements ToXContent {
     }
 
     /**
-     * Add a facet to perform as part of the search.
-     */
-    public SearchSourceBuilder facet(FacetBuilder facet) {
-        if (facets == null) {
-            facets = Lists.newArrayList();
-        }
-        facets.add(facet);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent / json) facets.
-     */
-    public SearchSourceBuilder facets(byte[] facetsBinary) {
-        return facets(facetsBinary, 0, facetsBinary.length);
-    }
-
-    /**
-     * Sets a raw (xcontent / json) facets.
-     */
-    public SearchSourceBuilder facets(byte[] facetsBinary, int facetBinaryOffset, int facetBinaryLength) {
-        return facets(new BytesArray(facetsBinary, facetBinaryOffset, facetBinaryLength));
-    }
-
-    /**
-     * Sets a raw (xcontent / json) facets.
-     */
-    public SearchSourceBuilder facets(BytesReference facetsBinary) {
-        this.facetsBinary = facetsBinary;
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent / json) facets.
-     */
-    public SearchSourceBuilder facets(XContentBuilder facets) {
-        return facets(facets.bytes());
-    }
-
-    /**
-     * Sets a raw (xcontent / json) facets.
-     */
-    public SearchSourceBuilder facets(Map facets) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(facets);
-            return facets(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + facets + "]", e);
-        }
-    }
-
-    /**
      * Add an get to perform as part of the search.
      */
     public SearchSourceBuilder aggregation(AbstractAggregationBuilder aggregation) {
@@ -436,8 +393,8 @@ public class SearchSourceBuilder implements ToXContent {
     /**
      * Sets a raw (xcontent / json) addAggregation.
      */
-    public SearchSourceBuilder aggregations(XContentBuilder facets) {
-        return aggregations(facets.bytes());
+    public SearchSourceBuilder aggregations(XContentBuilder aggs) {
+        return aggregations(aggs.bytes());
     }
 
     /**
@@ -738,6 +695,10 @@ public class SearchSourceBuilder implements ToXContent {
             builder.field("timeout", timeoutInMillis);
         }
 
+        if (terminateAfter != SearchContext.DEFAULT_TERMINATE_AFTER) {
+            builder.field("terminate_after", terminateAfter);
+        }
+
         if (queryBuilder != null) {
             builder.field("query");
             queryBuilder.toXContent(builder, params);
@@ -872,23 +833,6 @@ public class SearchSourceBuilder implements ToXContent {
                 }
             }
             builder.endObject();
-        }
-
-        if (facets != null) {
-            builder.field("facets");
-            builder.startObject();
-            for (FacetBuilder facet : facets) {
-                facet.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-
-        if (facetsBinary != null) {
-            if (XContentFactory.xContentType(facetsBinary) == builder.contentType()) {
-                builder.rawField("facets", facetsBinary);
-            } else {
-                builder.field("facets_binary", facetsBinary);
-            }
         }
 
         if (aggregations != null) {

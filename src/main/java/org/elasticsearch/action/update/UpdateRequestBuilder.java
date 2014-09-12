@@ -29,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
 
@@ -78,14 +79,14 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
      * <p>
-     * The script works with the variable <code>ctx</code>, which is bound to the entry, 
+     * The script works with the variable <code>ctx</code>, which is bound to the entry,
      * e.g. <code>ctx._source.mycounter += 1</code>.
-     * 
+     *
      * @see #setScriptLang(String)
      * @see #setScriptParams(Map)
      */
-    public UpdateRequestBuilder setScript(String script) {
-        request.script(script);
+    public UpdateRequestBuilder setScript(String script, ScriptService.ScriptType scriptType) {
+        request.script(script, scriptType);
         return this;
     }
 
@@ -344,6 +345,23 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         request.docAsUpsert(shouldUpsertDoc);
         return this;
     }
+
+    /**
+     * Sets whether to perform extra effort to detect noop updates via docAsUpsert.
+     */
+    public UpdateRequestBuilder setDetectNoop(boolean detectNoop) {
+        request.detectNoop(detectNoop);
+        return this;
+    }
+    
+
+    /**
+     * Sets whether the script should be run in the case of an insert
+     */
+    public UpdateRequestBuilder setScriptedUpsert(boolean scriptedUpsert) {
+        request.scriptedUpsert(scriptedUpsert);
+        return this;
+    }    
 
     @Override
     protected void doExecute(ActionListener<UpdateResponse> listener) {

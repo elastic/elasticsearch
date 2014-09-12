@@ -247,7 +247,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * no primary is found or the primary is not active.
      */
     public MutableShardRouting activePrimary(ShardRouting shard) {
-        assert !shard.primary();
         for (MutableShardRouting shardRouting : assignedShards(shard.shardId())) {
             if (shardRouting.primary() && shardRouting.active()) {
                 return shardRouting;
@@ -311,6 +310,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         for (RoutingNode routingNode : this) {
             shards.addAll(routingNode.shardsWithState(state));
         }
+        for (ShardRoutingState s : state) {
+            if (s == ShardRoutingState.UNASSIGNED) {
+                Iterables.addAll(shards, unassigned());
+                break;
+            }
+        }
         return shards;
     }
 
@@ -319,6 +324,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         List<MutableShardRouting> shards = newArrayList();
         for (RoutingNode routingNode : this) {
             shards.addAll(routingNode.shardsWithState(index, state));
+        }
+        for (ShardRoutingState s : state) {
+            if (s == ShardRoutingState.UNASSIGNED) {
+                for (MutableShardRouting unassignedShard : unassignedShards) {
+                    if (unassignedShard.index().equals(index)) {
+                        shards.add(unassignedShard);
+                    }
+                }
+                break;
+            }
         }
         return shards;
     }
@@ -498,7 +513,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         if (routingNode == null) {
             return null;
         }
-        assert assertShardStats(this);
         return new RoutingNodeIterator(routingNode);
     }
 

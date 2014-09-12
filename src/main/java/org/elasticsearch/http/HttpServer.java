@@ -154,7 +154,10 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             pluginName = path;
             sitePath = null;
             // If a trailing / is missing, we redirect to the right page #2654
-            channel.sendResponse(new BytesRestResponse(RestStatus.MOVED_PERMANENTLY, "text/html", "<head><meta http-equiv=\"refresh\" content=\"0; URL=" + request.rawPath() + "/\"></head>"));
+            String redirectUrl = request.rawPath() + "/";
+            BytesRestResponse restResponse = new BytesRestResponse(RestStatus.MOVED_PERMANENTLY, "text/html", "<head><meta http-equiv=\"refresh\" content=\"0; URL=" + redirectUrl + "></head>");
+            restResponse.addHeader("Location", redirectUrl);
+            channel.sendResponse(restResponse);
             return;
         } else {
             pluginName = path.substring(0, i1);

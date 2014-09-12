@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
@@ -43,8 +44,8 @@ public class TransportSearchScanAction extends TransportSearchTypeAction {
 
     @Inject
     public TransportSearchScanAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                     SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
-        super(settings, threadPool, clusterService, searchService, searchPhaseController);
+                                     SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController, ActionFilters actionFilters) {
+        super(settings, threadPool, clusterService, searchService, searchPhaseController, actionFilters);
     }
 
     @Override

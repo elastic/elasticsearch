@@ -267,15 +267,17 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
 
     private void writeShardState(String reason, ShardId shardId, ShardStateInfo shardStateInfo, @Nullable ShardStateInfo previousStateInfo) throws Exception {
         logger.trace("[{}][{}] writing shard state, reason [{}]", shardId.index().name(), shardId.id(), reason);
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, new BytesStreamOutput());
-        builder.prettyPrint();
-        builder.startObject();
-        builder.field("version", shardStateInfo.version);
-        if (shardStateInfo.primary != null) {
-            builder.field("primary", shardStateInfo.primary);
+        BytesReference shardState;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, new BytesStreamOutput())) {
+            builder.prettyPrint();
+            builder.startObject();
+            builder.field("version", shardStateInfo.version);
+            if (shardStateInfo.primary != null) {
+                builder.field("primary", shardStateInfo.primary);
+            }
+            builder.endObject();
+            shardState = builder.bytes();
         }
-        builder.endObject();
-        builder.flush();
 
         Exception lastFailure = null;
         boolean wroteAtLeastOnce = false;
@@ -288,8 +290,7 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
             FileOutputStream fos = null;
             try {
                 fos = new FileOutputStream(stateFile);
-                BytesReference bytes = builder.bytes();
-                bytes.writeTo(fos);
+                shardState.writeTo(fos);
                 fos.getChannel().force(true);
                 fos.close();
                 wroteAtLeastOnce = true;

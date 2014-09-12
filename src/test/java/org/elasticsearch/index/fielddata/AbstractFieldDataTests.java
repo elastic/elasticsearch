@@ -21,25 +21,34 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.index.service.StubIndexService;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.After;
 import org.junit.Before;
 
-// we might wanna cut this over to LuceneTestCase
-public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
+import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 
+// we might wanna cut this over to LuceneTestCase
+@SuppressCodecs({"Lucene3x", "Lucene40", "Lucene41", "Lucene42", "Lucene45", "Lucene46"}) 
+// avoid codecs that do not support SortedNumerics, SortedSet, etc
+public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest {
+
+    protected IndexService indexService;
     protected IndexFieldDataService ifdService;
+    protected MapperService mapperService;
     protected IndexWriter writer;
     protected AtomicReaderContext readerContext;
     protected IndexReader topLevelReader;
@@ -57,7 +66,7 @@ public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
 
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldDataType type, String fieldName) {
         final FieldMapper<?> mapper;
-        final BuilderContext context = new BuilderContext(null, new ContentPath(1));
+        final BuilderContext context = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
         if (type.getType().equals("string")) {
             mapper = MapperBuilders.stringField(fieldName).tokenized(false).fieldDataSettings(type.getSettings()).build(context);
         } else if (type.getType().equals("float")) {
@@ -86,14 +95,11 @@ public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
 
     @Before
     public void setup() throws Exception {
-        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
-        indicesFieldDataCache = new IndicesFieldDataCache(
-                ImmutableSettings.Builder.EMPTY_SETTINGS,
-                new IndicesFieldDataCacheListener(circuitBreakerService)
-        );
-        ifdService = new IndexFieldDataService(new Index("test"), ImmutableSettings.builder().put("index.fielddata.cache", "none").build(), indicesFieldDataCache, circuitBreakerService, new IndicesFieldDataCacheListener(circuitBreakerService));
-        MapperService mapperService = MapperTestUtils.newMapperService(ifdService.index(), ImmutableSettings.Builder.EMPTY_SETTINGS);
-        ifdService.setIndexService(new StubIndexService(mapperService));
+        Settings settings = ImmutableSettings.builder().put("index.fielddata.cache", "none").build();
+        indexService = createIndex("test", settings);
+        mapperService = indexService.mapperService();
+        indicesFieldDataCache = indexService.injector().getInstance(IndicesFieldDataCache.class);
+        ifdService = indexService.fieldData();
         // LogByteSizeMP to preserve doc ID order
         writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)).setMergePolicy(new LogByteSizeMergePolicy()));
     }
@@ -114,7 +120,11 @@ public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
             readerContext.reader().close();
         }
         writer.close();
-        ifdService.clear();
+    }
+
+    protected Nested createNested(Filter parentFilter, Filter childFilter) {
+        FixedBitSetFilterCache s = indexService.fixedBitSetFilterCache();
+        return new Nested(s.getFixedBitSetFilter(parentFilter), s.getFixedBitSetFilter(childFilter));
     }
 
 }

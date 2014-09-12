@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 public class UpdateAction extends ClientAction<UpdateRequest, UpdateResponse, UpdateRequestBuilder> {
 
     public static final UpdateAction INSTANCE = new UpdateAction();
-    public static final String NAME = "update";
+    public static final String NAME = "indices:data/write/update";
 
     private UpdateAction() {
         super(NAME);

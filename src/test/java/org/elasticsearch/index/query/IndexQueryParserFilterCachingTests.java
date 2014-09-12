@@ -22,48 +22,21 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.cache.recycler.CacheRecyclerModule;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.CachedFilter;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.codec.CodecModule;
-import org.elasticsearch.index.engine.IndexEngineModule;
-import org.elasticsearch.index.fielddata.IndexFieldDataModule;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperServiceModule;
-import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
-import org.elasticsearch.index.search.child.TestSearchContext;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.query.IndicesQueriesModule;
-import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.index.service.StubIndexService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.TestSearchContext;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -76,77 +49,164 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-public class IndexQueryParserFilterCachingTests extends ElasticsearchTestCase {
+public class IndexQueryParserFilterCachingTests extends ElasticsearchSingleNodeTest {
 
-    private static Injector injector;
+    private Injector injector;
+    private IndexQueryParserService queryParser;
 
-    private static IndexQueryParserService queryParser;
-
-    @BeforeClass
-    public static void setupQueryParser() throws IOException {
+    @Before
+    public void setup() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("index.cache.filter.type", "weighted")
                 .put("name", "IndexQueryParserFilterCachingTests")
                 .build();
-        Index index = new Index("test");
-        injector = new ModulesBuilder().add(
-                new CacheRecyclerModule(settings),
-                new CodecModule(settings),
-                new SettingsModule(settings),
-                new ThreadPoolModule(settings),
-                new IndicesQueriesModule(),
-                new ScriptModule(settings),
-                new MapperServiceModule(),
-                new IndexSettingsModule(index, settings),
-                new IndexCacheModule(settings),
-                new AnalysisModule(settings),
-                new IndexEngineModule(settings),
-                new SimilarityModule(settings),
-                new IndexQueryParserModule(settings),
-                new IndexNameModule(index),
-                new FunctionScoreModule(),
-                new IndexFieldDataModule(settings),
-                new AbstractModule() {
-                    @Override
-                    protected void configure() {
-                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
-                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                    }
-                }
-        ).createInjector();
+        IndexService indexService = createIndex("test", settings);
+        injector = indexService.injector();
 
-        injector.getInstance(IndexFieldDataService.class).setIndexService((new StubIndexService(injector.getInstance(MapperService.class))));
+        MapperService mapperService = indexService.mapperService();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
-        injector.getInstance(MapperService.class).merge("person", new CompressedString(mapping), true);
+        mapperService.merge("person", new CompressedString(mapping), true);
         String childMapping = copyToStringFromClasspath("/org/elasticsearch/index/query/child-mapping.json");
-        injector.getInstance(MapperService.class).merge("child", new CompressedString(childMapping), true);
-        injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
+        mapperService.merge("child", new CompressedString(childMapping), true);
+        mapperService.documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
         queryParser = injector.getInstance(IndexQueryParserService.class);
-    }
-
-    @AfterClass
-    public static void close() {
-        injector.getInstance(ThreadPool.class).shutdownNow();
-        queryParser = null;
-        injector = null;
     }
 
     private IndexQueryParserService queryParser() throws IOException {
         return this.queryParser;
     }
 
-    private BytesRef longToPrefixCoded(long val, int shift) {
-        BytesRef bytesRef = new BytesRef();
-        NumericUtils.longToPrefixCoded(val, shift, bytesRef);
-        return bytesRef;
+    /**
+     * Runner to test our cache cases when using date range filter
+     * @param lte could be null
+     * @param gte could be null
+     * @param forcedCache true if we want to force the cache, false if we want to force no cache, null either
+     * @param expectedCache true if we expect a cached filter
+     */
+    private void testDateRangeFilterCache(IndexQueryParserService queryParser, Object gte, Object lte, Boolean forcedCache, boolean expectedCache) {
+        RangeFilterBuilder filterBuilder = FilterBuilders.rangeFilter("born")
+                .gte(gte)
+                .lte(lte);
+        if (forcedCache != null) {
+            filterBuilder.cache(forcedCache);
+        }
+
+        Query parsedQuery = queryParser.parse(QueryBuilders.constantScoreQuery(filterBuilder)).query();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+
+
+        if (expectedCache) {
+            if (((ConstantScoreQuery)parsedQuery).getFilter() instanceof CachedFilter) {
+                logger.info("gte [{}], lte [{}], _cache [{}] is cached", gte, lte, forcedCache);
+            } else {
+                logger.warn("gte [{}], lte [{}], _cache [{}] should be cached", gte, lte, forcedCache);
+            }
+        } else {
+            if (((ConstantScoreQuery)parsedQuery).getFilter() instanceof NoCacheFilter) {
+                logger.info("gte [{}], lte [{}], _cache [{}] is not cached", gte, lte, forcedCache);
+            } else {
+                logger.warn("gte [{}], lte [{}], _cache [{}] should not be cached", gte, lte, forcedCache);
+            }
+        }
+
+       if (expectedCache) {
+            assertThat(((ConstantScoreQuery)parsedQuery).getFilter(), instanceOf(CachedFilter.class));
+        } else {
+            assertThat(((ConstantScoreQuery)parsedQuery).getFilter(), instanceOf(NoCacheFilter.class));
+        }
     }
 
+    /**
+     * We test all possible combinations for range date filter cache
+     */
+    @Test
+    public void testDateRangeFilterCache() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+
+        testDateRangeFilterCache(queryParser, null, null, null, true);
+        testDateRangeFilterCache(queryParser, null, null, true, true);
+        testDateRangeFilterCache(queryParser, null, null, false, false);
+        testDateRangeFilterCache(queryParser, "now", null, null, false);
+        testDateRangeFilterCache(queryParser, null, "now", null, false);
+        testDateRangeFilterCache(queryParser, "now", "now", null, false);
+        testDateRangeFilterCache(queryParser, "now/d", null, null, true);
+        testDateRangeFilterCache(queryParser, null, "now/d", null, true);
+        testDateRangeFilterCache(queryParser, "now/d", "now/d", null, true);
+        testDateRangeFilterCache(queryParser, "2012-01-01", null, null, true);
+        testDateRangeFilterCache(queryParser, null, "2012-01-01", null, true);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "2012-01-01", null, true);
+        testDateRangeFilterCache(queryParser, "now", "2012-01-01", null, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "now", null, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "now/d", null, true);
+        testDateRangeFilterCache(queryParser, "now/d", "2012-01-01", null, true);
+        testDateRangeFilterCache(queryParser, null, 1577836800, null, true);
+        testDateRangeFilterCache(queryParser, 1325376000, null, null, true);
+        testDateRangeFilterCache(queryParser, 1325376000, 1577836800, null, true);
+        testDateRangeFilterCache(queryParser, "now", 1577836800, null, false);
+        testDateRangeFilterCache(queryParser, 1325376000, "now", null, false);
+        testDateRangeFilterCache(queryParser, 1325376000, "now/d", null, true);
+        testDateRangeFilterCache(queryParser, "now/d", 1577836800, null, true);
+        testDateRangeFilterCache(queryParser, "now", null, true, false);
+        testDateRangeFilterCache(queryParser, null, "now", true, false);
+        testDateRangeFilterCache(queryParser, "now", "now", true, false);
+        testDateRangeFilterCache(queryParser, "now/d", null, true, true);
+        testDateRangeFilterCache(queryParser, null, "now/d", true, true);
+        testDateRangeFilterCache(queryParser, "now/d", "now/d", true, true);
+        testDateRangeFilterCache(queryParser, "2012-01-01", null, true, true);
+        testDateRangeFilterCache(queryParser, null, "2012-01-01", true, true);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "2012-01-01", true, true);
+        testDateRangeFilterCache(queryParser, "now", "2012-01-01", true, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "now", true, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "now/d", true, true);
+        testDateRangeFilterCache(queryParser, "now/d", "2012-01-01", true, true);
+        testDateRangeFilterCache(queryParser, null, 1577836800, true, true);
+        testDateRangeFilterCache(queryParser, 1325376000, null, true, true);
+        testDateRangeFilterCache(queryParser, 1325376000, 1577836800, true, true);
+        testDateRangeFilterCache(queryParser, "now", 1577836800, true, false);
+        testDateRangeFilterCache(queryParser, 1325376000, "now", true, false);
+        testDateRangeFilterCache(queryParser, 1325376000, "now/d", true, true);
+        testDateRangeFilterCache(queryParser, "now/d", 1577836800, true, true);
+        testDateRangeFilterCache(queryParser, "now", null, false, false);
+        testDateRangeFilterCache(queryParser, null, "now", false, false);
+        testDateRangeFilterCache(queryParser, "now", "now", false, false);
+        testDateRangeFilterCache(queryParser, "now/d", null, false, false);
+        testDateRangeFilterCache(queryParser, null, "now/d", false, false);
+        testDateRangeFilterCache(queryParser, "now/d", "now/d", false, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", null, false, false);
+        testDateRangeFilterCache(queryParser, null, "2012-01-01", false, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "2012-01-01", false, false);
+        testDateRangeFilterCache(queryParser, "now", "2012-01-01", false, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "now", false, false);
+        testDateRangeFilterCache(queryParser, "2012-01-01", "now/d", false, false);
+        testDateRangeFilterCache(queryParser, "now/d", "2012-01-01", false, false);
+        testDateRangeFilterCache(queryParser, null, 1577836800, false, false);
+        testDateRangeFilterCache(queryParser, 1325376000, null, false, false);
+        testDateRangeFilterCache(queryParser, 1325376000, 1577836800, false, false);
+        testDateRangeFilterCache(queryParser, "now", 1577836800, false, false);
+        testDateRangeFilterCache(queryParser, 1325376000, "now", false, false);
+        testDateRangeFilterCache(queryParser, 1325376000, "now/d", false, false);
+        testDateRangeFilterCache(queryParser, "now/d", 1577836800, false, false);
+    }
 
     @Test
     public void testNoFilterParsing() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_in_boolean.json");
         Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(XBooleanFilter.class));
+        assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().get(1).getFilter(), instanceOf(NoCacheFilter.class));
+        assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().size(), is(2));
+
+        query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_in_boolean_with_long_value.json");
+        parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(XBooleanFilter.class));
+        assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().get(1).getFilter(), instanceOf(CachedFilter.class));
+        assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().size(), is(2));
+
+        query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_in_boolean_with_long_value_not_cached.json");
+        parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
         assertThat(((ConstantScoreQuery) parsedQuery).getFilter(), instanceOf(XBooleanFilter.class));
         assertThat(((XBooleanFilter) ((ConstantScoreQuery) parsedQuery).getFilter()).clauses().get(1).getFilter(), instanceOf(NoCacheFilter.class));

@@ -19,18 +19,18 @@
 
 package org.elasticsearch.search.scan;
 
-import com.google.common.collect.Maps;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.AllDocIdSet;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * The scan context allows to optimize readers we already processed during scanning. We do that by keeping track
@@ -39,7 +39,7 @@ import java.util.Map;
  */
 public class ScanContext {
 
-    private final Map<IndexReader, ReaderState> readerStates = Maps.newHashMap();
+    private final ConcurrentMap<IndexReader, ReaderState> readerStates = ConcurrentCollections.newConcurrentMap();
 
     public void clear() {
         readerStates.clear();
@@ -58,7 +58,7 @@ public class ScanContext {
 
     static class ScanCollector extends Collector {
 
-        private final Map<IndexReader, ReaderState> readerStates;
+        private final ConcurrentMap<IndexReader, ReaderState> readerStates;
 
         private final int from;
 
@@ -77,7 +77,7 @@ public class ScanContext {
         private IndexReader currentReader;
         private ReaderState readerState;
 
-        ScanCollector(Map<IndexReader, ReaderState> readerStates, int from, int size, boolean trackScores) {
+        ScanCollector(ConcurrentMap<IndexReader, ReaderState> readerStates, int from, int size, boolean trackScores) {
             this.readerStates = readerStates;
             this.from = from;
             this.to = from + size;
@@ -142,11 +142,11 @@ public class ScanContext {
 
     public static class ScanFilter extends Filter {
 
-        private final Map<IndexReader, ReaderState> readerStates;
+        private final ConcurrentMap<IndexReader, ReaderState> readerStates;
 
         private final ScanCollector scanCollector;
 
-        public ScanFilter(Map<IndexReader, ReaderState> readerStates, ScanCollector scanCollector) {
+        public ScanFilter(ConcurrentMap<IndexReader, ReaderState> readerStates, ScanCollector scanCollector) {
             this.readerStates = readerStates;
             this.scanCollector = scanCollector;
         }

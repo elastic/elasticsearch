@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.warmer.IndexWarmerMissingException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -279,6 +280,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
             CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) {
                 return client().admin().indices().prepareCreate(indexName).setSettings(ImmutableSettings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.EAGER_VALUE));
             }
+
             @Override
             boolean isLazy() {
                 return false;
@@ -288,27 +290,30 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
             @Override
             CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) throws Exception {
                 return client().admin().indices().prepareCreate(indexName).setSettings(ImmutableSettings.builder().put(SINGLE_SHARD_NO_REPLICA).put(SearchService.NORMS_LOADING_KEY, Loading.LAZY_VALUE)).addMapping(type, JsonXContent.contentBuilder()
-                        .startObject()
-                        .startObject(type)
-                            .startObject("properties")
-                                .startObject(fieldName)
-                                    .field("type", "string")
-                                    .startObject("norms")
-                                        .field("loading", Loading.EAGER_VALUE)
+                                .startObject()
+                                    .startObject(type)
+                                        .startObject("properties")
+                                            .startObject(fieldName)
+                                                .field("type", "string")
+                                                .startObject("norms")
+                                                    .field("loading", Loading.EAGER_VALUE)
+                                                .endObject()
+                                            .endObject()
+                                        .endObject()
                                     .endObject()
                                 .endObject()
-                            .endObject()
-                        .endObject()
-                        .endObject()
-                        );
+                );
             }
+
             @Override
             boolean isLazy() {
                 return false;
             }
         };
         private static Settings SINGLE_SHARD_NO_REPLICA = ImmutableSettings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
+
         abstract CreateIndexRequestBuilder createIndex(String indexName, String type, String fieldName) throws Exception;
+
         boolean isLazy() {
             return true;
         }
@@ -336,4 +341,40 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    public void testQueryCacheOnWarmer() {
+        createIndex("test");
+        ensureGreen();
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, false)));
+        logger.info("register warmer with no query cache, validate no cache is used");
+        assertAcked(client().admin().indices().preparePutWarmer("warmer_1")
+                .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()))
+                .get());
+
+        client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        assertThat(client().admin().indices().prepareStats("test").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
+
+        logger.info("register warmer with query cache, validate caching happened");
+        assertAcked(client().admin().indices().preparePutWarmer("warmer_1")
+                .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()).setQueryCache(true))
+                .get());
+
+        // index again, to make sure it gets refreshed
+        client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        assertThat(client().admin().indices().prepareStats("test").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
+
+        client().admin().indices().prepareClearCache().setQueryCache(true).get(); // clean the cache
+        assertThat(client().admin().indices().prepareStats("test").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0l));
+
+        logger.info("enable default query caching on the index level, and test that no flag on warmer still caches");
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, true)));
+
+        assertAcked(client().admin().indices().preparePutWarmer("warmer_1")
+                .setSearchRequest(client().prepareSearch("test").setTypes("a1").setQuery(QueryBuilders.matchAllQuery()))
+                .get());
+
+        // index again, to make sure it gets refreshed
+        client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        assertThat(client().admin().indices().prepareStats("test").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
+    }
 }

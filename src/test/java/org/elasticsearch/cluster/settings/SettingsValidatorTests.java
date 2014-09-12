@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -83,5 +83,13 @@ public class SettingsValidatorTests extends ElasticsearchTestCase {
         assertThat(Validator.POSITIVE_INTEGER.validate("", "0"), notNullValue());
         assertThat(Validator.POSITIVE_INTEGER.validate("", "-1"), notNullValue());
         assertThat(Validator.POSITIVE_INTEGER.validate("", "10.2"), notNullValue());
+    }
+
+    @Test
+    public void testDynamicValidators() throws Exception {
+        DynamicSettings ds = new DynamicSettings();
+        ds.addDynamicSetting("my.test.*", Validator.POSITIVE_INTEGER);
+        String valid = ds.validateDynamicSetting("my.test.setting", "-1");
+        assertThat(valid, equalTo("the value of the setting my.test.setting must be a positive integer"));
     }
 }

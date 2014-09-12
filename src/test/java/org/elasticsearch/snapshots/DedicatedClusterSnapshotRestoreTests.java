@@ -27,6 +27,7 @@ import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
@@ -277,6 +278,22 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             assertThat(snapshotStatus.getShardsStats().getTotalShards(), equalTo(18));
             assertThat(snapshotStatus.getShardsStats().getDoneShards(), lessThan(12));
             assertThat(snapshotStatus.getShardsStats().getDoneShards(), greaterThan(6));
+
+            // There is slight delay between snapshot being marked as completed in the cluster state and on the file system
+            // After it was marked as completed in the cluster state - we need to check if it's completed on the file system as well
+            awaitBusy(new Predicate<Object>() {
+                @Override
+                public boolean apply(Object o) {
+                    GetSnapshotsResponse response = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").get();
+                    assertThat(response.getSnapshots().size(), equalTo(1));
+                    SnapshotInfo snapshotInfo = response.getSnapshots().get(0);
+                    if (snapshotInfo.state().completed()) {
+                        assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
+                        return true;
+                    }
+                    return false;
+                }
+            });
         } else {
             logger.info("checking snapshot completion using wait_for_completion flag");
             createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2").setWaitForCompletion(true).setPartial(true).execute().actionGet();
@@ -284,8 +301,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(18));
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), lessThan(12));
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(6));
+            assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").execute().actionGet().getSnapshots().get(0).state(), equalTo(SnapshotState.PARTIAL));
         }
-        assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").execute().actionGet().getSnapshots().get(0).state(), equalTo(SnapshotState.PARTIAL));
 
         assertAcked(client().admin().indices().prepareClose("test-idx-some", "test-idx-all").execute().actionGet());
 

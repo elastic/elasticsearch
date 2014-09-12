@@ -41,8 +41,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestFlushAction extends BaseRestHandler {
 
     @Inject
-    public RestFlushAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestFlushAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/_flush", this);
         controller.registerHandler(POST, "/{index}/_flush", this);
 
@@ -57,6 +57,7 @@ public class RestFlushAction extends BaseRestHandler {
         flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));
         flushRequest.full(request.paramAsBoolean("full", flushRequest.full()));
         flushRequest.force(request.paramAsBoolean("force", flushRequest.force()));
+        flushRequest.waitIfOngoing(request.paramAsBoolean("wait_if_ongoing", flushRequest.waitIfOngoing()));
         client.admin().indices().flush(flushRequest, new RestBuilderListener<FlushResponse>(channel) {
             @Override
             public RestResponse buildResponse(FlushResponse response, XContentBuilder builder) throws Exception {

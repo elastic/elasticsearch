@@ -231,7 +231,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * be either "index" or "create".
      */
     public IndexRequestBuilder setOpType(String opType) {
-        request.opType(opType);
+        request.opType(IndexRequest.OpType.fromString(opType));
         return this;
     }
 

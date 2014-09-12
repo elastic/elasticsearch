@@ -19,8 +19,9 @@
 
 package org.elasticsearch.document;
 
+import org.elasticsearch.action.admin.indices.alias.Alias;
+
 import static org.elasticsearch.client.Requests.createIndexRequest;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
  *
@@ -35,7 +36,7 @@ public class AliasedIndexDocumentActionsTests extends DocumentActionsTests {
             // ignore
         }
         logger.info("--> creating index test");
-        client().admin().indices().create(createIndexRequest("test1").settings(settingsBuilder().putArray("index.aliases", "test"))).actionGet();
+        client().admin().indices().create(createIndexRequest("test1").alias(new Alias("test"))).actionGet();
     }
 
     @Override

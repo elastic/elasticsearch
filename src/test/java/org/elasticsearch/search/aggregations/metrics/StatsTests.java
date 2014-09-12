@@ -361,7 +361,7 @@ public class StatsTests extends AbstractNumericTests {
         ShardSearchFailure[] failures = response.getShardFailures();
         if (failures.length != expectedFailures) {
             for (ShardSearchFailure failure : failures) {
-                logger.error("Shard Failure: {}", failure.failure(), failure.toString());
+                logger.error("Shard Failure: {}", failure.reason(), failure.toString());
             }
             fail("Unexpected shard failures!");
         }

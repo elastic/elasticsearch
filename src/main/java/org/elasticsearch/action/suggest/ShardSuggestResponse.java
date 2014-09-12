@@ -22,6 +22,7 @@ package org.elasticsearch.action.suggest;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -37,8 +38,8 @@ class ShardSuggestResponse extends BroadcastShardOperationResponse {
         this.suggest = new Suggest();
     }
 
-    public ShardSuggestResponse(String index, int shardId, Suggest suggest) {
-        super(index, shardId);
+    ShardSuggestResponse(ShardId shardId, Suggest suggest) {
+        super(shardId);
         this.suggest = suggest;
     }
 

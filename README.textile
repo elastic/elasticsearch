@@ -115,7 +115,7 @@ curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -d '
 }'
 </pre>
 
-There are many more options to perform search, after all, its a search product no? All the familiar Lucene queries are available through the JSON query language, or through the query parser.
+There are many more options to perform search, after all, it's a search product no? All the familiar Lucene queries are available through the JSON query language, or through the query parser.
 
 h3. Multi Tenant - Indices and Types
 

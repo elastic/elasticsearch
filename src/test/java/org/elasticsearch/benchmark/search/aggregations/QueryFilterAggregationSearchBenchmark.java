@@ -33,8 +33,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.facet.FacetBuilder;
-import org.elasticsearch.search.facet.FacetBuilders;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -141,43 +139,10 @@ public class QueryFilterAggregationSearchBenchmark {
             SearchResponse searchResponse = client.prepareSearch()
                     .setSearchType(SearchType.COUNT)
                     .setQuery(termQuery("l_value", anyValue))
-                    .addFacet(FacetBuilders.queryFacet("query").query(termQuery("l_value", anyValue)))
-                    .execute().actionGet();
-            totalQueryTime += searchResponse.getTookInMillis();
-        }
-        System.out.println("-->  Query facet first l_value " + totalQueryTime + "ms");
-
-        totalQueryTime = 0;
-        for (int j = 0; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch()
-                    .setSearchType(SearchType.COUNT)
-                    .setQuery(termQuery("l_value", anyValue))
                     .addAggregation(AggregationBuilders.filter("filter").filter(FilterBuilders.termFilter("l_value", anyValue)))
                     .execute().actionGet();
             totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("-->  Filter agg first l_value " + totalQueryTime + "ms");
-
-        totalQueryTime = 0;
-        for (int j = 0; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch()
-                    .setSearchType(SearchType.COUNT)
-                    .setQuery(termQuery("l_value", anyValue))
-                    .addFacet(FacetBuilders.queryFacet("query").query(termQuery("l_value", anyValue)).global(true).mode(FacetBuilder.Mode.COLLECTOR))
-                    .execute().actionGet();
-            totalQueryTime += searchResponse.getTookInMillis();
-        }
-        System.out.println("-->  Query facet first l_value (global) (mode/collector) " + totalQueryTime + "ms");
-
-        totalQueryTime = 0;
-        for (int j = 0; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch()
-                    .setSearchType(SearchType.COUNT)
-                    .setQuery(termQuery("l_value", anyValue))
-                    .addFacet(FacetBuilders.queryFacet("query").query(termQuery("l_value", anyValue)).global(true).mode(FacetBuilder.Mode.POST))
-                    .execute().actionGet();
-            totalQueryTime += searchResponse.getTookInMillis();
-        }
-        System.out.println("-->  Query facet first l_value (global) (mode/post) " + totalQueryTime + "ms");
     }
 }

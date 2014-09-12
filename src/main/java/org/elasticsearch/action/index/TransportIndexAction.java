@@ -25,14 +25,13 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -71,8 +70,8 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     @Inject
     public TransportIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                 IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                TransportCreateIndexAction createIndexAction, MappingUpdatedAction mappingUpdatedAction) {
-        super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
+                                TransportCreateIndexAction createIndexAction, MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters) {
+        super(settings, IndexAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters);
         this.createIndexAction = createIndexAction;
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.autoCreateIndex = new AutoCreateIndex(settings);
@@ -84,7 +83,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
             request.beforeLocalFork(); // we fork on another thread...
-            createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(index api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(new CreateIndexRequest(request).index(request.index()).cause("auto(index api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);
@@ -110,15 +109,19 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override
-    protected boolean resolveRequest(ClusterState state, IndexRequest request, ActionListener<IndexResponse> indexResponseActionListener) {
+    protected boolean resolveIndex() {
+        return true;
+    }
+
+    @Override
+    protected boolean resolveRequest(ClusterState state, InternalRequest request, ActionListener<IndexResponse> indexResponseActionListener) {
         MetaData metaData = clusterService.state().metaData();
-        String aliasOrIndex = request.index();
-        request.index(metaData.concreteSingleIndex(request.index()));
+
         MappingMetaData mappingMd = null;
-        if (metaData.hasIndex(request.index())) {
-            mappingMd = metaData.index(request.index()).mappingOrDefault(request.type());
+        if (metaData.hasIndex(request.concreteIndex())) {
+            mappingMd = metaData.index(request.concreteIndex()).mappingOrDefault(request.request().type());
         }
-        request.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
+        request.request().process(metaData, mappingMd, allowIdGeneration, request.concreteIndex());
         return true;
     }
 
@@ -147,29 +150,14 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override
-    protected String transportAction() {
-        return IndexAction.NAME;
-    }
-
-    @Override
     protected String executor() {
         return ThreadPool.Names.INDEX;
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, IndexRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
-    }
-
-    @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, IndexRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
-    }
-
-    @Override
-    protected ShardIterator shards(ClusterState clusterState, IndexRequest request) {
+    protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
         return clusterService.operationRouting()
-                .indexShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
+                .indexShards(clusterService.state(), request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing());
     }
 
     @Override
@@ -177,16 +165,16 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         final IndexRequest request = shardRequest.request;
 
         // validate, if routing is required, that we got routing
-        IndexMetaData indexMetaData = clusterState.metaData().index(request.index());
+        IndexMetaData indexMetaData = clusterState.metaData().index(shardRequest.shardId.getIndex());
         MappingMetaData mappingMd = indexMetaData.mappingOrDefault(request.type());
         if (mappingMd != null && mappingMd.routing().required()) {
             if (request.routing() == null) {
-                throw new RoutingMissingException(request.index(), request.type(), request.id());
+                throw new RoutingMissingException(shardRequest.shardId.getIndex(), request.type(), request.id());
             }
         }
 
-        IndexService indexService = indicesService.indexServiceSafe(shardRequest.request.index());
-        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId);
+        IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
+        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
         long version;
@@ -195,7 +183,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY, request.canHaveDuplicates());
             if (index.parsedDoc().mappingsModified()) {
-                mappingUpdatedAction.updateMappingOnMaster(request.index(), index.docMapper(), indexService.indexUUID());
+                mappingUpdatedAction.updateMappingOnMaster(shardRequest.shardId.getIndex(), index.docMapper(), indexService.indexUUID());
             }
             indexShard.index(index);
             version = index.version();
@@ -205,7 +193,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             Engine.Create create = indexShard.prepareCreate(sourceToParse,
                     request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY, request.canHaveDuplicates(), request.autoGeneratedId());
             if (create.parsedDoc().mappingsModified()) {
-                mappingUpdatedAction.updateMappingOnMaster(request.index(), create.docMapper(), indexService.indexUUID());
+                mappingUpdatedAction.updateMappingOnMaster(shardRequest.shardId.getIndex(), create.docMapper(), indexService.indexUUID());
             }
             indexShard.create(create);
             version = create.version();
@@ -226,13 +214,13 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
         assert request.versionType().validateVersionForWrites(request.version());
 
-        IndexResponse response = new IndexResponse(request.index(), request.type(), request.id(), version, created);
+        IndexResponse response = new IndexResponse(shardRequest.shardId.getIndex(), request.type(), request.id(), version, created);
         return new PrimaryResponse<>(shardRequest.request, response, op);
     }
 
     @Override
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).shardSafe(shardRequest.shardId.id());
         IndexRequest request = shardRequest.request;
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());

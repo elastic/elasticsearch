@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -44,6 +45,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -455,10 +457,67 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         public String id;
         public long version;
         public boolean delete;
+        public int threadID = -1;
+        public long indexStartTime;
+        public long indexFinishTime;
+        public boolean versionConflict;
+        public boolean alreadyExists;
+        public ActionResponse response;
 
         @Override
         public String toString() {
-            return "id=" + id + " version=" + version + " delete?=" + delete;
+            StringBuilder sb = new StringBuilder();
+            sb.append("id=");
+            sb.append(id);
+            sb.append(" version=");
+            sb.append(version);
+            sb.append(" delete?=");
+            sb.append(delete);
+            sb.append(" threadID=");
+            sb.append(threadID);
+            sb.append(" indexStartTime=");
+            sb.append(indexStartTime);
+            sb.append(" indexFinishTime=");
+            sb.append(indexFinishTime);
+            sb.append(" versionConflict=");
+            sb.append(versionConflict);
+            sb.append(" alreadyExists?=");
+            sb.append(alreadyExists);
+
+            if (response != null) {
+                if (response instanceof DeleteResponse) {
+                    DeleteResponse deleteResponse = (DeleteResponse) response;
+                    sb.append(" response:");
+                    sb.append(" index=");
+                    sb.append(deleteResponse.getIndex());
+                    sb.append(" id=");
+                    sb.append(deleteResponse.getId());
+                    sb.append(" type=");
+                    sb.append(deleteResponse.getType());
+                    sb.append(" version=");
+                    sb.append(deleteResponse.getVersion());
+                    sb.append(" found=");
+                    sb.append(deleteResponse.isFound());
+                } else if (response instanceof IndexResponse) {
+                    IndexResponse indexResponse = (IndexResponse) response;
+                    sb.append(" index=");
+                    sb.append(indexResponse.getIndex());
+                    sb.append(" id=");
+                    sb.append(indexResponse.getId());
+                    sb.append(" type=");
+                    sb.append(indexResponse.getType());
+                    sb.append(" version=");
+                    sb.append(indexResponse.getVersion());
+                    sb.append(" created=");
+                    sb.append(indexResponse.isCreated());
+                } else {
+                    sb.append("  response: " + response);
+                }
+            } else {
+                sb.append("  response: null");
+            }
+            
+            return sb.toString();
         }
     }
 
@@ -477,7 +536,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         // We test deletes, but can't rely on wall-clock delete GC:
         HashMap<String,Object> newSettings = new HashMap<>();
         newSettings.put("index.gc_deletes", "1000000h");
-        client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet();
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet());
 
         Random random = getRandom();
 
@@ -556,7 +615,9 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         final AtomicInteger upto = new AtomicInteger();
         final CountDownLatch startingGun = new CountDownLatch(1);
         Thread[] threads = new Thread[TestUtil.nextInt(random, 1, isNightly() ? 20 : 5)];
+        final long startTime = System.nanoTime();
         for(int i=0;i<threads.length;i++) {
+            final int threadID = i;
             threads[i] = new Thread() {
                     @Override
                     public void run() {
@@ -566,7 +627,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
                             startingGun.await();
                             while (true) {
 
-                                // TODO: sometimes us bulk:
+                                // TODO: sometimes use bulk:
 
                                 int index = upto.getAndIncrement();
                                 if (index >= idVersions.length) {
@@ -575,17 +636,21 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
                                 if (VERBOSE && index % 100 == 0) {
                                     System.out.println(Thread.currentThread().getName() + ": index=" + index);
                                 }
+                                IDAndVersion idVersion = idVersions[index];
 
-                                String id = idVersions[index].id;
-                                long version = idVersions[index].version;
-                                if (idVersions[index].delete) {
+                                String id = idVersion.id;
+                                idVersion.threadID = threadID;
+                                idVersion.indexStartTime = System.nanoTime()-startTime;
+                                long version = idVersion.version;
+                                if (idVersion.delete) {
                                     try {
-                                        client().prepareDelete("test", "type", id)
+                                        idVersion.response = client().prepareDelete("test", "type", id)
                                             .setVersion(version)
                                             .setVersionType(VersionType.EXTERNAL).execute().actionGet();
                                     } catch (VersionConflictEngineException vcee) {
                                         // OK: our version is too old
                                         assertThat(version, lessThanOrEqualTo(truth.get(id).version));
+                                        idVersion.versionConflict = true;
                                     }
                                 } else {
                                     for (int x=0;x<2;x++) {
@@ -600,35 +665,42 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
                                     
                                         // index document
                                         try {
-                                            client().prepareIndex("test", "type", id)
+                                            idVersion.response = client().prepareIndex("test", "type", id)
                                                 .setSource("foo", "bar")
                                                 .setOpType(op)
                                                 .setVersion(version)
                                                 .setVersionType(VersionType.EXTERNAL).execute().actionGet();
                                             break;
-                                        } catch (DocumentAlreadyExistsException vcee) {
+                                        } catch (DocumentAlreadyExistsException daee) {
                                             if (x == 0) {
-                                                // OK: id was already index by another thread, now use index:
+                                                // OK: id was already indexed by another thread, now use index:
+                                                idVersion.alreadyExists = true;
                                             } else {
                                                 // Should not happen with op=INDEX:
-                                                throw vcee;
+                                                throw daee;
                                             }
                                         } catch (VersionConflictEngineException vcee) {
                                             // OK: our version is too old
                                             assertThat(version, lessThanOrEqualTo(truth.get(id).version));
+                                            idVersion.versionConflict = true;
                                         }
                                     }
                                 }
+                                idVersion.indexFinishTime = System.nanoTime()-startTime;
 
                                 if (threadRandom.nextInt(100) == 7) {
+                                    System.out.println(threadID + ": TEST: now refresh at " + (System.nanoTime()-startTime));
                                     refresh();
+                                    System.out.println(threadID + ": TEST: refresh done at " + (System.nanoTime()-startTime));
                                 }
                                 if (threadRandom.nextInt(100) == 7) {
+                                    System.out.println(threadID + ": TEST: now flush at " + (System.nanoTime()-startTime));
                                     try {
                                         flush();
                                     } catch (FlushNotAllowedEngineException fnaee) {
                                         // OK
                                     }
+                                    System.out.println(threadID + ": TEST: flush done at " + (System.nanoTime()-startTime));
                                 }
                             }
                         } catch (Exception e) {
@@ -645,6 +717,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         }
 
         // Verify against truth:
+        boolean failed = false;
         for(String id : ids) {
             long expected;
             IDAndVersion idVersion = truth.get(id);
@@ -653,7 +726,19 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
             } else {
                 expected = -1;
             }
-            assertThat("id=" + id + " idVersion=" + idVersion, client().prepareGet("test", "type", id).execute().actionGet().getVersion(), equalTo(expected));
+            long actualVersion = client().prepareGet("test", "type", id).execute().actionGet().getVersion();
+            if (actualVersion != expected) {
+                System.out.println("FAILED: idVersion=" + idVersion + " actualVersion=" + actualVersion);
+                failed = true;
+            }
+        }
+
+        if (failed) {
+            System.out.println("All versions:");
+            for(int i=0;i<idVersions.length;i++) {
+                System.out.println("i=" + i + " " + idVersions[i]);
+            }
+            fail("wrong versions for some IDs");
         }
     }
 

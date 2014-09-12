@@ -46,33 +46,33 @@ This is useful when a `nested` filter is used in a facet where nested is enabled
 --------------------------------------------------
 {
     "query" : {
-		"nested" : {
-			"path" : "offers",
-			"query" : {
-				"match" : {
-					"offers.color" : "blue"
-				}
-			}
-		}
-	},
-	"facets" : {
-		"size" : {
-			"terms" : {
-				"field" : "offers.size"
-			},
-			"facet_filter" : {
-				"nested" : {
-					"path" : "offers",
-					"query" : {
-						"match" : {
-							"offers.color" : "blue"
-						}
-					},
-					"join" : false
-				}
-			},
-			"nested" : "offers"
-		}
-	}
+        "nested" : {
+            "path" : "offers",
+            "query" : {
+                "match" : {
+                    "offers.color" : "blue"
+                }
+            }
+        }
+    },
+    "facets" : {
+        "size" : {
+            "terms" : {
+                "field" : "offers.size"
+            },
+            "facet_filter" : {
+                "nested" : {
+                    "path" : "offers",
+                    "query" : {
+                        "match" : {
+                            "offers.color" : "blue"
+                        }
+                    },
+                    "join" : false
+                }
+            },
+            "nested" : "offers"
+        }
+    }
 }'
 --------------------------------------------------

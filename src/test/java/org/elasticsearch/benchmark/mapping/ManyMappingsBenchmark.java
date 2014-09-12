@@ -82,7 +82,7 @@ public class ManyMappingsBenchmark {
     private static final String TYPE_NAME = "type";
     private static final int FIELD_COUNT = 100000;
     private static final int DOC_COUNT = 10000000;
-    private static final boolean TWO_NODES = false;
+    private static final boolean TWO_NODES = true;
 
     public static void main(String[] args) throws Exception {
         System.setProperty("es.logger.prefix", "");

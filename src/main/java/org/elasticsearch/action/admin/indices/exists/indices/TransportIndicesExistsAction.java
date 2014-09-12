@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.exists.indices;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -40,19 +41,14 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadOperati
 
     @Inject
     public TransportIndicesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                        ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+                                        ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, IndicesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override
     protected String executor() {
         // lightweight in memory check
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return IndicesExistsAction.NAME;
     }
 
     @Override

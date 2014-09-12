@@ -31,10 +31,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.fs.FsDirectoryService;
-import org.elasticsearch.index.store.fs.MmapFsDirectoryService;
-import org.elasticsearch.index.store.fs.NioFsDirectoryService;
-import org.elasticsearch.index.store.fs.SimpleFsDirectoryService;
+import org.elasticsearch.index.store.fs.*;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
 
 import java.io.IOException;
@@ -50,7 +47,6 @@ public class MockDirectoryHelper {
     public static final String CRASH_INDEX = "index.store.mock.random.crash_index";
 
     public static final Set<ElasticsearchMockDirectoryWrapper> wrappers = ConcurrentCollections.newConcurrentSet();
-
 
     private final Random random;
     private final double randomIOExceptionRate;
@@ -107,13 +103,15 @@ public class MockDirectoryHelper {
         } else if (Constants.WINDOWS) {
             return new SimpleFsDirectoryService(shardId, indexSettings, indexStore);
         }
-        switch (random.nextInt(3)) {
-        case 1:
-            return new MmapFsDirectoryService(shardId, indexSettings, indexStore);
-        case 0:
-            return new SimpleFsDirectoryService(shardId, indexSettings, indexStore);
-        default:
-            return new NioFsDirectoryService(shardId, indexSettings, indexStore);
+        switch (random.nextInt(4)) {
+            case 2:
+                return new DefaultFsDirectoryService(shardId, indexSettings, indexStore);
+            case 1:
+                return new MmapFsDirectoryService(shardId, indexSettings, indexStore);
+            case 0:
+                return new SimpleFsDirectoryService(shardId, indexSettings, indexStore);
+            default:
+                return new NioFsDirectoryService(shardId, indexSettings, indexStore);
         }
     }
 
@@ -125,7 +123,8 @@ public class MockDirectoryHelper {
 
         private final ESLogger logger;
         private final boolean crash;
-        private RuntimeException closeException;
+        private volatile RuntimeException closeException;
+        private final Object lock = new Object();
 
         public ElasticsearchMockDirectoryWrapper(Random random, Directory delegate, ESLogger logger, boolean crash) {
             super(random, delegate);
@@ -141,6 +140,20 @@ public class MockDirectoryHelper {
                 logger.info("MockDirectoryWrapper#close() threw exception", ex);
                 closeException = ex;
                 throw ex;
+            } finally {
+                synchronized (lock) {
+                    lock.notifyAll();
+                }
+            }
+        }
+
+
+
+        public void awaitClosed(long timeout) throws InterruptedException {
+            synchronized (lock) {
+                if(isOpen()) {
+                    lock.wait(timeout);
+                }
             }
         }
 

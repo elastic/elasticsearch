@@ -141,7 +141,9 @@ public class GeoDistanceFilterParser implements FilterParser {
             }
         }
 
-        if (vDistance instanceof Number) {
+        if (vDistance == null) {
+            throw new QueryParsingException(parseContext.index(), "geo_distance requires 'distance' to be specified");
+        } else if (vDistance instanceof Number) {
             distance = DistanceUnit.DEFAULT.convert(((Number) vDistance).doubleValue(), unit);
         } else {
             distance = DistanceUnit.parse((String) vDistance, unit, DistanceUnit.DEFAULT);
@@ -163,7 +165,7 @@ public class GeoDistanceFilterParser implements FilterParser {
         GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper) mapper);
 
 
-        IndexGeoPointFieldData<?> indexFieldData = parseContext.getForField(mapper);
+        IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
         Filter filter = new GeoDistanceFilter(point.lat(), point.lon(), distance, geoDistance, indexFieldData, geoMapper, optimizeBbox);
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

@@ -27,9 +27,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -79,6 +81,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -107,13 +110,14 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     private Settings defaultSettings;
 
-
     @Before
     public void setUp() throws Exception {
         super.setUp();
         defaultSettings = ImmutableSettings.builder()
                 .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
+                .put(InternalEngine.INDEX_CHECKSUM_ON_MERGE, getRandom().nextBoolean())
                 .put(InternalEngine.INDEX_GC_DELETES, "1h") // make sure this doesn't kick in on us
+                .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, randomBoolean())
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
         store = createStore();
@@ -169,12 +173,12 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     protected Store createStore() throws IOException {
         DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
-        return new Store(shardId, EMPTY_SETTINGS, null, null, directoryService, new LeastUsedDistributor(directoryService));
+        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService));
     }
 
     protected Store createStoreReplica() throws IOException {
         DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
-        return new Store(shardId, EMPTY_SETTINGS, null, null, directoryService, new LeastUsedDistributor(directoryService));
+        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService));
     }
 
     protected Translog createTranslog() {
@@ -318,6 +322,33 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         assertThat(segments.get(2).getNumDocs(), equalTo(1));
         assertThat(segments.get(2).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(2).isCompound(), equalTo(true));
+    }
+
+    public void testStartAndAcquireConcurrently() {
+        ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
+        final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
+        final AtomicBoolean startPending = new AtomicBoolean(true);
+        Thread thread = new Thread() {
+            public void run() {
+                try {
+                    Thread.yield();
+                    engine.start();
+                } finally {
+                    startPending.set(false);
+                }
+
+            }
+        };
+        thread.start();
+        while(startPending.get()) {
+            try {
+                engine.acquireSearcher("foobar").close();
+                break;
+            } catch (EngineClosedException ex) {
+                // all good
+            }
+        }
+        engine.close();
     }
 
 
@@ -600,6 +631,60 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         searchResult.close();
     }
+    
+    @Test
+    public void testFailEngineOnCorruption() {
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+        engine.flush(new Engine.Flush());
+        final boolean failEngine = defaultSettings.getAsBoolean(InternalEngine.INDEX_FAIL_ON_CORRUPTION, false);
+        final int failInPhase = randomIntBetween(1,3);
+        try {
+            engine.recover(new Engine.RecoveryHandler() {
+                @Override
+                public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
+                   if (failInPhase == 1) {
+                       throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                   }
+                }
+
+                @Override
+                public void phase2(Translog.Snapshot snapshot) throws EngineException {
+                    if (failInPhase == 2) {
+                        throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                    }
+                }
+
+                @Override
+                public void phase3(Translog.Snapshot snapshot) throws EngineException {
+                    if (failInPhase == 3) {
+                        throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                    }
+                }
+            });
+            fail("exception expected");
+        } catch (RuntimeException ex) {
+
+        }
+        try {
+            Engine.Searcher searchResult = engine.acquireSearcher("test");
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
+            searchResult.close();
+
+            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_2, false);
+            engine.create(new Engine.Create(null, newUid("2"), doc2));
+            engine.refresh(new Engine.Refresh("foo"));
+
+            searchResult = engine.acquireSearcher("test");
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 2));
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(2));
+            searchResult.close();
+            assertThat(failEngine, is(false));
+        } catch (EngineClosedException ex) {
+            assertThat(failEngine, is(true));
+        }
+    }
 
 
     @Test
@@ -662,10 +747,10 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             @Override
             public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
+                assertThat("translog snapshot should not read null", create != null, equalTo(true));
                 assertThat(create.source().toBytesArray(), equalTo(B_2));
-                assertThat(snapshot.hasNext(), equalTo(false));
+                assertThat(snapshot.next(), equalTo(null));
             }
 
             @Override
@@ -693,9 +778,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             @Override
             public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(snapshot.hasNext(), equalTo(false));
+                assertThat(create != null, equalTo(true));
+                assertThat(snapshot.next(), equalTo(null));
                 assertThat(create.source().toBytesArray(), equalTo(B_2));
 
                 // add for phase3
@@ -705,9 +790,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
             @Override
             public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                assertThat(snapshot.hasNext(), equalTo(true));
                 Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(snapshot.hasNext(), equalTo(false));
+                assertThat(create != null, equalTo(true));
+                assertThat(snapshot.next(), equalTo(null));
                 assertThat(create.source().toBytesArray(), equalTo(B_3));
             }
         });

@@ -19,34 +19,9 @@
 
 package org.elasticsearch.index.query.guice;
 
-import org.elasticsearch.cache.recycler.CacheRecyclerModule;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.codec.CodecModule;
-import org.elasticsearch.index.engine.IndexEngineModule;
-import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.query.IndicesQueriesModule;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.query.IndicesQueriesModule;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -55,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class IndexQueryParserModuleTests extends ElasticsearchTestCase {
+public class IndexQueryParserModuleTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testCustomInjection() {
@@ -68,32 +43,7 @@ public class IndexQueryParserModuleTests extends ElasticsearchTestCase {
                 .put("name", "IndexQueryParserModuleTests")
                 .build();
 
-        Index index = new Index("test");
-        Injector injector = new ModulesBuilder().add(
-                new SettingsModule(settings),
-                new CacheRecyclerModule(settings),
-                new CodecModule(settings),
-                new ThreadPoolModule(settings),
-                new IndicesQueriesModule(),
-                new ScriptModule(settings),
-                new IndexSettingsModule(index, settings),
-                new IndexCacheModule(settings),
-                new AnalysisModule(settings),
-                new IndexEngineModule(settings),
-                new SimilarityModule(settings),
-                new IndexQueryParserModule(settings),
-                new IndexNameModule(index),
-                new FunctionScoreModule(),
-                new AbstractModule() {
-                    @Override
-                    protected void configure() {
-                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
-                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                    }
-                }
-        ).createInjector();
-
-        IndexQueryParserService indexQueryParserService = injector.getInstance(IndexQueryParserService.class);
+        IndexQueryParserService indexQueryParserService = createIndex("test", settings).queryParserService();
 
         MyJsonQueryParser myJsonQueryParser = (MyJsonQueryParser) indexQueryParserService.queryParser("my");
 
@@ -103,7 +53,5 @@ public class IndexQueryParserModuleTests extends ElasticsearchTestCase {
         MyJsonFilterParser myJsonFilterParser = (MyJsonFilterParser) indexQueryParserService.filterParser("my");
         assertThat(myJsonFilterParser.names()[0], equalTo("my"));
         assertThat(myJsonFilterParser.settings().get("param2"), equalTo("value2"));
-
-        injector.getInstance(ThreadPool.class).shutdownNow();
     }
 }

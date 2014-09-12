@@ -272,7 +272,7 @@ parameter. For example:
 --------------------------------------------------
 $ curl -XPUT localhost:9200/twitter/tweet/1?timestamp=2009-11-15T14%3A12%3A12 -d '{
     "user" : "kimchy",
-    "message" : "trying out Elasticsearch",
+    "message" : "trying out Elasticsearch"
 }'
 --------------------------------------------------
 
@@ -363,12 +363,12 @@ as soon as the operation succeeds on the primary shard.
 [[index-refresh]]
 === Refresh
 
-To refresh the index immediately after the operation occurs, so that the
-document appears in search results immediately, the `refresh` parameter
-can be set to `true`. Setting this option to `true` should *ONLY* be
-done after careful thought and verification that it does not lead to
-poor performance, both from an indexing and a search standpoint. Note,
-getting a document using the get API is completely realtime.
+To refresh the shard (not the whole index) immediately after the operation
+occurs, so that the document appears in search results immediately, the
+`refresh` parameter can be set to `true`. Setting this option to `true` should
+*ONLY* be done after careful thought and verification that it does not lead to
+poor performance, both from an indexing and a search standpoint. Note, getting
+a document using the get API is completely realtime.
 
 [float]
 [[timeout]]

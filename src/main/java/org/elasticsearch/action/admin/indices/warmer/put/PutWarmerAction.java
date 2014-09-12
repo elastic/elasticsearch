@@ -23,11 +23,12 @@ import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
+ * Action for the admin/warmers/put API.
  */
 public class PutWarmerAction extends IndicesAction<PutWarmerRequest, PutWarmerResponse, PutWarmerRequestBuilder> {
 
     public static final PutWarmerAction INSTANCE = new PutWarmerAction();
-    public static final String NAME = "indices/warmer/put";
+    public static final String NAME = "indices:admin/warmers/put";
 
     private PutWarmerAction() {
         super(NAME);

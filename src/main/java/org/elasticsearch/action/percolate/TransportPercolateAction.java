@@ -21,8 +21,10 @@ package org.elasticsearch.action.percolate;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
@@ -36,7 +38,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.percolator.PercolateException;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -60,8 +61,8 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     @Inject
     public TransportPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                     TransportService transportService, PercolatorService percolatorService,
-                                    TransportGetAction getAction) {
-        super(settings, threadPool, clusterService, transportService);
+                                    TransportGetAction getAction, ActionFilters actionFilters) {
+        super(settings, PercolateAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.percolatorService = percolatorService;
         this.getAction = getAction;
     }
@@ -70,7 +71,9 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     protected void doExecute(final PercolateRequest request, final ActionListener<PercolateResponse> listener) {
         request.startTime = System.currentTimeMillis();
         if (request.getRequest() != null) {
-            getAction.execute(request.getRequest(), new ActionListener<GetResponse>() {
+            //create a new get request to make sure it has the same headers and context as the original percolate request
+            GetRequest getRequest = new GetRequest(request.getRequest(), request);
+            getAction.execute(getRequest, new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse getResponse) {
                     if (!getResponse.isExists()) {
@@ -100,11 +103,6 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     @Override
     protected PercolateRequest newRequest() {
         return new PercolateRequest();
-    }
-
-    @Override
-    protected String transportAction() {
-        return PercolateAction.NAME;
     }
 
     @Override
@@ -162,7 +160,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
             long tookInMillis = System.currentTimeMillis() - request.startTime;
             return new PercolateResponse(
                     shardsResponses.length(), successfulShards, failedShards, shardFailures,
-                    result.matches(), result.count(), tookInMillis, result.reducedFacets(), result.reducedAggregations()
+                    result.matches(), result.count(), tookInMillis, result.reducedAggregations()
             );
         }
     }
@@ -174,7 +172,7 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
 
     @Override
     protected PercolateShardRequest newShardRequest(int numShards, ShardRouting shard, PercolateRequest request) {
-        return new PercolateShardRequest(shard.index(), shard.id(), numShards, request);
+        return new PercolateShardRequest(shard.shardId(), numShards, request);
     }
 
     @Override
@@ -193,9 +191,8 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
         try {
             return percolatorService.percolate(request);
         } catch (Throwable e) {
-            logger.trace("[{}][{}] failed to percolate", e, request.index(), request.shardId());
-            ShardId shardId = new ShardId(request.index(), request.shardId());
-            throw new PercolateException(shardId, "failed to percolate", e);
+            logger.trace("{} failed to percolate", e, request.shardId());
+            throw new PercolateException(request.shardId(), "failed to percolate", e);
         }
     }
 

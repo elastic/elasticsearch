@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
@@ -55,8 +56,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
 
     @Inject
     public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                AllocationService allocationService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
-        super(settings, transportService, clusterService, threadPool);
+                                                AllocationService allocationService, @ClusterDynamicSettings DynamicSettings dynamicSettings, ActionFilters actionFilters) {
+        super(settings, ClusterUpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.allocationService = allocationService;
         this.dynamicSettings = dynamicSettings;
     }
@@ -64,11 +65,6 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return ClusterUpdateSettingsAction.NAME;
     }
 
     @Override
@@ -139,6 +135,12 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                     //we return when the cluster reroute is acked or it times out but the acknowledged flag depends on whether the update settings was acknowledged
                     protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
                         return new ClusterUpdateSettingsResponse(updateSettingsAcked && acknowledged, transientUpdates.build(), persistentUpdates.build());
+                    }
+
+                    @Override
+                    public void onNoLongerMaster(String source) {
+                        logger.debug("failed to preform reroute after cluster settings were updated - current node is no longer a master");
+                        listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, transientUpdates.build(), persistentUpdates.build()));
                     }
 
                     @Override

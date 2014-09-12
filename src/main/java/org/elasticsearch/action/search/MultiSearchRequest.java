@@ -24,6 +24,8 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -44,7 +46,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A multi search API request.
  */
-public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
+public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implements CompositeIndicesRequest {
 
     private List<SearchRequest> requests = Lists.newArrayList();
 
@@ -135,6 +137,8 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                                     searchRequest.types(Strings.splitStringByCommaToArray(parser.text()));
                                 } else if ("search_type".equals(currentFieldName) || "searchType".equals(currentFieldName)) {
                                     searchRequest.searchType(parser.text());
+                                } else if ("query_cache".equals(currentFieldName) || "queryCache".equals(currentFieldName)) {
+                                    searchRequest.queryCache(parser.booleanValue());
                                 } else if ("preference".equals(currentFieldName)) {
                                     searchRequest.preference(parser.text());
                                 } else if ("routing".equals(currentFieldName)) {
@@ -221,6 +225,11 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
     }
 
     public List<SearchRequest> requests() {
+        return this.requests;
+    }
+
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
         return this.requests;
     }
 

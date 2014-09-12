@@ -20,10 +20,12 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 
@@ -32,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to close an index.
  */
-public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
+public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> implements IndicesRequest {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
@@ -50,7 +52,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (indices == null || indices.length == 0) {
+        if (CollectionUtils.isEmpty(indices)) {
             validationException = addValidationError("index is missing", validationException);
         }
         return validationException;
@@ -60,7 +62,8 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
      * The indices to be closed
      * @return the indices to be closed
      */
-    String[] indices() {
+    @Override
+    public String[] indices() {
         return indices;
     }
 
@@ -80,6 +83,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> {
      *
      * @return the desired behaviour regarding indices to ignore and wildcard indices expressions
      */
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

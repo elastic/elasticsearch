@@ -22,6 +22,7 @@ package org.elasticsearch.index.snapshots;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -123,6 +124,9 @@ public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardCompo
             indexShardRepository.restore(restoreSource.snapshotId(), shardId, snapshotShardId, recoveryState);
             restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), shardId);
         } catch (Throwable t) {
+            if (Lucene.isCorruptionException(t)) {
+                restoreService.failRestore(restoreSource.snapshotId(), shardId());
+            }
             throw new IndexShardRestoreFailedException(shardId, "restore failed", t);
         }
     }

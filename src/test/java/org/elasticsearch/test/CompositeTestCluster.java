@@ -18,14 +18,21 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Iterators;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.Iterators;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.client.*;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -33,6 +40,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Random;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 
 /**
  * A test cluster implementation that holds a fixed set of external nodes as well as a InternalTestCluster
@@ -67,7 +77,7 @@ public class CompositeTestCluster extends TestCluster {
         for (int i = 0; i < externalNodes.length; i++) {
             if (!externalNodes[i].running()) {
                 try {
-                    externalNodes[i] = externalNodes[i].start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName());
+                    externalNodes[i] = externalNodes[i].start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName(), i);
                 } catch (InterruptedException e) {
                     Thread.interrupted();
                     return;
@@ -97,6 +107,30 @@ public class CompositeTestCluster extends TestCluster {
      */
     public synchronized boolean upgradeOneNode() throws InterruptedException, IOException {
       return upgradeOneNode(ImmutableSettings.EMPTY);
+    }
+
+    /**
+     * Upgrades all external running nodes to a node from the version running the tests.
+     * All nodes are shut down before the first upgrade happens.
+     * @return <code>true</code> iff at least one node as upgraded.
+     */
+    public synchronized boolean upgradeAllNodes() throws InterruptedException, IOException {
+        return upgradeAllNodes(ImmutableSettings.EMPTY);
+    }
+
+
+    /**
+     * Upgrades all external running nodes to a node from the version running the tests.
+     * All nodes are shut down before the first upgrade happens.
+     * @return <code>true</code> iff at least one node as upgraded.
+     * @param nodeSettings settings for the upgrade nodes
+     */
+    public synchronized boolean upgradeAllNodes(Settings nodeSettings) throws InterruptedException, IOException {
+        boolean upgradedOneNode = false;
+        while(upgradeOneNode(nodeSettings)) {
+            upgradedOneNode = true;
+        }
+        return upgradedOneNode;
     }
 
     /**
@@ -194,13 +228,40 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     @Override
+    public void ensureEstimatedStats() {
+        if (size() > 0) {
+            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
+                    .clear().setBreaker(true).execute().actionGet();
+            for (NodeStats stats : nodeStats.getNodes()) {
+                assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),
+                        stats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
+            }
+            // CompositeTestCluster does not check the request breaker,
+            // because checking it requires a network request, which in
+            // turn increments the breaker, making it non-0
+        }
+    }
+
+    @Override
     public boolean hasFilterCache() {
         return true;
     }
 
     @Override
+    public String getClusterName() {
+        return cluster.getClusterName();
+    }
+
+    @Override
     public synchronized Iterator<Client> iterator() {
         return Iterators.singletonIterator(client());
+    }
+
+    /**
+     * Delegates to {@link org.elasticsearch.test.InternalTestCluster#fullRestart()}
+     */
+    public void fullRestartInternalCluster() throws Exception {
+        cluster.fullRestart();
     }
 
     /**
@@ -215,6 +276,14 @@ public class CompositeTestCluster extends TestCluster {
      */
     public int numBackwardsDataNodes() {
         return runningNodes().size();
+    }
+
+    public TransportAddress externalTransportAddress() {
+        return RandomPicks.randomFrom(random, externalNodes).getTransportAddress();
+    }
+
+    public InternalTestCluster internalCluster() {
+        return cluster;
     }
 
     private synchronized Client internalClient() {

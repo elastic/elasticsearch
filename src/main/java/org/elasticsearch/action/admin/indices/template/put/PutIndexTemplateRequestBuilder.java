@@ -110,6 +110,15 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
     }
 
     /**
+     * A specialized simplified mapping source method, takes the form of simple properties definition:
+     * ("field1", "type=string,store=true").
+     */
+    public PutIndexTemplateRequestBuilder addMapping(String type, Object... source) {
+        request.mapping(type, source);
+        return this;
+    }
+
+    /**
      * Sets the aliases that will be associated with the index when it gets created
      */
     public PutIndexTemplateRequestBuilder setAliases(Map source) {

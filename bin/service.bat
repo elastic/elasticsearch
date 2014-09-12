@@ -43,6 +43,8 @@ set SERVICE_ID=%1
 
 if "%LOG_OPTS%" == "" set LOG_OPTS=--LogPath "%LOG_DIR%" --LogPrefix "%SERVICE_ID%" --StdError auto --StdOutput auto
 
+TITLE Elasticsearch Service ${project.version}
+
 if /i %SERVICE_CMD% == install goto doInstall
 if /i %SERVICE_CMD% == remove goto doRemove
 if /i %SERVICE_CMD% == start goto doStart

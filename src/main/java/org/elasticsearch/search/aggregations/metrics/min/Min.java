@@ -21,9 +21,12 @@ package org.elasticsearch.search.aggregations.metrics.min;
 import org.elasticsearch.search.aggregations.Aggregation;
 
 /**
- *
+ * An aggregation that computes the minimum of the values in the current bucket.
  */
 public interface Min extends Aggregation {
 
+    /**
+     * The minimum.
+     */
     double getValue();
 }

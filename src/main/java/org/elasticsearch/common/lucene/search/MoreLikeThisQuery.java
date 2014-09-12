@@ -20,8 +20,8 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.queries.mlt.MoreLikeThis;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -47,17 +47,18 @@ public class MoreLikeThisQuery extends Query {
     private TFIDFSimilarity similarity;
 
     private String[] likeText;
+    private Fields[] likeFields;
     private String[] moreLikeFields;
     private Analyzer analyzer;
     private float percentTermsToMatch = DEFAULT_PERCENT_TERMS_TO_MATCH;
-    private int minTermFrequency = MoreLikeThis.DEFAULT_MIN_TERM_FREQ;
-    private int maxQueryTerms = MoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
-    private Set<?> stopWords = MoreLikeThis.DEFAULT_STOP_WORDS;
-    private int minDocFreq = MoreLikeThis.DEFAULT_MIN_DOC_FREQ;
-    private int maxDocFreq = MoreLikeThis.DEFAULT_MAX_DOC_FREQ;
-    private int minWordLen = MoreLikeThis.DEFAULT_MIN_WORD_LENGTH;
-    private int maxWordLen = MoreLikeThis.DEFAULT_MAX_WORD_LENGTH;
-    private boolean boostTerms = MoreLikeThis.DEFAULT_BOOST;
+    private int minTermFrequency = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
+    private int maxQueryTerms = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
+    private Set<?> stopWords = XMoreLikeThis.DEFAULT_STOP_WORDS;
+    private int minDocFreq = XMoreLikeThis.DEFAULT_MIN_DOC_FREQ;
+    private int maxDocFreq = XMoreLikeThis.DEFAULT_MAX_DOC_FREQ;
+    private int minWordLen = XMoreLikeThis.DEFAULT_MIN_WORD_LENGTH;
+    private int maxWordLen = XMoreLikeThis.DEFAULT_MAX_WORD_LENGTH;
+    private boolean boostTerms = XMoreLikeThis.DEFAULT_BOOST;
     private float boostTermsFactor = 1;
 
 
@@ -135,7 +136,7 @@ public class MoreLikeThisQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        MoreLikeThis mlt = new MoreLikeThis(reader, similarity == null ? new DefaultSimilarity() : similarity);
+        XMoreLikeThis mlt = new XMoreLikeThis(reader, similarity == null ? new DefaultSimilarity() : similarity);
 
         mlt.setFieldNames(moreLikeFields);
         mlt.setAnalyzer(analyzer);
@@ -149,12 +150,18 @@ public class MoreLikeThisQuery extends Query {
         mlt.setBoost(boostTerms);
         mlt.setBoostFactor(boostTermsFactor);
 
-        Reader[] readers = new Reader[likeText.length];
-        for (int i = 0; i < readers.length; i++) {
-            readers[i] = new FastStringReader(likeText[i]);
+        BooleanQuery bq = new BooleanQuery();
+        if (this.likeFields != null) {
+            bq.add((BooleanQuery) mlt.like(this.likeFields), BooleanClause.Occur.SHOULD);
         }
-        //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
-        BooleanQuery bq = (BooleanQuery) mlt.like(moreLikeFields[0], readers);
+        if (this.likeText != null) {
+            Reader[] readers = new Reader[likeText.length];
+            for (int i = 0; i < readers.length; i++) {
+                readers[i] = new FastStringReader(likeText[i]);
+            }
+            //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
+            bq.add((BooleanQuery) mlt.like(moreLikeFields[0], readers), BooleanClause.Occur.SHOULD);
+        }
 
         BooleanClause[] clauses = bq.getClauses();
         bq.setMinimumNumberShouldMatch((int) (clauses.length * percentTermsToMatch));
@@ -182,6 +189,14 @@ public class MoreLikeThisQuery extends Query {
 
     public void setLikeText(String... likeText) {
         this.likeText = likeText;
+    }
+
+    public Fields[] getLikeFields() {
+        return likeFields;
+    }
+
+    public void setLikeText(Fields... likeFields) {
+        this.likeFields = likeFields;
     }
 
     public void setLikeText(List<String> likeText) {

@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.search.FieldCache;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.LuceneTestCase;
@@ -39,10 +40,7 @@ import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.store.MockDirectoryHelper;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Ignore;
+import org.junit.*;
 
 import java.io.Closeable;
 import java.io.File;
@@ -75,8 +73,6 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
-    public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
-
     public static final String TESTS_SECURITY_MANAGER = System.getProperty("tests.security.manager");
 
     public static final String JAVA_SECURTY_POLICY = System.getProperty("java.security.policy");
@@ -97,6 +93,21 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
             System.setSecurityManager(new SecurityManager());
         }
 
+    }
+
+    @Before
+    public void cleanFieldCache() {
+        FieldCache.DEFAULT.purgeAllCaches();
+    }
+
+    @After
+    public void ensureNoFieldCacheUse() {
+        // We use the lucene comparators, and by default they work on field cache.
+        // However, given the way that we use them, field cache should NEVER get loaded.
+        if (getClass().getAnnotation(UsesLuceneFieldCacheOnPurpose.class) == null) {
+            FieldCache.CacheEntry[] entries = FieldCache.DEFAULT.getCacheEntries();
+            assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
+        }
     }
 
     /**
@@ -280,18 +291,89 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         SORTED_VERSIONS = version.build();
     }
 
+    /**
+     * @return the {@link Version} before the {@link Version#CURRENT}
+     */
     public static Version getPreviousVersion() {
         Version version = SORTED_VERSIONS.get(1);
         assert version.before(Version.CURRENT);
         return version;
     }
-
+    
+    /**
+     * A random {@link Version}.
+     *
+     * @return a random {@link Version} from all available versions
+     */
     public static Version randomVersion() {
         return randomVersion(getRandom());
     }
-
+    
+    /**
+     * A random {@link Version}.
+     * 
+     * @param random
+     *            the {@link Random} to use to generate the random version
+     *
+     * @return a random {@link Version} from all available versions
+     */
     public static Version randomVersion(Random random) {
         return SORTED_VERSIONS.get(random.nextInt(SORTED_VERSIONS.size()));
+    }
+    
+    /**
+     * Returns immutable list of all known versions.
+     */
+    public static List<Version> allVersions() {
+        return Collections.unmodifiableList(SORTED_VERSIONS);
+    }
+
+    /**
+     * A random {@link Version} from <code>minVersion</code> to
+     * <code>maxVersion</code> (inclusive).
+     * 
+     * @param minVersion
+     *            the minimum version (inclusive)
+     * @param maxVersion
+     *            the maximum version (inclusive)
+     * @return a random {@link Version} from <code>minVersion</code> to
+     *         <code>maxVersion</code> (inclusive)
+     */
+    public static Version randomVersionBetween(Version minVersion, Version maxVersion) {
+        return randomVersionBetween(getRandom(), minVersion, maxVersion);
+    }
+
+    /**
+     * A random {@link Version} from <code>minVersion</code> to
+     * <code>maxVersion</code> (inclusive).
+     * 
+     * @param random
+     *            the {@link Random} to use to generate the random version
+     * @param minVersion
+     *            the minimum version (inclusive)
+     * @param maxVersion
+     *            the maximum version (inclusive)
+     * @return a random {@link Version} from <code>minVersion</code> to
+     *         <code>maxVersion</code> (inclusive)
+     */
+    public static Version randomVersionBetween(Random random, Version minVersion, Version maxVersion) {
+        int minVersionIndex = SORTED_VERSIONS.size();
+        if (minVersion != null) {
+            minVersionIndex = SORTED_VERSIONS.indexOf(minVersion);
+        }
+        int maxVersionIndex = 0;
+        if (maxVersion != null) {
+            maxVersionIndex = SORTED_VERSIONS.indexOf(maxVersion);
+        }
+        if (minVersionIndex == -1) {
+            throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
+        } else if (maxVersionIndex == -1) {
+            throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
+        } else {
+            // minVersionIndex is inclusive so need to add 1 to this index
+            int range = minVersionIndex + 1 - maxVersionIndex;
+            return SORTED_VERSIONS.get(maxVersionIndex + random.nextInt(range));
+        }
     }
 
     static final class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
@@ -393,6 +475,15 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     @Ignore
     public @interface CompatibilityVersion {
         int version();
+    }
+
+    /**
+     * Most tests don't use {@link FieldCache} but some of them might do.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.TYPE})
+    @Ignore
+    public @interface UsesLuceneFieldCacheOnPurpose {
     }
 
     /**

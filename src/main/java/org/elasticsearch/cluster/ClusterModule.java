@@ -20,7 +20,9 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.cluster.action.index.*;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
+import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
@@ -32,8 +34,12 @@ import org.elasticsearch.cluster.settings.ClusterDynamicSettingsModule;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexDynamicSettingsModule;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  *
@@ -42,8 +48,14 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
 
+    private Set<Class<? extends IndexTemplateFilter>> indexTemplateFilters = new HashSet<>();
+
     public ClusterModule(Settings settings) {
         this.settings = settings;
+    }
+
+    public void registerIndexTemplateFilter(Class<? extends IndexTemplateFilter> indexTemplateFilter) {
+        indexTemplateFilters.add(indexTemplateFilter);
     }
 
     @Override
@@ -76,5 +88,10 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
         bind(MappingUpdatedAction.class).asEagerSingleton();
 
         bind(ClusterInfoService.class).to(InternalClusterInfoService.class).asEagerSingleton();
+
+        Multibinder<IndexTemplateFilter> mbinder = Multibinder.newSetBinder(binder(), IndexTemplateFilter.class);
+        for (Class<? extends IndexTemplateFilter> indexTemplateFilter : indexTemplateFilters) {
+            mbinder.addBinding().to(indexTemplateFilter);
+        }
     }
 }

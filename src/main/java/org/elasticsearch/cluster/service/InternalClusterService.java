@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -83,7 +84,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private volatile ClusterState clusterState;
 
-    private final ClusterBlocks.Builder initialBlocks = ClusterBlocks.builder().addGlobalBlock(Discovery.NO_MASTER_BLOCK);
+    private final ClusterBlocks.Builder initialBlocks;
 
     private volatile ScheduledFuture reconnectToNodes;
 
@@ -103,6 +104,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         this.reconnectInterval = componentSettings.getAsTime("reconnect_interval", TimeValue.timeValueSeconds(10));
 
         localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
+
+        initialBlocks = ClusterBlocks.builder().addGlobalBlock(discoveryService.getNoMasterBlock());
     }
 
     public NodeSettingsService settingsService() {
@@ -130,6 +133,24 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
         this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(daemonThreadFactory(settings, "clusterService#updateTask"));
         this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ReconnectToNodes());
+        discoveryService.addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void afterStart() {
+                submitStateUpdateTask("update local node", Priority.IMMEDIATE, new ClusterStateNonMasterUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        return ClusterState.builder(currentState)
+                                .nodes(DiscoveryNodes.builder(currentState.nodes()).put(localNode()).localNodeId(localNode().id()))
+                                .build();
+                    }
+
+                    @Override
+                    public void onFailure(String source, Throwable t) {
+                        logger.warn("failed to update local node", t);
+                    }
+                });
+            }
+        });
     }
 
     @Override
@@ -304,6 +325,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             }
             logger.debug("processing [{}]: execute", source);
             ClusterState previousClusterState = clusterState;
+            if (!previousClusterState.nodes().localNodeMaster() && updateTask.runOnlyOnMaster()) {
+                logger.debug("failing [{}]: local node is no longer master", source);
+                updateTask.onNoLongerMaster(source);
+                return;
+            }
             ClusterState newClusterState;
             try {
                 newClusterState = updateTask.execute(previousClusterState);
@@ -359,20 +385,6 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                                 ackedUpdateTask.onAckTimeout();
                             }
                         }
-                    }
-                } else {
-                    if (previousClusterState.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK) && !newClusterState.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
-                        // force an update, its a fresh update from the master as we transition from a start of not having a master to having one
-                        // have a fresh instances of routing and metadata to remove the chance that version might be the same
-                        Builder builder = ClusterState.builder(newClusterState);
-                        builder.routingTable(RoutingTable.builder(newClusterState.routingTable()));
-                        builder.metaData(MetaData.builder(newClusterState.metaData()));
-                        newClusterState = builder.build();
-                        logger.debug("got first state from fresh master [{}]", newClusterState.nodes().masterNodeId());
-                    } else if (newClusterState.version() < previousClusterState.version()) {
-                        // we got a cluster state with older version, when we are *not* the master, let it in since it might be valid
-                        // we check on version where applicable, like at ZenDiscovery#handleNewClusterStateFromMaster
-                        logger.debug("got smaller cluster state when not master [" + newClusterState.version() + "<" + previousClusterState.version() + "] from source [" + source + "]");
                     }
                 }
 
@@ -431,15 +443,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     listener.clusterChanged(clusterChangedEvent);
                 }
 
-                if (!nodesDelta.removedNodes().isEmpty()) {
-                    threadPool.generic().execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            for (DiscoveryNode node : nodesDelta.removedNodes()) {
-                                transportService.disconnectFromNode(node);
-                            }
-                        }
-                    });
+                for (DiscoveryNode node : nodesDelta.removedNodes()) {
+                    try {
+                        transportService.disconnectFromNode(node);
+                    } catch (Throwable e) {
+                        logger.warn("failed to disconnect to node [" + node + "]", e);
+                    }
                 }
 
                 newClusterState.status(ClusterState.ClusterStateStatus.APPLIED);
@@ -701,5 +710,4 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             }
         }
     }
-
 }

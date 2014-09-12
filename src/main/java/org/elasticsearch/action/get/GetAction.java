@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 public class GetAction extends ClientAction<GetRequest, GetResponse, GetRequestBuilder> {
 
     public static final GetAction INSTANCE = new GetAction();
-    public static final String NAME = "get";
+    public static final String NAME = "indices:data/read/get";
 
     private GetAction() {
         super(NAME);

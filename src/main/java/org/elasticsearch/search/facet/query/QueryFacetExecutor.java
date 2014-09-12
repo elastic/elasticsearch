@@ -51,7 +51,7 @@ public class QueryFacetExecutor extends FacetExecutor {
         if (possibleFilter != null) {
             this.filter = possibleFilter;
         } else {
-            this.filter = Queries.wrap(query);
+            this.filter = Queries.wrap(query, null);
         }
     }
 

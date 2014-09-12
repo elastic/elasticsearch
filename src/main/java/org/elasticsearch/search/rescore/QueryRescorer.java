@@ -119,7 +119,7 @@ public final class QueryRescorer implements Rescorer {
         return rescorer.rescore(context.searcher(), topDocs, Math.max(topDocs.scoreDocs.length, rescoreContext.window()));
     }
 
-    // THIS RETRUNS BOGUS explains
+    // THIS RETURNS BOGUS explains
 //    @Override
 //    public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
 //            Explanation sourceExplanation) throws IOException {

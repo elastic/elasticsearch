@@ -307,6 +307,8 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
             nodeWithPrimary = "node2";
             nodeWithoutPrimary = "node1";
         }
+        logger.info("--> nodeWithPrimary: {}", nodeWithPrimary);
+        logger.info("--> nodeWithoutPrimary: {}", nodeWithoutPrimary);
 
         // Make node without the primary now habitable to replicas
         usages.put(nodeWithoutPrimary, new DiskUsage(nodeWithoutPrimary, 100, 35)); // 65% used

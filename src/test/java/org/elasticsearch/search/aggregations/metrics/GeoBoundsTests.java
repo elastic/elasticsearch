@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregat
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -54,6 +55,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
+@TestLogging("org.elasticsearch.indices.recovery:TRACE")
 public class GeoBoundsTests extends ElasticsearchIntegrationTest {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "geo_value";

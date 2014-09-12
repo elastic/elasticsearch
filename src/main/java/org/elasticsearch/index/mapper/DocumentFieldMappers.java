@@ -101,11 +101,11 @@ public class DocumentFieldMappers implements Iterable<FieldMapper> {
         return fieldMappers.fullName(fullName);
     }
 
-    public Set<String> simpleMatchToIndexNames(String pattern) {
+    public List<String> simpleMatchToIndexNames(String pattern) {
         return fieldMappers.simpleMatchToIndexNames(pattern);
     }
 
-    public Set<String> simpleMatchToFullName(String pattern) {
+    public List<String> simpleMatchToFullName(String pattern) {
         return fieldMappers.simpleMatchToFullName(pattern);
     }
 

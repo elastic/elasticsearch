@@ -29,7 +29,7 @@ The `range` query accepts the following parameters:
 `lt`::  	Less-than
 `boost`:: 	Sets the boost value of the query, defaults to `1.0`
 
-coming[1.4.0]
+coming[1.4.0.Beta]
 
 When applied on `date` fields the `range` filter accepts also a `time_zone` parameter.
 The `time_zone` parameter will be applied to your input lower and upper bounds and will

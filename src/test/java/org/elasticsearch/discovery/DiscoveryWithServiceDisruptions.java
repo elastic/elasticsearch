@@ -21,12 +21,10 @@ package org.elasticsearch.discovery;
 
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -34,7 +32,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -50,7 +47,6 @@ import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.*;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -60,10 +56,9 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -362,142 +357,6 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
                         "\n--- cluster state [" + node + "]: ---\n" + nodeState.prettyPrint());
             }
 
-        }
-    }
-
-    /**
-     * Test the we do not loose document whose indexing request was successful, under a randomly selected disruption scheme
-     * We also collect & report the type of indexing failures that occur.
-     */
-    @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "needs some more work to stabilize")
-    @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
-    public void testAckedIndexing() throws Exception {
-        final List<String> nodes = startCluster(3);
-
-        assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.builder()
-                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                ));
-        ensureGreen();
-
-        ServiceDisruptionScheme disruptionScheme = addRandomDisruptionScheme();
-        logger.info("disruption scheme [{}] added", disruptionScheme);
-
-        final ConcurrentHashMap<String, String> ackedDocs = new ConcurrentHashMap<>(); // id -> node sent.
-
-        final AtomicBoolean stop = new AtomicBoolean(false);
-        List<Thread> indexers = new ArrayList<>(nodes.size());
-        List<Semaphore> semaphores = new ArrayList<>(nodes.size());
-        final AtomicInteger idGenerator = new AtomicInteger(0);
-        final AtomicReference<CountDownLatch> countDownLatchRef = new AtomicReference<>();
-        final List<Exception> exceptedExceptions = Collections.synchronizedList(new ArrayList<Exception>());
-
-        logger.info("starting indexers");
-        try {
-            for (final String node : nodes) {
-                final Semaphore semaphore = new Semaphore(0);
-                semaphores.add(semaphore);
-                final Client client = client(node);
-                final String name = "indexer_" + indexers.size();
-                final int numPrimaries = getNumShards("test").numPrimaries;
-                Thread thread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        while (!stop.get()) {
-                            String id = null;
-                            try {
-                                if (!semaphore.tryAcquire(10, TimeUnit.SECONDS)) {
-                                    continue;
-                                }
-                                logger.info("[{}] Acquired semaphore and it has {} permits left", name, semaphore.availablePermits());
-                                try {
-                                    id = Integer.toString(idGenerator.incrementAndGet());
-                                    int shard = ((InternalTestCluster) cluster()).getInstance(DjbHashFunction.class).hash(id) % numPrimaries;
-                                    logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
-                                    IndexResponse response = client.prepareIndex("test", "type", id).setSource("{}").setTimeout("1s").get();
-                                    assertThat(response.getVersion(), equalTo(1l));
-                                    ackedDocs.put(id, node);
-                                    logger.trace("[{}] indexed id [{}] through node [{}]", name, id, node);
-                                } catch (ElasticsearchException e) {
-                                    exceptedExceptions.add(e);
-                                    logger.trace("[{}] failed id [{}] through node [{}]", e, name, id, node);
-                                } finally {
-                                    countDownLatchRef.get().countDown();
-                                    logger.trace("[{}] decreased counter : {}", name, countDownLatchRef.get().getCount());
-                                }
-                            } catch (InterruptedException e) {
-                                // fine - semaphore interrupt
-                            } catch (Throwable t) {
-                                logger.info("unexpected exception in background thread of [{}]", t, node);
-                            }
-                        }
-                    }
-                });
-
-                thread.setName(name);
-                thread.setDaemon(true);
-                thread.start();
-                indexers.add(thread);
-            }
-
-            int docsPerIndexer = randomInt(3);
-            logger.info("indexing " + docsPerIndexer + " docs per indexer before partition");
-            countDownLatchRef.set(new CountDownLatch(docsPerIndexer * indexers.size()));
-            for (Semaphore semaphore : semaphores) {
-                semaphore.release(docsPerIndexer);
-            }
-            assertTrue(countDownLatchRef.get().await(1, TimeUnit.MINUTES));
-
-            for (int iter = 1 + randomInt(2); iter > 0; iter--) {
-                logger.info("starting disruptions & indexing (iteration [{}])", iter);
-                disruptionScheme.startDisrupting();
-
-                docsPerIndexer = 1 + randomInt(5);
-                logger.info("indexing " + docsPerIndexer + " docs per indexer during partition");
-                countDownLatchRef.set(new CountDownLatch(docsPerIndexer * indexers.size()));
-                Collections.shuffle(semaphores);
-                for (Semaphore semaphore : semaphores) {
-                    assertThat(semaphore.availablePermits(), equalTo(0));
-                    semaphore.release(docsPerIndexer);
-                }
-                assertTrue(countDownLatchRef.get().await(60000 + disruptionScheme.expectedTimeToHeal().millis() * (docsPerIndexer * indexers.size()), TimeUnit.MILLISECONDS));
-
-                logger.info("stopping disruption");
-                disruptionScheme.stopDisrupting();
-                ensureStableCluster(3, TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() + DISRUPTION_HEALING_OVERHEAD.millis()));
-                ensureGreen("test");
-
-                logger.info("validating successful docs");
-                for (String node : nodes) {
-                    try {
-                        logger.debug("validating through node [{}]", node);
-                        for (String id : ackedDocs.keySet()) {
-                            assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
-                                    client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
-                        }
-                    } catch (AssertionError e) {
-                        throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
-                    }
-                }
-
-                logger.info("done validating (iteration [{}])", iter);
-            }
-        } finally {
-            if (exceptedExceptions.size() > 0) {
-                StringBuilder sb = new StringBuilder("Indexing exceptions during disruption:");
-                for (Exception e : exceptedExceptions) {
-                    sb.append("\n").append(e.getMessage());
-                }
-                logger.debug(sb.toString());
-            }
-            logger.info("shutting down indexers");
-            stop.set(true);
-            for (Thread indexer : indexers) {
-                indexer.interrupt();
-                indexer.join(60000);
-            }
         }
     }
 

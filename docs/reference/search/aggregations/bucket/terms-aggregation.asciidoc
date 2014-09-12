@@ -153,7 +153,7 @@ on high-cardinality fields as this will kill both your CPU since terms need to b
 
 ==== Calculating Document Count Error
 
-coming[1.4.0]
+coming[1.4.0.Beta]
 
 There are two error values which can be shown on the terms aggregation.  The first gives a value for the aggregation as
 a whole which represents the maximum potential document count for a term which did not make it into the final list of

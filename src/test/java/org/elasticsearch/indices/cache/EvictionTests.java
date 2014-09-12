@@ -20,6 +20,7 @@
 
 package org.elasticsearch.indices.cache;
 
+import com.google.common.base.Predicate;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -34,11 +35,15 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
+import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope= Scope.SUITE, numClientNodes = 0)
+@ElasticsearchIntegrationTest.ClusterScope(scope= Scope.SUITE, minNumDataNodes=0, maxNumDataNodes = 4, numClientNodes = 0)
 public class EvictionTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -87,8 +92,7 @@ public class EvictionTests extends ElasticsearchIntegrationTest {
             client().prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
         }
 
-        // Just to give enough time for evictions to occur
-        Thread.sleep(2000);
+        waitForEvictions(CacheType.FIELDDATA);
 
         nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
 
@@ -135,8 +139,7 @@ public class EvictionTests extends ElasticsearchIntegrationTest {
             client().prepareSearch().setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.termFilter("field2", i))).execute().actionGet();
         }
 
-        // Just to give enough time for evictions to occur
-        Thread.sleep(2000);
+        waitForEvictions(CacheType.FILTER);
 
         nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
 
@@ -149,5 +152,33 @@ public class EvictionTests extends ElasticsearchIntegrationTest {
             assertThat(ev.getEvictionsFifteenMinuteRate(), greaterThan(0D));
         }
     }
+
+    private enum CacheType {
+        FILTER, FIELDDATA
+    }
+
+    private void waitForEvictions(final CacheType cacheType) throws Exception {
+        assertTrue(awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object obj) {
+                boolean success = true;
+                NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
+                EvictionStats ev;
+                for (NodeStats n : nodesStats.getNodes()) {
+                    if (cacheType == CacheType.FILTER) {
+                        ev = n.getIndices().getFilterCache().getEvictionStats();
+                    } else {
+                        ev = n.getIndices().getFieldData().getEvictionStats();
+                    }
+                    if (ev.getEvictions() <= 0 || ev.getEvictionsOneMinuteRate() <= 0) {
+                        success = false;
+                        break;
+                    }
+                }
+
+                return success;
+            }
+        }, 10, TimeUnit.SECONDS));
+    }
+
 
 }

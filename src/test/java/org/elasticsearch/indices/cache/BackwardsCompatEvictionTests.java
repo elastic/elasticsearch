@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.cache;
 
+import com.google.common.base.Predicate;
 import org.apache.lucene.util.English;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -40,11 +41,12 @@ import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@ElasticsearchIntegrationTest.ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0)
+@ElasticsearchIntegrationTest.ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, minNumDataNodes=0, maxNumDataNodes = 4, numClientNodes = 0)
 public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -91,14 +93,14 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
 
             for (NodeStats stats : ns.getNodes()) {
 
-                // If the node we are talking to is 1.3.0+, it will have full responses
-                if (tcNodeVersion.onOrAfter(Version.V_1_3_0)) {
+                // If the node we are talking to is 1.5.0+, it will have full responses
+                if (tcNodeVersion.onOrAfter(Version.V_1_5_0)) {
 
                     EvictionStats ev = stats.getIndices().getFieldData().getEvictionStats();
                     Version nodeVersion = versions.get(stats.getNode().getId()).getVersion();
 
-                    // If the node in the stats (not the node we are talking to) is 1.3.0+, it will have eviction rates
-                    if (nodeVersion.onOrAfter(Version.V_1_3_0)) {
+                    // If the node in the stats (not the node we are talking to) is 1.5.0+, it will have eviction rates
+                    if (nodeVersion.onOrAfter(Version.V_1_5_0)) {
                         assertThat(ev.getEvictions(), equalTo(0l));
                         assertThat(ev.getEvictionsOneMinuteRate(), equalTo(0D));
                         assertThat(ev.getEvictionsFiveMinuteRate(), equalTo(0D));
@@ -112,7 +114,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
                     }
                 } else {
                     // If the node we are talking to is < 1.3.0, it will only have eviction counts and no rates.
-                    // But because this test code is executing in 1.3.0+, evictions will be present in response and negative
+                    // But because this test code is executing in 1.5.0+, evictions will be present in response and negative
                     EvictionStats ev = stats.getIndices().getFieldData().getEvictionStats();
                     assertThat(ev.getEvictions(), equalTo(0l));
                     assertThat(ev.getEvictionsOneMinuteRate(), equalTo(-1D));
@@ -141,7 +143,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
         }
 
         // Just to give enough time for evictions to occur
-        Thread.sleep(2000);
+        waitForEvictions(CacheType.FIELDDATA);
 
         // We explicitly connect to each node with a custom TransportClient
         for (NodeInfo n : nodesInfo.getNodes()) {
@@ -154,14 +156,14 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
             for (NodeStats stats : ns.getNodes()) {
                 boolean hasDocs = stats.getIndices().getDocs().getCount() > 0;
 
-                // If the node we are talking to is 1.3.0+, it will have full responses
-                if (tcNodeVersion.onOrAfter(Version.V_1_3_0)) {
+                // If the node we are talking to is 1.5.0+, it will have full responses
+                if (tcNodeVersion.onOrAfter(Version.V_1_5_0)) {
 
                     EvictionStats ev = stats.getIndices().getFieldData().getEvictionStats();
                     Version nodeVersion = versions.get(stats.getNode().getId()).getVersion();
 
-                    // If the node in the stats (not the node we are talking to) is 1.3.0+, it will have eviction rates
-                    if (nodeVersion.onOrAfter(Version.V_1_3_0)) {
+                    // If the node in the stats (not the node we are talking to) is 1.5.0+, it will have eviction rates
+                    if (nodeVersion.onOrAfter(Version.V_1_5_0)) {
                         assertThat(ev.getEvictions(), hasDocs ? greaterThan(0l) : equalTo(0L));
                         assertThat(ev.getEvictionsOneMinuteRate(), hasDocs ? greaterThan(0D) : equalTo(0D));
                         assertThat(ev.getEvictionsFiveMinuteRate(), hasDocs ? greaterThan(0D) : equalTo(0D));
@@ -175,7 +177,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
                     }
                 } else {
                     // If the node we are talking to is < 1.3.0, it will only have eviction counts and no rates.
-                    // But because this test code is executing in 1.3.0+, evictions will be present in response and negative
+                    // But because this test code is executing in 1.5.0+, evictions will be present in response and negative
                     EvictionStats ev = stats.getIndices().getFieldData().getEvictionStats();
                     assertThat(ev.getEvictions(), hasDocs ? greaterThan(0l) : equalTo(0L));
                     assertThat(ev.getEvictionsOneMinuteRate(), equalTo(-1D));
@@ -206,14 +208,14 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
 
             for (NodeStats stats : ns.getNodes()) {
 
-                // If the node we are talking to is 1.3.0+, it will have full responses
-                if (tcNodeVersion.onOrAfter(Version.V_1_3_0)) {
+                // If the node we are talking to is 1.5.0+, it will have full responses
+                if (tcNodeVersion.onOrAfter(Version.V_1_5_0)) {
 
                     EvictionStats ev = stats.getIndices().getFilterCache().getEvictionStats();
                     Version nodeVersion = versions.get(stats.getNode().getId()).getVersion();
 
-                    // If the node in the stats (not the node we are talking to) is 1.3.0+, it will have eviction rates
-                    if (nodeVersion.onOrAfter(Version.V_1_3_0)) {
+                    // If the node in the stats (not the node we are talking to) is 1.5.0+, it will have eviction rates
+                    if (nodeVersion.onOrAfter(Version.V_1_5_0)) {
                         assertThat(ev.getEvictions(), equalTo(0l));
                         assertThat(ev.getEvictionsOneMinuteRate(), equalTo(0D));
                         assertThat(ev.getEvictionsFiveMinuteRate(), equalTo(0D));
@@ -227,7 +229,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
                     }
                 } else {
                     // If the node we are talking to is < 1.3.0, it will only have eviction counts and no rates.
-                    // But because this test code is executing in 1.3.0+, evictions will be present in response and negative
+                    // But because this test code is executing in 1.5.0+, evictions will be present in response and negative
                     EvictionStats ev = stats.getIndices().getFilterCache().getEvictionStats();
                     assertThat(ev.getEvictions(), equalTo(0l));
                     assertThat(ev.getEvictionsOneMinuteRate(), equalTo(-1D));
@@ -257,7 +259,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
         }
 
         // Just to give enough time for evictions to occur
-        Thread.sleep(2000);
+        waitForEvictions(CacheType.FILTER);
 
         // We explicitly connect to each node with a custom TransportClient
         for (NodeInfo n : nodesInfo.getNodes()) {
@@ -270,14 +272,14 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
             for (NodeStats stats : ns.getNodes()) {
                 boolean hasDocs = stats.getIndices().getDocs().getCount() > 0;
 
-                // If the node we are talking to is 1.3.0+, it will have full responses
-                if (tcNodeVersion.onOrAfter(Version.V_1_3_0)) {
+                // If the node we are talking to is 1.5.0+, it will have full responses
+                if (tcNodeVersion.onOrAfter(Version.V_1_5_0)) {
 
                     EvictionStats ev = stats.getIndices().getFilterCache().getEvictionStats();
                     Version nodeVersion = versions.get(stats.getNode().getId()).getVersion();
 
-                    // If the node in the stats (not the node we are talking to) is 1.3.0+, it will have eviction rates
-                    if (nodeVersion.onOrAfter(Version.V_1_3_0)) {
+                    // If the node in the stats (not the node we are talking to) is 1.5.0+, it will have eviction rates
+                    if (nodeVersion.onOrAfter(Version.V_1_5_0)) {
                         assertThat(ev.getEvictions(), hasDocs ? greaterThan(0l) : equalTo(0L));
                         assertThat(ev.getEvictionsOneMinuteRate(), hasDocs ? greaterThan(0D) : equalTo(0D));
                         assertThat(ev.getEvictionsFiveMinuteRate(), hasDocs ? greaterThan(0D) : equalTo(0D));
@@ -291,7 +293,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
                     }
                 } else {
                     // If the node we are talking to is < 1.3.0, it will only have eviction counts and no rates.
-                    // But because this test code is executing in 1.3.0+, evictions will be present in response and negative
+                    // But because this test code is executing in 1.5.0+, evictions will be present in response and negative
                     EvictionStats ev = stats.getIndices().getFilterCache().getEvictionStats();
                     assertThat(ev.getEvictions(), hasDocs ? greaterThan(0l) : equalTo(0L));
                     assertThat(ev.getEvictionsOneMinuteRate(), equalTo(-1D));
@@ -300,5 +302,32 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
                 }
             }
         }
+    }
+
+    private enum CacheType {
+        FILTER, FIELDDATA
+    }
+
+    private void waitForEvictions(final CacheType cacheType) throws Exception {
+        assertTrue(awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object obj) {
+                boolean success = true;
+                NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
+                EvictionStats ev;
+                for (NodeStats n : nodesStats.getNodes()) {
+                    if (cacheType == CacheType.FILTER) {
+                        ev = n.getIndices().getFilterCache().getEvictionStats();
+                    } else {
+                        ev = n.getIndices().getFieldData().getEvictionStats();
+                    }
+                    if (ev.getEvictions() <= 0 || ev.getEvictionsOneMinuteRate() <= 0) {
+                        success = false;
+                        break;
+                    }
+                }
+
+                return success;
+            }
+        }, 10, TimeUnit.SECONDS));
     }
 }

@@ -954,7 +954,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                                         .add(exponentialDecayFunction("num", 1.0, 5.0).setOffset(1.0))
                                         .boostMode(CombineFunction.REPLACE.getName())))).get();
         String explanation = response.getHits().getAt(0).getExplanation().toString();
-        assertThat(explanation, containsString(" 1.0 = -exp(-0.5*pow(MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)],2.0)/18.033688011112044)"));
+        assertThat(explanation, containsString(" 1.0 = exp(-0.5*pow(MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)],2.0)/18.033688011112044)"));
         assertThat(explanation, containsString("1.0 = max(0.0, ((10.0 - MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)])/10.0)"));
         assertThat(explanation, containsString("1.0 = exp(- MIN[Math.max(Math.abs(0.5(=doc value) - 1.0(=origin))) - 1.0(=offset), 0), Math.max(Math.abs(0.7(=doc value) - 1.0(=origin))) - 1.0(=offset), 0)] * 0.13862943611198905)"));
 

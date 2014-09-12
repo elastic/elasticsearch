@@ -158,9 +158,9 @@ public class NestedFilterParser implements FilterParser {
             Filter nestedFilter;
             if (join) {
                 ToParentBlockJoinQuery joinQuery = new ToParentBlockJoinQuery(query, parentFilter, ScoreMode.None);
-                nestedFilter = Queries.wrap(joinQuery);
+                nestedFilter = Queries.wrap(joinQuery, parseContext);
             } else {
-                nestedFilter = Queries.wrap(query);
+                nestedFilter = Queries.wrap(query, parseContext);
             }
 
             if (cache) {

@@ -55,7 +55,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
-@TestLogging("org.elasticsearch.indices.recovery:TRACE")
+@TestLogging("indices.recovery:TRACE,action.search.type:TRACE")
 public class GeoBoundsTests extends ElasticsearchIntegrationTest {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "geo_value";

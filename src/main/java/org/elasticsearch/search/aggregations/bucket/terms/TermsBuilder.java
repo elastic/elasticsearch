@@ -117,12 +117,51 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
      */
     public TermsBuilder include(String [] terms) {
         if (includePattern != null) {
-            throw new ElasticsearchIllegalArgumentException("include clause must be an array of strings or a regex, not both");
+            throw new ElasticsearchIllegalArgumentException("include clause must be an array of exact values or a regex, not both");
         }
         this.includeTerms = terms;
         return this;
     }    
+    
+    /**
+     * Define a set of terms that should be aggregated.
+     */
+    public TermsBuilder include(long [] terms) {
+        if (includePattern != null) {
+            throw new ElasticsearchIllegalArgumentException("include clause must be an array of exact values or a regex, not both");
+        }
+        this.includeTerms = longsArrToStringArr(terms);
+        return this;
+    }     
+    
+    private String[] longsArrToStringArr(long[] terms) {
+        String[] termsAsString = new String[terms.length];
+        for (int i = 0; i < terms.length; i++) {
+            termsAsString[i] = Long.toString(terms[i]);
+        }
+        return termsAsString;
+    }      
+    
 
+    /**
+     * Define a set of terms that should be aggregated.
+     */
+    public TermsBuilder include(double [] terms) {
+        if (includePattern != null) {
+            throw new ElasticsearchIllegalArgumentException("include clause must be an array of exact values or a regex, not both");
+        }
+        this.includeTerms = doubleArrToStringArr(terms);
+        return this;
+    }
+
+    private String[] doubleArrToStringArr(double[] terms) {
+        String[] termsAsString = new String[terms.length];
+        for (int i = 0; i < terms.length; i++) {
+            termsAsString[i] = Double.toString(terms[i]);
+        }
+        return termsAsString;
+    }    
+    
     /**
      * Define a regular expression that will filter out terms that should be excluded from the aggregation. The regular
      * expression is based on the {@link java.util.regex.Pattern} class.
@@ -141,7 +180,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
      */
     public TermsBuilder exclude(String regex, int flags) {
         if (excludeTerms != null) {
-            throw new ElasticsearchIllegalArgumentException("exclude clause must be an array of strings or a regex, not both");
+            throw new ElasticsearchIllegalArgumentException("exclude clause must be an array of exact values or a regex, not both");
         }
         this.excludePattern = regex;
         this.excludeFlags = flags;
@@ -153,11 +192,35 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
      */
     public TermsBuilder exclude(String [] terms) {
         if (excludePattern != null) {
-            throw new ElasticsearchIllegalArgumentException("exclude clause must be an array of strings or a regex, not both");
+            throw new ElasticsearchIllegalArgumentException("exclude clause must be an array of exact values or a regex, not both");
         }
         this.excludeTerms = terms;
         return this;
     }    
+    
+    
+    /**
+     * Define a set of terms that should not be aggregated.
+     */
+    public TermsBuilder exclude(long [] terms) {
+        if (excludePattern != null) {
+            throw new ElasticsearchIllegalArgumentException("exclude clause must be an array of exact values or a regex, not both");
+        }
+        this.excludeTerms = longsArrToStringArr(terms);
+        return this;
+    }
+
+    /**
+     * Define a set of terms that should not be aggregated.
+     */
+    public TermsBuilder exclude(double [] terms) {
+        if (excludePattern != null) {
+            throw new ElasticsearchIllegalArgumentException("exclude clause must be an array of exact values or a regex, not both");
+        }
+        this.excludeTerms = doubleArrToStringArr(terms);
+        return this;
+    }    
+    
     
 
     /**

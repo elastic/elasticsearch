@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
@@ -103,7 +104,7 @@ public class MissingFilterParser implements FilterParser {
             fieldPattern = fieldPattern + ".*";
         }
 
-        Set<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
+        List<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
         if (fields.isEmpty()) {
             if (existence) {
                 // if we ask for existence of fields, and we found none, then we should match on all

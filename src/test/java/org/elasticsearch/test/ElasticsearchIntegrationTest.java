@@ -853,7 +853,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
                     assertThat("document mapper doesn't exists on " + node, documentMapper, notNullValue());
                     for (String fieldName : fieldNames) {
-                        Set<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
+                        List<String> matches = documentMapper.mappers().simpleMatchToFullName(fieldName);
                         assertThat("field " + fieldName + " doesn't exists on " + node, matches, Matchers.not(emptyIterable()));
                     }
                 }

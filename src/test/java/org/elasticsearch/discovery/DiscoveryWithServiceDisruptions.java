@@ -370,6 +370,7 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
      * We also collect & report the type of indexing failures that occur.
      */
     @Test
+    // NOTE: if you remove the awaitFix, make sure to port the test to the 1.x branch
     @LuceneTestCase.AwaitsFix(bugUrl = "needs some more work to stabilize")
     @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void testAckedIndexing() throws Exception {

@@ -1,10 +1,11 @@
 [[indices-warmers]]
 == Warmers
 
-Index warming allows to run registered search requests to warm up the
-index before it is available for search. With the near real time aspect
-of search, cold data (segments) will be warmed up before they become
-available for search. 
+Index warming allows to run registered search requests to warm up the index
+before it is available for search. With the near real time aspect of search,
+cold data (segments) will be warmed up before they become available for search.
+This includes things such as the filter cache, filesystem cache, and loading
+field data for fields.
 
 Warmup searches typically include requests that require heavy loading of
 data, such as aggregations or sorting on specific fields. The warmup APIs

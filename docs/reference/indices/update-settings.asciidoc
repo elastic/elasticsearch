@@ -43,7 +43,7 @@ settings API:
     and metadata changes.
 
 `index.blocks.read`::
-    Set to `true` to disable read operations againstthe index.
+    Set to `true` to disable read operations against the index.
 
 `index.blocks.write`::
     Set to `true` to disable write operations against the index.
@@ -57,12 +57,8 @@ settings API:
 `index.index_concurrency`::
     Defaults to `8`.
 
-`index.codec`::
-    Codec. Default to `default`.
-
 `index.codec.bloom.load`::
     Whether to load the bloom filter. Defaults to `true`.
-    See <<bloom-postings>>.
 
 `index.fail_on_merge_failure`::
     Default to `true`.

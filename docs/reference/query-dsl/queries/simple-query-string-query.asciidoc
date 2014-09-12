@@ -46,6 +46,9 @@ true.
 
 |`locale` | added[1.1.0] Locale that should be used for string conversions.
 Defaults to `ROOT`.
+
+|`lenient` | added[1.1.0] If set to `true` will cause format based failures
+(like providing text to a numeric field) to be ignored.
 |=======================================================================
 
 [float]

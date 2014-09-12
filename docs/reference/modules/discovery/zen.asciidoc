@@ -84,8 +84,9 @@ automatically set to `false`).
 
 The `discovery.zen.minimum_master_nodes` allows to control the minimum
 number of master eligible nodes a node should "see" in order to operate
-within the cluster. Its recommended to set it to a higher value than 1
-when running more than 2 nodes in the cluster.
+within the cluster. Its recommended to set it to (N/2)+1, rounding down to
+the nearest integer, when running more than 2 nodes in the cluster (where N is 
+the number of master eligible nodes in the cluster).
 
 [float]
 [[fault-detection]]

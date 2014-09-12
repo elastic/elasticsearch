@@ -11,7 +11,7 @@ suggest-selection is left to the API consumer. Yet, often pre-selected
 suggestions are required in order to present to the end-user. The
 `phrase` suggester adds additional logic on top of the `term` suggester
 to select entire corrected phrases instead of individual tokens weighted
-based on `ngram-langugage` models. In practice this suggester will be
+based on `ngram-language` models. In practice this suggester will be
 able to make better decisions about which tokens to pick based on
 co-occurence and frequencies.
 
@@ -169,7 +169,7 @@ can contain misspellings (See parameter descriptions below).
     automatically made available as the `{{suggestion}}`  variable, which
     should be used in your query/filter.  You can still specify  your own
     template `params` -- the `suggestion` value will be added to the
-    variables you specify. You can also specify a `preference` to control
+    variables you specify. You can specify a `preference` to control
     on which shards the query is executed (see <<search-request-preference>>).
     The default value is `_only_local`.
 

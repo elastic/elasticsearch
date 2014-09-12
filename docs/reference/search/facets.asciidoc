@@ -283,3 +283,4 @@ include::facets/terms-stats-facet.asciidoc[]
 
 include::facets/geo-distance-facet.asciidoc[]
 
+include::facets/migrating-to-aggregations.asciidoc[]

@@ -367,7 +367,7 @@ The `cjk` analyzer could be reimplemented as a `custom` analyzer as follows:
         "cjk": {
           "tokenizer":  "standard",
           "filter": [
-            "cjk_width"
+            "cjk_width",
             "lowercase",
             "cjk_bigram",
             "english_stop"
@@ -1116,7 +1116,7 @@ The `persian` analyzer could be reimplemented as a `custom` analyzer as follows:
       "analyzer": {
         "persian": {
           "tokenizer":     "standard",
-          "char_filter": [ "zero_width_spaces" ]
+          "char_filter": [ "zero_width_spaces" ],
           "filter": [
             "lowercase",
             "arabic_normalization",

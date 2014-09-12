@@ -3,6 +3,10 @@
 
 include::deprecated.asciidoc[]
 
+NOTE: The equivalent aggregation would be the
+<<search-aggregations-metrics-stats-aggregation,`stats`>>
+aggregation.
+
 Statistical facet allows to compute statistical data on a numeric
 fields. The statistical data include count, total, sum of squares, mean
 (average), minimum, maximum, variance, and standard deviation. Here is

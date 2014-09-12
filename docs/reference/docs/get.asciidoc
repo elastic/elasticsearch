@@ -224,3 +224,4 @@ for all version types with the exception of version type `FORCE` which always
 retrieves the document.
 
 Note that Elasticsearch do not store older versions of documents. Only the current version can be retrieved.
+

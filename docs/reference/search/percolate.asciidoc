@@ -69,7 +69,7 @@ The percolate api returns matches that refer to percolate queries that have matc
 === Indexing percolator queries
 
 Percolate queries are stored as documents in a specific format and in an arbitrary index under a reserved type with the
-name `.percolator`. The query itself is placed as is in a json objects under the top level field `query`.
+name `.percolator`. The query itself is placed as is in a json object under the top level field `query`.
 
 [source,js]
 --------------------------------------------------

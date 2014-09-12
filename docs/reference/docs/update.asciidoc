@@ -109,6 +109,9 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 If both `doc` and `script` is specified, then `doc` is ignored. Best is
 to put your field pairs of the partial document in the script itself.
 
+[[upserts]]
+[float]
+=== Upserts
 There is also support for `upsert`. If the document does
 not already exists, the content of the `upsert` element will be used to
 index the fresh doc:
@@ -126,7 +129,7 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 }'
 --------------------------------------------------
 
-Last it also supports `doc_as_upsert`. So that the
+Last, the upsert facility also supports `doc_as_upsert`. So that the
 provided document will be inserted if the document does not already
 exist. This will reduce the amount of data that needs to be sent to
 elasticsearch.
@@ -140,6 +143,10 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     "doc_as_upsert" : true
 }'
 --------------------------------------------------
+
+
+[float]
+=== Parameters
 
 The update operation supports similar parameters as the index API,
 including:
@@ -157,9 +164,9 @@ including:
 
 `consistency`:: The write consistency of the index/delete operation.
 
-`refresh`::     Refresh the index immediately after the operation occurs,
-                so that the updated document appears in search results 
-                immediately.
+`refresh`::     Refresh the relevant primary and replica shards (not the whole
+                index) immediately after the operation occurs, so that the
+                updated document appears in search results  immediately.
 
 `fields`::      return the relevant fields from the updated document.
                 Support `_source` to return the full updated 
@@ -170,7 +177,7 @@ including:
                 during the update. You can use the `version` parameter to specify that the
                 document should only be updated if it's version matches the one specified.
                 By setting version type to `force` you can force the new version of the document
-                after update (use with care! with `force` there is no guaranty the document
+                after update (use with care! with `force` there is no guarantee the document
                 didn't change).Version types `external` & `external_gte` are not supported.
 
                 

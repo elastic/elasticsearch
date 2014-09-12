@@ -185,6 +185,52 @@ _native_ Java scripts registered through plugins, it also allows users to run
 arbitrary scripts via the API. Instead of sending the name of the file as the
 script, the body of the script can be sent instead.
 
+There are three possible configuration values for the `script.disable_dynamic`
+setting, the default value is `sandbox`:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Value |Description
+| `true` |all dynamic scripting is disabled, scripts must be placed in the `config/scripts` directory.
+| `false` |all dynamic scripting is enabled, scripts may be sent as strings in requests.
+| `sandbox` |scripts may be sent as strings for languages that are sandboxed.
+|=======================================================================
+
+[float]
+
+[float]
+=== Groovy Sandboxing
+
+Elasticsearch sandboxes Groovy scripts that are compiled and executed in order
+to ensure they don't perform unwanted actions. There are a number of options
+that can be used for configuring this sandbox:
+
+`script.groovy.sandbox.receiver_whitelist`::
+
+    Comma-separated list of string classes for objects that may have methods
+    invoked.
+
+`script.groovy.sandbox.package_whitelist`::
+
+    Comma-separated list of packages under which new objects may be constructed.
+
+`script.groovy.sandbox.class_whitelist`::
+
+    Comma-separated list of classes that are allowed to be constructed.
+
+`script.groovy.sandbox.method_blacklist`::
+
+    Comma-separated list of methods that are never allowed to be invoked,
+    regardless of target object.
+
+`script.groovy.sandbox.enabled`::
+
+    Flag to disable the sandbox (defaults to `true` meaning the sandbox is
+    enabled).
+
+When specifying whitelist or blacklist settings for the groovy sandbox, all
+options replace the current whitelist, they are not additive.
+    
 [float]
 === Automatic Script Reloading
 
@@ -195,6 +241,7 @@ using `watcher.interval` setting, which defaults to `60s`.
 To disable script reloading completely set `script.auto_reload_enabled`
 to `false`.
 
+[[native-java-scripts]]
 [float]
 === Native (Java) Scripts
 
@@ -269,7 +316,9 @@ The `doc['field_name']` can be used to access specific field data within
 a document (the document in question is usually derived by the context
 the script is used). Document fields are very fast to access since they
 end up being loaded into memory (all the relevant field values/tokens
-are loaded to memory).
+are loaded to memory). Note, however, that the `doc[...]` notation only 
+allows for simple valued fields (can’t return a json object from it) 
+and makes sense only on non-analyzed or single term based fields.
 
 The following data can be extracted from a field:
 
@@ -355,6 +404,13 @@ Stored fields can also be accessed when executing a script. Note, they
 are much slower to access compared with document fields, as they are not
 loaded into memory. They can be simply accessed using
 `_fields['my_field_name'].value` or `_fields['my_field_name'].values`.
+
+[float]
+=== Accessing the score of a document within a script
+
+When using scripting for calculating the score of a document (for instance, with
+the `function_score` query), you can access the score using the `_score`
+variable inside of a Groovy script.
 
 [float]
 === Source Field

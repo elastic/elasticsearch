@@ -242,7 +242,7 @@ document indexed.
 [float]
 === JSONP
 
-By default JSONP responses are disabled by default. coming[1.3,Previously JSONP was enabled by default]
+added[1.3.0, JSONP responses are disabled by default since version 1.3.0]
 
 When enabled, all REST APIs accept a `callback` parameter
 resulting in a http://en.wikipedia.org/wiki/JSONP[JSONP] result. You can enable

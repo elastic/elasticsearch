@@ -69,9 +69,6 @@ on all data and master nodes. The following settings are supported:
 `compress`:: Turns on compression of the snapshot files. Defaults to `true`.
 `chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by
  using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
-`max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `20mb` per second.
-`max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `20mb` per second.
-
 
 [float]
 ===== Read-only URL Repository
@@ -82,6 +79,16 @@ point to the root of the shared filesystem repository. The following settings ar
 
 [horizontal]
 `url`:: Location of the snapshots. Mandatory.
+
+[float]
+===== Common Repository Settings
+
+The following are common settings applicable for all repository types:
+
+[horizontal]
+`max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `20mb` per second.
+`max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `20mb` per second.
+
 
 [float]
 ===== Repository plugins
@@ -132,9 +139,9 @@ Snapshotting process is executed in non-blocking fashion. All indexing and searc
 executed against the index that is being snapshotted. However, a snapshot represents the point-in-time view of the index
 at the moment when snapshot was created, so no records that were added to the index after snapshot process had started
 will be present in the snapshot. The snapshot process starts immediately for the primary shards that has been started
-and are not relocating at the moment. Before version 1.2.0 the snapshot operation fails if cluster has any relocating or
+and are not relocating at the moment. Before version 1.2.0, the snapshot operation fails if the cluster has any relocating or
 initializing primaries of indices participating in the snapshot. Starting with version 1.2.0, Elasticsearch waits for
-are relocating or initializing shards to start before snapshotting them.
+relocation or initialization of shards to complete before snapshotting them.
 
 Besides creating a copy of each index the snapshot process can also store global cluster metadata, which includes persistent
 cluster settings and templates. The transient settings and registered snapshot repositories are not stored as part of
@@ -203,7 +210,7 @@ $ curl -XPOST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore" -d '{
 -----------------------------------
 
 The restore operation can be performed on a functioning cluster. However, an existing index can be only restored if it's
-closed. The restore operation automatically opens restored indices if they were closed and creates new indices if they
+<<indices-open-close,closed>>. The restore operation automatically opens restored indices if they were closed and creates new indices if they
 didn't exist in the cluster. If cluster state is restored, the restored templates that don't currently exist in the
 cluster are added and existing templates with the same name are replaced by the restored templates. The restored
 persistent settings are added to the existing persistent settings.

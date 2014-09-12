@@ -3,6 +3,10 @@
 
 include::deprecated.asciidoc[]
 
+NOTE: The equivalent aggregation would be the
+<<search-aggregations-bucket-range-aggregation,`range`>>
+aggregation.
+
 `range` facet allows to specify a set of ranges and get both the number
 of docs (count) that fall within each range, and aggregated data either
 based on the field, or using another field. Here is a simple example:

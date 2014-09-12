@@ -41,11 +41,6 @@ pools, but the important ones include:
     keep-alive `5m`,
     size `(# of available processors)/2`.
 
-`snapshot_data`::
-    For snapshot/restore operations on data files, defaults to `scaling`
-    with a `5m` keep-alive,
-    size `5`.
-
 `warmer`::
     For segment warm-up operations, defaults to `scaling`
     with a `5m` keep-alive. 

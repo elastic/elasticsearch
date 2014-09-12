@@ -64,15 +64,15 @@ public class NettySecuredTransport extends NettyTransport {
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            if (shieldUpstreamHandler != null) {
-                pipeline.addFirst("ipfilter", shieldUpstreamHandler);
-            }
             if (ssl) {
                 SSLEngine serverEngine = sslConfig.createSSLEngine();
                 serverEngine.setUseClientMode(false);
 
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
                 pipeline.replace("dispatcher", "dispatcher", new SecuredMessageChannelHandler(nettyTransport, logger));
+            }
+            if (shieldUpstreamHandler != null) {
+                pipeline.addFirst("ipfilter", shieldUpstreamHandler);
             }
             return pipeline;
         }

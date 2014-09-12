@@ -57,13 +57,13 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            if (shieldUpstreamHandler != null) {
-                pipeline.addFirst("ipfilter", shieldUpstreamHandler);
-            }
             if (ssl) {
                 SSLEngine engine = sslConfig.createSSLEngine();
                 engine.setUseClientMode(false);
                 pipeline.addFirst("ssl", new SslHandler(engine));
+            }
+            if (shieldUpstreamHandler != null) {
+                pipeline.addFirst("ipfilter", shieldUpstreamHandler);
             }
             return pipeline;
         }

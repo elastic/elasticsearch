@@ -152,8 +152,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
 
 
     /**
-     * a class the represent a collection of pings where only the most recent ping is stored
-     * per node
+     * a utility collection of pings where only the most recent ping is stored per node
      */
     public static class PingCollection {
 
@@ -163,19 +162,28 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             pings = new HashMap<>();
         }
 
-        public synchronized void addPing(PingResponse ping) {
+        /**
+         * adds a ping if newer than previous pings from the same node
+         *
+         * @return true if added, false o.w.
+         */
+        public synchronized boolean addPing(PingResponse ping) {
             PingResponse existingResponse = pings.get(ping.node());
             if (existingResponse == null || existingResponse.id() < ping.id()) {
                 pings.put(ping.node(), ping);
+                return true;
             }
+            return false;
         }
 
+        /** adds multiple pings if newer than previous pings from the same node */
         public synchronized void addPings(PingResponse[] pings) {
             for (PingResponse ping : pings) {
                 addPing(ping);
             }
         }
 
+        /** serialize current pings to an array */
         public synchronized PingResponse[] toArray() {
             return pings.values().toArray(new PingResponse[pings.size()]);
         }

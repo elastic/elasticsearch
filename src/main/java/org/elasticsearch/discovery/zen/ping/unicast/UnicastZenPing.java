@@ -84,7 +84,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private volatile PingContextProvider contextProvider;
 
-    private final AtomicInteger pingIdGenerator = new AtomicInteger();
+    private final AtomicInteger pingHandlerIdGenerator = new AtomicInteger();
 
     // used to generate unique ids for nodes/address we temporarily connect to
     private final AtomicInteger unicastNodeIdGenerator = new AtomicInteger();
@@ -92,7 +92,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     // used as a node id prefix for nodes/address we temporarily connect to
     private static final String UNICAST_NODE_PREFIX = "#zen_unicast_";
 
-    private final Map<Integer, ConcurrentMap<DiscoveryNode, PingResponse>> receivedResponses = newConcurrentMap();
+    private final Map<Integer, PingCollection> receivedResponses = newConcurrentMap();
 
     // a list of temporal responses a node will return for a request (holds requests from other configuredTargetNodes)
     private final Queue<PingResponse> temporalResponses = ConcurrentCollections.newQueue();
@@ -194,8 +194,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     @Override
     public void ping(final PingListener listener, final TimeValue timeout) throws ElasticsearchException {
-        final SendPingsHandler sendPingsHandler = new SendPingsHandler(pingIdGenerator.incrementAndGet());
-        receivedResponses.put(sendPingsHandler.id(), ConcurrentCollections.<DiscoveryNode, PingResponse>newConcurrentMap());
+        final SendPingsHandler sendPingsHandler = new SendPingsHandler(pingHandlerIdGenerator.incrementAndGet());
+        receivedResponses.put(sendPingsHandler.id(), new PingCollection());
         sendPings(timeout, null, sendPingsHandler);
         threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new Runnable() {
             @Override
@@ -207,13 +207,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         public void run() {
                             try {
                                 sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
-                                ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(sendPingsHandler.id());
+                                PingCollection responses = receivedResponses.remove(sendPingsHandler.id());
                                 sendPingsHandler.close();
                                 for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
                                     logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
                                     transportService.disconnectFromNode(node);
                                 }
-                                listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
+                                listener.onPing(responses.toArray());
                             } catch (EsRejectedExecutionException ex) {
                                 logger.debug("Ping execution rejected", ex);
                             }
@@ -475,22 +475,11 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     logger.debug("[{}] filtering out response from {}, not same cluster_name [{}]", id, pingResponse.node(), pingResponse.clusterName().value());
                     continue;
                 }
-                ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.get(response.id);
+                PingCollection responses = receivedResponses.get(response.id);
                 if (responses == null) {
                     logger.warn("received ping response {} with no matching id [{}]", pingResponse, response.id);
                 } else {
-                    PingResponse existingResponse = responses.get(pingResponse.node());
-                    if (existingResponse == null) {
-                        responses.put(pingResponse.node(), pingResponse);
-                    } else {
-                        // try and merge the best ping response for it, i.e. if the new one
-                        // doesn't have the master node set, and the existing one does, then
-                        // the existing one is better, so we keep it
-                        // if both have a master or both have none, we prefer the latest ping
-                        if (existingResponse.master() == null || pingResponse.master() != null) {
-                            responses.put(pingResponse.node(), pingResponse);
-                        }
-                    }
+                    responses.addPing(pingResponse);
                 }
             }
         } finally {

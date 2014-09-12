@@ -213,12 +213,6 @@ public final class QueryRescorer implements Rescorer {
         }
         return rescoreContext;
     }
-    private final static Comparator<ScoreDoc> DOC_ID_COMPARATOR = new Comparator<ScoreDoc>() {
-        @Override
-        public int compare(ScoreDoc o1, ScoreDoc o2) {
-            return Integer.compare(o1.doc, o2.doc);
-        }
-    };
 
     private final static Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = new Comparator<ScoreDoc>() {
         @Override

@@ -104,20 +104,23 @@ public final class QueryRescorer implements Rescorer {
     }
 
     @Override
-    public TopDocs rescore(TopDocs topDocs, SearchContext context, final RescoreSearchContext rescoreContext) throws IOException {
+    public TopDocs rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException {
         assert rescoreContext != null;
         if (topDocs == null || topDocs.totalHits == 0 || topDocs.scoreDocs.length == 0) {
             return topDocs;
         }
         org.apache.lucene.search.Rescorer rescorer = newRescorer((QueryRescoreContext) rescoreContext);
-        if (rescoreContext.window() < topDocs.scoreDocs.length) {
-            ScoreDoc[] subset = new ScoreDoc[rescoreContext.window()];
-            System.arraycopy(topDocs.scoreDocs, 0, subset, 0, rescoreContext.window());
-            final TopDocs rescore = rescorer.rescore(context.searcher(), new TopDocs(topDocs.totalHits, subset, topDocs.getMaxScore()), rescoreContext.window());
-            return combine(topDocs, rescore, (QueryRescoreContext) rescoreContext);
-        }
-        return rescorer.rescore(context.searcher(), topDocs, Math.max(topDocs.scoreDocs.length, rescoreContext.window()));
+
+        // First take top slice of incoming docs, to be rescored:
+        TopDocs topNFirstPass = topN(topDocs, rescoreContext.window());
+
+        // Rescore them:
+        TopDocs rescored = rescorer.rescore(context.searcher(), topNFirstPass, rescoreContext.window());
+
+        // Splice back to non-topN hits and resort:
+        return combine(topDocs, rescored, (QueryRescoreContext) rescoreContext);
     }
+
 
     // THIS RETURNS BOGUS explains
 //    @Override
@@ -140,6 +143,8 @@ public final class QueryRescorer implements Rescorer {
             // this should not happen but just in case
             return new ComplexExplanation(false, 0.0f, "nothing matched");
         }
+        // TODO: this isn't right?  I.e., we are incorrectly pretending all first pass hits were rescored?  If the requested docID was
+        // beyond the top rescoreContext.window() in the first pass hits, we don't rescore it now?
         Explanation rescoreExplain = searcher.explain(rescore.query(), topLevelDocId);
         float primaryWeight = rescore.queryWeight();
         ComplexExplanation prim = new ComplexExplanation(sourceExplanation.isMatch(),
@@ -234,23 +239,35 @@ public final class QueryRescorer implements Rescorer {
         }
     };
 
-    private TopDocs combine(TopDocs primary, TopDocs secondary, QueryRescoreContext context) {
-        ScoreDoc[] secondaryDocs = secondary.scoreDocs;
-        ScoreDoc[] primaryDocs = primary.scoreDocs;
-        Arrays.sort(primary.scoreDocs, DOC_ID_COMPARATOR);
-        Arrays.sort(secondary.scoreDocs, DOC_ID_COMPARATOR);
-        int j = 0;
-        for (int i = 0; i < primaryDocs.length; i++) {
-            if (j < secondaryDocs.length && primaryDocs[i].doc == secondaryDocs[j].doc) {
-                primaryDocs[i].score =  secondaryDocs[j++].score;
-            }
+    /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already <=
+     *  topN. */
+    private TopDocs topN(TopDocs in, int topN) {
+        if (in.totalHits < topN) {
+            assert in.scoreDocs.length == in.totalHits;
+            return in;
         }
-        Arrays.sort(primaryDocs, SCORE_DOC_COMPARATOR);
-        primary.setMaxScore(primaryDocs[0].score);
-        return primary;
+
+        ScoreDoc[] subset = new ScoreDoc[topN];
+        System.arraycopy(in.scoreDocs, 0, subset, 0, topN);
+
+        return new TopDocs(in.totalHits, subset, in.getMaxScore());
     }
 
-
+    /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then resorting all hits. */
+    private TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
+        System.arraycopy(resorted.scoreDocs, 0, in.scoreDocs, 0, resorted.scoreDocs.length);
+        if (in.scoreDocs.length > resorted.scoreDocs.length) {
+            // These hits were not rescored, so we treat them the same as a hit that did get rescored but did not match the 2nd pass query:
+            for(int i=resorted.scoreDocs.length;i<in.scoreDocs.length;i++) {
+                in.scoreDocs[i].score *= ctx.queryWeight();
+            }
+            
+            // TODO: this is wrong, i.e. we are comparing apples and oranges at this point.  It would be better if we always rescored all
+            // incoming first pass hits, instead of allowing recoring of just the top subset:
+            Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
+        }
+        return in;
+    }
 
     public static class QueryRescoreContext extends RescoreSearchContext {
 

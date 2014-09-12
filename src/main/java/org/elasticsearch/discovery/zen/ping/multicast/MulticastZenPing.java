@@ -35,7 +35,6 @@ import org.elasticsearch.common.network.MulticastChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -48,7 +47,6 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -84,7 +82,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     private volatile MulticastChannel multicastChannel;
 
     private final AtomicInteger pingIdGenerator = new AtomicInteger();
-    private final Map<Integer, ConcurrentMap<DiscoveryNode, PingResponse>> receivedResponses = newConcurrentMap();
+    private final Map<Integer, PingCollection> receivedResponses = newConcurrentMap();
 
     public MulticastZenPing(ThreadPool threadPool, TransportService transportService, ClusterName clusterName, Version version) {
         this(EMPTY_SETTINGS, threadPool, transportService, clusterName, new NetworkService(EMPTY_SETTINGS), version);
@@ -185,7 +183,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             return;
         }
         final int id = pingIdGenerator.incrementAndGet();
-        receivedResponses.put(id, ConcurrentCollections.<DiscoveryNode, PingResponse>newConcurrentMap());
+        receivedResponses.put(id, new PingCollection());
         sendPingRequest(id);
         // try and send another ping request halfway through (just in case someone woke up during it...)
         // this can be a good trade-off to nailing the initial lookup or un-delivered messages
@@ -202,8 +200,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         threadPool.schedule(timeout, ThreadPool.Names.GENERIC, new Runnable() {
             @Override
             public void run() {
-                ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.remove(id);
-                listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
+                PingCollection responses = receivedResponses.remove(id);
+                listener.onPing(responses.toArray());
             }
         });
     }
@@ -247,11 +245,11 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] received {}", request.id, request.pingResponse);
             }
-            ConcurrentMap<DiscoveryNode, PingResponse> responses = receivedResponses.get(request.id);
+            PingCollection responses = receivedResponses.get(request.id);
             if (responses == null) {
                 logger.warn("received ping response {} with no matching id [{}]", request.pingResponse, request.id);
             } else {
-                responses.put(request.pingResponse.node(), request.pingResponse);
+                responses.addPing(request.pingResponse);
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

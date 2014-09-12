@@ -394,7 +394,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                                 // try and merge the best ping response for it, i.e. if the new one
                                 // doesn't have the master node set, and the existing one does, then
                                 // the existing one is better, so we keep it
-                                if (pingResponse.master() != null) {
+                                // if both have a master or both have none, we prefer the latest ping
+                                if (existingResponse.master() == null || pingResponse.master() != null) {
                                     responses.put(pingResponse.node(), pingResponse);
                                 }
                             }

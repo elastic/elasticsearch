@@ -20,7 +20,6 @@ package org.elasticsearch.indices;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -45,7 +44,6 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@LuceneTestCase.AwaitsFix(bugUrl = "fails due to old ping responses confusing master elections, bleskes investigating")
 public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest {
 
     @Test

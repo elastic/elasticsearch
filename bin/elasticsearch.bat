@@ -2,8 +2,10 @@
 
 SETLOCAL
 
+IF "%JAVA_HOME%" == "" (
 FOR /F "skip=2 tokens=2*" %%A IN ('REG QUERY "HKLM\Software\JavaSoft\Java Runtime Environment" /v CurrentVersion') DO set CurVer=%%B
 FOR /F "skip=2 tokens=2*" %%A IN ('REG QUERY "HKLM\Software\JavaSoft\Java Runtime Environment\%CurVer%" /v JavaHome') DO set JAVA_HOME=%%B
+)
 
 if NOT DEFINED JAVA_HOME goto err
 
@@ -79,6 +81,12 @@ goto finally
 
 :err
 echo JAVA_HOME environment variable must be set!
+
+NET SESSION >NUL 2>&1
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO you are NOT elevated Administrator, try to disable UAC, so JAVA_HOME could be read from registry
+)
+
 pause
 
 

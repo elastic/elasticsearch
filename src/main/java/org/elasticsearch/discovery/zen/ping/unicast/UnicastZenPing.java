@@ -77,6 +77,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
     private final AtomicInteger pingIdGenerator = new AtomicInteger();
 
+    // used to generate unique ids for nodes/address we temporarily connect to
+    private final AtomicInteger unicastNodeIdGenerator = new AtomicInteger();
+
+    // used as a node id prefix for nodes/address we temporarily connect to
+    private static final String UNICAST_NODE_PREFIX = "#zen_unicast_";
+
     private final Map<Integer, ConcurrentMap<DiscoveryNode, PingResponse>> receivedResponses = newConcurrentMap();
 
     // a list of temporal responses a node will return for a request (holds requests from other configuredTargetNodes)
@@ -108,13 +114,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         logger.debug("using initial hosts {}, with concurrent_connects [{}]", hosts, concurrentConnects);
 
         List<DiscoveryNode> configuredTargetNodes = Lists.newArrayList();
-        int idCounter = 0;
         for (String host : hosts) {
             try {
                 TransportAddress[] addresses = transportService.addressesFromString(host);
                 // we only limit to 1 addresses, makes no sense to ping 100 ports
                 for (int i = 0; (i < addresses.length && i < LIMIT_PORTS_COUNT); i++) {
-                    configuredTargetNodes.add(new DiscoveryNode("#zen_unicast_" + (++idCounter) + "#", addresses[i], version.minimumCompatibilityVersion()));
+                    configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#", addresses[i], version.minimumCompatibilityVersion()));
                 }
             } catch (Exception e) {
                 throw new ElasticsearchIllegalArgumentException("Failed to resolve address for [" + host + "]", e);
@@ -281,28 +286,35 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         final CountDownLatch latch = new CountDownLatch(nodesToPing.size());
         for (final DiscoveryNode node : nodesToPing) {
             // make sure we are connected
-            boolean nodeFoundByAddressX;
-            DiscoveryNode nodeToSendX = discoNodes.findByAddress(node.address());
-            if (nodeToSendX != null) {
-                nodeFoundByAddressX = true;
+            final boolean nodeFoundByAddress;
+            DiscoveryNode nodeToSend = discoNodes.findByAddress(node.address());
+            if (nodeToSend != null) {
+                nodeFoundByAddress = true;
             } else {
-                nodeToSendX = node;
-                nodeFoundByAddressX = false;
+                nodeToSend = node;
+                nodeFoundByAddress = false;
             }
-            final DiscoveryNode nodeToSend = nodeToSendX;
 
-            final boolean nodeFoundByAddress = nodeFoundByAddressX;
             if (!transportService.nodeConnected(nodeToSend)) {
                 if (sendPingsHandler.isClosed()) {
                     return;
                 }
-                // only disconnect from nodes that we will end up creating a light connection to, as they are temporal
                 // if we find on the disco nodes a matching node by address, we are going to restore the connection
                 // anyhow down the line if its not connected...
+                // if we can't resolve the node, we don't know and we have to clean up after pinging. We do have
+                // to make sure we don't disconnect a true node which was temporarily removed from the DiscoveryNodes
+                // but will be added again during the pinging. We therefore create a new temporary node
                 if (!nodeFoundByAddress) {
+                    DiscoveryNode tempNode = new DiscoveryNode("",
+                            UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "_" + nodeToSend.id(),
+                            nodeToSend.getHostName(), nodeToSend.getHostAddress(), nodeToSend.address(), nodeToSend.attributes(), nodeToSend.version()
+                    );
+                    logger.trace("replacing {} with temp node {}", nodeToSend, tempNode);
+                    nodeToSend = tempNode;
                     sendPingsHandler.nodeToDisconnect.add(nodeToSend);
                 }
                 // fork the connection to another thread
+                final DiscoveryNode finalNodeToSend = nodeToSend;
                 sendPingsHandler.executor().execute(new Runnable() {
                     @Override
                     public void run() {
@@ -313,16 +325,16 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         try {
                             // connect to the node, see if we manage to do it, if not, bail
                             if (!nodeFoundByAddress) {
-                                logger.trace("[{}] connecting (light) to {}", sendPingsHandler.id(), nodeToSend);
-                                transportService.connectToNodeLight(nodeToSend);
+                                logger.trace("[{}] connecting (light) to {}", sendPingsHandler.id(), finalNodeToSend);
+                                transportService.connectToNodeLight(finalNodeToSend);
                             } else {
-                                logger.trace("[{}] connecting to {}", sendPingsHandler.id(), nodeToSend);
-                                transportService.connectToNode(nodeToSend);
+                                logger.trace("[{}] connecting to {}", sendPingsHandler.id(), finalNodeToSend);
+                                transportService.connectToNode(finalNodeToSend);
                             }
                             logger.trace("[{}] connected to {}", sendPingsHandler.id(), node);
                             if (receivedResponses.containsKey(sendPingsHandler.id())) {
                                 // we are connected and still in progress, send the ping request
-                                sendPingRequestToNode(sendPingsHandler.id(), timeout, pingRequest, latch, node, nodeToSend);
+                                sendPingRequestToNode(sendPingsHandler.id(), timeout, pingRequest, latch, node, finalNodeToSend);
                             } else {
                                 // connect took too long, just log it and bail
                                 latch.countDown();
@@ -331,9 +343,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                             success = true;
                         } catch (ConnectTransportException e) {
                             // can't connect to the node - this is a more common path!
-                            logger.trace("[{}] failed to connect to {}", e, sendPingsHandler.id(), nodeToSend);
+                            logger.trace("[{}] failed to connect to {}", e, sendPingsHandler.id(), finalNodeToSend);
                         } catch (Throwable e) {
-                            logger.warn("[{}] failed send ping to {}", e, sendPingsHandler.id(), nodeToSend);
+                            logger.warn("[{}] failed send ping to {}", e, sendPingsHandler.id(), finalNodeToSend);
                         } finally {
                             if (!success) {
                                 latch.countDown();

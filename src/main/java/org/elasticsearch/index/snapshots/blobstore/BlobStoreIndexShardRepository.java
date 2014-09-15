@@ -26,6 +26,7 @@ import com.google.common.io.ByteStreams;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.blobstore.*;
@@ -621,11 +622,12 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 // to calculate it.
                 // we might have multiple parts even though the file is small... make sure we read all of it.
                 try (final InputStream stream = new PartSliceStream(blobContainer, fileInfo)) {
-                    final byte[] bytes = ByteStreams.toByteArray(stream);
-                    assert bytes != null;
-                    assert bytes.length == fileInfo.length() : bytes.length + " != " + fileInfo.length();
-                    final BytesRef spare = new BytesRef(bytes);
-                    Store.MetadataSnapshot.hashFile(fileInfo.metadata().hash(), spare);
+                    BytesRefBuilder builder = new BytesRefBuilder();
+                    Store.MetadataSnapshot.hashFile(builder, stream, fileInfo.length());
+                    BytesRef hash = metadata.hash();
+                    hash.bytes = builder.bytes();
+                    hash.offset = 0;
+                    hash.length = builder.length();
                 }
             }
         }

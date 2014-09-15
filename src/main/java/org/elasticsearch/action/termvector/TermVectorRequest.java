@@ -287,7 +287,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
      * Return only term vectors for special selected fields. Returns the term
      * vectors for all fields if selectedFields == null
      */
-    public TermVectorRequest selectedFields(String[] fields) {
+    public TermVectorRequest selectedFields(String... fields) {
         selectedFields = fields != null && fields.length != 0 ? Sets.newHashSet(fields) : null;
         return this;
     }

@@ -29,8 +29,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -522,5 +524,41 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
             assertSearchResponse(response);
             assertHitCount(response, values.length);
         }
+    }
+
+    @Test
+    public void testMoreLikeThisArtificialDocs() throws Exception {
+        int numFields = randomIntBetween(5, 10);
+
+        logger.info("Creating an index with multiple fields ...");
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties");
+        for (int i = 0; i < numFields; i++) {
+            mapping.startObject("field"+i).field("type", "string").endObject();
+        }
+        mapping.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", mapping).get());
+        ensureGreen();
+
+        logger.info("Indexing a single document ...");
+        XContentBuilder doc = jsonBuilder().startObject();
+        for (int i = 0; i < numFields; i++) {
+            doc.field("field"+i, generateRandomStringArray(5, 10));
+        }
+        doc.endObject();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("test", "type1", "1").setSource(doc));
+        indexRandom(true, builders);
+
+        logger.info("Checking the document matches ...");
+        MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery()
+                .docs((Item) new Item().doc(doc).index("test").type("type1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .maxQueryTerms(100)
+                .percentTermsToMatch(1); // strict all terms must match!
+        SearchResponse response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
     }
 }

@@ -22,9 +22,9 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
@@ -44,12 +44,23 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
      * A single get item. Pure delegate to multi get.
      */
     public static final class Item extends MultiGetRequest.Item implements ToXContent {
+        private BytesReference doc;
+
         public Item() {
             super();
         }
 
         public Item(String index, @Nullable String type, String id) {
             super(index, type, id);
+        }
+
+        public BytesReference doc() {
+            return doc;
+        }
+
+        public Item doc(XContentBuilder doc) {
+            this.doc = doc.bytes();
+            return this;
         }
 
         @Override
@@ -60,6 +71,17 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             }
             if (this.id() != null) {
                 builder.field("_id", this.id());
+            }
+            if (this.doc() != null) {
+                XContentType contentType = XContentFactory.xContentType(doc);
+                if (contentType == builder.contentType()) {
+                    builder.rawField("doc", doc);
+                } else {
+                    XContentParser parser = XContentFactory.xContent(contentType).createParser(doc);
+                    parser.nextToken();
+                    builder.field("doc");
+                    builder.copyCurrentStructure(parser);
+                }
             }
             if (this.type() != null) {
                 builder.field("_type", this.type());

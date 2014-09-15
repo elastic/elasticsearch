@@ -893,12 +893,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         @Override
         public void operationComplete(final ChannelFuture future) throws Exception {
-            threadPool().generic().execute(new Runnable() {
-                @Override
-                public void run() {
-                    disconnectFromNode(node, future.getChannel(), "channel closed event");
-                }
-            });
+            NodeChannels nodeChannels = connectedNodes.get(node);
+            if (nodeChannels != null && nodeChannels.hasChannel(future.getChannel())) {
+                threadPool().generic().execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        disconnectFromNode(node, future.getChannel(), "channel closed event");
+                    }
+                });
+            }
         }
     }
 

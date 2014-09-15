@@ -68,6 +68,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
             final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
                 @Override
                 public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
+                    // TODO: IndexWriter is still open on this index, so it's dangerous to run CheckIndex?
                     if (shardId.equals(sid) && indexShard != null) {
                         checkIndex(((InternalIndexShard) indexShard).store());
                     }
@@ -89,7 +90,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
     }
 
 
-    public  void checkIndex(Store store) throws IndexShardException {
+    public void checkIndex(Store store) throws IndexShardException {
         try {
             if (!Lucene.indexExists(store.directory())) {
                 return;

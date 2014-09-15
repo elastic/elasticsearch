@@ -372,7 +372,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     @After
     public void tearDown() throws Exception {
         parentChainCallRule.teardownCalled = true;
-        assertFalse("at least one index failed CheckIndex", checkIndexFailed);
+        assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
     }
 
 

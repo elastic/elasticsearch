@@ -171,6 +171,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
         return scrollId;
     }
 
+    public void scrollId(String scrollId) {
+        this.scrollId = scrollId;
+    }
+
     static final class Fields {
         static final XContentBuilderString _SCROLL_ID = new XContentBuilderString("_scroll_id");
         static final XContentBuilderString _SHARDS = new XContentBuilderString("_shards");

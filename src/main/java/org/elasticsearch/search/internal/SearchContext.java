@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.search.reducers.SearchContextReducers;
+
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
@@ -152,6 +154,10 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchContextAggregations aggregations();
 
     public abstract SearchContext aggregations(SearchContextAggregations aggregations);
+
+    public abstract SearchContextReducers reducers();
+
+    public abstract SearchContext reducers(SearchContextReducers searchContextReducers);
 
     public abstract SearchContextHighlight highlight();
 

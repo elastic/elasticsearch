@@ -375,6 +375,8 @@ public class SearchPhaseController extends AbstractComponent {
             }
         }
 
+        // NOCOMMIT Add reducer phase here
+
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
 
         return new InternalSearchResponse(searchHits, aggregations, suggest, timedOut, terminatedEarly);

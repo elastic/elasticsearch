@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.search.reducers.SearchContextReducers;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
@@ -159,6 +161,8 @@ public class DefaultSearchContext extends SearchContext {
     private int docsIdsToLoadSize;
 
     private SearchContextAggregations aggregations;
+
+    private SearchContextReducers reducers;
 
     private SearchContextHighlight highlight;
 
@@ -324,6 +328,17 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public SearchContext aggregations(SearchContextAggregations aggregations) {
         this.aggregations = aggregations;
+        return this;
+    }
+
+    @Override
+    public SearchContextReducers reducers() {
+        return reducers;
+    }
+
+    @Override
+    public SearchContext reducers(SearchContextReducers reducers) {
+        this.reducers = reducers;
         return this;
     }
 

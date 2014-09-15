@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
+import org.elasticsearch.search.reducers.SearchContextReducers;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
@@ -190,6 +192,16 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public SearchContext aggregations(SearchContextAggregations aggregations) {
+        throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public SearchContextReducers reducers() {
+        return context.reducers();
+    }
+
+    @Override
+    public SearchContext reducers(SearchContextReducers reducers) {
         throw new UnsupportedOperationException("Not supported");
     }
 

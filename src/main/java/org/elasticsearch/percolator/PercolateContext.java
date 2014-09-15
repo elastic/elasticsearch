@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.percolator;
 
+import org.elasticsearch.search.reducers.SearchContextReducers;
+
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
@@ -104,6 +106,7 @@ public class PercolateContext extends SearchContext {
     private Query percolateQuery;
     private FetchSubPhase.HitContext hitContext;
     private SearchContextAggregations aggregations;
+    private SearchContextReducers reducers;
     private QuerySearchResult querySearchResult;
     private Sort sort;
 
@@ -265,6 +268,17 @@ public class PercolateContext extends SearchContext {
     @Override
     public SearchContext aggregations(SearchContextAggregations aggregations) {
         this.aggregations = aggregations;
+        return this;
+    }
+
+    @Override
+    public SearchContextReducers reducers() {
+        return reducers;
+    }
+
+    @Override
+    public SearchContext reducers(SearchContextReducers reducers) {
+        this.reducers = reducers;
         return this;
     }
 

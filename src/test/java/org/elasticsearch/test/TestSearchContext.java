@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.search.reducers.SearchContextReducers;
+
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -188,6 +190,16 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext aggregations(SearchContextAggregations aggregations) {
+        return null;
+    }
+
+    @Override
+    public SearchContextReducers reducers() {
+        return null;
+    }
+
+    @Override
+    public SearchContext reducers(SearchContextReducers reducers) {
         return null;
     }
 

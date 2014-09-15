@@ -32,6 +32,7 @@ import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.reducers.ReductionPhase;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
@@ -46,12 +47,14 @@ import java.util.Map;
 public class QueryPhase implements SearchPhase {
 
     private final AggregationPhase aggregationPhase;
+    private final ReductionPhase reductionPhase;
     private final SuggestPhase suggestPhase;
     private RescorePhase rescorePhase;
 
     @Inject
-    public QueryPhase(AggregationPhase aggregationPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
+    public QueryPhase(AggregationPhase aggregationPhase, ReductionPhase reductionPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
         this.aggregationPhase = aggregationPhase;
+        this.reductionPhase = reductionPhase;
         this.suggestPhase = suggestPhase;
         this.rescorePhase = rescorePhase;
     }
@@ -78,6 +81,7 @@ public class QueryPhase implements SearchPhase {
                 .put("timeout", new TimeoutParseElement())
                 .put("terminate_after", new TerminateAfterParseElement())
                 .putAll(aggregationPhase.parseElements())
+                .putAll(reductionPhase.parseElements())
                 .putAll(suggestPhase.parseElements())
                 .putAll(rescorePhase.parseElements());
         return parseElements.build();

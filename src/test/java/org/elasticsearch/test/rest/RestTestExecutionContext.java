@@ -53,7 +53,7 @@ public class RestTestExecutionContext implements Closeable {
 
     private RestResponse response;
 
-    public RestTestExecutionContext(RestSpec restSpec) throws RestException, IOException {
+    public RestTestExecutionContext(RestSpec restSpec) {
         this.restSpec = restSpec;
     }
 
@@ -116,13 +116,11 @@ public class RestTestExecutionContext implements Closeable {
     }
 
     /**
-     * Resets (or creates) the embedded REST client which will point to the given addresses
+     * Creates the embedded REST client when needed
      */
     public void resetClient(InetSocketAddress[] addresses, Settings settings) throws IOException, RestException {
         if (restClient == null) {
-            restClient = new RestClient(restSpec, settings, addresses);
-        } else {
-            restClient.updateAddresses(addresses);
+            this.restClient = new RestClient(restSpec, settings, addresses);
         }
     }
 

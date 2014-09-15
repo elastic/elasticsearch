@@ -853,7 +853,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // node calling the join request
             membership.sendValidateJoinRequestBlocking(node, joinTimeout);
             processJoinRequests.add(new Tuple<>(node, callback));
-            clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", Priority.IMMEDIATE, new ProcessedClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
 
                 private final List<Tuple<DiscoveryNode, MembershipAction.JoinCallback>> drainedTasks = new ArrayList<>();
 

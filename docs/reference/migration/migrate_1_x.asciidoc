@@ -71,4 +71,12 @@ curl -XGET 'http://localhost:9200/_all/_mappings'
 curl -XGET 'http://localhost:9200/_mappings'
 --------------------------------------------------
 
+==== Zen discovery
 
+Each cluster must have an elected master node in order to be fully operational. Once a node loses its elected master
+node it will reject some or all operations.
+
+On versions before `1.4.0.Beta1` all operations are rejected when a node loses its elected master. From `1.4.0.Beta1`
+only write operations will be rejected by default. Read operations will still be served based on the information available
+to the node, which may result in being partial and possibly also stale. If the default is undesired then the
+pre `1.4.0.Beta1` behaviour can be enabled, see: <<modules-discovery-zen,no-master-block>>

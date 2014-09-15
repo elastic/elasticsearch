@@ -220,20 +220,15 @@ class InternalOrder extends Terms.Order {
         static final byte ID = -1;
 
         private final List<Terms.Order> orderElements;
-        private final boolean singleUserCriteria;
 
         public CompoundOrder(List<Terms.Order> compoundOrder) {
-            this.singleUserCriteria = compoundOrder.size() == 1;
-            this.orderElements = new LinkedList<>(compoundOrder);
-            // add term order ascending as a tie-breaker to avoid non-deterministic ordering
-            // if all user provided comparators return 0.
-            this.orderElements.add(Order.term(true));
+            this(compoundOrder, true);
         }
 
         public CompoundOrder(List<Terms.Order> compoundOrder, boolean absoluteOrdering) {
-            this.singleUserCriteria = compoundOrder.size() == 1;
             this.orderElements = new LinkedList<>(compoundOrder);
-            if (absoluteOrdering) {
+            Terms.Order lastElement = compoundOrder.get(compoundOrder.size() - 1);
+            if (absoluteOrdering && !(InternalOrder.TERM_ASC == lastElement || InternalOrder.TERM_DESC == lastElement)) {
                 // add term order ascending as a tie-breaker to avoid non-deterministic ordering
                 // if all user provided comparators return 0.
                 this.orderElements.add(Order.term(true));
@@ -243,10 +238,6 @@ class InternalOrder extends Terms.Order {
         @Override
         byte id() {
             return ID;
-        }
-
-        boolean isSingleUserCriteria() {
-            return singleUserCriteria;
         }
 
         List<Terms.Order> orderElements() {
@@ -310,15 +301,11 @@ class InternalOrder extends Terms.Order {
                 }
             } else if (order instanceof CompoundOrder) {
                 CompoundOrder compoundOrder = (CompoundOrder) order;
-                if (compoundOrder.isSingleUserCriteria()) {
-                    Streams.writeOrder(compoundOrder.orderElements.get(0), out);
-                } else {
                     out.writeByte(order.id());
                     out.writeVInt(compoundOrder.orderElements.size());
                     for (Terms.Order innerOrder : compoundOrder.orderElements) {
                         Streams.writeOrder(innerOrder, out);
                     }
-                }
             } else {
                 out.writeByte(order.id());
             }

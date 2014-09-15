@@ -223,9 +223,11 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
         } else {
             // If 1.3.0 or earlier, only a single CircuitBreakerStats can be read
             CircuitBreakerStats fdStats = CircuitBreakerStats.readOptionalCircuitBreakerStats(in);
-            CircuitBreakerStats reqStats = new CircuitBreakerStats(CircuitBreaker.Name.REQUEST, 0, 0, 1.0, -1);
-            CircuitBreakerStats parentStats = new CircuitBreakerStats(CircuitBreaker.Name.PARENT, 0, 0, 1.0, -1);
-            breaker = new AllCircuitBreakerStats(new CircuitBreakerStats[] {parentStats, fdStats, reqStats});
+            if (fdStats != null) {
+                CircuitBreakerStats reqStats = new CircuitBreakerStats(CircuitBreaker.Name.REQUEST, 0, 0, 1.0, -1);
+                CircuitBreakerStats parentStats = new CircuitBreakerStats(CircuitBreaker.Name.PARENT, 0, 0, 1.0, -1);
+                breaker = new AllCircuitBreakerStats(new CircuitBreakerStats[] {parentStats, fdStats, reqStats});
+            }
         }
 
     }

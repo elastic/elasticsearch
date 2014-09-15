@@ -710,8 +710,8 @@ public final class InternalTestCluster extends TestCluster {
             }
             double nextDouble = random.nextDouble();
             if (nextDouble < transportClientRatio) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), false);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), false);
                 }
                 return getOrBuildTransportClient();
             } else {

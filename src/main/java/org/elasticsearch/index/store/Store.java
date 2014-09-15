@@ -27,6 +27,7 @@ import org.apache.lucene.codecs.lucene46.Lucene46SegmentInfoFormat;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
@@ -35,9 +36,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.codec.CodecService;
@@ -561,15 +564,15 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         private static void checksumFromLuceneFile(Directory directory, String file, ImmutableMap.Builder<String, StoreFileMetaData> builder,  ESLogger logger, Version version, boolean readFileAsHash) throws IOException {
             final String checksum;
-            final BytesRef fileHash = new BytesRef();
-            try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
+            final BytesRefBuilder fileHash = new BytesRefBuilder();
+            try (final IndexInput in = directory.openInput(file, IOContext.READONCE)) {
                 try {
                     if (in.length() < CodecUtil.footerLength()) {
                         // truncated files trigger IAE if we seek negative... these files are really corrupted though
                         throw new CorruptIndexException("Can't retrieve checksum from file: " + file + " file length must be >= " + CodecUtil.footerLength() + " but was: " + in.length());
                     }
                     if (readFileAsHash) {
-                       hashFile(fileHash, in);
+                       hashFile(fileHash, new InputStreamIndexInput(in, in.length()), in.length());
                     }
                     checksum = digestToString(CodecUtil.retrieveChecksum(in));
 
@@ -577,30 +580,19 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     logger.debug("Can retrieve checksum from file [{}]", ex, file);
                     throw ex;
                 }
-                builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), checksum, version, fileHash));
+                builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), checksum, version, fileHash.get()));
             }
         }
 
         /**
          * Computes a strong hash value for small files. Note that this method should only be used for files < 1MB
          */
-        public static void hashFile(BytesRef fileHash, IndexInput in) throws IOException {
-            final int len = (int)Math.min(1024 * 1024, in.length()); // for safety we limit this to 1MB
-            fileHash.offset = 0;
+        public static void hashFile(BytesRefBuilder fileHash, InputStream in, long size) throws IOException {
+            final int len = (int)Math.min(1024 * 1024, size); // for safety we limit this to 1MB
             fileHash.grow(len);
-            fileHash.length = len;
-            in.readBytes(fileHash.bytes, 0, len);
-        }
-
-        /**
-         * Computes a strong hash value for small files. Note that this method should only be used for files < 1MB
-         */
-        public static void hashFile(BytesRef fileHash, BytesRef source) throws IOException {
-            final int len = Math.min(1024 * 1024, source.length); // for safety we limit this to 1MB
-            fileHash.offset = 0;
-            fileHash.grow(len);
-            fileHash.length = len;
-            System.arraycopy(source.bytes, source.offset, fileHash.bytes, 0, len);
+            fileHash.setLength(len);
+            Streams.readFully(in, fileHash.bytes(), 0, len);
+            assert fileHash.length() == len;
         }
 
         @Override

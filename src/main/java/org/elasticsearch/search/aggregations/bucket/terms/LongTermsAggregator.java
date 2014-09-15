@@ -126,7 +126,7 @@ public class LongTermsAggregator extends TermsAggregator {
         LongTerms.Bucket spare = null;
         for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
-                spare = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0);
+                spare = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, formatter);
             }
             spare.term = bucketOrds.get(i);
             spare.docCount = bucketDocCount(i);

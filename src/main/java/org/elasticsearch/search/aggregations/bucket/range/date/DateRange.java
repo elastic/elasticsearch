@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.joda.time.DateTime;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * A range aggregation on date values.
@@ -36,7 +37,7 @@ public interface DateRange extends Range {
     }
 
     @Override
-    Collection<? extends DateRange.Bucket> getBuckets();
+    List<? extends Bucket> getBuckets();
 
     @Override
     DateRange.Bucket getBucketByKey(String key);

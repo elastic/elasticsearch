@@ -114,7 +114,7 @@ public class HistogramAggregator extends BucketsAggregator {
         assert owningBucketOrdinal == 0;
         List<InternalHistogram.Bucket> buckets = new ArrayList<>((int) bucketOrds.size());
         for (long i = 0; i < bucketOrds.size(); i++) {
-            buckets.add(histogramFactory.createBucket(rounding.valueForKey(bucketOrds.get(i)), bucketDocCount(i), bucketAggregations(i), formatter));
+            buckets.add(histogramFactory.createBucket(rounding.valueForKey(bucketOrds.get(i)), bucketDocCount(i), bucketAggregations(i), keyed, formatter));
         }
 
         CollectionUtil.introSort(buckets, order.comparator());

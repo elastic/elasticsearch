@@ -34,6 +34,8 @@ import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -59,21 +61,46 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
     };
 
+    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+        @Override
+        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
+            Bucket histogram = new Bucket(context.keyed(), context.formatter());
+            histogram.readFrom(in);
+            return histogram;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            context.formatter(bucket.formatter);
+            context.keyed(bucket.keyed);
+            return context;
+        }
+    };
+
     public static void registerStream() {
+
         AggregationStreams.registerStream(STREAM, TYPE.stream());
+        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
     public static class Bucket implements Histogram.Bucket {
 
-        final long key;
-        final long docCount;
+        long key;
+        long docCount;
+        InternalAggregations aggregations;
+        private transient final boolean keyed;
         protected transient final @Nullable ValueFormatter formatter;
-        final InternalAggregations aggregations;
 
-        public Bucket(long key, long docCount, @Nullable ValueFormatter formatter, InternalAggregations aggregations) {
+        public Bucket(boolean keyed, @Nullable ValueFormatter formatter) {
+            this.formatter = formatter;
+            this.keyed = keyed;
+        }
+
+        public Bucket(long key, long docCount, boolean keyed, @Nullable ValueFormatter formatter, InternalAggregations aggregations) {
+            this(keyed, formatter);
             this.key = key;
             this.docCount = docCount;
-            this.formatter = formatter;
             this.aggregations = aggregations;
         }
 
@@ -114,10 +141,11 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 aggregations.add((InternalAggregations) bucket.getAggregations());
             }
             InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-            return (B) getFactory().createBucket(key, docCount, aggs, formatter);
+            return (B) getFactory().createBucket(key, docCount, aggs, keyed, formatter);
         }
 
-        void toXContent(XContentBuilder builder, Params params, boolean keyed, @Nullable ValueFormatter formatter) throws IOException {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (formatter != null && formatter != ValueFormatter.RAW) {
                 Text keyTxt = new StringText(formatter.format(key));
                 if (keyed) {
@@ -137,6 +165,21 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             builder.field(CommonFields.DOC_COUNT, docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            key = in.readLong();
+            docCount = in.readVLong();
+            aggregations = InternalAggregations.readAggregations(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(key);
+            out.writeVLong(docCount);
+            aggregations.writeTo(out);
         }
     }
 
@@ -194,8 +237,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
         }
 
-        public B createBucket(long key, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
-            return (B) new Bucket(key, docCount, formatter, aggregations);
+        public B createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+            return (B) new Bucket(key, docCount, keyed, formatter, aggregations);
         }
 
     }
@@ -295,7 +338,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                         long key = bounds.min;
                         long max = bounds.max;
                         while (key <= max) {
-                            iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
+                            iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
                             key = emptyBucketInfo.rounding.nextRoundingValue(key);
                         }
                     }
@@ -304,7 +347,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                         long key = bounds.min;
                         if (key < firstBucket.key) {
                             while (key < firstBucket.key) {
-                                iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
+                                iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
                                 key = emptyBucketInfo.rounding.nextRoundingValue(key);
                             }
                         }
@@ -319,7 +362,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 if (lastBucket != null) {
                     long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
                     while (key < nextBucket.key) {
-                        iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
+                        iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
                         key = emptyBucketInfo.rounding.nextRoundingValue(key);
                     }
                     assert key == nextBucket.key;
@@ -332,7 +375,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
                 long max = bounds.max;
                 while (key <= max) {
-                    iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
+                    iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
                     key = emptyBucketInfo.rounding.nextRoundingValue(key);
                 }
             }
@@ -348,8 +391,12 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         return getFactory().create(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
     }
 
-    protected B createBucket(long key, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
-        return (B) new InternalHistogram.Bucket(key, docCount, formatter, aggregations);
+    protected B createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+        return (B) new InternalHistogram.Bucket(key, docCount, keyed, formatter, aggregations);
+    }
+
+    protected B createEmptyBucket(boolean keyed, @Nullable ValueFormatter formatter) {
+        return (B) new InternalHistogram.Bucket(keyed, formatter);
     }
 
     @Override
@@ -365,7 +412,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         int size = in.readVInt();
         List<B> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            buckets.add(createBucket(in.readLong(), in.readVLong(), InternalAggregations.readAggregations(in), formatter));
+            B bucket = createEmptyBucket(keyed, formatter);
+            bucket.readFrom(in);
+            buckets.add(bucket);
         }
         this.buckets = buckets;
         this.bucketsMap = null;
@@ -383,9 +432,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         out.writeBoolean(keyed);
         out.writeVInt(buckets.size());
         for (B bucket : buckets) {
-            out.writeLong(bucket.key);
-            out.writeVLong(bucket.docCount);
-            bucket.aggregations.writeTo(out);
+            bucket.writeTo(out);
         }
     }
 
@@ -397,7 +444,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             builder.startArray(CommonFields.BUCKETS);
         }
         for (B bucket : buckets) {
-            bucket.toXContent(builder, params, keyed, formatter);
+            bucket.toXContent(builder, params);
         }
         if (keyed) {
             builder.endObject();

@@ -373,7 +373,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             if (localNode.equals(masterNode)) {
                 this.master = true;
                 nodesFD.start(); // start the nodes FD
-                clusterService.submitStateUpdateTask("zen-disco-join (elected_as_master)", Priority.URGENT, new ProcessedClusterStateNonMasterUpdateTask() {
+                clusterService.submitStateUpdateTask("zen-disco-join (elected_as_master)", Priority.IMMEDIATE, new ProcessedClusterStateNonMasterUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         // Take into account the previous known nodes, if they happen not to be available
@@ -1123,7 +1123,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 return;
             }
             logger.debug("got a ping from another master {}. resolving who should rejoin. current ping count: [{}]", pingRequest.masterNode(), pingsWhileMaster.get());
-            clusterService.submitStateUpdateTask("ping from another master", Priority.URGENT, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("ping from another master", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -1195,7 +1195,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         @Override
         public void messageReceived(final RejoinClusterRequest request, final TransportChannel channel) throws Exception {
-            clusterService.submitStateUpdateTask("received a request to rejoin the cluster from [" + request.fromNodeId + "]", Priority.URGENT, new ClusterStateNonMasterUpdateTask() {
+            clusterService.submitStateUpdateTask("received a request to rejoin the cluster from [" + request.fromNodeId + "]", Priority.IMMEDIATE, new ClusterStateNonMasterUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     try {

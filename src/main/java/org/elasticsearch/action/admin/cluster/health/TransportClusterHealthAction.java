@@ -37,6 +37,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  *
@@ -74,6 +75,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
 
         if (request.waitForEvents() != null) {
             final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<ElasticsearchException> failure = new AtomicReference<>();
             clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", request.waitForEvents(), new ProcessedClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -88,6 +90,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
                 @Override
                 public void onFailure(String source, Throwable t) {
                     logger.error("unexpected failure during [{}]", t, source);
+                    failure.set(new ElasticsearchException("Error while waiting for events", t));
+                    latch.countDown();
+                }
+
+                @Override
+                public boolean runOnlyOnMaster() {
+                    return !request.local();
                 }
             });
 
@@ -95,6 +104,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
                 latch.await(request.timeout().millis(), TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 // ignore
+            }
+            if (failure.get() != null) {
+                throw failure.get();
             }
         }
 

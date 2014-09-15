@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * A {@code geohash_grid} aggregation. Defines multiple buckets, each representing a cell in a geo-grid of a specific
@@ -51,7 +52,7 @@ public interface GeoHashGrid extends MultiBucketsAggregation {
      * @return  The buckets of this aggregation (each bucket representing a geohash grid cell)
      */
     @Override
-    Collection<Bucket> getBuckets();
+    List<Bucket> getBuckets();
 
     @Override
     Bucket getBucketByKey(String key);

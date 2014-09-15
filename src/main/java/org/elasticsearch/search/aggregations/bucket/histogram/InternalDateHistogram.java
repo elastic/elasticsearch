@@ -23,6 +23,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -47,14 +49,35 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
         }
     };
 
+    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+        @Override
+        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
+            Bucket buckets = new Bucket(context.keyed(), context.formatter());
+            buckets.readFrom(in);
+            return buckets;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            context.formatter(bucket.formatter);
+            return context;
+        }
+    };
+
     public static void registerStream() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
+        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
     static class Bucket extends InternalHistogram.Bucket implements DateHistogram.Bucket {
 
-        Bucket(long key, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
-            super(key, docCount, formatter, aggregations);
+        Bucket(boolean keyed, @Nullable ValueFormatter formatter) {
+            super(keyed, formatter);
+        }
+
+        Bucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+            super(key, docCount, keyed, formatter, aggregations);
         }
 
         @Override
@@ -95,8 +118,8 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
         }
 
         @Override
-        public InternalDateHistogram.Bucket createBucket(long key, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
-            return new Bucket(key, docCount, aggregations, formatter);
+        public InternalDateHistogram.Bucket createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+            return new Bucket(key, docCount, aggregations, keyed, formatter);
         }
     }
 
@@ -142,8 +165,13 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
     }
 
     @Override
-    protected InternalDateHistogram.Bucket createBucket(long key, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-        return new Bucket(key, docCount, aggregations, formatter);
+    protected InternalDateHistogram.Bucket createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, ValueFormatter formatter) {
+        return new Bucket(key, docCount, aggregations, keyed, formatter);
+    }
+    
+    @Override
+    protected Bucket createEmptyBucket(boolean keyed, ValueFormatter formatter) {
+        return new Bucket(keyed, formatter);
     }
 
     @Override

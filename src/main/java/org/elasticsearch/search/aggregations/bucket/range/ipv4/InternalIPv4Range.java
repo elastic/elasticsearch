@@ -23,6 +23,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -47,20 +49,41 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
         }
     };
 
+    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+        @Override
+        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
+            Bucket buckets = new Bucket(context.keyed());
+            buckets.readFrom(in);
+            return buckets;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            context.keyed(bucket.keyed());
+            return context;
+        }
+    };
+
     public static void registerStream() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
+        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
     public static final Factory FACTORY = new Factory();
 
     public static class Bucket extends InternalRange.Bucket implements IPv4Range.Bucket {
 
-        public Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations) {
-            super(key, from, to, docCount, new InternalAggregations(aggregations), ValueFormatter.IPv4);
+        public Bucket(boolean keyed) {
+            super(keyed, ValueFormatter.IPv4);
         }
 
-        public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations) {
-            super(key, from, to, docCount, aggregations, ValueFormatter.IPv4);
+        public Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, boolean keyed) {
+            super(key, from, to, docCount, new InternalAggregations(aggregations), keyed, ValueFormatter.IPv4);
+        }
+
+        public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed) {
+            super(key, from, to, docCount, aggregations, keyed, ValueFormatter.IPv4);
         }
 
         @Override
@@ -79,6 +102,10 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
         protected InternalRange.Factory<Bucket, ?> getFactory() {
             return FACTORY;
         }
+
+        boolean keyed() {
+            return keyed;
+        }
     }
 
     private static class Factory extends InternalRange.Factory<InternalIPv4Range.Bucket, InternalIPv4Range> {
@@ -94,8 +121,8 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
         }
 
         @Override
-        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
-            return new Bucket(key, from, to, docCount, aggregations);
+        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+            return new Bucket(key, from, to, docCount, aggregations, keyed);
         }
     }
 

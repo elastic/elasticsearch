@@ -121,10 +121,6 @@ public class RecoveryTarget extends AbstractComponent {
     }
 
     public void cancelRecovery(IndexShard indexShard) {
-        cancelRecovery(indexShard, true);
-    }
-
-    public void cancelRecovery(IndexShard indexShard, boolean waitForSourceToBeNotified) {
         RecoveryStatus recoveryStatus = findRecoveryByShard(indexShard);
         // it might be if the recovery source got canceled first
         if (recoveryStatus == null) {
@@ -142,8 +138,7 @@ public class RecoveryTarget extends AbstractComponent {
             final long sleepTime = 100;
             final long maxSleepTime = 10000;
             long rounds = Math.round(maxSleepTime / sleepTime);
-            while (waitForSourceToBeNotified &&
-                    !recoveryStatus.sentCanceledToSource &&
+            while (!recoveryStatus.sentCanceledToSource &&
                     transportService.nodeConnected(recoveryStatus.sourceNode) &&
                     rounds > 0) {
                 rounds--;
@@ -642,7 +637,7 @@ public class RecoveryTarget extends AbstractComponent {
         }
         if (onGoingRecovery.indexShard.state() == IndexShardState.CLOSED) {
             // mark sentCanceledToSource after cancel recovery, o.w. cancelRecovery will do nothing
-            cancelRecovery(onGoingRecovery.indexShard, false);
+            removeAndCleanOnGoingRecovery(onGoingRecovery);
             onGoingRecovery.sentCanceledToSource = true;
             throw new IndexShardClosedException(shardId);
         }

@@ -48,7 +48,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     private boolean threadedOperation = true;
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
-    private boolean canHaveDuplicates = false;
+    private volatile boolean canHaveDuplicates = false;
 
     protected ShardReplicationOperationRequest() {
 

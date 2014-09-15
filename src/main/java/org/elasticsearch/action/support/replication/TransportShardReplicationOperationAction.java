@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
@@ -162,14 +163,26 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     /**
      * Should an exception be ignored when the operation is performed on the replica.
      */
-    boolean ignoreReplicaException(Throwable e) {
+    protected boolean ignoreReplicaException(Throwable e) {
         if (TransportActions.isShardNotAvailableException(e)) {
             return true;
         }
+        // on version conflict or document missing, it means
+        // that a new change has crept into the replica, and it's fine
+        if (isConflictException(e)) {
+            return true;
+        }
+        return false;
+    }
+
+    protected boolean isConflictException(Throwable e) {
         Throwable cause = ExceptionsHelper.unwrapCause(e);
         // on version conflict or document missing, it means
         // that a new change has crept into the replica, and it's fine
         if (cause instanceof VersionConflictEngineException) {
+            return true;
+        }
+        if (cause instanceof DocumentAlreadyExistsException) {
             return true;
         }
         return false;
@@ -536,6 +549,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 PrimaryResponse<Response, ReplicaRequest> response = shardOperationOnPrimary(clusterState, new PrimaryOperationRequest(primaryShardId, internalRequest.concreteIndex(), internalRequest.request()));
                 performReplicas(response);
             } catch (Throwable e) {
+                internalRequest.request.setCanHaveDuplicates();
                 // shard has not been allocated yet, retry it here
                 if (retryPrimaryException(e)) {
                     primaryOperationStarted.set(false);

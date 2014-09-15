@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -36,8 +37,9 @@ import java.io.IOException;
 public class BulkItemRequest implements Streamable {
 
     private int id;
-
     private ActionRequest request;
+    private volatile BulkItemResponse primaryResponse;
+    private volatile boolean ignoreOnReplica;
 
     BulkItemRequest() {
 
@@ -63,6 +65,22 @@ public class BulkItemRequest implements Streamable {
         return indicesRequest.indices()[0];
     }
 
+    BulkItemResponse getPrimaryResponse() {
+        return primaryResponse;
+    }
+
+    void setPrimaryResponse(BulkItemResponse primaryResponse) {
+        this.primaryResponse = primaryResponse;
+    }
+
+    void setIgnoreOnReplica() {
+        this.ignoreOnReplica = true;
+    }
+
+    boolean isIgnoreOnReplica() {
+        return ignoreOnReplica;
+    }
+
     public static BulkItemRequest readBulkItem(StreamInput in) throws IOException {
         BulkItemRequest item = new BulkItemRequest();
         item.readFrom(in);
@@ -81,6 +99,12 @@ public class BulkItemRequest implements Streamable {
             request = new UpdateRequest();
         }
         request.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            if (in.readBoolean()) {
+                primaryResponse = BulkItemResponse.readBulkItem(in);
+            }
+            ignoreOnReplica = in.readBoolean();
+        }
     }
 
     @Override
@@ -94,5 +118,9 @@ public class BulkItemRequest implements Streamable {
             out.writeByte((byte) 2);
         }
         request.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            out.writeOptionalStreamable(primaryResponse);
+            out.writeBoolean(ignoreOnReplica);
+        }
     }
 }

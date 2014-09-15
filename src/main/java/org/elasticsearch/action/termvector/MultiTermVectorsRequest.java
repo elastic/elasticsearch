@@ -19,10 +19,10 @@
 
 package org.elasticsearch.action.termvector;
 
+import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,12 +31,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
-public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> implements CompositeIndicesRequest {
+public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> implements Iterable<TermVectorRequest>, CompositeIndicesRequest {
 
     String preference;
     List<TermVectorRequest> requests = new ArrayList<>();
@@ -50,11 +47,6 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
 
     public MultiTermVectorsRequest add(String index, @Nullable String type, String id) {
         requests.add(new TermVectorRequest(index, type, id));
-        return this;
-    }
-
-    public MultiTermVectorsRequest add(MultiGetRequest.Item item) {
-        requests.add(new TermVectorRequest(item));
         return this;
     }
 
@@ -78,6 +70,19 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
 
     @Override
     public List<? extends IndicesRequest> subRequests() {
+        return requests;
+    }
+
+    @Override
+    public Iterator<TermVectorRequest> iterator() {
+        return Iterators.unmodifiableIterator(requests.iterator());
+    }
+
+    public boolean isEmpty() {
+        return requests.isEmpty() && ids.isEmpty();
+    }
+
+    public List<TermVectorRequest> getRequests() {
         return requests;
     }
 

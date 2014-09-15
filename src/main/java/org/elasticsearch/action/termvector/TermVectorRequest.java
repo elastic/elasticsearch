@@ -23,6 +23,7 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -45,7 +46,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  * Note, the {@link #index()}, {@link #type(String)} and {@link #id(String)} are
  * required.
  */
-public class TermVectorRequest extends SingleShardOperationRequest<TermVectorRequest> {
+public class TermVectorRequest extends SingleShardOperationRequest<TermVectorRequest> implements DocumentRequest<TermVectorRequest> {
 
     private String type;
 
@@ -287,7 +288,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
      * Return only term vectors for special selected fields. Returns the term
      * vectors for all fields if selectedFields == null
      */
-    public TermVectorRequest selectedFields(String[] fields) {
+    public TermVectorRequest selectedFields(String... fields) {
         selectedFields = fields != null && fields.length != 0 ? Sets.newHashSet(fields) : null;
         return this;
     }

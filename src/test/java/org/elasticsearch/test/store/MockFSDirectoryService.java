@@ -24,6 +24,7 @@ import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.StoreRateLimiting;
+import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -60,7 +61,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         helper = new MockDirectoryHelper(shardId, indexSettings, logger, random, seed);
-        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, random.nextDouble() < 0.1);
+        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true);
 
         delegateService = helper.randomDirectorService(indexStore);
         if (checkIndexOnClose) {
@@ -100,6 +101,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
             out.flush();
             CheckIndex.Status status = checkIndex.checkIndex();
             if (!status.clean) {
+                AbstractRandomizedTest.checkIndexFailed = true;
                 logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
                 throw new IndexShardException(shardId, "index check failure");
             } else {

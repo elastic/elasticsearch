@@ -165,7 +165,6 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
         String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
         RestSpec restSpec = RestSpec.parseFrom(DEFAULT_SPEC_PATH, specPaths);
-        assert restTestExecutionContext == null;
         restTestExecutionContext = new RestTestExecutionContext(restSpec);
     }
 
@@ -191,7 +190,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
             String testPath = testCandidate.getSuitePath() + "/" + testSection;
             assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.matches(Paths.get(testPath)));
         }
-
+        //The client needs non static info to get initialized, therefore it can't be initialized in the before class
         restTestExecutionContext.resetClient(cluster().httpAddresses(), restClientSettings());
         restTestExecutionContext.clear();
 

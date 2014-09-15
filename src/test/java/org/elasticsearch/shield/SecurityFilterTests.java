@@ -7,24 +7,29 @@ package org.elasticsearch.shield;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestFilterChain;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationException;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.system.SystemRealm;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.authz.AuthorizationService;
+import org.elasticsearch.shield.key.KeyService;
+import org.elasticsearch.shield.key.SignatureException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.internal.stubbing.answers.DoesNothing;
 
 import static org.mockito.Mockito.*;
 
@@ -41,13 +46,17 @@ public class SecurityFilterTests extends ElasticsearchTestCase {
     private AuthenticationService authcService;
     private AuthorizationService authzService;
     private RestController restController;
+    private KeyService keyService;
+    private AuditTrail auditTrail;
 
     @Before
     public void init() throws Exception {
         authcService = mock(AuthenticationService.class);
         authzService = mock(AuthorizationService.class);
         restController = mock(RestController.class);
-        filter = new SecurityFilter(ImmutableSettings.EMPTY, authcService, authzService);
+        keyService = mock(KeyService.class);
+        auditTrail = mock(AuditTrail.class);
+        filter = new SecurityFilter(ImmutableSettings.EMPTY, authcService, authzService, keyService, auditTrail);
     }
 
     @Test
@@ -132,9 +141,10 @@ public class SecurityFilterTests extends ElasticsearchTestCase {
         ActionRequest request = mock(ActionRequest.class);
         ActionListener listener = mock(ActionListener.class);
         ActionFilterChain chain = mock(ActionFilterChain.class);
+        when(filter.unsign(any(User.class), eq("_action"), eq(request))).thenReturn(request);
         action.apply("_action", request, listener, chain);
         verify(filter).process("_action", request);
-        verify(chain).proceed("_action", request, listener);
+        verify(chain).proceed(eq("_action"), eq(request), isA(SecurityFilter.SigningListener.class));
     }
 
     @Test
@@ -148,6 +158,25 @@ public class SecurityFilterTests extends ElasticsearchTestCase {
         doThrow(exception).when(filter).process("_action", request);
         action.apply("_action", request, listener, chain);
         verify(listener).onFailure(exception);
+        verifyNoMoreInteractions(chain);
+    }
+
+    @Test
+    public void testAction_SignatureError() throws Exception {
+        SecurityFilter.Action action = new SecurityFilter.Action(filter);
+        SearchScrollRequest request = new SearchScrollRequest("scroll_id");
+        ActionListener listener = mock(ActionListener.class);
+        ActionFilterChain chain = mock(ActionFilterChain.class);
+        SignatureException sigException = new SignatureException("bad bad boy");
+        User user = mock(User.class);
+        AuthenticationToken token = mock(AuthenticationToken.class);
+        when(authcService.token("_action", request, null)).thenReturn(token);
+        when(authcService.authenticate("_action", request, token)).thenReturn(user);
+        when(keyService.signed("scroll_id")).thenReturn(true);
+        doThrow(sigException).when(keyService).unsignAndVerify("scroll_id");
+        action.apply("_action", request, listener, chain);
+        verify(listener).onFailure(isA(AuthorizationException.class));
+        verify(auditTrail).tamperedRequest(user, "_action", request);
         verifyNoMoreInteractions(chain);
     }
 

@@ -8,6 +8,7 @@ package org.elasticsearch.shield.audit;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.transport.TransportRequest;
 
 /**
  *
@@ -42,6 +43,10 @@ public interface AuditTrail {
         @Override
         public void accessDenied(User user, String action, TransportMessage<?> message) {
         }
+
+        @Override
+        public void tamperedRequest(User user, String action, TransportRequest request) {
+        }
     };
 
     String name();
@@ -55,5 +60,7 @@ public interface AuditTrail {
     void accessGranted(User user, String action, TransportMessage<?> message);
 
     void accessDenied(User user, String action, TransportMessage<?> message);
+
+    void tamperedRequest(User user, String action, TransportRequest request);
 
 }

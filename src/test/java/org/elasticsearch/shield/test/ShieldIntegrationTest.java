@@ -9,6 +9,7 @@ import com.google.common.base.Charsets;
 import com.google.common.net.InetAddresses;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -93,9 +94,13 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     }
 
     protected String writeFile(File folder, String name, String content) {
+        return writeFile(folder, name, content.getBytes(Charsets.UTF_8));
+    }
+
+    protected String writeFile(File folder, String name, byte[] content) {
         Path file = folder.toPath().resolve(name);
         try {
-            com.google.common.io.Files.write(content.getBytes(Charsets.UTF_8), file.toFile());
+            Streams.copy(content, file.toFile());
         } catch (IOException e) {
             throw new ElasticsearchException("Error writing file in test", e);
         }

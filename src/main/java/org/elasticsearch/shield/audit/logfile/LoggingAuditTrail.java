@@ -13,6 +13,7 @@ import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.transport.TransportRequest;
 
 /**
  *
@@ -80,4 +81,12 @@ public class LoggingAuditTrail implements AuditTrail {
         }
     }
 
+    @Override
+    public void tamperedRequest(User user, String action, TransportRequest request) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("TAMPERED REQUEST\thost=[{}], action=[{}], principal=[{}], request=[{}]", request.remoteAddress(), action, user.principal(), request);
+        } else {
+            logger.error("TAMPERED REQUEST\thost=[{}], action=[{}], principal=[{}]", request.remoteAddress(), action, user.principal());
+        }
+    }
 }

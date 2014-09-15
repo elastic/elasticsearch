@@ -636,7 +636,6 @@ public class RecoveryTarget extends AbstractComponent {
             throw new IndexShardClosedException(shardId);
         }
         if (onGoingRecovery.indexShard.state() == IndexShardState.CLOSED) {
-            // mark sentCanceledToSource after cancel recovery, o.w. cancelRecovery will do nothing
             removeAndCleanOnGoingRecovery(onGoingRecovery);
             onGoingRecovery.sentCanceledToSource = true;
             throw new IndexShardClosedException(shardId);

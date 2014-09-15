@@ -91,8 +91,8 @@ public class RecoveryStatus {
         }
         return outputs.get(key);
     }
-    
-    public synchronized Set<Entry<String, IndexOutput>> cancleAndClearOpenIndexInputs() {
+
+    public synchronized Set<Entry<String, IndexOutput>> cancelAndClearOpenIndexInputs() {
         cancel();
         final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
         openIndexOutputs = null;

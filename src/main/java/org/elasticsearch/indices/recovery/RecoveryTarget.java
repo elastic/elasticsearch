@@ -138,7 +138,9 @@ public class RecoveryTarget extends AbstractComponent {
             final long sleepTime = 100;
             final long maxSleepTime = 10000;
             long rounds = Math.round(maxSleepTime / sleepTime);
-            while (!recoveryStatus.sentCanceledToSource && rounds > 0) {
+            while (!recoveryStatus.sentCanceledToSource &&
+                    transportService.nodeConnected(recoveryStatus.sourceNode) &&
+                    rounds > 0) {
                 rounds--;
                 try {
                     Thread.sleep(sleepTime);
@@ -172,7 +174,7 @@ public class RecoveryTarget extends AbstractComponent {
         threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
-              doRecovery(request, recoveryStatus, listener);
+                doRecovery(request, recoveryStatus, listener);
             }
         });
     }
@@ -345,7 +347,7 @@ public class RecoveryTarget extends AbstractComponent {
         // coming from the recovery target
         status.cancel();
         // clean open index outputs
-        Set<Entry<String, IndexOutput>> entrySet = status.cancleAndClearOpenIndexInputs();
+        Set<Entry<String, IndexOutput>> entrySet = status.cancelAndClearOpenIndexInputs();
         Iterator<Entry<String, IndexOutput>> iterator = entrySet.iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, IndexOutput> entry = iterator.next();
@@ -634,7 +636,7 @@ public class RecoveryTarget extends AbstractComponent {
             throw new IndexShardClosedException(shardId);
         }
         if (onGoingRecovery.indexShard.state() == IndexShardState.CLOSED) {
-            cancelRecovery(onGoingRecovery.indexShard);
+            removeAndCleanOnGoingRecovery(onGoingRecovery);
             onGoingRecovery.sentCanceledToSource = true;
             throw new IndexShardClosedException(shardId);
         }

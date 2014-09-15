@@ -160,7 +160,7 @@ added[1.0.0.RC1]
     See <<indices-warmers>>. Defaults to `true`.
 
 
-added[1.4.0]
+coming[1.4.0]
 `index.minimum_shard_size`::
     If a shard of the index is smaller then this size it is considered to be
     this size for the purposes of the disk aware allocation decider and the

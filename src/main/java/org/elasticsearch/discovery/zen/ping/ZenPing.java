@@ -169,7 +169,9 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
          */
         public synchronized boolean addPing(PingResponse ping) {
             PingResponse existingResponse = pings.get(ping.node());
-            if (existingResponse == null || existingResponse.id() < ping.id()) {
+            // in case both existing and new ping have the same id (probably because they come
+            // from nodes from version <1.4.0) we prefer to use the last added one.
+            if (existingResponse == null || existingResponse.id() <= ping.id()) {
                 pings.put(ping.node(), ping);
                 return true;
             }

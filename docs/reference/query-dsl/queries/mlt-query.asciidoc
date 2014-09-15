@@ -61,8 +61,12 @@ this case should be preferred over only using `like_text`.
             "_index" : "test",
             "_type" : "type",
             "doc" : {
-                "fullname" : "John Doe",
-                "text" : "twitter test test test"
+                "name": {
+                    "first": "John",
+                    "last": "Doe"
+                },
+                "tweet": "twitter test test test"
+              }
             }
         },
         {

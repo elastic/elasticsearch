@@ -73,6 +73,9 @@ public class BulkItemRequest implements Streamable {
         this.primaryResponse = primaryResponse;
     }
 
+    /**
+     * Marks this request to be ignored and *not* execute on a replica.
+     */
     void setIgnoreOnReplica() {
         this.ignoreOnReplica = true;
     }

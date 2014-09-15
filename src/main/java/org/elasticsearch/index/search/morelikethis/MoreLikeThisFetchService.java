@@ -47,11 +47,7 @@ public class MoreLikeThisFetchService extends AbstractComponent {
         this.client = client;
     }
 
-    public Fields[] fetch(List<MultiGetRequest.Item> items) throws IOException {
-        MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        for (MultiGetRequest.Item item : items) {
-            request.add(item);
-        }
+    public Fields[] fetch(MultiTermVectorsRequest request) throws IOException {
         List<Fields> likeFields = new ArrayList<>();
         MultiTermVectorsResponse responses = client.multiTermVectors(request).actionGet();
         for (MultiTermVectorsItemResponse response : responses) {

@@ -50,9 +50,7 @@ public class RestClient implements Closeable {
     private final RestSpec restSpec;
     private final CloseableHttpClient httpClient;
     private final Headers headers;
-
-    private InetSocketAddress[] addresses;
-
+    private final InetSocketAddress[] addresses;
     private final String esVersion;
 
     public RestClient(RestSpec restSpec, Settings settings, InetSocketAddress[] addresses) throws IOException, RestException {
@@ -97,13 +95,6 @@ public class RestClient implements Closeable {
 
     public String getEsVersion() {
         return esVersion;
-    }
-
-    /**
-     * Allows to update the addresses the client needs to connect to
-     */
-    public void updateAddresses(InetSocketAddress[] addresses) {
-        this.addresses = addresses;
     }
 
     /**

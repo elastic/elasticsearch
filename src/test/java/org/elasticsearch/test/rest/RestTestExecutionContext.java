@@ -116,11 +116,34 @@ public class RestTestExecutionContext implements Closeable {
     }
 
     /**
-     * Creates the embedded REST client when needed. Needs to be called before executing any test.
+     * Creates or updates the embedded REST client when needed. Needs to be called before each test.
      */
     public void resetClient(InetSocketAddress[] addresses, Settings settings) throws IOException, RestException {
         if (restClient == null) {
             restClient = new RestClient(restSpec, settings, addresses);
+        } else {
+            //re-initialize the REST client if the addresses have changed
+            //might happen if there's a failure and we restart the global cluster due to that
+            if (restClient.httpAddresses().length != addresses.length) {
+                restClient.close();
+                restClient = new RestClient(restSpec, settings, addresses);
+                return;
+            }
+
+            for (InetSocketAddress address : addresses) {
+                boolean found = false;
+                for (InetSocketAddress previousAddress : restClient.httpAddresses()) {
+                    if (previousAddress.equals(address)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    restClient.close();
+                    restClient = new RestClient(restSpec, settings, addresses);
+                    return;
+                }
+            }
         }
     }
 

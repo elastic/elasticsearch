@@ -109,6 +109,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 public final class InternalNode implements Node {
 
     private static final String CLIENT_TYPE = "node";
+    public static final String HTTP_ENABLED = "http.enabled";
+
 
     private final Lifecycle lifecycle = new Lifecycle();
     private final Injector injector;
@@ -171,7 +173,7 @@ public final class InternalNode implements Node {
             modules.add(new ClusterModule(settings));
             modules.add(new RestModule(settings));
             modules.add(new TransportModule(settings));
-            if (settings.getAsBoolean("http.enabled", true)) {
+            if (settings.getAsBoolean(HTTP_ENABLED, true)) {
                 modules.add(new HttpServerModule(settings));
             }
             modules.add(new RiversModule(settings));

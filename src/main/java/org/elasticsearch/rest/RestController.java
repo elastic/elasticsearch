@@ -44,7 +44,6 @@ import static org.elasticsearch.rest.RestStatus.*;
 public class RestController extends AbstractLifecycleComponent<RestController> {
 
     public static final String HTTP_JSON_ENABLE = "http.jsonp.enable";
-
     private ImmutableSet<String> relevantHeaders = ImmutableSet.of();
 
     private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);

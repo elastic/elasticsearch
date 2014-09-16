@@ -53,6 +53,9 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
+    public DeleteRequest() {
+    }
+
     /**
      * Constructs a new delete request against the specified index. The {@link #type(String)} and {@link #id(String)}
      * must be set.
@@ -74,17 +77,25 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         this.id = id;
     }
 
+    /**
+     * Copy constructor that creates a new delete request that is a copy of the one provided as an argument.
+     */
     public DeleteRequest(DeleteRequest request) {
-        super(request);
+        this(request, request);
+    }
+
+    /**
+     * Copy constructor that creates a new delete request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    public DeleteRequest(DeleteRequest request, ActionRequest originalRequest) {
+        super(request, originalRequest);
         this.type = request.type();
         this.id = request.id();
         this.routing = request.routing();
         this.refresh = request.refresh();
         this.version = request.version();
         this.versionType = request.versionType();
-    }
-
-    public DeleteRequest() {
     }
 
     /**

@@ -45,7 +45,9 @@ public class JsonpOptionDisabledTest extends ElasticsearchIntegrationTest {
         // false is the default!
         if (randomBoolean()) {
             logger.info("using default jsonp settings (should be false)");
-            return super.nodeSettings(nodeOrdinal);
+            return ImmutableSettings.settingsBuilder()
+                    .put(super.nodeSettings(nodeOrdinal))
+                    .put(InternalNode.HTTP_ENABLED, true).build();
         }
         return ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))

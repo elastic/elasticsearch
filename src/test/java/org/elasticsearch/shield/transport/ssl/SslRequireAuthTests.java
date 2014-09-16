@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.test.ShieldIntegrationTest;
 import org.junit.Test;
@@ -49,6 +50,7 @@ public class SslRequireAuthTests extends ShieldIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
+                .put(InternalNode.HTTP_ENABLED, true)
                 .put(getSSLSettingsForStore("certs/simple/testnode.jks", "testnode"))
                 .put("shield.transport.ssl.require.client.auth", true)
                 .put("shield.http.ssl.require.client.auth", true)

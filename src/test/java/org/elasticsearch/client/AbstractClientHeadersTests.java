@@ -39,7 +39,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetAction;
@@ -78,7 +77,7 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
     private static final GenericAction[] ACTIONS = new GenericAction[] {
                 // client actions
                 GetAction.INSTANCE, SearchAction.INSTANCE, DeleteAction.INSTANCE, DeleteIndexedScriptAction.INSTANCE,
-                IndexAction.INSTANCE, AbortBenchmarkAction.INSTANCE, BenchmarkAction.INSTANCE, BenchmarkStatusAction.INSTANCE,
+                IndexAction.INSTANCE,
 
                 // cluster admin actions
                 ClusterStatsAction.INSTANCE, CreateSnapshotAction.INSTANCE, NodesShutdownAction.INSTANCE, ClusterRerouteAction.INSTANCE,
@@ -116,9 +115,6 @@ public abstract class AbstractClientHeadersTests extends ElasticsearchTestCase {
         client.prepareDelete("idx", "type", "id").execute().addListener(new AssertingActionListener<DeleteResponse>(DeleteAction.NAME));
         client.prepareDeleteIndexedScript("lang", "id").execute().addListener(new AssertingActionListener<DeleteIndexedScriptResponse>(DeleteIndexedScriptAction.NAME));
         client.prepareIndex("idx", "type", "id").setSource("source").execute().addListener(new AssertingActionListener<IndexResponse>(IndexAction.NAME));
-        client.prepareAbortBench("bname").execute().addListener(new AssertingActionListener<AbortBenchmarkResponse>(AbortBenchmarkAction.NAME));
-        client.prepareBench("idx").setBenchmarkId("id").addCompetitor(new BenchmarkCompetitorBuilder().setName("name")).execute().addListener(new AssertingActionListener<BenchmarkResponse>(BenchmarkAction.NAME));
-        client.prepareBenchStatus().execute().addListener(new AssertingActionListener<BenchmarkStatusResponse>(BenchmarkStatusAction.NAME));
 
         // choosing arbitrary cluster admin actions to test
         client.admin().cluster().prepareClusterStats().execute().addListener(new AssertingActionListener<ClusterStatsResponse>(ClusterStatsAction.NAME));

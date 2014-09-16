@@ -31,20 +31,32 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 
+/**
+ * Instances of this class execute a collection of search intents (read: user supplied query parameters) against a set of
+ * possible search requests (read: search specifications, expressed as query/search request templates) and compares the result
+ * against a set of annotated documents per search intent.
+ * 
+ * If any documents are returned that haven't been annotated the document id of those is returned per search intent.
+ * 
+ * The resulting search quality is computed in terms of precision at n and returned for each search specification for the full
+ * set of search intents as averaged precision at n.
+ * */
 public class TransportPrecisionAtAction extends TransportAction<PrecisionAtRequest, PrecisionAtResponse> {
 
     private final TransportSearchAction transportSearchAction;
 
     @Inject
     public TransportPrecisionAtAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, 
-            TransportSearchAction transportSearchAction) {
+            TransportSearchAction transportSearchAction, TransportService transportService) {
         super(settings, PrecisionAtAction.NAME, threadPool, actionFilters);
         this.transportSearchAction = transportSearchAction;
+        transportService.registerHandler(PrecisionAtAction.NAME, new TransportPrecisionAtActionHandler());
     }
 
     @Override
@@ -57,11 +69,13 @@ public class TransportPrecisionAtAction extends TransportAction<PrecisionAtReque
             double precisionAtN = 0;
             Collection<String> unknownDocs = new HashSet<String>();
 
-            SearchRequest templated = spec.getTemplatedSearchRequest();
+            SearchRequest specRequest = spec.getTemplatedSearchRequest();
             Collection<Intent<String>> intents = qualityTask.getIntents();
             for (Intent<String> intent : intents) {
                 Map<String, String> templateParams = intent.getIntentParameters();
+                SearchRequest templated = new SearchRequest(specRequest);
                 templated.templateParams(templateParams);
+                
                 ActionFuture<SearchResponse> searchResponse = transportSearchAction.execute(templated);
                 SearchHits hits = searchResponse.actionGet().getHits();
 
@@ -74,17 +88,4 @@ public class TransportPrecisionAtAction extends TransportAction<PrecisionAtReque
 
         listener.onResponse(response);
     }
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-
 }

@@ -23,10 +23,6 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
-import org.elasticsearch.action.bench.AbortBenchmarkAction;
-import org.elasticsearch.action.bench.BenchmarkAction;
-import org.elasticsearch.action.bench.BenchmarkService;
-import org.elasticsearch.action.bench.BenchmarkStatusAction;
 import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
@@ -134,12 +130,6 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
 
     static {
         //add here new actions that don't need a mapping as they weren't available prior to 1.4
-        post_1_4_actions.add(BenchmarkService.STATUS_ACTION_NAME);
-        post_1_4_actions.add(BenchmarkService.START_ACTION_NAME);
-        post_1_4_actions.add(BenchmarkService.ABORT_ACTION_NAME);
-        post_1_4_actions.add(BenchmarkAction.NAME);
-        post_1_4_actions.add(BenchmarkStatusAction.NAME);
-        post_1_4_actions.add(AbortBenchmarkAction.NAME);
         post_1_4_actions.add(ExistsAction.NAME);
         post_1_4_actions.add(ExistsAction.NAME + "[s]");
         post_1_4_actions.add(GetIndexAction.NAME);

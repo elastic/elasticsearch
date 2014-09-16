@@ -41,6 +41,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Random;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -147,6 +148,7 @@ public class CompositeTestCluster extends TestCluster {
             externalNode.stop();
             String s = cluster.startNode(nodeSettings);
             ExternalNode.waitForNode(existingClient, s);
+            assertNoTimeout(existingClient.admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size())).get());
             return true;
         }
         return false;

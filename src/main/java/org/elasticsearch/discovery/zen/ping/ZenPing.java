@@ -92,7 +92,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             return master;
         }
 
-        /** true if the joined has successfully joined the cluster before, null for nodes with a <1.4.0 version */
+        /** true if the node has successfully joined the cluster before, null for nodes with a <1.4.0 version */
         @Nullable
         public Boolean hasJoinedOnce() {
             return hasJoinedOnce;

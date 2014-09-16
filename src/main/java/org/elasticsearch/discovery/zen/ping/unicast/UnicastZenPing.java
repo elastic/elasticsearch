@@ -65,7 +65,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
      * the lowest possible version (i.e., 1.0.0) for serializing information on the wire. As of 1.4, we needed to extend
      * the information sent in a ping, to prefer nodes which have previously joined the cluster during master election.
      * This information is only needed if all the cluster is on version 1.4 or up. To bypass this issue we introduce
-     * a second action name which is guaranteed to exist only nodes from version 1.4.0 and up. Using this action,
+     * a second action name which is guaranteed to exist only on nodes from version 1.4.0 and up. Using this action,
      * we can safely use 1.4.0 as a serialization format. If this fails with a {@link ActionNotFoundTransportException}
      * we know we speak to a node with <1.4 version, and fall back to use {@link #ACTION_NAME}.
      */

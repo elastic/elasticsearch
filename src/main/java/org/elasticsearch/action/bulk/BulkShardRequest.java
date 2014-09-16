@@ -97,7 +97,7 @@ public class BulkShardRequest extends ShardReplicationOperationRequest<BulkShard
             if (item != null) {
                 // if we are serializing to a node that is pre 1.4, make sure to pass null to maintain
                 // the old behavior of putting null in the request to be ignored on the replicas
-                if (item.isIgnoreOnReplica() && out.getVersion().before(Version.V_1_4_0_Beta)) {
+                if (item.isIgnoreOnReplica() && out.getVersion().before(Version.V_1_4_0_Beta1)) {
                     out.writeBoolean(false);
                 } else {
                     out.writeBoolean(true);

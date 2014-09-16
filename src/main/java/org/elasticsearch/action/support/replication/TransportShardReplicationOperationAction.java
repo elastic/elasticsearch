@@ -283,14 +283,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             int shard = -1;
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 shardId = ShardId.readShardId(in);
             } else {
                 shard = in.readVInt();
             }
             request = newReplicaRequestInstance();
             request.readFrom(in);
-            if (in.getVersion().before(Version.V_1_4_0_Beta)) {
+            if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
                 assert shard >= 0;
                 //older nodes will send the concrete index as part of the request
                 shardId = new ShardId(request.index(), shard);
@@ -300,7 +300,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 shardId.writeTo(out);
             } else {
                 out.writeVInt(shardId.id());

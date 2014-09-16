@@ -264,7 +264,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                     IndexFieldDataCache cache = fieldDataCaches.get(fieldNames.indexName());
                     if (cache == null) {
                         // soft and resident caches are deprecated as of 1.4.0
-                        final boolean pre14 = Version.indexCreated(indexSettings).before(Version.V_1_4_0_Beta);
+                        final boolean pre14 = Version.indexCreated(indexSettings).before(Version.V_1_4_0_Beta1);
                         //  we default to node level cache, which in turn defaults to be unbounded
                         // this means changing the node level settings is simple, just set the bounds there
                         String cacheType = type.getSettings().get("cache", indexSettings.get(FIELDDATA_CACHE_KEY, FIELDDATA_CACHE_VALUE_NODE));

@@ -335,7 +335,7 @@ public class NodesFaultDetection extends FaultDetection {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             nodeId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 clusterName = ClusterName.readClusterName(in);
                 masterNode = DiscoveryNode.readNode(in);
                 clusterStateVersion = in.readLong();
@@ -346,7 +346,7 @@ public class NodesFaultDetection extends FaultDetection {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 clusterName.writeTo(out);
                 masterNode.writeTo(out);
                 out.writeLong(clusterStateVersion);

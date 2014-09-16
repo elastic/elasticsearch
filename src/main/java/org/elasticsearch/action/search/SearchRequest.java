@@ -582,7 +582,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             }
         }
 
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             queryCache = in.readOptionalBoolean();
         }
     }
@@ -627,7 +627,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             }
         }
 
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeOptionalBoolean(queryCache);
         }
     }

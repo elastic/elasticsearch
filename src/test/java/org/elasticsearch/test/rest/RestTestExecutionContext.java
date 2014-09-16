@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest;
 
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +35,7 @@ import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Execution context passed across the REST tests.
@@ -123,26 +125,12 @@ public class RestTestExecutionContext implements Closeable {
             restClient = new RestClient(restSpec, settings, addresses);
         } else {
             //re-initialize the REST client if the addresses have changed
-            //might happen if there's a failure and we restart the global cluster due to that
-            if (restClient.httpAddresses().length != addresses.length) {
+            //happens if there's a failure since we restart the global cluster due to that
+            Set<InetSocketAddress> newAddresses = Sets.newHashSet(addresses);
+            Set<InetSocketAddress> previousAddresses = Sets.newHashSet(restClient.httpAddresses());
+            if (!newAddresses.equals(previousAddresses)) {
                 restClient.close();
                 restClient = new RestClient(restSpec, settings, addresses);
-                return;
-            }
-
-            for (InetSocketAddress address : addresses) {
-                boolean found = false;
-                for (InetSocketAddress previousAddress : restClient.httpAddresses()) {
-                    if (previousAddress.equals(address)) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    restClient.close();
-                    restClient = new RestClient(restSpec, settings, addresses);
-                    return;
-                }
             }
         }
     }

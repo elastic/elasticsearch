@@ -591,8 +591,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             final int len = (int)Math.min(1024 * 1024, size); // for safety we limit this to 1MB
             fileHash.grow(len);
             fileHash.setLength(len);
-            Streams.readFully(in, fileHash.bytes(), 0, len);
-            assert fileHash.length() == len;
+            final int readBytes = Streams.readFully(in, fileHash.bytes(), 0, len);
+            assert readBytes == len : Integer.toString(readBytes) + " != " + Integer.toString(len);
+            assert fileHash.length() == len : Integer.toString(fileHash.length()) + " != " + Integer.toString(len);
         }
 
         @Override

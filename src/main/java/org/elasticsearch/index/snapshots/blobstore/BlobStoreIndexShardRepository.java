@@ -624,7 +624,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 try (final InputStream stream = new PartSliceStream(blobContainer, fileInfo)) {
                     BytesRefBuilder builder = new BytesRefBuilder();
                     Store.MetadataSnapshot.hashFile(builder, stream, fileInfo.length());
-                    BytesRef hash = metadata.hash();
+                    BytesRef hash = fileInfo.metadata().hash(); // reset the file infos metadata hash
+                    assert hash.length == 0;
                     hash.bytes = builder.bytes();
                     hash.offset = 0;
                     hash.length = builder.length();

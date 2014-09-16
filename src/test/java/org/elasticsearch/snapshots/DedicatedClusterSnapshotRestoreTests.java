@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -62,6 +63,7 @@ import static org.hamcrest.Matchers.*;
 public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "Shay is working on this")
     public void restorePersistentSettingsTest() throws Exception {
         logger.info("--> start node");
         internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));

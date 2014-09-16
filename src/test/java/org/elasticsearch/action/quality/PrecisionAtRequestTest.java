@@ -118,6 +118,7 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         spec.setFilter(null);
         spec.setTargetIndex("test");
         spec.setTemplatedSearchRequest(request);
+        specs.add(spec);
 
         PrecisionTask task = new PrecisionTask();
         task.setIntents(intents);

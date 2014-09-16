@@ -273,7 +273,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             useSlowScroll = in.getVersion().before(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION);
         }
 
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             queryCache = in.readOptionalBoolean();
         }
         originalIndices = OriginalIndices.readOptionalOriginalIndices(in);
@@ -322,7 +322,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeBoolean(useSlowScroll);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeOptionalBoolean(queryCache);
         }
         OriginalIndices.writeOptionalOriginalIndices(originalIndices, out);

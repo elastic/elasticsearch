@@ -1006,7 +1006,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             activeNodes.add(pingResponse.node());
             minimumPingVersion = Version.smallest(pingResponse.node().version(), minimumPingVersion);
             if (pingResponse.hasJoinedOnce() != null && pingResponse.hasJoinedOnce()) {
-                assert minimumPingVersion.onOrAfter(Version.V_1_4_0);
+                assert pingResponse.node().getVersion().onOrAfter(Version.V_1_4_0) : "ping version [" + pingResponse.node().version() + "]< 1.4.0 while having hasJoinedOnce == true";
                 joinedOnceActiveNodes.add(pingResponse.node());
             }
         }

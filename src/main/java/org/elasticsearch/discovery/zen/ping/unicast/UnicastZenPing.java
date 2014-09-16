@@ -61,7 +61,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
 
     /**
-     * when pinging the initial configured target hosts, we do not know there version. We there therefore use
+     * when pinging the initial configured target hosts, we do not know their version. We therefore use
      * the lowest possible version (i.e., 1.0.0) for serializing information on the wire. As of 1.4, we needed to extend
      * the information sent in a ping, to prefer nodes which have previously joined the cluster during master election.
      * This information is only needed if all the cluster is on version 1.4 or up. To bypass this issue we introduce
@@ -382,7 +382,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         }
     }
 
-    /** See {@link #ACTION_NAME_GTE_1_4} for an explaination of why this needed */
+    /** See {@link #ACTION_NAME_GTE_1_4} for an explanation for why this needed */
     private void sendPingRequestTo14NodeWithFallback(final int id, final TimeValue timeout, final UnicastPingRequest pingRequest, final CountDownLatch latch, final DiscoveryNode node, final DiscoveryNode nodeToSend) {
         logger.trace("[{}] sending to {}, using >=1.4.0 serialization", id, nodeToSend);
         DiscoveryNode actualNodeToSend = new DiscoveryNode(nodeToSend.name(), nodeToSend.id(), nodeToSend.getHostName(), nodeToSend.getHostAddress(),

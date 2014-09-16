@@ -71,7 +71,9 @@ public class UnicastBackwardsCompatibilityTest extends ElasticsearchBackwardsCom
     @Test
     @TestLogging("discovery.zen:TRACE")
     public void testUnicastDiscovery() throws ExecutionException, InterruptedException, IOException {
-        // start a client node now, to make sure it grabs the first port
+        // start a client node now, to make sure it grabs the first port o.w. the backwards
+        // comparability infra may start one *after* the first external node and mess up our unicast host
+        // list
         backwardsCluster().internalCluster().startNode(ImmutableSettings.builder()
                 .put("node.client", "true")
                 .put(DiscoveryService.SETTING_INITIAL_STATE_TIMEOUT, "10ms")); // don't wait there is nothing out there.

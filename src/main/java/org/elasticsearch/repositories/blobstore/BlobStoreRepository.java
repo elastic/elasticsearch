@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.blobstore;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -492,6 +493,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 }
             }
             throw new ElasticsearchParseException("unexpected token  [" + token + "]");
+        } catch (JsonParseException ex) {
+            throw new ElasticsearchParseException("failed to read snapshot", ex);
         }
     }
 

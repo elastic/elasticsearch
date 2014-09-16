@@ -74,6 +74,17 @@ public class TranslogStreams {
     }
 
     /**
+     * Read the next {@link Translog.Operation} from the stream using the
+     * latest translog version.
+     *
+     * Reads the operation in a greedy manner, checking the checksum before
+     * operation-specific reading if applicable
+     */
+    public static Translog.Operation greedyReadTranslogOperation(StreamInput in) throws IOException {
+        return LATEST.greedyRead(in);
+    }
+
+    /**
      * Write the {@link Translog.Operation} to the output stream using the
      * latest translog version
      */

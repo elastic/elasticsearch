@@ -38,6 +38,12 @@ public interface TranslogStream {
     public Translog.Operation read(StreamInput in) throws IOException;
 
     /**
+     * Read the next translog operation from the input stream, reading the
+     * entire operation once to verify it, if applicable
+     */
+    public Translog.Operation greedyRead(StreamInput in) throws IOException;
+
+    /**
      * Write the given translog operation to the output stream
      */
     public void write(StreamOutput out, Translog.Operation op) throws IOException;

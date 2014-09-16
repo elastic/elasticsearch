@@ -254,7 +254,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                         if (stream instanceof LegacyTranslogStream) {
                             in.readInt(); // ignored opSize
                         }
-                        operation = stream.read(in);
+                        operation = stream.greedyRead(in);
                     } catch (EOFException e) {
                         // ignore, not properly written the last op
                         logger.trace("ignoring translog EOF exception, the last operation was not properly written ([{}])", e.getMessage());

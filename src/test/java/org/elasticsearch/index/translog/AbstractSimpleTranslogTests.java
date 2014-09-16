@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -76,7 +75,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
     private static Translog.Source readSource(byte[] bytes) throws IOException {
         BytesStreamInput in = new BytesStreamInput(bytes, false);
-        return TranslogStreams.readTranslogOperation(in).getSource();
+        return TranslogStreams.greedyReadTranslogOperation(in).getSource();
     }
 
     @Test
@@ -418,7 +417,6 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "corrupting size can cause OOME")
     public void testTranslogChecksums() throws Exception {
         List<Translog.Location> locations = newArrayList();
 

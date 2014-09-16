@@ -46,6 +46,12 @@ public class LegacyTranslogStream implements TranslogStream {
     }
 
     @Override
+    public Translog.Operation greedyRead(StreamInput in) throws IOException {
+        // No greedy reading for legacy translog streams
+        return this.read(in);
+    }
+
+    @Override
     public void write(StreamOutput out, Translog.Operation op) throws IOException {
         out.writeByte(op.opType().id());
         op.writeTo(out);

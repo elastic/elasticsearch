@@ -111,7 +111,8 @@ public class FsChannelSnapshot implements Translog.Snapshot {
             assert bytesRead == 4;
             cacheBuffer.flip();
             // Add an extra 4 to account for the operation size integer itself
-            int opSize = cacheBuffer.getInt() + 4;
+            // Add another 4 to account for the operation size being written twice
+            int opSize = cacheBuffer.getInt() + 8;
             if ((position + opSize) > length) {
                 // the snapshot is acquired under a write lock. we should never
                 // read beyond the EOF, must be an abrupt EOF

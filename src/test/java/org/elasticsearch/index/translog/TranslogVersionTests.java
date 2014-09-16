@@ -79,13 +79,13 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
 
         assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.CREATE, equalTo(true));
         Translog.Create op = (Translog.Create) operation;
-        assertThat(op.id(), equalTo("Bwiq98KFSb6YjJQGeSpeiw"));
+        assertThat(op.id(), equalTo("AUh9ym3XYynlg5RIfP2X"));
         assertThat(op.type(), equalTo("doc"));
         assertThat(op.source().toUtf8(), equalTo("{\"body\": \"foo\"}"));
         assertThat(op.routing(), equalTo(null));
         assertThat(op.parent(), equalTo(null));
         assertThat(op.version(), equalTo(1L));
-        assertThat(op.timestamp(), equalTo(1408627184844L));
+        assertThat(op.timestamp(), equalTo(1410859691480L));
         assertThat(op.ttl(), equalTo(-1L));
         assertThat(op.versionType(), equalTo(VersionType.INTERNAL));
 
@@ -99,7 +99,7 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
                 break;
             }
         }
-        assertThat("there should be 5 translog operations", opNum, equalTo(5));
+        assertThat("there should be 3 translog operations", opNum, equalTo(3));
     }
 
     @Test
@@ -125,6 +125,25 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         }
 
         try {
+            File translogFile = getResource("/org/elasticsearch/index/translog/translog-v1-differing-opsizes.binary");
+            assertThat("test file should exist", translogFile.exists(), equalTo(true));
+            TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
+            try (StreamInput in = stream.openInput(translogFile)) {
+                while (true) {
+                    try {
+                        stream.read(in);
+                    } catch (EOFException e) {
+                        break;
+                    }
+                }
+            }
+            fail("should have thrown an exception about the body being corrupted");
+        } catch (TranslogCorruptedException e) {
+            assertThat("translog operation sizes do not match: " + e.getMessage(),
+                    e.getMessage().contains("translog operation sizes do not match"), equalTo(true));
+        }
+
+        try {
             File translogFile = getResource("/org/elasticsearch/index/translog/translog-v1-corrupted-body.binary");
             assertThat("test file should exist", translogFile.exists(), equalTo(true));
             TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
@@ -139,7 +158,7 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
             }
             fail("should have thrown an exception about the body being corrupted");
         } catch (TranslogCorruptedException e) {
-            assertThat("translog corruption from body: " + e.getMessage(),
+            assertThat("translog stream is corrupted: " + e.getMessage(),
                     e.getMessage().contains("translog stream is corrupted"), equalTo(true));
         }
 

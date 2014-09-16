@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.bench.AbortBenchmarkAction;
@@ -29,8 +30,7 @@ import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 import static org.hamcrest.CoreMatchers.*;
 
@@ -66,14 +66,17 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
     @Test
     public void testOutgoingAction() {
         TransportService transportService = internalCluster().getInstance(TransportService.class);
-        String[] actions = transportService.serverHandlers.keySet().toArray(new String[transportService.serverHandlers.keySet().size()]);
+        List<String> actions = Lists.newArrayList(transportService.serverHandlers.keySet());
 
         int iters = iterations(10, 100);
         for (int i = 0; i < iters; i++) {
+            //we rarely use a custom action since plugins might inject their own actions
             boolean customAction = rarely();
             String action;
             if (customAction) {
-                action = randomAsciiOfLength(randomInt(30));
+                do {
+                    action = randomAsciiOfLength(randomInt(30));
+                } while(actions.contains(action));
             } else {
                 action = randomFrom(actions);
             }
@@ -91,17 +94,20 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIncomingAction() {
-        String[] pre_1_4_names = ActionNames.ACTION_NAMES.inverse().keySet().toArray(new String[ActionNames.ACTION_NAMES.inverse().keySet().size()]);
+        List<String> pre_1_4_names = Lists.newArrayList(ActionNames.ACTION_NAMES.inverse().keySet());
         TransportService transportService = internalCluster().getInstance(TransportService.class);
-        String[] actions = transportService.serverHandlers.keySet().toArray(new String[transportService.serverHandlers.keySet().size()]);
+        List<String> actions = Lists.newArrayList(transportService.serverHandlers.keySet());
 
         Version version = randomVersion();
         int iters = iterations(10, 100);
         for (int i = 0; i < iters; i++) {
+            //we rarely use a custom action since plugins might inject their own actions
             boolean customAction = rarely();
             String action;
             if (customAction) {
-                action = randomAsciiOfLength(randomInt(30));
+                do {
+                    action = randomAsciiOfLength(randomInt(30));
+                } while(pre_1_4_names.contains(action));
             } else {
                 if (version.before(Version.V_1_4_0_Beta)) {
                     action = randomFrom(pre_1_4_names);

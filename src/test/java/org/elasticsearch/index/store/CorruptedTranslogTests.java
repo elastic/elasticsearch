@@ -83,7 +83,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
             builders[i] = client().prepareIndex("test", "type").setSource("foo", "bar");
         }
         disableTranslogFlush("test");
-        indexRandom(false, false, builders);
+        indexRandom(false, false, false, Arrays.asList(builders));  // this one
 
         // Corrupt the translog file(s)
         corruptRandomTranslogFiles();

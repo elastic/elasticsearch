@@ -126,7 +126,7 @@ public class MembershipAction extends AbstractComponent {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             node = DiscoveryNode.readNode(in);
-            if (in.getVersion().before(Version.V_1_4_0_Beta)) {
+            if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
                 withClusterState = in.readBoolean();
             }
         }
@@ -135,7 +135,7 @@ public class MembershipAction extends AbstractComponent {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             node.writeTo(out);
-            if (out.getVersion().before(Version.V_1_4_0_Beta)) {
+            if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
                 // old with cluster state flag
                 out.writeBoolean(false);
             }
@@ -219,7 +219,7 @@ public class MembershipAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().before(Version.V_1_4_0_Beta)) {
+            if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
                 // cluster name doesn't matter...
                 ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode(), null);
             }
@@ -228,7 +228,7 @@ public class MembershipAction extends AbstractComponent {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().before(Version.V_1_4_0_Beta)) {
+            if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
                 ClusterState.Builder.writeTo(clusterService.state(), out);
             }
         }

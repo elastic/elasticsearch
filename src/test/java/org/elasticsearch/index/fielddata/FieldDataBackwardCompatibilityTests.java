@@ -48,7 +48,7 @@ public class FieldDataBackwardCompatibilityTests extends ElasticsearchBackwardsC
                 // expected
                 message = e.getMessage();
             }
-            if (compatibilityVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            if (compatibilityVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 assertNotNull(message);
                 assertTrue(message, message.contains("cache type not supported"));
             } else {

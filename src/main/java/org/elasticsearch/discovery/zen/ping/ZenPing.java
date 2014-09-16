@@ -108,7 +108,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             if (in.readBoolean()) {
                 master = readNode(in);
             }
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 this.hasJoinedOnce = in.readBoolean();
             } else {
                 // As of 1.4.0 we prefer to elect nodes which have previously successfully joined the cluster.
@@ -130,7 +130,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
                 out.writeBoolean(true);
                 master.writeTo(out);
             }
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 out.writeBoolean(hasJoinedOnce);
             }
         }

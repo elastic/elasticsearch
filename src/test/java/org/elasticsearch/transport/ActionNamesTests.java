@@ -83,7 +83,7 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
 
             Version version = randomVersion();
             String outgoingAction = ActionNames.outgoingAction(action, version);
-            if (version.onOrAfter(Version.V_1_4_0_Beta) || customAction || post_1_4_actions.contains(action)) {
+            if (version.onOrAfter(Version.V_1_4_0_Beta1) || customAction || post_1_4_actions.contains(action)) {
                 assertThat(outgoingAction, equalTo(action));
             } else {
                 assertThat(outgoingAction, not(equalTo(action)));
@@ -109,7 +109,7 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
                     action = randomAsciiOfLength(randomInt(30));
                 } while(pre_1_4_names.contains(action));
             } else {
-                if (version.before(Version.V_1_4_0_Beta)) {
+                if (version.before(Version.V_1_4_0_Beta1)) {
                     action = randomFrom(pre_1_4_names);
                 } else {
                     action = randomFrom(actions);
@@ -117,7 +117,7 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
             }
 
             String incomingAction = ActionNames.incomingAction  (action, version);
-            if (version.onOrAfter(Version.V_1_4_0_Beta) || customAction) {
+            if (version.onOrAfter(Version.V_1_4_0_Beta1) || customAction) {
                 assertThat(incomingAction, equalTo(action));
             } else {
                 assertThat(incomingAction, not(equalTo(action)));

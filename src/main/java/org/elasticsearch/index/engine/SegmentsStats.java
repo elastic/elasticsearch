@@ -182,10 +182,10 @@ public class SegmentsStats implements Streamable, ToXContent {
             indexWriterMemoryInBytes = in.readLong();
             versionMapMemoryInBytes = in.readLong();
         }
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             indexWriterMaxMemoryInBytes = in.readLong();
         }
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             fixedBitSetMemoryInBytes = in.readLong();
         }
     }
@@ -198,10 +198,10 @@ public class SegmentsStats implements Streamable, ToXContent {
             out.writeLong(indexWriterMemoryInBytes);
             out.writeLong(versionMapMemoryInBytes);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeLong(indexWriterMaxMemoryInBytes);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeLong(fixedBitSetMemoryInBytes);
         }
     }

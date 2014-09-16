@@ -537,7 +537,7 @@ public class CommonStats implements Streamable, ToXContent {
         if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
             suggest = in.readOptionalStreamable(new SuggestStats());
         }
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             queryCache = in.readOptionalStreamable(new QueryCacheStats());
         }
     }
@@ -638,7 +638,7 @@ public class CommonStats implements Streamable, ToXContent {
         if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
             out.writeOptionalStreamable(suggest);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeOptionalStreamable(queryCache);
         }
     }

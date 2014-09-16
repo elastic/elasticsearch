@@ -260,7 +260,8 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
         final int basePort = 9300 + (100 * (jvmOrdinal+1));
-        builder.put("transport.tcp.port", basePort + "-" + (basePort+199));
+        builder.put("transport.tcp.port", basePort + "-" + (basePort+100));
+        builder.put("http.port", basePort+101 + "-" + (basePort+200));
         builder.put("config.ignore_system_properties", true);
         builder.put("node.mode", NODE_MODE);
         builder.put("script.disable_dynamic", false);

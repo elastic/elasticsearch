@@ -148,10 +148,15 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testRecoverFromPreviousVersion() throws ExecutionException, InterruptedException {
+
+        if (backwardsCluster().numNewDataNodes() == 0) {
+            backwardsCluster().startNewNode();
+        }
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
         ensureYellow();
         assertAllShardsOnNodes("test", backwardsCluster().backwardsNodePattern());
         int numDocs = randomIntBetween(100, 150);
+        logger.info(" --> indexing [{}] docs", numDocs);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             docs[i] = client().prepareIndex("test", "type1", randomRealisticUnicodeOfLength(10) + String.valueOf(i)).setSource("field1", English.intToEnglish(i));
@@ -159,8 +164,27 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         indexRandom(true, docs);
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
-        backwardsCluster().allowOnlyNewNodes("test");
-        ensureYellow("test");// move all shards to the new node
+
+        if (randomBoolean()) {
+            logger.info(" --> moving index to new nodes");
+            backwardsCluster().allowOnlyNewNodes("test");
+        } else {
+            logger.info(" --> allow index to on all nodes");
+            backwardsCluster().allowOnAllNodes("test");
+        }
+
+        logger.info(" --> indexing [{}] more docs", numDocs);
+        // sometimes index while relocating
+        if (randomBoolean()) {
+            for (int i = 0; i < numDocs; i++) {
+                docs[i] = client().prepareIndex("test", "type1", randomRealisticUnicodeOfLength(10) + String.valueOf(numDocs + i)).setSource("field1", English.intToEnglish(numDocs + i));
+            }
+            indexRandom(true, docs);
+            numDocs *= 2;
+        }
+
+        logger.info(" --> waiting for relocation to complete", numDocs);
+        ensureYellow("test");// move all shards to the new node (it waits on relocation)
         final int numIters = randomIntBetween(10, 20);
         for (int i = 0; i < numIters; i++) {
             countResponse = client().prepareCount().get();
@@ -338,6 +362,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             assertThat(settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null), equalTo(version));
         }
     }
+
 
     @Test
     public void testUnsupportedFeatures() throws IOException {

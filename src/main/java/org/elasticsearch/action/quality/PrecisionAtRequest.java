@@ -30,6 +30,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 
+/**
+ * Instances of this class represent a complete precision at request. They encode a precision task including search intents and search
+ * specifications to be executed subsequently.
+ * */
 public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
 
     /** The request data to use for evaluation. */

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.quality;
 
-import com.google.common.base.Objects;
-import com.google.common.base.Objects.ToStringHelper;
+import com.google.common.base.MoreObjects;
+import com.google.common.base.MoreObjects.ToStringHelper;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 
@@ -85,7 +85,7 @@ public class Specification {
 
     @Override
     public String toString() {
-        ToStringHelper help = Objects.toStringHelper(this).add("Target index", targetIndex);
+        ToStringHelper help = MoreObjects.toStringHelper(this).add("Target index", targetIndex);
         help.add("Template SearchRequest", templatedSearchRequest.templateSource().toUtf8());
         help.add("Filter", filter.toUtf8());
         help.add("Spec ID", specId);

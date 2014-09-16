@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.quality;
 
-import com.google.common.base.Objects;
-import com.google.common.base.Objects.ToStringHelper;
+import com.google.common.base.MoreObjects;
+import com.google.common.base.MoreObjects.ToStringHelper;
 
 import java.util.Collection;
 
@@ -59,7 +59,7 @@ public class PrecisionTask {
 
     @Override
     public String toString() {
-        ToStringHelper help = Objects.toStringHelper(this).add("Intent", intents);
+        ToStringHelper help = MoreObjects.toStringHelper(this).add("Intent", intents);
         help.add("Specifications", specifications);
         return help.toString();
     }

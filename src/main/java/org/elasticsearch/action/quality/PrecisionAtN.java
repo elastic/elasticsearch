@@ -33,6 +33,8 @@ import javax.naming.directory.SearchResult;
 
 /**
  * Evaluate Precision at N, N being the number of search results to consider for precision calculation.
+ * 
+ * Documents of unkonwn quality are ignored in the precision at n computation and returned by document id.
  * */
 public class PrecisionAtN implements RankedListQualityMetric<String, Precision> {
     
@@ -85,12 +87,18 @@ public class PrecisionAtN implements RankedListQualityMetric<String, Precision> 
         return new Precision(precision, unknownDocIds);
     }
 
-    /** TODO Document */
+    /** Used for rating documents:
+     * Relevant: Documents expected for result sets returned for this search intent.
+     * Irrelevant: Documents not expected or unrelated to this search intent. */
     public enum Rating {
         RELEVANT, IRRELEVANT;
     }
     
-    /** TODO Document */
+    /** Returned for each search intent and search specification combination. Summarises the document ids found that were not
+     * annotated and the average precision of result sets in each particular combination based on the annotations given. 
+     * 
+     * TODO add support for tracking unknown docs per query intent id
+     * */
     public class Precision {
         private double precision;
         

@@ -22,7 +22,9 @@ package org.elasticsearch.action.quality;
 import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
-/** TODO Document */
+/** 
+ * Action used to start precision at qa evaluations. 
+ **/
 public class PrecisionAtAction extends ClientAction<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtRequestBuilder> {
 
     public static final PrecisionAtAction INSTANCE = new PrecisionAtAction();

@@ -31,7 +31,11 @@ import java.util.Collection;
  * For each qa specification identified by its id this response returns the respective
  * averaged precisionAnN value.
  * 
- * TODO is this a micro-/ or macro average?
+ * In addition for each query the document ids that haven't been found annotated is returned as well.
+ * 
+ * Documents of unknown quality - i.e. those that haven't been supplied in the set of annotated documents but have been returned
+ * by the search are not taken into consideration when computing precision at n - they are ignored.
+ * 
  **/
 public class PrecisionAtResponse extends ActionResponse {
 
@@ -75,6 +79,12 @@ public class PrecisionAtResponse extends ActionResponse {
         }
     }
     
+    /**
+     * For each precision at n computation the id of the search request specification used to generate search requests is returned
+     * for reference. In addition the averaged precision and the ids of all documents returned but not found annotated is returned.
+     * 
+     * TODO make sure that unknown documents are returned per search intent id, not for the whole set of queries sent!
+     * */
     public class PrecisionResult {
         private int specId;
         private double precision;

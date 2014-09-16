@@ -20,8 +20,8 @@
 package org.elasticsearch.action.quality;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Objects;
-import com.google.common.base.Objects.ToStringHelper;
+import com.google.common.base.MoreObjects;
+import com.google.common.base.MoreObjects.ToStringHelper;
 
 import java.util.Map;
 
@@ -44,6 +44,9 @@ public class Intent<RelevancyLevel> {
         return intentId;
     }
 
+    /**
+     * @param intentId id used to later reference this query intent.
+     * */
     public void setIntentId(int intentId) {
         this.intentId = intentId;
     }
@@ -55,6 +58,8 @@ public class Intent<RelevancyLevel> {
         return intentParameters;
     }
 
+    /** @param intentParameters Query parameters - typically as supplied by the end user - that are to be substituted into the search
+     * request template given in the search {@link Specification}. */
     public void setIntentParameters(Map<String, String> intentParameters) {
         this.intentParameters = intentParameters;
     }
@@ -66,7 +71,10 @@ public class Intent<RelevancyLevel> {
         return ratedDocuments;
     }
 
-    /** TODO Document */
+    /** @param ratedDocuments Set of documents as expected for this search intent. Each document id is annotated as being either relevant or
+     * irrelevant. In the final precision at computation only those documents returned up to a certain position are
+     * taken into consideration. Documents of unknown quality (read: haven't been annotated) are returned as is and
+     * ignored during precision at n computation. */
     public void setRatedDocuments(Map<String, RelevancyLevel> ratedDocuments) {
         this.ratedDocuments = ratedDocuments;
     }
@@ -75,7 +83,7 @@ public class Intent<RelevancyLevel> {
     public String toString() {
         Joiner.MapJoiner mapJoiner = Joiner.on(',').withKeyValueSeparator("=");
         
-        ToStringHelper help = Objects.toStringHelper(this).add("IntentId", intentId);
+        ToStringHelper help = MoreObjects.toStringHelper(this).add("IntentId", intentId);
         
         help.add("Intent parameters: ", mapJoiner.join(intentParameters));
         help.add("Rated documents: ", mapJoiner.join(ratedDocuments));

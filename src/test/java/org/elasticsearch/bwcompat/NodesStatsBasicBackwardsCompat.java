@@ -43,14 +43,15 @@ public class NodesStatsBasicBackwardsCompat extends ElasticsearchBackwardsCompat
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().execute().actionGet();
 
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("client.transport.ignore_cluster_name", true).build();
+                .put("client.transport.ignore_cluster_name", true)
+                .put("node.name", "transport_client_" + getTestName()).build();
 
         // We explicitly connect to each node with a custom TransportClient
         for (NodeInfo n : nodesInfo.getNodes()) {
             TransportClient tc = new TransportClient(settings).addTransportAddress(n.getNode().address());
-
             // Just verify that the NS can be sent and serialized/deserialized between nodes with basic indices
             NodesStatsResponse ns = tc.admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
+            tc.close();
         }
     }
 
@@ -61,6 +62,7 @@ public class NodesStatsBasicBackwardsCompat extends ElasticsearchBackwardsCompat
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().execute().actionGet();
 
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put("node.name", "transport_client_" + getTestName())
                 .put("client.transport.ignore_cluster_name", true).build();
 
         // We explicitly connect to each node with a custom TransportClient
@@ -82,6 +84,7 @@ public class NodesStatsBasicBackwardsCompat extends ElasticsearchBackwardsCompat
                 }
             }
             NodesStatsResponse ns = nsBuilder.execute().actionGet();
+            tc.close();
 
         }
     }

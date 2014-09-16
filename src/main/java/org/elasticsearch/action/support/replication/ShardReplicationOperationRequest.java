@@ -54,12 +54,26 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
 
     }
 
+    /**
+     * Creates a new request that inherits headers and context from the request provided as argument.
+     */
     protected ShardReplicationOperationRequest(ActionRequest request) {
         super(request);
     }
 
+    /**
+     * Copy constructor that creates a new request that is a copy of the one provided as an argument.
+     */
     protected ShardReplicationOperationRequest(T request) {
-        super(request);
+        this(request, request);
+    }
+
+    /**
+     * Copy constructor that creates a new request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    protected ShardReplicationOperationRequest(T request, ActionRequest originalRequest) {
+        super(originalRequest);
         this.timeout = request.timeout();
         this.index = request.index();
         this.threadedOperation = request.operationThreaded();

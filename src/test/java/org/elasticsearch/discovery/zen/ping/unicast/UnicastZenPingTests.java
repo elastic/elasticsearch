@@ -34,6 +34,7 @@ import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class UnicastZenPingTests extends ElasticsearchTestCase {
 
     @Test
+    @TestLogging("discovery:TRACE")
     public void testSimplePings() {
         Settings settings = ImmutableSettings.EMPTY;
         int startPort = 11000 + randomIntBetween(0, 1000);

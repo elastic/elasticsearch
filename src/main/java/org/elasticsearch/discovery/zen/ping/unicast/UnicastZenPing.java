@@ -372,7 +372,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     }
                 });
             } else {
-                sendPingRequestToNode(sendPingsHandler.id(), timeout, pingRequest, latch, node, nodeToSend);
+                if (nodeFoundByAddress) {
+                    // we're good - we know what version to use for serialization
+                    sendPingRequestToNode(sendPingsHandler.id(), timeout, pingRequest, latch, node, nodeToSend);
+                } else {
+                    sendPingRequestTo14NodeWithFallback(sendPingsHandler.id(), timeout, pingRequest, latch, node, nodeToSend);
+                }
             }
         }
         if (waitTime != null) {

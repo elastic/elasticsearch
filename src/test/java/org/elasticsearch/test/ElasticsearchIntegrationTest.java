@@ -94,6 +94,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -1582,7 +1584,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         SettingsSource settingsSource = new SettingsSource() {
             @Override
             public Settings node(int nodeOrdinal) {
-                return nodeSettings(nodeOrdinal);
+                return ImmutableSettings.builder().put(InternalNode.HTTP_ENABLED, false).
+                        put(nodeSettings(nodeOrdinal)).build();
             }
 
             @Override
@@ -1614,7 +1617,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             default:
                 throw new ElasticsearchException("Scope not supported: " + scope);
         }
-
         return new InternalTestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes,
                 clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), currentClusterSeed), settingsSource, numClientNodes,
                 enableRandomBenchNodes, CHILD_JVM_ID, nodePrefix);

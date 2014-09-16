@@ -152,7 +152,9 @@ public class MoreLikeThisQuery extends Query {
 
         BooleanQuery bq = new BooleanQuery();
         if (this.likeFields != null) {
-            bq.add((BooleanQuery) mlt.like(this.likeFields), BooleanClause.Occur.SHOULD);
+            Query mltQuery = mlt.like(this.likeFields);
+            setMinimumShouldMatch((BooleanQuery) mltQuery, percentTermsToMatch);
+            bq.add(mltQuery, BooleanClause.Occur.SHOULD);
         }
         if (this.likeText != null) {
             Reader[] readers = new Reader[likeText.length];
@@ -160,11 +162,10 @@ public class MoreLikeThisQuery extends Query {
                 readers[i] = new FastStringReader(likeText[i]);
             }
             //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
-            bq.add((BooleanQuery) mlt.like(moreLikeFields[0], readers), BooleanClause.Occur.SHOULD);
+            Query mltQuery = mlt.like(moreLikeFields[0], readers);
+            setMinimumShouldMatch((BooleanQuery) mltQuery, percentTermsToMatch);
+            bq.add(mltQuery, BooleanClause.Occur.SHOULD);
         }
-
-        BooleanClause[] clauses = bq.getClauses();
-        bq.setMinimumNumberShouldMatch((int) (clauses.length * percentTermsToMatch));
 
         bq.setBoost(getBoost());
         return bq;
@@ -308,5 +309,10 @@ public class MoreLikeThisQuery extends Query {
 
     public void setBoostTermsFactor(float boostTermsFactor) {
         this.boostTermsFactor = boostTermsFactor;
+    }
+
+    private static void setMinimumShouldMatch(BooleanQuery bq, float percentTermsToMatch) {
+        BooleanClause[] clauses = bq.getClauses();
+        bq.setMinimumNumberShouldMatch((int) (clauses.length * percentTermsToMatch));
     }
 }

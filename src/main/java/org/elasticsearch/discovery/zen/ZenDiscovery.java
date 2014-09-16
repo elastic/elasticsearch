@@ -624,7 +624,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 if (!rejoinOnMasterGone) {
                     logger.debug("not rejoining cluster due to rejoinOnMasterGone [{}]", rejoinOnMasterGone);
                     rejoin = false;
-                } else if (discoveryNodes.smallestNonClientNodeVersion().before(Version.V_1_4_0)) {
+                } else if (discoveryNodes.smallestNonClientNodeVersion().before(Version.V_1_4_0_Beta)) {
                     logger.debug("not rejoining cluster due a minimum node version of [{}]", discoveryNodes.smallestNonClientNodeVersion());
                     rejoin = false;
                 }
@@ -1006,12 +1006,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             activeNodes.add(pingResponse.node());
             minimumPingVersion = Version.smallest(pingResponse.node().version(), minimumPingVersion);
             if (pingResponse.hasJoinedOnce() != null && pingResponse.hasJoinedOnce()) {
-                assert pingResponse.node().getVersion().onOrAfter(Version.V_1_4_0) : "ping version [" + pingResponse.node().version() + "]< 1.4.0 while having hasJoinedOnce == true";
+                assert pingResponse.node().getVersion().onOrAfter(Version.V_1_4_0_Beta) : "ping version [" + pingResponse.node().version() + "]< 1.4.0 while having hasJoinedOnce == true";
                 joinedOnceActiveNodes.add(pingResponse.node());
             }
         }
 
-        if (minimumPingVersion.before(Version.V_1_4_0)) {
+        if (minimumPingVersion.before(Version.V_1_4_0_Beta)) {
             logger.trace("ignoring joined once flags in ping responses, minimum ping version [{}]", minimumPingVersion);
             joinedOnceActiveNodes.clear();
         }

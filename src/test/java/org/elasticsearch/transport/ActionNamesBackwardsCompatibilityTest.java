@@ -136,7 +136,7 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
         actionsVersions.put(DeleteIndexedScriptAction.NAME, Version.V_1_3_0);
         actionsVersions.put(PutIndexedScriptAction.NAME, Version.V_1_3_0);
 
-        actionsVersions.put(UnicastZenPing.ACTION_NAME_GTE_1_4, Version.V_1_4_0);
+        actionsVersions.put(UnicastZenPing.ACTION_NAME_GTE_1_4, Version.V_1_4_0_Beta);
 
     }
 }

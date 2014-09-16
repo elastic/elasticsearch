@@ -386,7 +386,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     private void sendPingRequestTo14NodeWithFallback(final int id, final TimeValue timeout, final UnicastPingRequest pingRequest, final CountDownLatch latch, final DiscoveryNode node, final DiscoveryNode nodeToSend) {
         logger.trace("[{}] sending to {}, using >=1.4.0 serialization", id, nodeToSend);
         DiscoveryNode actualNodeToSend = new DiscoveryNode(nodeToSend.name(), nodeToSend.id(), nodeToSend.getHostName(), nodeToSend.getHostAddress(),
-                nodeToSend.address(), nodeToSend.attributes(), Version.largest(nodeToSend.version(), Version.V_1_4_0));
+                nodeToSend.address(), nodeToSend.attributes(), Version.largest(nodeToSend.version(), Version.V_1_4_0_Beta));
         transportService.sendRequest(actualNodeToSend, ACTION_NAME_GTE_1_4, pingRequest, TransportRequestOptions.options().withTimeout((long) (timeout.millis() * 1.25)), new BaseTransportResponseHandler<UnicastPingResponse>() {
 
             @Override

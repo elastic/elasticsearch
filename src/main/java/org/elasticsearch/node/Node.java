@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.action.bench.BenchmarkModule;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecyclerModule;
 import org.elasticsearch.client.Client;
@@ -197,7 +196,6 @@ public class Node implements Releasable {
             modules.add(new ResourceWatcherModule());
             modules.add(new RepositoriesModule());
             modules.add(new TribeModule());
-            modules.add(new BenchmarkModule(settings));
 
             injector = modules.createInjector();
 

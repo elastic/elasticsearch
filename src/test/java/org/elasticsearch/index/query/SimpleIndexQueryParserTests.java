@@ -1623,6 +1623,43 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         }
     }
 
+    @Test
+    public void testMLTPercentTermsToMatch() throws Exception {
+        // setup for mocking fetching items
+        MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
+        parser.setFetchService(new MockMoreLikeThisFetchService());
+
+        // parsing the ES query
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/mlt-items.json");
+        BooleanQuery parsedQuery = (BooleanQuery) queryParser.parse(query).query();
+
+        // get MLT query, other clause is for include/exclude items
+        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery.getClauses()[0].getQuery();
+
+        // all terms must match
+        mltQuery.setPercentTermsToMatch(1.0f);
+        mltQuery.setMinWordLen(0);
+        mltQuery.setMinDocFreq(0);
+
+        // one document has all values
+        MemoryIndex index = new MemoryIndex();
+        index.addField("name.first", "apache lucene", new WhitespaceAnalyzer());
+        index.addField("name.last", "1 2 3 4", new WhitespaceAnalyzer());
+
+        // two clauses, one for items and one for like_text if set
+        BooleanQuery luceneQuery = (BooleanQuery) mltQuery.rewrite(index.createSearcher().getIndexReader());
+        BooleanClause[] clauses = luceneQuery.getClauses();
+
+        // check for items
+        int minNumberShouldMatch = ((BooleanQuery) (clauses[0].getQuery())).getMinimumNumberShouldMatch();
+        assertThat(minNumberShouldMatch, is(4));
+
+        // and for like_text
+        minNumberShouldMatch = ((BooleanQuery) (clauses[1].getQuery())).getMinimumNumberShouldMatch();
+        assertThat(minNumberShouldMatch, is(2));
+    }
+
     private static class MockMoreLikeThisFetchService extends MoreLikeThisFetchService {
 
         public MockMoreLikeThisFetchService() {

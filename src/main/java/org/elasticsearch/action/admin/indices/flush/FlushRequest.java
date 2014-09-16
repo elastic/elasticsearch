@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,6 +46,14 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
 
     FlushRequest() {
 
+    }
+
+    /**
+     * Copy constructor that creates a new flush request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    public FlushRequest(ActionRequest originalRequest) {
+        super(originalRequest);
     }
 
     /**

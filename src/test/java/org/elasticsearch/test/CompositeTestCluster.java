@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.*;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -159,6 +160,7 @@ public class CompositeTestCluster extends TestCluster {
             String s = cluster.startNode(nodeSettings);
             ExternalNode.waitForNode(existingClient, s);
             logger.info("done upgrading [{}], new node name: [{}]", externalNodeName, s);
+            assertNoTimeout(existingClient.admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size())).get());
             return true;
         }
         return false;

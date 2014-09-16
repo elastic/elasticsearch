@@ -46,7 +46,7 @@ The response for the above aggregation:
 
     "aggregations": {
         "profit": {
-            "aggregation": 170
+            "value": 170
         }
    }
 }
@@ -207,7 +207,7 @@ produce the response:
 
     "aggregations": {
         "profit": {
-            "aggregation": 170
+            "value": 170
         }
    }
 }

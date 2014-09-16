@@ -134,7 +134,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return builder.field("aggregation", aggregation);
+        return builder.field("value", aggregation);
     }
 
 }

@@ -42,10 +42,17 @@ import static org.hamcrest.Matchers.equalTo;
 @LuceneTestCase.SuppressCodecs(value = {"Lucene40", "Lucene3x"})
 public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTestCase {
 
+    /**
+     * The name of the field within the child type that stores a score to use in test queries.
+     * <p />
+     * Its type is {@code double}.
+     */
+    protected static String CHILD_SCORE_NAME = "childScore";
+
     static SearchContext createSearchContext(String indexName, String parentType, String childType) throws IOException {
         IndexService indexService = createIndex(indexName);
         MapperService mapperService = indexService.mapperService();
-        mapperService.merge(childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true);
+        mapperService.merge(childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType, CHILD_SCORE_NAME, "type=double").string()), true);
         return createSearchContext(indexService);
     }
 

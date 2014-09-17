@@ -218,11 +218,15 @@ public class TopChildrenQuery extends Query {
                         parentDoc.docId = parentDocId;
                         parentDoc.count = 1;
                         parentDoc.maxScore = scoreDoc.score;
+                        parentDoc.minScore = scoreDoc.score;
                         parentDoc.sumScores = scoreDoc.score;
                         readerParentDocs.put(parentDocId, parentDoc);
                     } else {
                         parentDoc.count++;
                         parentDoc.sumScores += scoreDoc.score;
+                        if (scoreDoc.score < parentDoc.minScore) {
+                            parentDoc.minScore = scoreDoc.score;
+                        }
                         if (scoreDoc.score > parentDoc.maxScore) {
                             parentDoc.maxScore = scoreDoc.score;
                         }
@@ -320,11 +324,19 @@ public class TopChildrenQuery extends Query {
         public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             ParentDoc[] readerParentDocs = parentDocs.get(context.reader().getCoreCacheKey());
             if (readerParentDocs != null) {
-                if (scoreType == ScoreType.MAX) {
+                if (scoreType == ScoreType.MIN) {
                     return new ParentScorer(this, readerParentDocs) {
                         @Override
                         public float score() throws IOException {
-                            assert doc.docId >= 0 || doc.docId < NO_MORE_DOCS;
+                            assert doc.docId >= 0 && doc.docId != NO_MORE_DOCS;
+                            return doc.minScore;
+                        }
+                    };
+                } else if (scoreType == ScoreType.MAX) {
+                    return new ParentScorer(this, readerParentDocs) {
+                        @Override
+                        public float score() throws IOException {
+                            assert doc.docId >= 0 && doc.docId != NO_MORE_DOCS;
                             return doc.maxScore;
                         }
                     };
@@ -332,7 +344,7 @@ public class TopChildrenQuery extends Query {
                     return new ParentScorer(this, readerParentDocs) {
                         @Override
                         public float score() throws IOException {
-                            assert doc.docId >= 0 || doc.docId < NO_MORE_DOCS;
+                            assert doc.docId >= 0 && doc.docId != NO_MORE_DOCS;
                             return doc.sumScores / doc.count;
                         }
                     };
@@ -340,7 +352,7 @@ public class TopChildrenQuery extends Query {
                     return new ParentScorer(this, readerParentDocs) {
                         @Override
                         public float score() throws IOException {
-                            assert doc.docId >= 0 || doc.docId < NO_MORE_DOCS;
+                            assert doc.docId >= 0 && doc.docId != NO_MORE_DOCS;
                             return doc.sumScores;
                         }
 
@@ -412,6 +424,7 @@ public class TopChildrenQuery extends Query {
     private static class ParentDoc {
         public int docId;
         public int count;
+        public float minScore = Float.NaN;
         public float maxScore = Float.NaN;
         public float sumScores = 0;
     }

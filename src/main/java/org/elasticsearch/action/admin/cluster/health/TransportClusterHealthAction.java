@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -57,6 +58,11 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
     protected String executor() {
         // we block here...
         return ThreadPool.Names.GENERIC;
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(ClusterHealthRequest request, ClusterState state) {
+        return null; // we want users to be able to call this even when there are global blocks, just to check the health (are there blocks?)
     }
 
     @Override

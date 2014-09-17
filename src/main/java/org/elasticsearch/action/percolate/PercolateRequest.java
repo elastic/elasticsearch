@@ -63,8 +63,9 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     public PercolateRequest() {
     }
 
-    public PercolateRequest(PercolateRequest request, BytesReference docSource) {
-        super(request.indices());
+    PercolateRequest(PercolateRequest request, BytesReference docSource) {
+        super(request);
+        this.indices = request.indices();
         this.documentType = request.documentType();
         this.routing = request.routing();
         this.preference = request.preference();

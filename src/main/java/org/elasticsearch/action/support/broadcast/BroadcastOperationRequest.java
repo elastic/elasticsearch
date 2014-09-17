@@ -41,6 +41,10 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
 
     }
 
+    protected BroadcastOperationRequest(ActionRequest originalRequest) {
+        super(originalRequest);
+    }
+
     protected BroadcastOperationRequest(String[] indices) {
         this.indices = indices;
     }

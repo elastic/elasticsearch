@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -73,7 +72,7 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
         final CountDownLatch exec3Wait = new CountDownLatch(1);
         executor.execute(new AbstractRunnable() {
             @Override
-            public void run() {
+            protected void doRun() {
                 executed3.set(true);
                 exec3Wait.countDown();
             }
@@ -81,6 +80,11 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
             @Override
             public boolean isForceExecution() {
                 return true;
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                throw new AssertionError(t);
             }
         });
 

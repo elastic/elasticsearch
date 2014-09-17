@@ -1068,7 +1068,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))
+                        .put("chunk_size", randomIntBetween(1000, 10000))
                         .put("max_restore_bytes_per_sec", throttleRestore ? "2.5k" : "0")
                         .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "2.5k" : "0")));
 

@@ -150,7 +150,7 @@ public class GeoPolygonFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
 
-        IndexGeoPointFieldData<?> indexFieldData = parseContext.fieldData().getForField(mapper);
+        IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
         Filter filter = new GeoPolygonFilter(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

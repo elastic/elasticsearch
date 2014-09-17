@@ -93,6 +93,9 @@ public class BytesRestResponse extends RestResponse {
             this.content = builder.bytes();
             this.contentType = builder.contentType().restContentType();
         }
+        if (t instanceof HasRestHeaders) {
+            addHeaders(((HasRestHeaders) t).getHeaders());
+        }
         this.contentThreadSafe = true;
     }
 

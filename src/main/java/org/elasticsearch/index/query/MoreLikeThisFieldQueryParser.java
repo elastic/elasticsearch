@@ -91,8 +91,11 @@ public class MoreLikeThisFieldQueryParser implements QueryParser {
                 } else if (MoreLikeThisQueryParser.Fields.MAX_WORD_LENGTH.match(currentFieldName,parseContext.parseFlags())) {
                     mltQuery.setMaxWordLen(parser.intValue());
                 } else if (MoreLikeThisQueryParser.Fields.BOOST_TERMS.match(currentFieldName,parseContext.parseFlags())) {
-                    mltQuery.setBoostTerms(true);
-                    mltQuery.setBoostTermsFactor(parser.floatValue());
+                    float boostFactor = parser.floatValue();
+                    if (boostFactor != 0) {
+                        mltQuery.setBoostTerms(true);
+                        mltQuery.setBoostTermsFactor(boostFactor);
+                    }
                 } else if (MoreLikeThisQueryParser.Fields.PERCENT_TERMS_TO_MATCH.match(currentFieldName,parseContext.parseFlags())) {
                     mltQuery.setPercentTermsToMatch(parser.floatValue());
                 } else if ("analyzer".equals(currentFieldName)) {

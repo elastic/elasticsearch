@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class FlushAction extends IndicesAction<FlushRequest, FlushResponse, FlushRequestBuilder> {
 
     public static final FlushAction INSTANCE = new FlushAction();
-    public static final String NAME = "indices/flush";
+    public static final String NAME = "indices:admin/flush";
 
     private FlushAction() {
         super(NAME);

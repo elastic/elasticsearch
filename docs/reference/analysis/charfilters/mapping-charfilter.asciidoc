@@ -14,7 +14,7 @@ Here is a sample configuration:
             "char_filter" : {
                 "my_mapping" : {
                     "type" : "mapping",
-                    "mappings" : ["ph=>f", "qu=>q"]
+                    "mappings" : ["ph=>f", "qu=>k"]
                 }
             },
             "analyzer" : {

@@ -18,12 +18,9 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
@@ -33,11 +30,10 @@ import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.FloatArray;
-import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
+import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -55,12 +51,12 @@ public class ParentQuery extends Query {
     private final ParentChildIndexFieldData parentChildIndexFieldData;
     private Query originalParentQuery;
     private final String parentType;
-    private final Filter childrenFilter;
+    private final FixedBitSetFilter childrenFilter;
 
     private Query rewrittenParentQuery;
     private IndexReader rewriteIndexReader;
 
-    public ParentQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query parentQuery, String parentType, Filter childrenFilter) {
+    public ParentQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query parentQuery, String parentType, FixedBitSetFilter childrenFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.originalParentQuery = parentQuery;
         this.parentType = parentType;
@@ -99,11 +95,7 @@ public class ParentQuery extends Query {
 
     @Override
     public String toString(String field) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("ParentQuery[").append(parentType).append("](")
-                .append(originalParentQuery.toString(field)).append(')')
-                .append(ToStringUtils.boost(getBoost()));
-        return sb.toString();
+        return "ParentQuery[" + parentType + "](" + originalParentQuery.toString(field) + ')' + ToStringUtils.boost(getBoost());
     }
 
     @Override
@@ -133,50 +125,55 @@ public class ParentQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
-        SearchContext searchContext = SearchContext.current();
-        final ParentIdAndScoreCollector collector = new ParentIdAndScoreCollector(searchContext, parentChildIndexFieldData, parentType);
+        SearchContext sc = SearchContext.current();
         ChildWeight childWeight;
         boolean releaseCollectorResource = true;
+        ParentOrdAndScoreCollector collector = null;
+        IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal(searcher.getIndexReader());
+        if (globalIfd == null) {
+            // No docs of the specified type don't exist on this shard
+            return Queries.newMatchNoDocsQuery().createWeight(searcher);
+        }
+
         try {
             assert rewrittenParentQuery != null;
             assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
             final Query  parentQuery = rewrittenParentQuery;
-            IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
+            collector = new ParentOrdAndScoreCollector(sc, globalIfd, parentType);
+            IndexSearcher indexSearcher = new IndexSearcher(sc.searcher().getIndexReader());
             indexSearcher.setSimilarity(searcher.getSimilarity());
             indexSearcher.search(parentQuery, collector);
-            FloatArray scores = collector.scores;
-            BytesRefHash parentIds = collector.parentIds;
-            if (parentIds.size() == 0) {
+            if (collector.parentCount() == 0) {
                 return Queries.newMatchNoDocsQuery().createWeight(searcher);
             }
-            childWeight = new ChildWeight(searchContext, parentQuery.createWeight(searcher), childrenFilter, parentIds, scores);
+            childWeight = new ChildWeight(parentQuery.createWeight(searcher), childrenFilter, collector, globalIfd);
             releaseCollectorResource = false;
         } finally {
             if (releaseCollectorResource) {
                 // either if we run into an exception or if we return early
-                Releasables.close(collector.parentIds, collector.scores);
+                Releasables.close(collector);
             }
         }
-        searchContext.addReleasable(childWeight, Lifetime.COLLECTION);
+        sc.addReleasable(collector, Lifetime.COLLECTION);
         return childWeight;
     }
 
-    private static class ParentIdAndScoreCollector extends NoopCollector {
+    private static class ParentOrdAndScoreCollector extends NoopCollector implements Releasable {
 
-        private final BytesRefHash parentIds;
+        private final LongHash parentIdxs;
         private FloatArray scores;
-        private final ParentChildIndexFieldData indexFieldData;
-        private final String parentType;
+        private final IndexParentChildFieldData globalIfd;
         private final BigArrays bigArrays;
+        private final String parentType;
 
         private Scorer scorer;
-        private BytesValues values;
+        private SortedDocValues values;
 
-        ParentIdAndScoreCollector(SearchContext searchContext, ParentChildIndexFieldData indexFieldData, String parentType) {
+        ParentOrdAndScoreCollector(SearchContext searchContext, IndexParentChildFieldData globalIfd, String parentType) {
             this.bigArrays = searchContext.bigArrays();
-            this.parentIds = new BytesRefHash(512, bigArrays);
+            this.parentIdxs = new LongHash(512, bigArrays);
             this.scores = bigArrays.newFloatArray(512, false);
-            this.indexFieldData = indexFieldData;
+            this.globalIfd = globalIfd;
             this.parentType = parentType;
         }
 
@@ -184,11 +181,15 @@ public class ParentQuery extends Query {
         public void collect(int doc) throws IOException {
             // It can happen that for particular segment no document exist for an specific type. This prevents NPE
             if (values != null) {
-                values.setDocument(doc);
-                long index = parentIds.add(values.nextValue(), values.currentValueHash());
-                if (index >= 0) {
-                    scores = bigArrays.grow(scores, index + 1);
-                    scores.set(index, scorer.score());
+                long globalOrdinal = values.getOrd(doc);
+                if (globalOrdinal != SortedSetDocValues.NO_MORE_ORDS) {
+                    long parentIdx = parentIdxs.add(globalOrdinal);
+                    if (parentIdx >= 0) {
+                        scores = bigArrays.grow(scores, parentIdx + 1);
+                        scores.set(parentIdx, scorer.score());
+                    } else {
+                        assert false : "parent id should only match once, since there can only be one parent doc";
+                    }
                 }
             }
         }
@@ -200,27 +201,34 @@ public class ParentQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            values = indexFieldData.load(context).getBytesValues(parentType);
+            values = globalIfd.load(context).getOrdinalsValues(parentType);
         }
+
+        @Override
+        public void close() throws ElasticsearchException {
+            Releasables.close(parentIdxs, scores);
+        }
+
+        public long parentCount() {
+            return parentIdxs.size();
+        }
+
     }
 
-    private class ChildWeight extends Weight implements Releasable {
+    private class ChildWeight extends Weight {
 
-        private final SearchContext searchContext;
         private final Weight parentWeight;
         private final Filter childrenFilter;
-        private final BytesRefHash parentIds;
+        private final LongHash parentIdxs;
         private final FloatArray scores;
+        private final IndexParentChildFieldData globalIfd;
 
-        private FixedBitSet seenOrdinalsCache;
-        private LongArray parentIdsIndexCache;
-
-        private ChildWeight(SearchContext searchContext, Weight parentWeight, Filter childrenFilter, BytesRefHash parentIds, FloatArray scores) {
-            this.searchContext = searchContext;
+        private ChildWeight(Weight parentWeight, Filter childrenFilter, ParentOrdAndScoreCollector collector, IndexParentChildFieldData globalIfd) {
             this.parentWeight = parentWeight;
             this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
-            this.parentIds = parentIds;
-            this.scores = scores;
+            this.parentIdxs = collector.parentIdxs;
+            this.scores = collector.scores;
+            this.globalIfd = globalIfd;
         }
 
         @Override
@@ -245,65 +253,37 @@ public class ParentQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
+        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             DocIdSet childrenDocSet = childrenFilter.getDocIdSet(context, acceptDocs);
             if (DocIdSets.isEmpty(childrenDocSet)) {
                 return null;
             }
-            BytesValues.WithOrdinals bytesValues = parentChildIndexFieldData.load(context).getBytesValues(parentType);
+            SortedDocValues bytesValues = globalIfd.load(context).getOrdinalsValues(parentType);
             if (bytesValues == null) {
                 return null;
             }
 
-            Ordinals.Docs ordinals = bytesValues.ordinals();
-            final int maxOrd = (int) ordinals.getMaxOrd();
-            final BigArrays bigArrays = searchContext.bigArrays();
-            if (parentIdsIndexCache == null) {
-                parentIdsIndexCache = bigArrays.newLongArray(BigArrays.overSize(maxOrd), false);
-            } else if (parentIdsIndexCache.size() < maxOrd) {
-                parentIdsIndexCache = bigArrays.grow(parentIdsIndexCache, maxOrd);
-            }
-            parentIdsIndexCache.fill(0, maxOrd, -1L);
-            if (seenOrdinalsCache == null || seenOrdinalsCache.length() < maxOrd) {
-                seenOrdinalsCache = new FixedBitSet(maxOrd);
-            } else {
-                seenOrdinalsCache.clear(0, maxOrd);
-            }
-            return new ChildScorer(this, parentIds, scores, childrenDocSet.iterator(), bytesValues, ordinals, seenOrdinalsCache, parentIdsIndexCache);
+            return new ChildScorer(this, parentIdxs, scores, childrenDocSet.iterator(), bytesValues);
         }
 
-        @Override
-        public void close() throws ElasticsearchException {
-            Releasables.close(parentIds, scores, parentIdsIndexCache);
-        }
     }
 
     private static class ChildScorer extends Scorer {
 
-        private final BytesRefHash parentIds;
+        private final LongHash parentIdxs;
         private final FloatArray scores;
         private final DocIdSetIterator childrenIterator;
-        private final BytesValues.WithOrdinals bytesValues;
-        private final Ordinals.Docs ordinals;
-
-        // This remembers what ordinals have already been seen in the current segment
-        // and prevents from fetch the actual id from FD and checking if it exists in parentIds
-        private final FixedBitSet seenOrdinals;
-        private final LongArray parentIdsIndex;
+        private final SortedDocValues ordinals;
 
         private int currentChildDoc = -1;
         private float currentScore;
 
-        ChildScorer(Weight weight, BytesRefHash parentIds, FloatArray scores, DocIdSetIterator childrenIterator,
-                    BytesValues.WithOrdinals bytesValues, Ordinals.Docs ordinals, FixedBitSet seenOrdinals, LongArray parentIdsIndex) {
+        ChildScorer(Weight weight, LongHash parentIdxs, FloatArray scores, DocIdSetIterator childrenIterator, SortedDocValues ordinals) {
             super(weight);
-            this.parentIds = parentIds;
+            this.parentIdxs = parentIdxs;
             this.scores = scores;
             this.childrenIterator = childrenIterator;
-            this.bytesValues = bytesValues;
             this.ordinals = ordinals;
-            this.seenOrdinals = seenOrdinals;
-            this.parentIdsIndex = parentIdsIndex;
         }
 
         @Override
@@ -331,25 +311,15 @@ public class ParentQuery extends Query {
                     return currentChildDoc;
                 }
 
-                int ord = (int) ordinals.getOrd(currentChildDoc);
-                if (ord == Ordinals.MISSING_ORDINAL) {
+                int globalOrdinal = (int) ordinals.getOrd(currentChildDoc);
+                if (globalOrdinal < 0) {
                     continue;
                 }
 
-                if (!seenOrdinals.get(ord)) {
-                    seenOrdinals.set(ord);
-                    long parentIdx = parentIds.find(bytesValues.getValueByOrd(ord), bytesValues.currentValueHash());
-                    if (parentIdx != -1) {
-                        currentScore = scores.get(parentIdx);
-                        parentIdsIndex.set(ord, parentIdx);
-                        return currentChildDoc;
-                    }
-                } else {
-                    long parentIdx = parentIdsIndex.get(ord);
-                    if (parentIdx != -1) {
-                        currentScore = scores.get(parentIdx);
-                        return currentChildDoc;
-                    }
+                final long parentIdx = parentIdxs.find(globalOrdinal);
+                if (parentIdx != -1) {
+                    currentScore = scores.get(parentIdx);
+                    return currentChildDoc;
                 }
             }
         }
@@ -361,29 +331,17 @@ public class ParentQuery extends Query {
                 return currentChildDoc;
             }
 
-            int ord = (int) ordinals.getOrd(currentChildDoc);
-            if (ord == Ordinals.MISSING_ORDINAL) {
+            int globalOrdinal = (int) ordinals.getOrd(currentChildDoc);
+            if (globalOrdinal < 0) {
                 return nextDoc();
             }
 
-            if (!seenOrdinals.get(ord)) {
-                seenOrdinals.set(ord);
-                long parentIdx = parentIds.find(bytesValues.getValueByOrd(ord), bytesValues.currentValueHash());
-                if (parentIdx != -1) {
-                    currentScore = scores.get(parentIdx);
-                    parentIdsIndex.set(ord, parentIdx);
-                    return currentChildDoc;
-                } else {
-                    return nextDoc();
-                }
+            final long parentIdx = parentIdxs.find(globalOrdinal);
+            if (parentIdx != -1) {
+                currentScore = scores.get(parentIdx);
+                return currentChildDoc;
             } else {
-                long parentIdx = parentIdsIndex.get(ord);
-                if (parentIdx != -1) {
-                    currentScore = scores.get(parentIdx);
-                    return currentChildDoc;
-                } else {
-                    return nextDoc();
-                }
+                return nextDoc();
             }
         }
 

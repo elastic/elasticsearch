@@ -22,7 +22,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -84,7 +84,7 @@ public class RangeAggregator extends BucketsAggregator {
     private final Range[] ranges;
     private final boolean keyed;
     private final InternalRange.Factory rangeFactory;
-    private DoubleValues values;
+    private SortedNumericDoubleValues values;
 
     final double[] maxTo;
 
@@ -136,9 +136,10 @@ public class RangeAggregator extends BucketsAggregator {
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        final int valuesCount = values.setDocument(doc);
+        values.setDocument(doc);
+        final int valuesCount = values.count();
         for (int i = 0, lo = 0; i < valuesCount; ++i) {
-            final double value = values.nextValue();
+            final double value = values.valueAt(i);
             lo = collect(doc, value, owningBucketOrdinal, lo);
         }
     }
@@ -203,7 +204,7 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, formatter, keyed, false);
+        return rangeFactory.create(name, buckets, formatter, keyed);
     }
 
     @Override
@@ -217,7 +218,7 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, formatter, keyed, false);
+        return rangeFactory.create(name, buckets, formatter, keyed);
     }
 
     private static final void sortRanges(final Range[] ranges) {
@@ -274,7 +275,7 @@ public class RangeAggregator extends BucketsAggregator {
             for (RangeAggregator.Range range : ranges) {
                 buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, formatter));
             }
-            return factory.create(name, buckets, formatter, keyed, true);
+            return factory.create(name, buckets, formatter, keyed);
         }
     }
 

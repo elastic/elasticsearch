@@ -32,18 +32,19 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numNodes=1)
+@ClusterScope(scope= Scope.SUITE, numDataNodes =1)
 public class CustomSuggesterSearchTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put("plugin.types", CustomSuggesterPlugin.class.getName()).put(super.nodeSettings(nodeOrdinal)).build();
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("plugin.types", CustomSuggesterPlugin.class.getName()).build();
     }
 
     @Test

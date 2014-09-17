@@ -46,9 +46,10 @@ public class SnapshotIndexShardStatus extends BroadcastShardOperationResponse im
     private SnapshotIndexShardStatus() {
     }
 
-    SnapshotIndexShardStatus(String index, int shardId, SnapshotIndexShardStage stage) {
-        super(index, shardId);
+    SnapshotIndexShardStatus(ShardId shardId, SnapshotIndexShardStage stage) {
+        super(shardId);
         this.stage = stage;
+        this.stats = new SnapshotStats();
     }
 
     SnapshotIndexShardStatus(ShardId shardId, IndexShardSnapshotStatus indexShardStatus) {
@@ -56,7 +57,7 @@ public class SnapshotIndexShardStatus extends BroadcastShardOperationResponse im
     }
 
     SnapshotIndexShardStatus(ShardId shardId, IndexShardSnapshotStatus indexShardStatus, String nodeId) {
-        super(shardId.getIndex(), shardId.getId());
+        super(shardId);
         switch (indexShardStatus.stage()) {
             case INIT:
                 stage = SnapshotIndexShardStage.INIT;

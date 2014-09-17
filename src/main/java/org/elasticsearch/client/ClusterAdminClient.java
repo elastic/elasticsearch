@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.admin.cluster.ClusterAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -87,13 +86,7 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
  *
  * @see AdminClient#cluster()
  */
-public interface ClusterAdminClient {
-
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(final ClusterAction<Request, Response, RequestBuilder> action, final Request request);
-
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(final ClusterAction<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener);
-
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(final ClusterAction<Request, Response, RequestBuilder> action);
+public interface ClusterAdminClient extends ElasticsearchClient<ClusterAdminClient> {
 
     /**
      * The health of the cluster.
@@ -237,10 +230,22 @@ public interface ClusterAdminClient {
      */
     NodesStatsRequestBuilder prepareNodesStats(String... nodesIds);
 
+    /**
+     * Returns top N hot-threads samples per node. The hot-threads are only sampled
+     * for the node ids specified in the request.
+     */
     ActionFuture<NodesHotThreadsResponse> nodesHotThreads(NodesHotThreadsRequest request);
 
+    /**
+     * Returns top N hot-threads samples per node. The hot-threads are only sampled
+     * for the node ids specified in the request.
+     */
     void nodesHotThreads(NodesHotThreadsRequest request, ActionListener<NodesHotThreadsResponse> listener);
 
+    /**
+     * Returns a request builder to fetch top N hot-threads samples per node. The hot-threads are only sampled
+     * for the node ids provided. Note: Use <tt>*</tt> to fetch samples for all nodes
+     */
     NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds);
 
     /**

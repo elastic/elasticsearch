@@ -21,18 +21,19 @@ package org.elasticsearch.index.mapper.object;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -98,7 +99,7 @@ public class RootObjectMapper extends ObjectMapper {
 
 
         @Override
-        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers) {
+        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable @IndexSettings Settings settings) {
             assert !nested.isNested();
             FormatDateTimeFormatter[] dates = null;
             if (dynamicDateTimeFormatters == null) {
@@ -112,7 +113,7 @@ public class RootObjectMapper extends ObjectMapper {
             return new RootObjectMapper(name, enabled, dynamic, pathType, mappers,
                     dates,
                     dynamicTemplates.toArray(new DynamicTemplate[dynamicTemplates.size()]),
-                    dateDetection, numericDetection);
+                    dateDetection, numericDetection, settings);
         }
     }
 
@@ -124,23 +125,40 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override
-        protected void processField(ObjectMapper.Builder builder, String fieldName, Object fieldNode) {
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+
+            ObjectMapper.Builder builder = createBuilder(name);
+            Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, Object> entry = iterator.next();
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
+                        || processField(builder, fieldName, fieldNode)) {
+                    iterator.remove();
+                }
+            }
+            return builder;
+        }
+
+        protected boolean processField(ObjectMapper.Builder builder, String fieldName, Object fieldNode) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
                 if (fieldNode instanceof List) {
                     for (Object node1 : (List) fieldNode) {
-                        dateTimeFormatters.add(parseDateTimeFormatter(fieldName, node1));
+                        dateTimeFormatters.add(parseDateTimeFormatter(node1));
                     }
                 } else if ("none".equals(fieldNode.toString())) {
                     dateTimeFormatters = null;
                 } else {
-                    dateTimeFormatters.add(parseDateTimeFormatter(fieldName, fieldNode));
+                    dateTimeFormatters.add(parseDateTimeFormatter(fieldNode));
                 }
                 if (dateTimeFormatters == null) {
                     ((Builder) builder).noDynamicDateTimeFormatter();
                 } else {
                     ((Builder) builder).dynamicDateTimeFormatter(dateTimeFormatters);
                 }
+                return true;
             } else if (fieldName.equals("dynamic_templates")) {
                 //  "dynamic_templates" : [
                 //      {
@@ -160,11 +178,15 @@ public class RootObjectMapper extends ObjectMapper {
                     Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
                     ((Builder) builder).add(DynamicTemplate.parse(entry.getKey(), (Map<String, Object>) entry.getValue()));
                 }
+                return true;
             } else if (fieldName.equals("date_detection")) {
                 ((Builder) builder).dateDetection = nodeBooleanValue(fieldNode);
+                return true;
             } else if (fieldName.equals("numeric_detection")) {
                 ((Builder) builder).numericDetection = nodeBooleanValue(fieldNode);
+                return true;
             }
+            return false;
         }
     }
 
@@ -176,8 +198,9 @@ public class RootObjectMapper extends ObjectMapper {
     private volatile DynamicTemplate dynamicTemplates[];
 
     RootObjectMapper(String name, boolean enabled, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers,
-                     FormatDateTimeFormatter[] dynamicDateTimeFormatters, DynamicTemplate dynamicTemplates[], boolean dateDetection, boolean numericDetection) {
-        super(name, name, enabled, Nested.NO, dynamic, pathType, mappers);
+                     FormatDateTimeFormatter[] dynamicDateTimeFormatters, DynamicTemplate dynamicTemplates[], boolean dateDetection, boolean numericDetection,
+                     @Nullable @IndexSettings Settings settings) {
+        super(name, name, enabled, Nested.NO, dynamic, pathType, mappers, settings);
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;

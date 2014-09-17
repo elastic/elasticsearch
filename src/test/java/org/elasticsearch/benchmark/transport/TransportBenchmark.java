@@ -72,10 +72,10 @@ public class TransportBenchmark {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .build();
 
-        final ThreadPool serverThreadPool = new ThreadPool();
+        final ThreadPool serverThreadPool = new ThreadPool("server");
         final TransportService serverTransportService = new TransportService(type.newTransport(settings, serverThreadPool), serverThreadPool).start();
 
-        final ThreadPool clientThreadPool = new ThreadPool();
+        final ThreadPool clientThreadPool = new ThreadPool("client");
         final TransportService clientTransportService = new TransportService(type.newTransport(settings, clientThreadPool), clientThreadPool).start();
 
         final DiscoveryNode node = new DiscoveryNode("server", serverTransportService.boundAddress().publishAddress(), Version.CURRENT);

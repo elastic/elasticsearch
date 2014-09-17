@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -78,7 +79,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     @Test
     public void rangeAsSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field(MULTI_VALUED_FIELD_NAME).size(100).subAggregation(
+                .addAggregation(terms("terms").field(MULTI_VALUED_FIELD_NAME).size(100)
+                        .collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(
                         range("range").field(SINGLE_VALUED_FIELD_NAME)
                             .addUnboundedTo(3)
                             .addRange(3, 6)

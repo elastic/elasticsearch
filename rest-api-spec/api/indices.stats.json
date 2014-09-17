@@ -17,7 +17,7 @@
         },
         "metric" : {
           "type" : "list",
-          "options" : ["_all", "completion", "docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merge", "percolate", "refresh", "search", "segments", "store", "warmer", "suggest"],
+          "options" : ["_all", "completion", "docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merge", "percolate", "query_cache", "refresh", "search", "segments", "store", "warmer", "suggest"],
           "description" : "Limit the information returned the specific metrics."
         }
       },
@@ -35,7 +35,7 @@
           "description" : "A comma-separated list of fields for `fielddata` and `completion` index metric (supports wildcards)"
         },
         "groups": {
-          "type" : "boolean",
+          "type" : "list",
           "description" : "A comma-separated list of search groups for `search` index metric"
         },
         "human": {

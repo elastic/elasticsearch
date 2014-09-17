@@ -1,0 +1,149 @@
+[[search-shards]]
+== Search Shards API
+
+The search shards api returns the indices and shards that a search request would
+be executed against. This can give useful feedback for working out issues or
+planning optimizations with routing and shard preferences.
+
+The `index` and `type` parameters may be single values, or comma-separated.
+
+[float]
+=== Usage
+
+Full example:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/twitter/_search_shards'
+--------------------------------------------------
+
+This will yield the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "nodes": {
+    "JklnKbD7Tyqi9TP3_Q_tBg": {
+      "name": "Rl'nnd",
+      "transport_address": "inet[/192.168.1.113:9300]"
+    }
+  },
+  "shards": [
+    [
+      {
+        "index": "twitter",
+        "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "primary": true,
+        "relocating_node": null,
+        "shard": 3,
+        "state": "STARTED"
+      }
+    ],
+    [
+      {
+        "index": "twitter",
+        "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "primary": true,
+        "relocating_node": null,
+        "shard": 4,
+        "state": "STARTED"
+      }
+    ],
+    [
+      {
+        "index": "twitter",
+        "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "primary": true,
+        "relocating_node": null,
+        "shard": 0,
+        "state": "STARTED"
+      }
+    ],
+    [
+      {
+        "index": "twitter",
+        "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "primary": true,
+        "relocating_node": null,
+        "shard": 2,
+        "state": "STARTED"
+      }
+    ],
+    [
+      {
+        "index": "twitter",
+        "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "primary": true,
+        "relocating_node": null,
+        "shard": 1,
+        "state": "STARTED"
+      }
+    ]
+  ]
+}
+--------------------------------------------------
+
+And specifying the same request, this time with a routing value:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/twitter/_search_shards?routing=foo,baz'
+--------------------------------------------------
+
+This will yield the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "nodes": {
+    "JklnKbD7Tyqi9TP3_Q_tBg": {
+      "name": "Rl'nnd",
+      "transport_address": "inet[/192.168.1.113:9300]"
+    }
+  },
+  "shards": [
+    [
+      {
+        "index": "twitter",
+        "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "primary": true,
+        "relocating_node": null,
+        "shard": 2,
+        "state": "STARTED"
+      }
+    ],
+    [
+      {
+        "index": "twitter",
+        "node": "JklnKbD7Tyqi9TP3_Q_tBg",
+        "primary": true,
+        "relocating_node": null,
+        "shard": 4,
+        "state": "STARTED"
+      }
+    ]
+  ]
+}
+--------------------------------------------------
+
+This time the search will only be executed against two of the shards, because
+routing values have been specified.
+
+[float]
+=== All parameters:
+
+[horizontal]
+`routing`::
+    A comma-separated list of routing values to take into account when
+    determining which shards a request would be executed against.
+
+`preference`::
+    Controls a `preference` of which shard replicas to execute the search
+    request on. By default, the operation is randomized between the shard
+    replicas. See the link:search-request-preference.html[preference]
+    documentation for a list of all acceptable values.
+
+`local`::
+    A boolean value whether to read the cluster state locally in order to
+    determine where shards are allocated instead of using the Master node's
+    cluster state.

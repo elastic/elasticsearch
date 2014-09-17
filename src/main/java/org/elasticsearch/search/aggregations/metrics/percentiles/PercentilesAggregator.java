@@ -18,108 +18,69 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-
-import java.io.IOException;
+import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
+import org.elasticsearch.search.aggregations.support.*;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 
 /**
  *
  */
-public class PercentilesAggregator extends MetricsAggregator.MultiValue {
+public class PercentilesAggregator extends AbstractPercentilesAggregator {
 
-    private final ValuesSource.Numeric valuesSource;
-    private DoubleValues values;
-
-    private final PercentilesEstimator estimator;
-    private final boolean keyed;
-
-
-    public PercentilesAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context,
-                                 Aggregator parent, PercentilesEstimator estimator, boolean keyed) {
-        super(name, estimatedBucketsCount, context, parent);
-        this.valuesSource = valuesSource;
-        this.keyed = keyed;
-        this.estimator = estimator;
-    }
-
-    @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
-    }
-
-    @Override
-    public void setNextReader(AtomicReaderContext reader) {
-        values = valuesSource.doubleValues();
-    }
-
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        final int valueCount = values.setDocument(doc);
-        for (int i = 0; i < valueCount; i++) {
-            estimator.offer(values.nextValue(), owningBucketOrdinal);
-        }
-    }
-
-    @Override
-    public boolean hasMetric(String name) {
-        return PercentilesEstimator.indexOfPercent(estimator.percents, Double.parseDouble(name)) >= 0;
-    }
-
-    @Override
-    public double metric(String name, long owningBucketOrd) {
-        return estimator.result(owningBucketOrd).estimate(Double.parseDouble(name));
+    public PercentilesAggregator(String name, long estimatedBucketsCount, Numeric valuesSource, AggregationContext context,
+            Aggregator parent, double[] percents, double compression, boolean keyed) {
+        super(name, estimatedBucketsCount, valuesSource, context, parent, percents, compression, keyed);
     }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (valuesSource == null) {
+        TDigestState state = getState(owningBucketOrdinal);
+        if (state == null) {
             return buildEmptyAggregation();
+        } else {
+            return new InternalPercentiles(name, keys, state, keyed);
         }
-        return new InternalPercentiles(name, estimator.result(owningBucketOrdinal), keyed);
+    }
+    
+    @Override
+    public double metric(String name, long bucketOrd) {
+        TDigestState state = getState(bucketOrd);
+        if (state == null) {
+            return Double.NaN;
+        } else {
+            return state.quantile(Double.parseDouble(name) / 100);
+        }
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalPercentiles(name, estimator.emptyResult(), keyed);
-    }
-
-    @Override
-    protected void doClose() {
-        estimator.close();
+        return new InternalPercentiles(name, keys, new TDigestState(compression), keyed);
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
-        private final PercentilesEstimator.Factory estimatorFactory;
         private final double[] percents;
+        private final double compression;
         private final boolean keyed;
 
         public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig,
-                       double[] percents, PercentilesEstimator.Factory estimatorFactory, boolean keyed) {
+                double[] percents, double compression, boolean keyed) {
             super(name, InternalPercentiles.TYPE.name(), valuesSourceConfig);
-            this.estimatorFactory = estimatorFactory;
             this.percents = percents;
+            this.compression = compression;
             this.keyed = keyed;
         }
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new PercentilesAggregator(name, 0, null, aggregationContext, parent, estimatorFactory.create(percents, 0, aggregationContext), keyed);
+            return new PercentilesAggregator(name, 0, null, aggregationContext, parent, percents, compression, keyed);
         }
 
         @Override
         protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-            PercentilesEstimator estimator = estimatorFactory.create(percents, expectedBucketsCount, aggregationContext);
-            return new PercentilesAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, estimator, keyed);
+            return new PercentilesAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, percents, compression, keyed);
         }
     }
-
 }

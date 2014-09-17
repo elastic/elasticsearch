@@ -1,0 +1,8 @@
+{
+    "numeric_detection" : false,
+    "properties": {
+        "foo": {
+            "type": "string"
+        }
+    }
+}

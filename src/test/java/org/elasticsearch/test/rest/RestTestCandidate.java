@@ -44,12 +44,12 @@ public class RestTestCandidate {
         return restTestSuite.getName();
     }
 
-    public String getSuiteDescription() {
-        return restTestSuite.getDescription();
+    public String getSuitePath() {
+        return restTestSuite.getPath();
     }
 
-    public String getDescription() {
-        return getSuiteDescription() + "/" + testSection.getName();
+    public String getTestPath() {
+        return restTestSuite.getPath() + "/" + testSection.getName();
     }
 
     public SetupSection getSetupSection() {
@@ -62,6 +62,6 @@ public class RestTestCandidate {
 
     @Override
     public String toString() {
-        return getSuiteDescription() + "/" + testSection.getName();
+        return getTestPath();
     }
 }

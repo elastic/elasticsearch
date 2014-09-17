@@ -55,7 +55,9 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
     public static final String CODEC_NAME = "analyzing";
     public static final int CODEC_VERSION_START = 1;
-    public static final int CODEC_VERSION_LATEST = 2;
+    public static final int CODEC_VERSION_SERIALIZED_LABELS = 2;
+    public static final int CODEC_VERSION_CHECKSUMS = 3;
+    public static final int CODEC_VERSION_LATEST = CODEC_VERSION_CHECKSUMS;
 
     private boolean preserveSep;
     private boolean preservePositionIncrements;
@@ -89,10 +91,11 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
             @Override
             public void close() throws IOException {
-                try { /*
-                       * write the offsets per field such that we know where
-                       * we need to load the FSTs from
-                       */
+                try {
+                  /*
+                   * write the offsets per field such that we know where
+                   * we need to load the FSTs from
+                   */
                     long pointer = output.getFilePointer();
                     output.writeVInt(fieldOffsets.size());
                     for (Map.Entry<FieldInfo, Long> entry : fieldOffsets.entrySet()) {
@@ -100,7 +103,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                         output.writeVLong(entry.getValue());
                     }
                     output.writeLong(pointer);
-                    output.flush();
+                    CodecUtil.writeFooter(output);
                 } finally {
                     IOUtils.close(output);
                 }
@@ -184,7 +187,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         @Override
         public void addPosition(int position, BytesRef payload, int startOffset, int endOffset) throws IOException {
             analyzingSuggestLookupProvider.parsePayload(payload, spare);
-            builder.addSurface(spare.surfaceForm, spare.payload, spare.weight);
+            builder.addSurface(spare.surfaceForm.get(), spare.payload.get(), spare.weight);
             // multi fields have the same surface form so we sum up here
             maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, position + 1);
         }
@@ -202,8 +205,12 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     public LookupFactory load(IndexInput input) throws IOException {
         long sizeInBytes = 0;
         int version = CodecUtil.checkHeader(input, CODEC_NAME, CODEC_VERSION_START, CODEC_VERSION_LATEST);
+        if (version >= CODEC_VERSION_CHECKSUMS) {
+            CodecUtil.checksumEntireFile(input);
+        }
+        final long metaPointerPosition = input.length() - (version >= CODEC_VERSION_CHECKSUMS? 8 + CodecUtil.footerLength() : 8);
         final Map<String, AnalyzingSuggestHolder> lookupMap = new HashMap<>();
-        input.seek(input.length() - 8);
+        input.seek(metaPointerPosition);
         long metaPointer = input.readLong();
         input.seek(metaPointer);
         int numFields = input.readVInt();
@@ -246,7 +253,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
             AnalyzingSuggestHolder holder = new AnalyzingSuggestHolder(preserveSep, preservePositionIncrements, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions,
                     hasPayloads, maxAnalyzedPathsForOneInput, fst, sepLabel, payloadSep, endByte, holeCharacter);
-            sizeInBytes += fst.sizeInBytes();
+            sizeInBytes += fst.ramBytesUsed();
             lookupMap.put(entry.getValue(), holder);
         }
         final long ramBytesUsed = sizeInBytes;
@@ -289,16 +296,13 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                 }
 
                 for (Map.Entry<String, AnalyzingSuggestHolder> entry : lookupMap.entrySet()) {
-                    sizeInBytes += entry.getValue().fst.sizeInBytes();
+                    sizeInBytes += entry.getValue().fst.ramBytesUsed();
                     if (fields == null || fields.length == 0) {
                         continue;
                     }
-                    for (String field : fields) {
-                        // support for getting fields by regex as in fielddata
-                        if (Regex.simpleMatch(field, entry.getKey())) {
-                            long fstSize = entry.getValue().fst.sizeInBytes();
-                            completionFields.addTo(field, fstSize);
-                        }
+                    if (Regex.simpleMatch(fields, entry.getKey())) {
+                        long fstSize = entry.getValue().fst.ramBytesUsed();
+                        completionFields.addTo(entry.getKey(), fstSize);
                     }
                 }
 

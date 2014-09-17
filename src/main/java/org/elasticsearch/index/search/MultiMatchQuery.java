@@ -263,6 +263,6 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     protected boolean forceAnalyzeQueryString() {
-        return this.queryBuilder.forceAnalyzeQueryString();
+        return this.queryBuilder == null ? super.forceAnalyzeQueryString() : this.queryBuilder.forceAnalyzeQueryString();
     }
 }

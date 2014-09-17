@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.translog;
 
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -37,6 +36,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -44,6 +44,18 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  *
  */
 public class TranslogService extends AbstractIndexShardComponent {
+
+    private static final String FLUSH_THRESHOLD_OPS_KEY = "flush_threshold_ops";
+    private static final String FLUSH_THRESHOLD_SIZE_KEY = "flush_threshold_size";
+    private static final String FLUSH_THRESHOLD_PERIOD_KEY = "flush_threshold_period";
+    private static final String FLUSH_THRESHOLD_DISABLE_FLUSH_KEY = "disable_flush";
+    private static final String FLUSH_THRESHOLD_INTERVAL_KEY = "interval";
+
+    public static final String INDEX_TRANSLOG_FLUSH_INTERVAL = "index.translog." + FLUSH_THRESHOLD_INTERVAL_KEY;
+    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS = "index.translog." + FLUSH_THRESHOLD_OPS_KEY;
+    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog." + FLUSH_THRESHOLD_SIZE_KEY;
+    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD =  "index.translog." + FLUSH_THRESHOLD_PERIOD_KEY;
+    public static final String INDEX_TRANSLOG_DISABLE_FLUSH = "index.translog." + FLUSH_THRESHOLD_DISABLE_FLUSH_KEY;
 
     private final ThreadPool threadPool;
     private final IndexSettingsService indexSettingsService;
@@ -66,12 +78,11 @@ public class TranslogService extends AbstractIndexShardComponent {
         this.indexSettingsService = indexSettingsService;
         this.indexShard = indexShard;
         this.translog = translog;
-
-        this.flushThresholdOperations = componentSettings.getAsInt("flush_threshold_ops", componentSettings.getAsInt("flush_threshold", 5000));
-        this.flushThresholdSize = componentSettings.getAsBytesSize("flush_threshold_size", new ByteSizeValue(200, ByteSizeUnit.MB));
-        this.flushThresholdPeriod = componentSettings.getAsTime("flush_threshold_period", TimeValue.timeValueMinutes(30));
-        this.interval = componentSettings.getAsTime("interval", timeValueMillis(5000));
-        this.disableFlush = componentSettings.getAsBoolean("disable_flush", false);
+        this.flushThresholdOperations = componentSettings.getAsInt(FLUSH_THRESHOLD_OPS_KEY, componentSettings.getAsInt("flush_threshold", Integer.MAX_VALUE));
+        this.flushThresholdSize = componentSettings.getAsBytesSize(FLUSH_THRESHOLD_SIZE_KEY, new ByteSizeValue(200, ByteSizeUnit.MB));
+        this.flushThresholdPeriod = componentSettings.getAsTime(FLUSH_THRESHOLD_PERIOD_KEY, TimeValue.timeValueMinutes(30));
+        this.interval = componentSettings.getAsTime(FLUSH_THRESHOLD_INTERVAL_KEY, timeValueMillis(5000));
+        this.disableFlush = componentSettings.getAsBoolean(FLUSH_THRESHOLD_DISABLE_FLUSH_KEY, false);
 
         logger.debug("interval [{}], flush_threshold_ops [{}], flush_threshold_size [{}], flush_threshold_period [{}]", interval, flushThresholdOperations, flushThresholdSize, flushThresholdPeriod);
 
@@ -86,11 +97,7 @@ public class TranslogService extends AbstractIndexShardComponent {
         this.future.cancel(true);
     }
 
-    public static final String INDEX_TRANSLOG_FLUSH_INTERVAL = "index.translog.interval";
-    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS = "index.translog.flush_threshold_ops";
-    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
-    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD = "index.translog.flush_threshold_period";
-    public static final String INDEX_TRANSLOG_DISABLE_FLUSH = "index.translog.disable_flush";
+
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override

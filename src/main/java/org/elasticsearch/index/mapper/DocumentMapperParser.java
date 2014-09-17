@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -47,7 +46,11 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptService.ScriptType;
 
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.doc;
@@ -61,6 +64,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     private final PostingsFormatService postingsFormatService;
     private final DocValuesFormatService docValuesFormatService;
     private final SimilarityLookupService similarityLookupService;
+    private final ScriptService scriptService;
 
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
 
@@ -72,12 +76,13 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
                                 PostingsFormatService postingsFormatService, DocValuesFormatService docValuesFormatService,
-                                SimilarityLookupService similarityLookupService) {
+                                SimilarityLookupService similarityLookupService, ScriptService scriptService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
         this.postingsFormatService = postingsFormatService;
         this.docValuesFormatService = docValuesFormatService;
         this.similarityLookupService = similarityLookupService;
+        this.scriptService = scriptService;
         MapBuilder<String, Mapper.TypeParser> typeParsersBuilder = new MapBuilder<String, Mapper.TypeParser>()
                 .put(ByteFieldMapper.CONTENT_TYPE, new ByteFieldMapper.TypeParser())
                 .put(ShortFieldMapper.CONTENT_TYPE, new ShortFieldMapper.TypeParser())
@@ -119,10 +124,9 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(UidFieldMapper.NAME, new UidFieldMapper.TypeParser())
                 .put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser())
                 .put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser())
+                .put(FieldNamesFieldMapper.NAME, new FieldNamesFieldMapper.TypeParser())
                 .immutableMap();
-        assert indexSettings.get(IndexMetaData.SETTING_UUID) == null // if the UUDI is there the index has actually been created otherwise this might be a test
-                || indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null : IndexMetaData.SETTING_VERSION_CREATED + " not set in IndexSettings";
-        indexVersionCreated = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        indexVersionCreated = Version.indexCreated(indexSettings);
     }
 
     public void putTypeParser(String type, Mapper.TypeParser typeParser) {
@@ -201,45 +205,76 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
 
         Mapper.TypeParser.ParserContext parserContext = parserContext();
+        // parse RootObjectMapper
         DocumentMapper.Builder docBuilder = doc(index.name(), indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
-
-        for (Map.Entry<String, Object> entry : mapping.entrySet()) {
+        Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
+        // parse DocumentMapper
+        while(iterator.hasNext()) {
+            Map.Entry<String, Object> entry = iterator.next();
             String fieldName = Strings.toUnderscoreCase(entry.getKey());
             Object fieldNode = entry.getValue();
 
             if ("index_analyzer".equals(fieldName)) {
+                iterator.remove();
                 NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for index_analyzer setting on root type [" + type + "]");
                 }
                 docBuilder.indexAnalyzer(analyzer);
             } else if ("search_analyzer".equals(fieldName)) {
+                iterator.remove();
                 NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for search_analyzer setting on root type [" + type + "]");
                 }
                 docBuilder.searchAnalyzer(analyzer);
             } else if ("search_quote_analyzer".equals(fieldName)) {
+                iterator.remove();
                 NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for search_analyzer setting on root type [" + type + "]");
                 }
                 docBuilder.searchQuoteAnalyzer(analyzer);
             } else if ("analyzer".equals(fieldName)) {
+                iterator.remove();
                 NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for analyzer setting on root type [" + type + "]");
                 }
                 docBuilder.indexAnalyzer(analyzer);
                 docBuilder.searchAnalyzer(analyzer);
+            } else if ("transform".equals(fieldName)) {
+                iterator.remove();
+                if (fieldNode instanceof Map) {
+                    parseTransform(docBuilder, (Map<String, Object>) fieldNode);
+                } else if (fieldNode instanceof List) {
+                    for (Object transformItem: (List)fieldNode) {
+                        if (!(transformItem instanceof Map)) {
+                            throw new MapperParsingException("Elements of transform list must be objects but one was:  " + fieldNode);
+                        }
+                        parseTransform(docBuilder, (Map<String, Object>) transformItem);
+                    }
+                } else {
+                    throw new MapperParsingException("Transform must be an object or an array but was:  " + fieldNode);
+                }
             } else {
                 Mapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
                 if (typeParser != null) {
+                    iterator.remove();
                     docBuilder.put(typeParser.parse(fieldName, (Map<String, Object>) fieldNode, parserContext));
                 }
             }
         }
 
+        ImmutableMap<String, Object> attributes = ImmutableMap.of();
+        if (mapping.containsKey("_meta")) {
+            attributes = ImmutableMap.copyOf((Map<String, Object>) mapping.remove("_meta"));
+        }
+        docBuilder.meta(attributes);
+
+        if (!mapping.isEmpty()) {
+            throw new MapperParsingException("Root type mapping not empty after parsing! Remaining fields:  " + getRemainingFields(mapping));
+        }
         if (!docBuilder.hasIndexAnalyzer()) {
             docBuilder.indexAnalyzer(analysisService.defaultIndexAnalyzer());
         }
@@ -250,19 +285,42 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             docBuilder.searchAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
         }
 
-        ImmutableMap<String, Object> attributes = ImmutableMap.of();
-        if (mapping.containsKey("_meta")) {
-            attributes = ImmutableMap.copyOf((Map<String, Object>) mapping.get("_meta"));
-        }
-        docBuilder.meta(attributes);
-
         DocumentMapper documentMapper = docBuilder.build(this);
         // update the source with the generated one
         documentMapper.refreshSource();
         return documentMapper;
     }
 
-    @SuppressWarnings({"unchecked"})
+    private String getRemainingFields(Map<String, ?> map) {
+        StringBuilder remainingFields = new StringBuilder();
+        for (String key : map.keySet()) {
+            remainingFields.append(" [").append(key).append(" : ").append(map.get(key).toString()).append("]");
+        }
+        return remainingFields.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void parseTransform(DocumentMapper.Builder docBuilder, Map<String, Object> transformConfig) {
+        String script = (String) transformConfig.remove("script_file");
+        ScriptType scriptType = ScriptType.FILE;
+        if (script == null) {
+            script = (String) transformConfig.remove("script_id");
+            scriptType = ScriptType.INDEXED;
+        }
+        if (script == null) {
+            script = (String) transformConfig.remove("script");
+            scriptType = ScriptType.INLINE;
+        }
+        if (script != null) {
+            String scriptLang = (String) transformConfig.remove("lang");
+            Map<String, Object> params = (Map<String, Object>)transformConfig.remove("params");
+            docBuilder.transform(scriptService, script, scriptType, scriptLang, params);
+        }
+        if (!transformConfig.isEmpty()) {
+            throw new MapperParsingException("Unrecognized parameter in transform config:  " + getRemainingFields(transformConfig));
+        }
+    }
+
     private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
         Map<String, Object> root;
         try {
@@ -279,7 +337,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             // if we don't have any keys throw an exception
             throw new MapperParsingException("malformed mapping no root object found");
         }
-
         String rootName = root.keySet().iterator().next();
         Tuple<String, Map<String, Object>> mapping;
         if (type == null || type.equals(rootName)) {
@@ -287,7 +344,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         } else {
             mapping = new Tuple<>(type, root);
         }
-
         return mapping;
     }
 }

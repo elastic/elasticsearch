@@ -20,10 +20,12 @@
 package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 
@@ -32,7 +34,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to open an index.
  */
-public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
+public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> implements IndicesRequest {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, false, true);
@@ -50,7 +52,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (indices == null || indices.length == 0) {
+        if (CollectionUtils.isEmpty(indices)) {
             validationException = addValidationError("index is missing", validationException);
         }
         return validationException;
@@ -60,7 +62,8 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
      * The indices to be opened
      * @return the indices to be opened
      */
-    String[] indices() {
+    @Override
+    public String[] indices() {
         return indices;
     }
 
@@ -80,6 +83,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> {
      *
      * @return the current behaviour when it comes to index names and wildcard indices expressions
      */
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

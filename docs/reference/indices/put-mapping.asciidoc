@@ -80,4 +80,4 @@ where
 
 
 Instead of `_mapping` you can also use the plural `_mappings`.
-The uri `PUT /{index}/{type}/_mapping` is still supported for backwardscompatibility.  
+The uri `PUT /{index}/{type}/_mapping` is still supported for backwards compatibility.  

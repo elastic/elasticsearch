@@ -28,6 +28,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
@@ -42,7 +43,6 @@ import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -79,7 +79,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         protected Long nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), Defaults.PRECISION_STEP_64_BIT);
             builder = this;
         }
 
@@ -91,7 +91,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         @Override
         public LongFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, nullValue,
+            LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue,
                     ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, 
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -162,9 +162,9 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public BytesRef indexedValueForSearch(Object value) {
-        BytesRef bytesRef = new BytesRef();
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
         NumericUtils.longToPrefixCoded(parseLongValue(value), 0, bytesRef);  // 0 because of exact match
-        return bytesRef;
+        return bytesRef.get();
     }
 
     @Override
@@ -208,8 +208,8 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newLongRange((IndexNumericFieldData) fieldData.getForField(this),
+    public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeFieldDataFilter.newLongRange((IndexNumericFieldData) parseContext.getForField(this),
                 lowerTerm == null ? null : parseLongValue(lowerTerm),
                 upperTerm == null ? null : parseLongValue(upperTerm),
                 includeLower, includeUpper);
@@ -306,7 +306,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            addDocValue(context, value);
+            addDocValue(context, fields, value);
         }
     }
 
@@ -331,7 +331,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP) {
+        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP_64_BIT) {
             builder.field("precision_step", precisionStep);
         }
         if (includeDefaults || nullValue != null) {
@@ -357,7 +357,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
             if (fieldType().indexed()) {
                 return mapper.popCachedStream().setLongValue(number);
             }

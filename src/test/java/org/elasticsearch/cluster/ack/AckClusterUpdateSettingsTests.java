@@ -37,7 +37,6 @@ import org.junit.Test;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
-import static org.elasticsearch.test.TestCluster.DEFAULT_MAX_NUM_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -49,6 +48,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
         //to test that the acknowledgement mechanism is working we better disable the wait for publish
         //otherwise the operation is most likely acknowledged even if it doesn't support ack
         return ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
                 .put(DiscoverySettings.PUBLISH_TIMEOUT, 0)
                 //make sure that enough concurrent reroutes can happen at the same time
                 //we have a minimum of 2 nodes, and a maximum of 10 shards, thus 5 should be enough
@@ -58,7 +58,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
 
     @Override
     protected int minimumNumberOfShards() {
-        return immutableCluster().size();
+        return cluster().numDataNodes();
     }
 
     @Override
@@ -107,7 +107,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
     public void testClusterUpdateSettingsNoAcknowledgement() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", between(immutableCluster().dataNodes(), DEFAULT_MAX_NUM_SHARDS))
+                        .put("number_of_shards", between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 

@@ -19,14 +19,18 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsParametersParser.OrderElement;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -40,100 +44,46 @@ public class TermsParser implements Aggregator.Parser {
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-
-        int requiredSize = 10;
-        int shardSize = -1;
-        String orderKey = "_count";
-        boolean orderAsc = false;
-
-        String executionHint = null;
-        long minDocCount = 1;
-
-        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, StringTerms.TYPE, context)
-                .requiresSortedValues(true)
-                .requiresUniqueValues(true)
-                .formattable(true)
-                .build();
-
+        TermsParametersParser aggParser = new TermsParametersParser();
+        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, StringTerms.TYPE, context).scriptable(true).formattable(true).build();
         IncludeExclude.Parser incExcParser = new IncludeExclude.Parser(aggregationName, StringTerms.TYPE, context);
+        aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
 
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else if (incExcParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
-                    executionHint = parser.text();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if ("size".equals(currentFieldName)) {
-                    requiredSize = parser.intValue();
-                } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
-                    shardSize = parser.intValue();
-                } else if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
-                    minDocCount = parser.intValue();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("order".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            orderKey = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
-                            String dir = parser.text();
-                            if ("asc".equalsIgnoreCase(dir)) {
-                                orderAsc = true;
-                            } else if ("desc".equalsIgnoreCase(dir)) {
-                                orderAsc = false;
-                            } else {
-                                throw new SearchParseException(context, "Unknown terms order direction [" + dir + "] in terms aggregation [" + aggregationName + "]");
-                            }
-                        } else {
-                            throw new SearchParseException(context, "Unexpected token " + token + " for [order] in [" + aggregationName + "].");
-                        }
-                    }
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
-            } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
-            }
+        List<OrderElement> orderElements = aggParser.getOrderElements();
+        List<Terms.Order> orders = new ArrayList<>(orderElements.size());
+        for (OrderElement orderElement : orderElements) {
+            orders.add(resolveOrder(orderElement.key(), orderElement.asc()));
         }
-
-        if (shardSize == 0) {
-            shardSize = Integer.MAX_VALUE;
+        Terms.Order order;
+        if (orders.size() == 1 && (orders.get(0) == InternalOrder.TERM_ASC || orders.get(0) == InternalOrder.TERM_DESC))
+        {
+            // If order is only terms order then we don't need compound ordering
+            order = orders.get(0);
         }
-
-        if (requiredSize == 0) {
-            requiredSize = Integer.MAX_VALUE;
+        else
+        {
+            // for all other cases we need compound order so term order asc can be added to make the order deterministic
+            order = Order.compound(orders);
         }
-
-        // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
-        if (shardSize < requiredSize) {
-            shardSize = requiredSize;
+        TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
+        if (!(order == InternalOrder.TERM_ASC || order == InternalOrder.TERM_DESC)
+                && bucketCountThresholds.getShardSize() == aggParser.getDefaultBucketCountThresholds().getShardSize()) {
+            // The user has not made a shardSize selection. Use default heuristic to avoid any wrong-ranking caused by distributed counting
+            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
+                    context.numberOfShards()));
         }
-
-        IncludeExclude includeExclude = incExcParser.includeExclude();
-        InternalOrder order = resolveOrder(orderKey, orderAsc);
-        return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
+        bucketCountThresholds.ensureValidity();
+        return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getCollectionMode(), aggParser.showTermDocCountError());
     }
 
-    static InternalOrder resolveOrder(String key, boolean asc) {
+    static Terms.Order resolveOrder(String key, boolean asc) {
         if ("_term".equals(key)) {
-            return asc ? InternalOrder.TERM_ASC : InternalOrder.TERM_DESC;
+            return Order.term(asc);
         }
         if ("_count".equals(key)) {
-            return asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC;
+            return Order.count(asc);
         }
-        return new InternalOrder.Aggregation(key, asc);
+        return Order.aggregation(key, asc);
     }
 
 }

@@ -26,7 +26,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 
@@ -39,19 +38,14 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestIndicesExistsAction extends BaseRestHandler {
 
-    private final SettingsFilter settingsFilter;
-
     @Inject
-    public RestIndicesExistsAction(Settings settings, Client client, RestController controller,
-                                   SettingsFilter settingsFilter) {
-        super(settings, client);
+    public RestIndicesExistsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(HEAD, "/{index}", this);
-
-        this.settingsFilter = settingsFilter;
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         indicesExistsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesExistsRequest.indicesOptions()));
         indicesExistsRequest.local(request.paramAsBoolean("local", indicesExistsRequest.local()));

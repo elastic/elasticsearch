@@ -23,6 +23,8 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -43,18 +45,25 @@ import java.util.Map;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
+ * A multi percolate request that encapsulates multiple {@link PercolateRequest} instances in a single api call.
  */
-public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> {
+public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> implements CompositeIndicesRequest {
 
     private String[] indices;
     private String documentType;
-    private IndicesOptions indicesOptions = IndicesOptions.strict();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
     private List<PercolateRequest> requests = Lists.newArrayList();
 
+    /**
+     * Embeds a percolate request to this multi percolate request
+     */
     public MultiPercolateRequest add(PercolateRequestBuilder requestBuilder) {
         return add(requestBuilder.request());
     }
 
+    /**
+     * Embeds a percolate request to this multi percolate request
+     */
     public MultiPercolateRequest add(PercolateRequest request) {
         if (request.indices() == null && indices != null) {
             request.indices(indices);
@@ -62,17 +71,23 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         if (request.documentType() == null && documentType != null) {
             request.documentType(documentType);
         }
-        if (request.indicesOptions() == IndicesOptions.strict() && indicesOptions != IndicesOptions.strict()) {
+        if (request.indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed() && indicesOptions != IndicesOptions.strictExpandOpenAndForbidClosed()) {
             request.indicesOptions(indicesOptions);
         }
         requests.add(request);
         return this;
     }
 
+    /**
+     * Embeds a percolate request which request body is defined as raw bytes to this multi percolate request
+     */
     public MultiPercolateRequest add(byte[] data, int from, int length, boolean contentUnsafe) throws Exception {
         return add(new BytesArray(data, from, length), contentUnsafe, true);
     }
 
+    /**
+     * Embeds a percolate request which request body is defined as raw bytes to this multi percolate request
+     */
     public MultiPercolateRequest add(BytesReference data, boolean contentUnsafe, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
@@ -96,7 +111,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             if (documentType != null) {
                 percolateRequest.documentType(documentType);
             }
-            if (indicesOptions != IndicesOptions.strict()) {
+            if (indicesOptions != IndicesOptions.strictExpandOpenAndForbidClosed()) {
                 percolateRequest.indicesOptions(indicesOptions);
             }
 
@@ -148,6 +163,15 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         return this;
     }
 
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
+        List<IndicesRequest> indicesRequests = Lists.newArrayList();
+        for (PercolateRequest percolateRequest : this.requests) {
+            indicesRequests.addAll(percolateRequest.subRequests());
+        }
+        return indicesRequests;
+    }
+
     private void parsePercolateAction(XContentParser parser, PercolateRequest percolateRequest, boolean allowExplicitIndex) throws IOException {
         String globalIndex = indices != null && indices.length > 0 ? indices[0] : null;
 
@@ -165,10 +189,11 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             }
         }
 
-        boolean ignoreUnavailable = IndicesOptions.strict().ignoreUnavailable();
-        boolean allowNoIndices = IndicesOptions.strict().allowNoIndices();
-        boolean expandWildcardsOpen = IndicesOptions.strict().expandWildcardsOpen();
-        boolean expandWildcardsClosed = IndicesOptions.strict().expandWildcardsClosed();
+        IndicesOptions defaultOptions = indicesOptions;
+        boolean ignoreUnavailable = defaultOptions.ignoreUnavailable();
+        boolean allowNoIndices = defaultOptions.allowNoIndices();
+        boolean expandWildcardsOpen = defaultOptions.expandWildcardsOpen();
+        boolean expandWildcardsClosed = defaultOptions.expandWildcardsClosed();
 
         if (header.containsKey("id")) {
             GetRequest getRequest = new GetRequest(globalIndex);
@@ -280,7 +305,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                 }
             }
         }
-        percolateRequest.indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));
+        percolateRequest.indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed, defaultOptions));
     }
 
     private String[] parseArray(XContentParser parser) throws IOException {
@@ -301,32 +326,62 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         return -1;
     }
 
+    /**
+     * @return The list of already set percolate requests.
+     */
     public List<PercolateRequest> requests() {
         return this.requests;
     }
 
+    /**
+     * @return Returns the {@link IndicesOptions} that is used as default for all percolate requests.
+     */
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
+    /**
+     * Sets the {@link IndicesOptions} for all percolate request that don't have this set.
+     *
+     * Warning: This should be set before adding any percolate requests. Setting this after adding percolate requests
+     * will have no effect on any percolate requests already added.
+     */
     public MultiPercolateRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }
 
+    /**
+     * @return The default indices for all percolate request.
+     */
     public String[] indices() {
         return indices;
     }
 
+    /**
+     * Sets the default indices for any percolate request that doesn't have indices defined.
+     *
+     * Warning: This should be set before adding any percolate requests. Setting this after adding percolate requests
+     * will have no effect on any percolate requests already added.
+     */
     public MultiPercolateRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
 
+    /**
+     * @return Sets the default type for all percolate requests
+     */
     public String documentType() {
         return documentType;
     }
 
+    /**
+     * Sets the default document type for any percolate request that doesn't have a document type set.
+     *
+     * Warning: This should be set before adding any percolate requests. Setting this after adding percolate requests
+     * will have no effect on any percolate requests already added.
+     */
     public MultiPercolateRequest documentType(String type) {
         this.documentType = type;
         return this;

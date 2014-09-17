@@ -22,7 +22,7 @@ package org.elasticsearch.index.codec.postingformat;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene46.Lucene46Codec;
+import org.apache.lucene.codecs.lucene410.Lucene410Codec;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
@@ -32,7 +32,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.merge.Merges;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -49,7 +48,7 @@ import static org.hamcrest.Matchers.*;
  */
 public class DefaultPostingsFormatTests extends ElasticsearchTestCase {
 
-    private final class TestCodec extends Lucene46Codec {
+    private final class TestCodec extends Lucene410Codec {
 
         @Override
         public PostingsFormat getPostingsFormatForField(String field) {
@@ -94,7 +93,7 @@ public class DefaultPostingsFormatTests extends ElasticsearchTestCase {
         for (int i = 0; i < 100; i++) {
             writer.addDocument(Arrays.asList(new TextField("foo", "foo bar foo bar", Store.YES), new TextField("some_other_field", "1234", Store.YES)));
         }
-        Merges.forceMerge(writer, 1);
+        writer.forceMerge(1, true);
         writer.commit();
         
         DirectoryReader reader = DirectoryReader.open(writer, false);

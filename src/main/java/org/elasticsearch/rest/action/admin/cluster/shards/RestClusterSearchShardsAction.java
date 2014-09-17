@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster.shards;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -28,11 +27,8 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
-
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -42,8 +38,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestClusterSearchShardsAction extends BaseRestHandler {
 
     @Inject
-    public RestClusterSearchShardsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestClusterSearchShardsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_search_shards", this);
         controller.registerHandler(POST, "/_search_shards", this);
         controller.registerHandler(GET, "/{index}/_search_shards", this);
@@ -53,7 +49,7 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterSearchShardsRequest clusterSearchShardsRequest = Requests.clusterSearchShardsRequest(indices);
         clusterSearchShardsRequest.local(request.paramAsBoolean("local", clusterSearchShardsRequest.local()));

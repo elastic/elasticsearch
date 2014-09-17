@@ -31,13 +31,14 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
 /**
  *
  */
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class RecoverAfterNodesTests extends ElasticsearchIntegrationTest {
 
     private final static TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(1);
@@ -54,8 +55,8 @@ public class RecoverAfterNodesTests extends ElasticsearchIntegrationTest {
     }
 
     public Client startNode(Settings.Builder settings) {
-        String name = cluster().startNode(settings);
-        return cluster().client(name);
+        String name = internalCluster().startNode(settings);
+        return internalCluster().client(name);
     }
 
     @Test

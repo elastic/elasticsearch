@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -39,14 +38,12 @@ public class CompetitionResult implements Streamable, ToXContent {
     private int concurrency;
     private int multiplier;
     private boolean verbose;
-    private double[] percentiles = DEFAULT_PERCENTILES;
+    private double[] percentiles = BenchmarkSettings.DEFAULT_PERCENTILES;
 
-    private List<CompetitionNodeResult> nodeResults = new ArrayList<CompetitionNodeResult>();
+    private List<CompetitionNodeResult> nodeResults = new ArrayList<>();
 
     private CompetitionSummary competitionSummary;
     private CompetitionDetails competitionDetails;
-
-    private static final double[] DEFAULT_PERCENTILES = { 10, 25, 50, 75, 90, 99 };
 
     public CompetitionResult() { }
 
@@ -74,7 +71,7 @@ public class CompetitionResult implements Streamable, ToXContent {
         this.concurrency = concurrency;
         this.multiplier = multiplier;
         this.verbose = verbose;
-        this.percentiles = (percentiles != null && percentiles.length > 0) ? percentiles : DEFAULT_PERCENTILES;
+        this.percentiles = (percentiles != null && percentiles.length > 0) ? percentiles : BenchmarkSettings.DEFAULT_PERCENTILES;
         this.competitionDetails = new CompetitionDetails(nodeResults);
         this.competitionSummary = new CompetitionSummary(nodeResults, concurrency, multiplier, percentiles);
     }
@@ -121,7 +118,7 @@ public class CompetitionResult implements Streamable, ToXContent {
 
     /**
      * Gets the multiplier. The multiplier determines how many times each iteration will be run.
-     * @return  Multipiler
+     * @return  Multiplier
      */
     public int multiplier() {
         return multiplier;
@@ -160,36 +157,6 @@ public class CompetitionResult implements Streamable, ToXContent {
     }
 
     /**
-     * Whether any failures were encountered
-     * @return  True/false
-     */
-    public boolean hasFailures() {
-        for (CompetitionNodeResult nodeResult : nodeResults) {
-            if (nodeResult.failures() != null && nodeResult.failures().length > 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Gets failure messages from node executions
-     * @return  Node failure messages
-     */
-    public List<String> nodeFailures() {
-        List<String> failures = null;
-        for (CompetitionNodeResult nodeResult : nodeResults) {
-            if (nodeResult.failures() != null && nodeResult.failures().length > 0) {
-                if (failures == null) {
-                    failures = new ArrayList<>();
-                }
-                failures.addAll(Arrays.asList(nodeResult.failures()));
-            }
-        }
-        return failures;
-    }
-
-    /**
      * Gets the results for each cluster node that the competition executed on.
      * @return  Node-level results
      */
@@ -200,14 +167,6 @@ public class CompetitionResult implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(competitionName);
-        List<String> nodeFailures = nodeFailures();
-        if (nodeFailures != null) {
-            builder.startArray("failures");
-            for (String failure : nodeFailures) {
-                builder.field(failure);
-            }
-            builder.endArray();
-        }
         competitionSummary.toXContent(builder, params);
         if (verbose) {
             competitionDetails.toXContent(builder, params);
@@ -229,6 +188,7 @@ public class CompetitionResult implements Streamable, ToXContent {
             nodeResults.add(result);
         }
         percentiles = in.readDoubleArray();
+        competitionSummary = new CompetitionSummary(nodeResults, concurrency, multiplier, percentiles);
     }
 
     @Override

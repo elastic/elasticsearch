@@ -24,7 +24,6 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.VersionType;
 
@@ -34,11 +33,11 @@ import org.elasticsearch.index.VersionType;
 public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilder<DeleteRequest, DeleteResponse, DeleteRequestBuilder> {
 
     public DeleteRequestBuilder(Client client) {
-        super((InternalClient) client, new DeleteRequest());
+        super(client, new DeleteRequest());
     }
 
     public DeleteRequestBuilder(Client client, @Nullable String index) {
-        super((InternalClient) client, new DeleteRequest(index));
+        super(client, new DeleteRequest(index));
     }
 
     /**
@@ -120,6 +119,6 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
 
     @Override
     protected void doExecute(ActionListener<DeleteResponse> listener) {
-        ((Client) client).delete(request, listener);
+        client.delete(request, listener);
     }
 }

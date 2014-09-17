@@ -174,19 +174,4 @@ public class ValueCountTests extends ElasticsearchIntegrationTest {
         assertThat(valueCount.getValue(), equalTo(20l));
     }
 
-    @Test
-    public void deduplication() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(count("count").script("doc['values'].values + [5L]"))
-                .execute().actionGet();
-
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-
-        ValueCount valueCount = searchResponse.getAggregations().get("count");
-        assertThat(valueCount, notNullValue());
-        assertThat(valueCount.getName(), equalTo("count"));
-        assertThat(valueCount.getValue(), equalTo(28l));
-    }
-
 }

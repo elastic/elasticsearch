@@ -20,7 +20,6 @@
 package org.elasticsearch.stresstest.get;
 
 import com.google.common.collect.Sets;
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
@@ -29,6 +28,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**

@@ -19,77 +19,21 @@
 
 package org.elasticsearch.common.io;
 
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.ThreadInterruptedException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.unit.TimeValue;
 
-import java.io.*;
-import java.nio.channels.FileChannel;
-import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.IOException;
 
 /**
  *
  */
 public class FileSystemUtils {
 
-    private static ESLogger logger = ESLoggerFactory.getLogger(FileSystemUtils.class.getName());
-
-    private static final long mkdirsStallTimeout = TimeValue.timeValueMinutes(5).millis();
-    private static final Object mkdirsMutex = new Object();
-    private static volatile Thread mkdirsThread;
-    private static volatile long mkdirsStartTime;
-
     public static boolean mkdirs(File dir) {
-        synchronized (mkdirsMutex) {
-            try {
-                mkdirsThread = Thread.currentThread();
-                mkdirsStartTime = System.currentTimeMillis();
-                return dir.mkdirs();
-            } finally {
-                mkdirsThread = null;
-            }
-        }
+        return dir.mkdirs();
     }
-
-    public static void checkMkdirsStall(long currentTime) {
-        Thread mkdirsThread1 = mkdirsThread;
-        long stallTime = currentTime - mkdirsStartTime;
-        if (mkdirsThread1 != null && (stallTime > mkdirsStallTimeout)) {
-            logger.error("mkdirs stalled for {} on {}, trying to interrupt", new TimeValue(stallTime), mkdirsThread1.getName());
-            mkdirsThread1.interrupt(); // try and interrupt it...
-        }
-    }
-
-    public static int maxOpenFiles(File testDir) {
-        boolean dirCreated = false;
-        if (!testDir.exists()) {
-            dirCreated = true;
-            testDir.mkdirs();
-        }
-        List<RandomAccessFile> files = new ArrayList<>();
-        try {
-            while (true) {
-                files.add(new RandomAccessFile(new File(testDir, "tmp" + files.size()), "rw"));
-            }
-        } catch (IOException ioe) {
-            int i = 0;
-            for (RandomAccessFile raf : files) {
-                IOUtils.closeWhileHandlingException(raf);
-                new File(testDir, "tmp" + i++).delete();
-            }
-            if (dirCreated) {
-                deleteRecursively(testDir);
-            }
-        }
-        return files.size();
-    }
-
 
     public static boolean hasExtensions(File root, String... extensions) {
         if (root != null && root.exists()) {
@@ -128,20 +72,45 @@ public class FileSystemUtils {
         return false;
     }
 
-    public static boolean deleteRecursively(File[] roots) {
+    /**
+     * Deletes the given files recursively. if <tt>deleteRoots</tt> is set to <code>true</code>
+     * the given root files will be deleted as well. Otherwise only their content is deleted.
+     */
+    public static boolean deleteRecursively(File[] roots, boolean deleteRoots) {
+
         boolean deleted = true;
         for (File root : roots) {
-            deleted &= deleteRecursively(root);
+            deleted &= deleteRecursively(root, deleteRoots);
         }
         return deleted;
     }
 
-    public static boolean deleteRecursively(File root) {
-        return deleteRecursively(root, true);
+    /**
+     * Deletes all subdirectories of the given roots recursively.
+     */
+    public static boolean deleteSubDirectories(File[] roots) {
+
+        boolean deleted = true;
+        for (File root : roots) {
+            if (root.isDirectory()) {
+                File[] files = root.listFiles(new FileFilter() {
+                    @Override
+                    public boolean accept(File pathname) {
+                        return pathname.isDirectory();
+                    }
+                });
+                deleted &= deleteRecursively(files, true);
+            }
+
+        }
+        return deleted;
     }
 
-    private static boolean innerDeleteRecursively(File root) {
-        return deleteRecursively(root, true);
+    /**
+     * Deletes the given files recursively including the given roots.
+     */
+    public static boolean deleteRecursively(File... roots) {
+       return deleteRecursively(roots, true);
     }
 
     /**
@@ -159,7 +128,7 @@ public class FileSystemUtils {
                 File[] children = root.listFiles();
                 if (children != null) {
                     for (File aChildren : children) {
-                        innerDeleteRecursively(aChildren);
+                        deleteRecursively(aChildren, true);
                     }
                 }
             }
@@ -173,10 +142,6 @@ public class FileSystemUtils {
         return false;
     }
 
-    static {
-        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_47 : "Use IOUtils#fsync instead of syncFile in Lucene 4.8";
-    }
-
     /**
      * Ensure that any writes to the given file is written to the storage device that contains it.
      * @param fileToSync the file to fsync
@@ -184,45 +149,7 @@ public class FileSystemUtils {
      *  because not all file systems and operating systems allow to fsync on a directory)
      */
     public static void syncFile(File fileToSync, boolean isDir) throws IOException {
-        IOException exc = null;
-
-        // If the file is a directory we have to open read-only, for regular files we must open r/w for the fsync to have an effect.
-        // See http://blog.httrack.com/blog/2013/11/15/everything-you-always-wanted-to-know-about-fsync/
-        try (final FileChannel file = FileChannel.open(fileToSync.toPath(), isDir ? StandardOpenOption.READ : StandardOpenOption.WRITE)) {
-            for (int retry = 0; retry < 5; retry++) {
-                try {
-                    file.force(true);
-                    return;
-                } catch (IOException ioe) {
-                    if (exc == null) {
-                        exc = ioe;
-                    }
-                    try {
-                        // Pause 5 msec
-                        Thread.sleep(5L);
-                    } catch (InterruptedException ie) {
-                        ThreadInterruptedException ex = new ThreadInterruptedException(ie);
-                        ex.addSuppressed(exc);
-                        throw ex;
-                    }
-                }
-            }
-        } catch (IOException ioe) {
-            if (exc == null) {
-                exc = ioe;
-            }
-        }
-
-        if (isDir) {
-            assert (Constants.LINUX || Constants.MAC_OS_X) == false :
-                    "On Linux and MacOSX fsyncing a directory should not throw IOException, "+
-                            "we just don't want to rely on that in production (undocumented). Got: " + exc;
-            // Ignore exception if it is a directory
-            return;
-        }
-
-        // Throw original exception
-        throw exc;
+        IOUtils.fsync(fileToSync, isDir);
     }
 
     /**

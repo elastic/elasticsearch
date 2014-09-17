@@ -34,14 +34,14 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestIndexDeleteAliasesAction extends BaseRestHandler {
 
     @Inject
-    public RestIndexDeleteAliasesAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestIndexDeleteAliasesAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(DELETE, "/{index}/_alias/{name}", this);
         controller.registerHandler(DELETE, "/{index}/_aliases/{name}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] aliases = Strings.splitStringByCommaToArray(request.param("name"));
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();

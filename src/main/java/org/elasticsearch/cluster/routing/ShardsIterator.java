@@ -55,14 +55,6 @@ public interface ShardsIterator {
     ShardRouting nextOrNull();
 
     /**
-     * Returns the first shard, or <tt>null</tt>, without
-     * incrementing the iterator.
-     *
-     * @see ShardRouting#assignedToNode()
-     */
-    ShardRouting firstOrNull();
-
-    /**
      * Return the number of shards remaining in this {@link ShardsIterator}
      *
      * @return number of shard remaining

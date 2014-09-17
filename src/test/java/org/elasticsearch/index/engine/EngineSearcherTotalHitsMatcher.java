@@ -36,6 +36,7 @@ public final class EngineSearcherTotalHitsMatcher extends TypeSafeMatcher<Engine
     private final Query query;
 
     private final int totalHits;
+    private int count;
 
     public EngineSearcherTotalHitsMatcher(Query query, int totalHits) {
         this.query = query;
@@ -45,11 +46,16 @@ public final class EngineSearcherTotalHitsMatcher extends TypeSafeMatcher<Engine
     @Override
     public boolean matchesSafely(Engine.Searcher searcher) {
         try {
-            long count = Lucene.count(searcher.searcher(), query);
+            this.count = (int) Lucene.count(searcher.searcher(), query);
             return count == totalHits;
         } catch (IOException e) {
             return false;
         }
+    }
+
+    @Override
+    protected void describeMismatchSafely(Engine.Searcher item, Description mismatchDescription) {
+        mismatchDescription.appendText("was ").appendValue(count);
     }
 
     @Override

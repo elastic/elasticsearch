@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class NumericValuesSourceMetricsAggregatorParser<S extends MetricsAggregation> implements Aggregator.Parser {
+public abstract class NumericValuesSourceMetricsAggregatorParser<S extends InternalNumericMetricsAggregation> implements Aggregator.Parser {
 
     protected final InternalAggregation.Type aggType;
 
@@ -54,7 +54,6 @@ public abstract class NumericValuesSourceMetricsAggregatorParser<S extends Metri
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
         ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, aggType, context)
-                .requiresSortedValues(requiresSortedValues())
                 .build();
 
         XContentParser.Token token;

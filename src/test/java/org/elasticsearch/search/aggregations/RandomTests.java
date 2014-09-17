@@ -26,17 +26,17 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.RangeFilterBuilder;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
+import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.util.List;
@@ -78,7 +78,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
             source = source.endArray().endObject();
             client().prepareIndex("idx", "type").setSource(source).execute().actionGet();
         }
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenient()).execute().get());
+        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
         final int numRanges = randomIntBetween(1, 20);
         final double[][] ranges = new double[numRanges][];
@@ -151,9 +151,8 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         final int maxNumTerms = randomIntBetween(10, 5000);
 
         final IntOpenHashSet valuesSet = new IntOpenHashSet();
-        immutableCluster().wipeIndices("idx");
+        cluster().wipeIndices("idx");
         prepareCreate("idx")
-                .setSettings(ImmutableSettings.builder().put(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY, randomIntBetween(1, maxNumTerms)))
                 .addMapping("type", jsonBuilder().startObject()
                         .startObject("type")
                         .startObject("properties")
@@ -206,7 +205,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, indexingRequests);
 
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenient()).execute().get());
+        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
         TermsAggregatorFactory.ExecutionMode[] globalOrdinalModes = new TermsAggregatorFactory.ExecutionMode[]{
                 TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS_HASH,
@@ -214,12 +213,11 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         };
 
         SearchResponse resp = client().prepareSearch("idx")
-                .addAggregation(terms("long").field("long_values").size(maxNumTerms).subAggregation(min("min").field("num")))
-                .addAggregation(terms("double").field("double_values").size(maxNumTerms).subAggregation(max("max").field("num")))
-                .addAggregation(terms("string_map").field("string_values").executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms).subAggregation(stats("stats").field("num")))
-                .addAggregation(terms("string_ordinals").field("string_values").executionHint(TermsAggregatorFactory.ExecutionMode.ORDINALS.toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
-                .addAggregation(terms("string_global_ordinals").field("string_values").executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
-                .addAggregation(terms("string_global_ordinals_doc_values").field("string_values.doc_values").executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
+                .addAggregation(terms("long").field("long_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(min("min").field("num")))
+                .addAggregation(terms("double").field("double_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(max("max").field("num")))
+                .addAggregation(terms("string_map").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms).subAggregation(stats("stats").field("num")))
+                .addAggregation(terms("string_global_ordinals").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
+                .addAggregation(terms("string_global_ordinals_doc_values").field("string_values.doc_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
                 .execute().actionGet();
         assertAllSuccessful(resp);
         assertEquals(numDocs, resp.getHits().getTotalHits());
@@ -227,22 +225,27 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         final Terms longTerms = resp.getAggregations().get("long");
         final Terms doubleTerms = resp.getAggregations().get("double");
         final Terms stringMapTerms = resp.getAggregations().get("string_map");
-        final Terms stringOrdinalsTerms = resp.getAggregations().get("string_ordinals");
+        final Terms stringGlobalOrdinalsTerms = resp.getAggregations().get("string_global_ordinals");
+        final Terms stringGlobalOrdinalsDVTerms = resp.getAggregations().get("string_global_ordinals_doc_values");
 
         assertEquals(valuesSet.size(), longTerms.getBuckets().size());
         assertEquals(valuesSet.size(), doubleTerms.getBuckets().size());
         assertEquals(valuesSet.size(), stringMapTerms.getBuckets().size());
-        assertEquals(valuesSet.size(), stringOrdinalsTerms.getBuckets().size());
+        assertEquals(valuesSet.size(), stringGlobalOrdinalsTerms.getBuckets().size());
+        assertEquals(valuesSet.size(), stringGlobalOrdinalsDVTerms.getBuckets().size());
         for (Terms.Bucket bucket : longTerms.getBuckets()) {
             final Terms.Bucket doubleBucket = doubleTerms.getBucketByKey(Double.toString(Long.parseLong(bucket.getKeyAsText().string())));
             final Terms.Bucket stringMapBucket = stringMapTerms.getBucketByKey(bucket.getKeyAsText().string());
-            final Terms.Bucket stringOrdinalsBucket = stringOrdinalsTerms.getBucketByKey(bucket.getKeyAsText().string());
+            final Terms.Bucket stringGlobalOrdinalsBucket = stringGlobalOrdinalsTerms.getBucketByKey(bucket.getKeyAsText().string());
+            final Terms.Bucket stringGlobalOrdinalsDVBucket = stringGlobalOrdinalsDVTerms.getBucketByKey(bucket.getKeyAsText().string());
             assertNotNull(doubleBucket);
             assertNotNull(stringMapBucket);
-            assertNotNull(stringOrdinalsBucket);
+            assertNotNull(stringGlobalOrdinalsBucket);
+            assertNotNull(stringGlobalOrdinalsDVBucket);
             assertEquals(bucket.getDocCount(), doubleBucket.getDocCount());
             assertEquals(bucket.getDocCount(), stringMapBucket.getDocCount());
-            assertEquals(bucket.getDocCount(), stringOrdinalsBucket.getDocCount());
+            assertEquals(bucket.getDocCount(), stringGlobalOrdinalsBucket.getDocCount());
+            assertEquals(bucket.getDocCount(), stringGlobalOrdinalsDVBucket.getDocCount());
         }
     }
 
@@ -271,10 +274,10 @@ public class RandomTests extends ElasticsearchIntegrationTest {
             source = source.endArray().endObject();
             client().prepareIndex("idx", "type").setSource(source).execute().actionGet();
         }
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenient()).execute().get());
+        assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
         SearchResponse resp = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field("values").script("floor(_value / interval)").param("interval", interval).size(maxNumTerms))
+                .addAggregation(terms("terms").field("values").collectMode(randomFrom(SubAggCollectionMode.values())).script("floor(_value / interval)").param("interval", interval).size(maxNumTerms))
                 .addAggregation(histogram("histo").field("values").interval(interval))
                 .execute().actionGet();
 
@@ -304,9 +307,54 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, indexingRequests);
 
-        SearchResponse response = client().prepareSearch("idx").addAggregation(terms("terms").field("double_value").subAggregation(percentiles("pcts").field("double_value"))).execute().actionGet();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(terms("terms").field("double_value").collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(percentiles("pcts").field("double_value"))).execute().actionGet();
         assertAllSuccessful(response);
         assertEquals(numDocs, response.getHits().getTotalHits());
+    }
+
+    // https://github.com/elasticsearch/elasticsearch/issues/6435
+    public void testReduce() throws Exception {
+        createIndex("idx");
+        final int value = randomIntBetween(0, 10);
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("f", value));
+        ensureYellow("idx"); // only one document let's make sure all shards have an active primary
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(filter("filter").filter(FilterBuilders.matchAllFilter())
+                .subAggregation(range("range")
+                        .field("f")
+                        .addUnboundedTo(6)
+                        .addUnboundedFrom(6)
+                .subAggregation(sum("sum").field("f"))))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Filter filter = response.getAggregations().get("filter");
+        assertNotNull(filter);
+        assertEquals(1, filter.getDocCount());
+
+        Range range = filter.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        assertThat(range.getBuckets().size(), equalTo(2));
+
+        Range.Bucket bucket = range.getBucketByKey("*-6.0");
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("*-6.0"));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getDocCount(), equalTo(value < 6 ? 1L : 0L));
+        Sum sum = bucket.getAggregations().get("sum");
+        assertEquals(value < 6 ? value : 0, sum.getValue(), 0d);
+
+        bucket = range.getBucketByKey("6.0-*");
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("6.0-*"));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getDocCount(), equalTo(value >= 6 ? 1L : 0L));
+        sum = bucket.getAggregations().get("sum");
+        assertEquals(value >= 6 ? value : 0, sum.getValue(), 0d);
     }
 
 }

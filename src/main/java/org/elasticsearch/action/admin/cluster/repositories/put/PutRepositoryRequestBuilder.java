@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.repositories.put;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
@@ -30,7 +29,7 @@ import java.util.Map;
 /**
  * Register repository request builder
  */
-public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<PutRepositoryRequest, PutRepositoryResponse, PutRepositoryRequestBuilder> {
+public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<PutRepositoryRequest, PutRepositoryResponse, PutRepositoryRequestBuilder, ClusterAdminClient> {
 
     /**
      * Constructs register repository request
@@ -38,7 +37,7 @@ public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<PutR
      * @param clusterAdminClient cluster admin client
      */
     public PutRepositoryRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super((InternalClusterAdminClient) clusterAdminClient, new PutRepositoryRequest());
+        super(clusterAdminClient, new PutRepositoryRequest());
     }
 
     /**
@@ -48,7 +47,7 @@ public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<PutR
      * @param name               repository name
      */
     public PutRepositoryRequestBuilder(ClusterAdminClient clusterAdminClient, String name) {
-        super((InternalClusterAdminClient) clusterAdminClient, new PutRepositoryRequest(name));
+        super(clusterAdminClient, new PutRepositoryRequest(name));
     }
 
     /**
@@ -119,6 +118,6 @@ public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<PutR
 
     @Override
     protected void doExecute(ActionListener<PutRepositoryResponse> listener) {
-        ((ClusterAdminClient) client).putRepository(request, listener);
+        client.putRepository(request, listener);
     }
 }

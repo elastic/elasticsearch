@@ -34,6 +34,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.GeohashCellFilter;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -54,10 +56,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Random;
+import java.util.*;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -393,7 +392,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow
     public void bulktest() throws Exception {
-        byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.json");
+        byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
 
         String mapping = XContentFactory.jsonBuilder()
                 .startObject()
@@ -500,26 +499,69 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().prepareRefresh("locations").execute().actionGet();
 
-        // Result of this geohash search should contain the geohash only
-        SearchResponse results1 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter("{\"geohash_cell\": {\"pin\": \"" + geohash + "\", \"neighbors\": false}}").execute().actionGet();
-        assertHitCount(results1, 1);
+        Map<GeohashCellFilter.Builder, Long> expectedCounts = new HashMap<>();
+        Map<GeohashCellFilter.Builder, String[]> expectedResults = new HashMap<>();
+        Map<GeohashCellFilter.Builder, String> cacheKeys = new HashMap<>();
 
-        // test the same, just with the builder
-        results1 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(geoHashCellFilter("pin", geohash, false)).execute().actionGet();
-        assertHitCount(results1, 1);
+        expectedCounts.put(geoHashCellFilter("pin", geohash, false), 1L);
 
-        // Result of the parent query should contain the parent it self, its neighbors, the child and all its neighbors
-        SearchResponse results2 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter("{\"geohash_cell\": {\"pin\": \"" + geohash.substring(0, geohash.length() - 1) + "\", \"neighbors\": true}}").execute().actionGet();
-        assertHitCount(results2, 2 + neighbors.size() + parentNeighbors.size());
+        expectedCounts.put(geoHashCellFilter("pin", geohash.substring(0, geohash.length() - 1), true), 2L + neighbors.size() + parentNeighbors.size());
 
         // Testing point formats and precision
         GeoPoint point = GeoHashUtils.decode(geohash);
         int precision = geohash.length();
 
+        expectedCounts.put(geoHashCellFilter("pin", point).neighbors(true).precision(precision), 1L + neighbors.size());
+
+        logger.info("random testing of setting");
+
+        List<GeohashCellFilter.Builder> filterBuilders = new ArrayList<>(expectedCounts.keySet());
+        for (int j = filterBuilders.size() * 2 * randomIntBetween(1, 5); j > 0; j--) {
+            Collections.shuffle(filterBuilders, getRandom());
+            for (GeohashCellFilter.Builder builder : filterBuilders) {
+                if (randomBoolean()) {
+                    builder.cache(randomBoolean());
+                }
+                if (randomBoolean()) {
+                    String cacheKey = cacheKeys.get(builder);
+                    if (cacheKey == null) {
+                        cacheKey = randomUnicodeOfLength(6);
+                        cacheKeys.put(builder, cacheKey);
+                    }
+                    builder.cacheKey(cacheKey);
+                } else {
+                    builder.cacheKey(null);
+                }
+                try {
+                    long expectedCount = expectedCounts.get(builder);
+                    SearchResponse response = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery())
+                            .setPostFilter(builder).setSize((int) expectedCount).get();
+                    assertHitCount(response, expectedCount);
+                    String[] expectedIds = expectedResults.get(builder);
+                    if (expectedIds == null) {
+                        ArrayList<String> ids = new ArrayList<>();
+                        for (SearchHit hit : response.getHits()) {
+                            ids.add(hit.id());
+                        }
+                        expectedResults.put(builder, ids.toArray(Strings.EMPTY_ARRAY));
+                        continue;
+                    }
+
+                    assertSearchHits(response, expectedIds);
+
+                } catch (AssertionError error) {
+                    throw new AssertionError(error.getMessage() + "\n geohash_cell filter:" + builder, error);
+                }
+
+
+            }
+        }
+
         logger.info("Testing lat/lon format");
         String pointTest1 = "{\"geohash_cell\": {\"pin\": {\"lat\": " + point.lat() + ",\"lon\": " + point.lon() + "},\"precision\": " + precision + ",\"neighbors\": true}}";
         SearchResponse results3 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(pointTest1).execute().actionGet();
         assertHitCount(results3, neighbors.size() + 1);
+
 
         logger.info("Testing String format");
         String pointTest2 = "{\"geohash_cell\": {\"pin\": \"" + point.lat() + "," + point.lon() + "\",\"precision\": " + precision + ",\"neighbors\": true}}";

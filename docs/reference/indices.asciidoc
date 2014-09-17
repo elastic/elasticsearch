@@ -13,6 +13,7 @@ and warmers.
 
 * <<indices-create-index>>
 * <<indices-delete-index>>
+* <<indices-get-index>>
 * <<indices-exists>>
 * <<indices-open-close>>
 
@@ -43,7 +44,6 @@ and warmers.
 [float]
 [[monitoring]]
 == Monitoring:
-* <<indices-status>>
 * <<indices-stats>>
 * <<indices-segments>>
 * <<indices-recovery>>
@@ -61,6 +61,8 @@ and warmers.
 include::indices/create-index.asciidoc[]
 
 include::indices/delete-index.asciidoc[]
+
+include::indices/get-index.asciidoc[]
 
 include::indices/indices-exists.asciidoc[]
 
@@ -87,8 +89,6 @@ include::indices/analyze.asciidoc[]
 include::indices/templates.asciidoc[]
 
 include::indices/warmers.asciidoc[]
-
-include::indices/status.asciidoc[]
 
 include::indices/stats.asciidoc[]
 

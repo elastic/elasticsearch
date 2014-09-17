@@ -22,12 +22,11 @@ package org.elasticsearch.action.admin.cluster.snapshots.delete;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * Delete snapshot request builder
  */
-public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteSnapshotRequest, DeleteSnapshotResponse, DeleteSnapshotRequestBuilder> {
+public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteSnapshotRequest, DeleteSnapshotResponse, DeleteSnapshotRequestBuilder, ClusterAdminClient> {
 
     /**
      * Constructs delete snapshot request builder
@@ -35,7 +34,7 @@ public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
      * @param clusterAdminClient cluster admin client
      */
     public DeleteSnapshotRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super((InternalClusterAdminClient) clusterAdminClient, new DeleteSnapshotRequest());
+        super(clusterAdminClient, new DeleteSnapshotRequest());
     }
 
     /**
@@ -46,7 +45,7 @@ public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
      * @param snapshot           snapshot name
      */
     public DeleteSnapshotRequestBuilder(ClusterAdminClient clusterAdminClient, String repository, String snapshot) {
-        super((InternalClusterAdminClient) clusterAdminClient, new DeleteSnapshotRequest(repository, snapshot));
+        super(clusterAdminClient, new DeleteSnapshotRequest(repository, snapshot));
     }
 
     /**
@@ -73,6 +72,6 @@ public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
 
     @Override
     protected void doExecute(ActionListener<DeleteSnapshotResponse> listener) {
-        ((ClusterAdminClient) client).deleteSnapshot(request, listener);
+        client.deleteSnapshot(request, listener);
     }
 }

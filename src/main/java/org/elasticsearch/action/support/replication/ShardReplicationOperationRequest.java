@@ -19,9 +19,12 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,7 +37,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public abstract class ShardReplicationOperationRequest<T extends ShardReplicationOperationRequest> extends ActionRequest<T> {
+public abstract class ShardReplicationOperationRequest<T extends ShardReplicationOperationRequest> extends ActionRequest<T> implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -45,22 +48,34 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     private boolean threadedOperation = true;
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    private volatile boolean canHaveDuplicates = false;
 
     protected ShardReplicationOperationRequest() {
 
     }
 
-    public ShardReplicationOperationRequest(ActionRequest request) {
+    protected ShardReplicationOperationRequest(ActionRequest request) {
         super(request);
     }
 
-    public ShardReplicationOperationRequest(T request) {
+    protected ShardReplicationOperationRequest(T request) {
         super(request);
         this.timeout = request.timeout();
         this.index = request.index();
         this.threadedOperation = request.operationThreaded();
         this.replicationType = request.replicationType();
         this.consistencyLevel = request.consistencyLevel();
+    }
+
+    void setCanHaveDuplicates() {
+        this.canHaveDuplicates = true;
+    }
+
+    /**
+     * Is this request can potentially be dup on a single shard.
+     */
+    public boolean canHaveDuplicates() {
+        return canHaveDuplicates;
     }
 
     /**
@@ -108,6 +123,16 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     public final T index(String index) {
         this.index = index;
         return (T) this;
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[]{index};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     /**
@@ -162,6 +187,9 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readSharedString();
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            canHaveDuplicates = in.readBoolean();
+        }
         // no need to serialize threaded* parameters, since they only matter locally
     }
 
@@ -172,6 +200,9 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeSharedString(index);
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeBoolean(canHaveDuplicates);
+        }
     }
 
     /**

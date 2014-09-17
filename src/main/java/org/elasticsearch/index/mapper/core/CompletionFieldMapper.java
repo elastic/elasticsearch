@@ -46,7 +46,6 @@ import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextConfig;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.util.*;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.completionField;
@@ -171,7 +170,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                 } else if (Fields.MAX_INPUT_LENGTH.match(fieldName)) {
                     builder.maxInputLength(Integer.parseInt(fieldNode.toString()));
                 } else if ("fields".equals(fieldName) || "path".equals(fieldName)) {
-                    parseMultiField(builder, name, node, parserContext, fieldName, fieldNode);
+                    parseMultiField(builder, name, parserContext, fieldName, fieldNode);
                 } else if (fieldName.equals(Fields.CONTEXT)) {
                     builder.contextMapping(ContextBuilder.loadMappings(fieldNode));
                 } else {
@@ -285,7 +284,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                         payload = payloadBuilder.bytes().toBytesRef();
                         payloadBuilder.close();
                     } else if (token.isValue()) {
-                        payload = parser.bytesOrNull();
+                        payload = parser.utf8BytesOrNull();
                     } else {
                         throw new MapperException("payload doesn't support type " + token);
                     }
@@ -392,13 +391,6 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         private final CompletionTokenStream.ToFiniteStrings toFiniteStrings;
         private final ContextMapping.Context ctx;
 
-        public SuggestField(String name, ContextMapping.Context ctx, Reader value, FieldType type, BytesRef payload, CompletionTokenStream.ToFiniteStrings toFiniteStrings) {
-            super(name, value, type);
-            this.payload = payload;
-            this.toFiniteStrings = toFiniteStrings;
-            this.ctx = ctx;
-        }
-
         public SuggestField(String name, ContextMapping.Context ctx, String value, FieldType type, BytesRef payload, CompletionTokenStream.ToFiniteStrings toFiniteStrings) {
             super(name, value, type);
             this.payload = payload;
@@ -407,8 +399,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
-            TokenStream ts = ctx.wrapTokenStream(super.tokenStream(analyzer));
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
+            TokenStream ts = ctx.wrapTokenStream(super.tokenStream(analyzer, previous));
             return new CompletionTokenStream(ts, payload, toFiniteStrings);
         }
     }
@@ -456,6 +448,11 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
     @Override
     public boolean hasDocValues() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsNullValue() {
         return false;
     }
 

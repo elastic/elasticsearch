@@ -20,7 +20,6 @@
 package org.elasticsearch.stresstest.search1;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -34,6 +33,7 @@ import org.elasticsearch.search.SearchHit;
 import org.junit.Ignore;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Tests that data don't get corrupted while reading it over the streams.

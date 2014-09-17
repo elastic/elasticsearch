@@ -8,11 +8,11 @@ versions, memory usage, cpu and installed plugins).
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/_cluster/stats?human'
+curl -XGET 'http://localhost:9200/_cluster/stats?human&pretty'
 --------------------------------------------------
 
 Will return, for example:
-[source,js]
+["source","js",subs="attributes,callouts"]
 --------------------------------------------------
 {
    "cluster_name": "elasticsearch",
@@ -82,7 +82,7 @@ Will return, for example:
          "client": 0
       },
       "versions": [
-         "0.90.8"
+         "{version}"
       ],
       "os": {
          "available_processors": 4,

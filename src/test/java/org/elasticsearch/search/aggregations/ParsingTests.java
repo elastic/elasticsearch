@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -33,6 +34,7 @@ public class ParsingTests extends ElasticsearchIntegrationTest {
     @Test(expected=SearchPhaseExecutionException.class)
     public void testTwoTypes() throws Exception {
         createIndex("idx");
+        ensureGreen();
         client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
             .startObject()
                 .startObject("in_stock")
@@ -51,9 +53,37 @@ public class ParsingTests extends ElasticsearchIntegrationTest {
     }
 
     @Test(expected=SearchPhaseExecutionException.class)
+    public void testTwoAggs() throws Exception {
+        createIndex("idx");
+        ensureGreen();
+        client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
+            .startObject()
+                .startObject("by_date")
+                    .startObject("date_histogram")
+                        .field("field", "timestamp")
+                        .field("interval", "month")
+                    .endObject()
+                    .startObject("aggs")
+                        .startObject("tag_count")
+                            .startObject("cardinality")
+                                .field("field", "tag")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject("aggs") // 2nd "aggs": illegal
+                        .startObject("tag_count2")
+                            .startObject("cardinality")
+                                .field("field", "tag")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+            .endObject()).execute().actionGet();
+    }
+
+    @Test(expected=SearchPhaseExecutionException.class)
     public void testInvalidAggregationName() throws Exception {
 
-        Matcher matcher = Pattern.compile("[a-zA-Z0-9\\-_]+").matcher("");
+        Matcher matcher = Pattern.compile("[^\\[\\]>]+").matcher("");
         String name;
         SecureRandom rand = new SecureRandom();
         int len = randomIntBetween(1, 5);
@@ -69,6 +99,7 @@ public class ParsingTests extends ElasticsearchIntegrationTest {
         }
 
         createIndex("idx");
+        ensureGreen();
         client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
             .startObject()
                 .startObject(name)
@@ -81,4 +112,69 @@ public class ParsingTests extends ElasticsearchIntegrationTest {
                     .endObject()
             .endObject()).execute().actionGet();
     }
+
+    @Test(expected=SearchPhaseExecutionException.class)
+    public void testSameAggregationName() throws Exception {
+        createIndex("idx");
+        ensureGreen();
+        final String name = RandomStrings.randomAsciiOfLength(getRandom(), 10);
+        client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
+            .startObject()
+                .startObject(name)
+                    .startObject("terms")
+                        .field("field", "a")
+                    .endObject()
+                .endObject()
+                .startObject(name)
+                    .startObject("terms")
+                        .field("field", "b")
+                    .endObject()
+                .endObject()
+            .endObject()).execute().actionGet();
+    }
+
+    @Test(expected=SearchPhaseExecutionException.class)
+    public void testMissingName() throws Exception {
+        createIndex("idx");
+        ensureGreen();
+        client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
+            .startObject()
+                .startObject("by_date")
+                    .startObject("date_histogram")
+                        .field("field", "timestamp")
+                        .field("interval", "month")
+                    .endObject()
+                    .startObject("aggs")
+                        // the aggregation name is missing
+                        //.startObject("tag_count")
+                            .startObject("cardinality")
+                                .field("field", "tag")
+                            .endObject()
+                        //.endObject()
+                    .endObject()
+            .endObject()).execute().actionGet();
+    }
+
+    @Test(expected=SearchPhaseExecutionException.class)
+    public void testMissingType() throws Exception {
+        createIndex("idx");
+        ensureGreen();
+        client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
+            .startObject()
+                .startObject("by_date")
+                    .startObject("date_histogram")
+                        .field("field", "timestamp")
+                        .field("interval", "month")
+                    .endObject()
+                    .startObject("aggs")
+                        .startObject("tag_count")
+                            // the aggregation type is missing
+                            //.startObject("cardinality")
+                                .field("field", "tag")
+                            //.endObject()
+                        .endObject()
+                    .endObject()
+            .endObject()).execute().actionGet();
+    }
+
 }

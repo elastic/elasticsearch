@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
-import org.elasticsearch.test.ImmutableTestCluster;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.io.IOException;
 import java.util.Random;
@@ -38,7 +38,7 @@ public class MockRamDirectoryService extends AbstractIndexShardComponent impleme
     @Inject
     public MockRamDirectoryService(ShardId shardId, Settings indexSettings) {
         super(shardId, indexSettings);
-        final long seed = indexSettings.getAsLong(ImmutableTestCluster.SETTING_INDEX_SEED, 0l);
+        final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         helper = new MockDirectoryHelper(shardId, indexSettings, logger, random, seed);
         delegateService = helper.randomRamDirectoryService();

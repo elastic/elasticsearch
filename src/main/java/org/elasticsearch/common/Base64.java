@@ -1217,9 +1217,20 @@ public class Base64 {
 
                         // If that was the equals sign, break out of 'for' loop
                         if (source[i] == EQUALS_SIGN) {
+                            // check if the equals sign is somewhere in between
+                            if (i+1 < len + off) {
+                              throw new java.io.IOException(String.format(Locale.ROOT,
+                                      "Found equals sign at position %d of the base64 string, not at the end", i));
+                            }
                             break;
                         }   // end if: equals sign
                     }   // end if: quartet built
+                    else {
+                      if (source[i] == EQUALS_SIGN && len + off > i && source[i+1] != EQUALS_SIGN) {
+                        throw new java.io.IOException(String.format(Locale.ROOT,
+                                "Found equals sign at position %d of the base64 string, not at the end", i));
+                      } // enf if: equals sign and next character not as well
+                    } // end else:
                 }   // end if: equals sign or better
             }   // end if: white space, equals sign or better
             else {

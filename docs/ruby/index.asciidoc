@@ -1,86 +1,11 @@
-= elasticsearch-ruby
+= Ruby And Rails Integrations
 
-== Overview
+include::client.asciidoc[]
 
-There's a suite of official Ruby libraries for Elasticsearch, which provide a client for connecting
-to Elasticsearch clusters, Ruby interface to the REST API, and more.
+include::model.asciidoc[]
 
-See the full documentation at http://github.com/elasticsearch/elasticsearch-ruby.
+include::rails.asciidoc[]
 
-=== Elasticsearch Version Compatibility
+include::persistence.asciidoc[]
 
-The Ruby libraries are compatible with both Elasticsearch 0.90.x and 1.0.x versions,
-but you have to install a matching http://rubygems.org/gems/elasticsearch/versions[gem version]:
-
-[cols="<,<",options="header",]
-|=========================================
-| Elasticsearch version | Ruby gem version
-| 0.90.x                | 0.4.x
-| 1.0.x                 | 1.x
-|=========================================
-
-=== Installation
-
-Install the Ruby gem for Elasticsearch *1.x*:
-
-[source,sh]
-------------------------------------
-gem install elasticsearch
-------------------------------------
-
-...or add it do your Gemfile:
-
-[source,ruby]
-------------------------------------
-gem 'elasticsearch'
-------------------------------------
-
-Install the Ruby gem for Elasticsearch *0.90.x*:
-
-[source,sh]
-------------------------------------
-gem install elasticsearch -v 0.4.10
-------------------------------------
-
-...or add it do your Gemfile:
-
-[source,ruby]
-------------------------------------
-gem 'elasticsearch', '~> 0.4'
-------------------------------------
-
-=== Example Usage
-
-[source,ruby]
-------------------------------------
-require 'elasticsearch'
-
-client = Elasticsearch::Client.new log: true
-
-client.cluster.health
-
-client.index index: 'my-index', type: 'my-document', id: 1, body: { title: 'Test' }
-
-client.indices.refresh index: 'my-index'
-
-client.search index: 'my-index', body: { query: { match: { title: 'test' } } }
-------------------------------------
-
-
-=== Features at a Glance
-
-* Pluggable logging and tracing
-* Plugabble connection selection strategies (round-robin, random, custom)
-* Pluggable transport implementation, customizable and extendable
-* Pluggable serializer implementation
-* Request retries and dead connections handling
-* Node reloading (based on cluster state) on errors or on demand
-* Modular API implementation
-* 100% REST API coverage
-
-
-== Copyright and License
-
-This software is Copyright (c) 2013 by Elasticsearch BV.
-
-This is free software, licensed under The Apache License Version 2.0.
+include::copyright.asciidoc[]

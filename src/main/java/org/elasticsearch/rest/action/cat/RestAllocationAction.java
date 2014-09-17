@@ -33,10 +33,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -47,8 +44,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestAllocationAction extends AbstractCatAction {
 
     @Inject
-    public RestAllocationAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestAllocationAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/allocation", this);
         controller.registerHandler(GET, "/_cat/allocation/{nodes}", this);
     }
@@ -59,7 +56,7 @@ public class RestAllocationAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] nodes = Strings.splitStringByCommaToArray(request.param("nodes"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().routingTable(true);
@@ -123,19 +120,23 @@ public class RestAllocationAction extends AbstractCatAction {
                 shardCount = allocs.lget();
             }
 
-            long used = nodeStats.getFs().getTotal().getTotal().bytes() - nodeStats.getFs().getTotal().getAvailable().bytes();
-            long avail = nodeStats.getFs().getTotal().getAvailable().bytes();
-
+            ByteSizeValue total = nodeStats.getFs().getTotal().getTotal();
+            ByteSizeValue avail = nodeStats.getFs().getTotal().getAvailable();
+            //if we don't know how much we use (non data nodes), it means 0
+            long used = 0;
             short diskPercent = -1;
-            if (used >= 0 && avail >= 0) {
-                diskPercent = (short) (used * 100 / (used + avail));
+            if (total.bytes() > 0) {
+                used = total.bytes() - avail.bytes();
+                if (used >= 0 && avail.bytes() >= 0) {
+                    diskPercent = (short) (used * 100 / (used + avail.bytes()));
+                }
             }
 
             table.startRow();
             table.addCell(shardCount);
             table.addCell(used < 0 ? null : new ByteSizeValue(used));
-            table.addCell(avail < 0 ? null : new ByteSizeValue(avail));
-            table.addCell(nodeStats.getFs().getTotal().getTotal());
+            table.addCell(avail.bytes() < 0 ? null : avail);
+            table.addCell(total.bytes() < 0 ? null : total);
             table.addCell(diskPercent < 0 ? null : diskPercent);
             table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());

@@ -20,7 +20,6 @@
 package org.elasticsearch.client.support;
 
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -64,6 +63,10 @@ import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
@@ -81,14 +84,14 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeAction;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequestBuilder;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -105,10 +108,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusAction;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusRequestBuilder;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
@@ -137,16 +136,16 @@ import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequest;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequestBuilder;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.Nullable;
 
 /**
  *
  */
-public abstract class AbstractIndicesAdminClient implements InternalIndicesAdminClient {
+public abstract class AbstractIndicesAdminClient implements IndicesAdminClient {
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(final IndicesAction<Request, Response, RequestBuilder> action) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> RequestBuilder prepareExecute(final Action<Request, Response, RequestBuilder, IndicesAdminClient> action) {
         return action.newRequestBuilder(this);
     }
 
@@ -228,6 +227,21 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public AliasesExistRequestBuilder prepareAliasesExist(String... aliases) {
         return new AliasesExistRequestBuilder(this, aliases);
+    }
+
+    @Override
+    public ActionFuture<GetIndexResponse> getIndex(GetIndexRequest request) {
+        return execute(GetIndexAction.INSTANCE, request);
+    }
+
+    @Override
+    public void getIndex(GetIndexRequest request, ActionListener<GetIndexResponse> listener) {
+        execute(GetIndexAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public GetIndexRequestBuilder prepareGetIndex() {
+        return new GetIndexRequestBuilder(this);
     }
 
     @Override
@@ -418,21 +432,6 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public IndicesStatsRequestBuilder prepareStats(String... indices) {
         return new IndicesStatsRequestBuilder(this).setIndices(indices);
-    }
-
-    @Override
-    public ActionFuture<IndicesStatusResponse> status(final IndicesStatusRequest request) {
-        return execute(IndicesStatusAction.INSTANCE, request);
-    }
-
-    @Override
-    public void status(final IndicesStatusRequest request, final ActionListener<IndicesStatusResponse> listener) {
-        execute(IndicesStatusAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public IndicesStatusRequestBuilder prepareStatus(String... indices) {
-        return new IndicesStatusRequestBuilder(this).setIndices(indices);
     }
 
     @Override

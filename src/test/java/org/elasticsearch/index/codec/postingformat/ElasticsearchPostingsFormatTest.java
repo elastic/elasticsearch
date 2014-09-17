@@ -25,8 +25,9 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.BasePostingsFormatTestCase;
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
-import org.apache.lucene.util._TestUtil;
 import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
 import org.elasticsearch.test.ElasticsearchThreadFilter;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
@@ -38,11 +39,12 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
+@LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 public class ElasticsearchPostingsFormatTest extends BasePostingsFormatTestCase {
 
     @Override
     protected Codec getCodec() {
-        return _TestUtil.alwaysPostingsFormat(new Elasticsearch090PostingsFormat());
+        return TestUtil.alwaysPostingsFormat(new Elasticsearch090PostingsFormat());
     }
     
 }

@@ -53,7 +53,9 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
                 continue;
             }
             try {
-                TokenStream tokenStream = field.tokenStream(parsedDocument.analyzer());
+                // TODO: instead of passing null here, we can have a CTL<Map<String,TokenStream>> and pass previous,
+                // like the indexer does
+                TokenStream tokenStream = field.tokenStream(parsedDocument.analyzer(), null);
                 if (tokenStream != null) {
                     memoryIndex.addField(field.name(), tokenStream, field.boost());
                 }

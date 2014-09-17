@@ -29,8 +29,6 @@ import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilderException;
-import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -49,23 +47,10 @@ public class PercolateSourceBuilder implements ToXContent {
     private QueryBuilder queryBuilder;
     private FilterBuilder filterBuilder;
     private Integer size;
-    private Boolean sort;
     private List<SortBuilder> sorts;
     private Boolean trackScores;
     private HighlightBuilder highlightBuilder;
-    private List<FacetBuilder> facets;
     private List<AggregationBuilder> aggregations;
-
-    public DocBuilder percolateDocument() {
-        if (docBuilder == null) {
-            docBuilder = new DocBuilder();
-        }
-        return docBuilder;
-    }
-
-    public DocBuilder getDoc() {
-        return docBuilder;
-    }
 
     /**
      * Sets the document to run the percolate queries against.
@@ -75,10 +60,6 @@ public class PercolateSourceBuilder implements ToXContent {
         return this;
     }
 
-    public QueryBuilder getQueryBuilder() {
-        return queryBuilder;
-    }
-
     /**
      * Sets a query to reduce the number of percolate queries to be evaluated and score the queries that match based
      * on this query.
@@ -86,10 +67,6 @@ public class PercolateSourceBuilder implements ToXContent {
     public PercolateSourceBuilder setQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
         return this;
-    }
-
-    public FilterBuilder getFilterBuilder() {
-        return filterBuilder;
     }
 
     /**
@@ -122,6 +99,8 @@ public class PercolateSourceBuilder implements ToXContent {
 
     /**
      * Adds a sort builder. Only sorting by score desc is supported.
+     *
+     * By default the matching percolator queries are returned in an undefined order.
      */
     public PercolateSourceBuilder addSort(SortBuilder sort) {
         if (sorts == null) {
@@ -149,18 +128,7 @@ public class PercolateSourceBuilder implements ToXContent {
     }
 
     /**
-     * Add a facet definition.
-     */
-    public PercolateSourceBuilder addFacet(FacetBuilder facetBuilder) {
-        if (facets == null) {
-            facets = Lists.newArrayList();
-        }
-        facets.add(facetBuilder);
-        return this;
-    }
-
-    /**
-     * Add an aggregationB definition.
+     * Add an aggregation definition.
      */
     public PercolateSourceBuilder addAggregation(AggregationBuilder aggregationBuilder) {
         if (aggregations == null) {
@@ -168,16 +136,6 @@ public class PercolateSourceBuilder implements ToXContent {
         }
         aggregations.add(aggregationBuilder);
         return this;
-    }
-
-    public BytesReference buildAsBytes(XContentType contentType) throws SearchSourceBuilderException {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return builder.bytes();
-        } catch (Exception e) {
-            throw new SearchSourceBuilderException("Failed to build search source", e);
-        }
     }
 
     @Override
@@ -212,14 +170,6 @@ public class PercolateSourceBuilder implements ToXContent {
         if (highlightBuilder != null) {
             highlightBuilder.toXContent(builder, params);
         }
-        if (facets != null) {
-            builder.field("facets");
-            builder.startObject();
-            for (FacetBuilder facet : facets) {
-                facet.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
         if (aggregations != null) {
             builder.field("aggregations");
             builder.startObject();
@@ -232,19 +182,31 @@ public class PercolateSourceBuilder implements ToXContent {
         return builder;
     }
 
+    /**
+     * @return A new {@link DocBuilder} instance.
+     */
     public static DocBuilder docBuilder() {
         return new DocBuilder();
     }
 
+    /**
+     * A builder for defining the document to be percolated in various ways.
+     */
     public static class DocBuilder implements ToXContent {
 
         private BytesReference doc;
 
+        /**
+         * Sets the document to be percolated.
+         */
         public DocBuilder setDoc(BytesReference doc) {
             this.doc = doc;
             return this;
         }
 
+        /**
+         * Sets the document to be percolated.
+         */
         public DocBuilder setDoc(String field, Object value) {
             Map<String, Object> values = new HashMap<>(2);
             values.put(field, value);
@@ -252,20 +214,30 @@ public class PercolateSourceBuilder implements ToXContent {
             return this;
         }
 
+        /**
+         * Sets the document to be percolated.
+         */
         public DocBuilder setDoc(String doc) {
             this.doc = new BytesArray(doc);
             return this;
         }
 
+        /**
+         * Sets the document to be percolated.
+         */
         public DocBuilder setDoc(XContentBuilder doc) {
             this.doc = doc.bytes();
             return this;
         }
 
+        /**
+         * Sets the document to be percolated.
+         */
         public DocBuilder setDoc(Map doc) {
             return setDoc(doc, Requests.CONTENT_TYPE);
         }
 
+        @SuppressWarnings("unchecked")
         public DocBuilder setDoc(Map doc, XContentType contentType) {
             try {
                 return setDoc(XContentFactory.contentBuilder(contentType).map(doc));

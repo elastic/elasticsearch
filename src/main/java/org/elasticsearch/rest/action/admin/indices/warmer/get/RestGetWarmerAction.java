@@ -41,18 +41,16 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetWarmerAction extends BaseRestHandler {
 
     @Inject
-    public RestGetWarmerAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
-        controller.registerHandler(GET, "/_warmer", this);
+    public RestGetWarmerAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_warmer/{name}", this);
-        controller.registerHandler(GET, "/{index}/_warmer", this);
         controller.registerHandler(GET, "/{index}/_warmer/{name}", this);
         controller.registerHandler(GET, "/{index}/_warmers/{name}", this);
         controller.registerHandler(GET, "/{index}/{type}/_warmer/{name}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         final String[] names = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);

@@ -34,15 +34,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.transport.TransportModule;
 
-import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -174,24 +171,19 @@ public class GlobalOrdinalsBenchmark {
         System.out.println("--> Number of docs in index: " + COUNT);
 
         List<StatsResult> stats = new ArrayList<>();
-        int[] thresholds = new int[]{2048};
-        for (int threshold : thresholds) {
-            updateThresholdInMapping(threshold);
-
-            for (int fieldSuffix = FIELD_START; fieldSuffix <= FIELD_LIMIT; fieldSuffix <<= 1) {
-                String fieldName = "field_" + fieldSuffix;
-                String name = threshold + "-" + fieldName;
-                if (USE_DOC_VALUES) {
-                    fieldName = fieldName + ".doc_values";
-                    name = name + "_doc_values"; // can't have . in agg name
-                }
-                stats.add(terms(name, fieldName, "global_ordinals"));
+        for (int fieldSuffix = FIELD_START; fieldSuffix <= FIELD_LIMIT; fieldSuffix <<= 1) {
+            String fieldName = "field_" + fieldSuffix;
+            String name = "global_ordinals-" + fieldName;
+            if (USE_DOC_VALUES) {
+                fieldName = fieldName + ".doc_values";
+                name = name + "_doc_values"; // can't have . in agg name
             }
+            stats.add(terms(name, fieldName, "global_ordinals_low_cardinality"));
         }
 
         for (int fieldSuffix = FIELD_START; fieldSuffix <= FIELD_LIMIT; fieldSuffix <<= 1) {
             String fieldName = "field_" + fieldSuffix;
-            String name = "segment-ordinals-" + fieldName;
+            String name = "ordinals-" + fieldName;
             if (USE_DOC_VALUES) {
                 fieldName = fieldName + ".doc_values";
                 name = name + "_doc_values"; // can't have . in agg name
@@ -199,31 +191,15 @@ public class GlobalOrdinalsBenchmark {
             stats.add(terms(name, fieldName, "ordinals"));
         }
 
-        System.out.println("------------------ SUMMARY ----------------------------------------------");
-        System.out.format(Locale.ENGLISH, "%40s%10s%10s%15s\n", "name", "took", "millis", "fieldata size");
+        System.out.println("------------------ SUMMARY -----------------------------------------");
+        System.out.format(Locale.ENGLISH, "%30s%10s%10s%15s\n", "name", "took", "millis", "fieldata size");
         for (StatsResult stat : stats) {
-            System.out.format(Locale.ENGLISH, "%40s%10s%10d%15s\n", stat.name, TimeValue.timeValueMillis(stat.took), (stat.took / QUERY_COUNT), stat.fieldDataMemoryUsed);
+            System.out.format(Locale.ENGLISH, "%30s%10s%10d%15s\n", stat.name, TimeValue.timeValueMillis(stat.took), (stat.took / QUERY_COUNT), stat.fieldDataMemoryUsed);
         }
-        System.out.println("------------------ SUMMARY ----------------------------------------------");
+        System.out.println("------------------ SUMMARY -----------------------------------------");
 
         client.close();
         node.close();
-    }
-
-    private static void updateThresholdInMapping(int threshold) throws IOException {
-        XContentBuilder builder = jsonBuilder().startObject().startObject(TYPE_NAME).startObject("properties");
-        for (int fieldSuffix = FIELD_START; fieldSuffix <= FIELD_LIMIT; fieldSuffix <<= 1) {
-            builder.startObject("field_" + fieldSuffix)
-                    .field("type", "string")
-                    .field("index", "not_analyzed")
-                    .startObject("fielddata")
-                        .field(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_KEY, threshold)
-                    .endObject()
-            .endObject();
-        }
-        builder = builder.endObject().endObject().endObject();
-
-        client.admin().indices().preparePutMapping(INDEX_NAME).setType(TYPE_NAME).setSource(builder).get();
     }
 
     private static StatsResult terms(String name, String field, String executionHint) {

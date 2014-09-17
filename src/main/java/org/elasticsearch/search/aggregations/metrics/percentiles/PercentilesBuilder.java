@@ -24,30 +24,39 @@ import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregat
 import java.io.IOException;
 
 /**
- *
+ * Builder for the {@link Percentiles} aggregation.
  */
 public class PercentilesBuilder extends ValuesSourceMetricsAggregationBuilder<PercentilesBuilder> {
 
     private double[] percentiles;
-    private Percentiles.Estimator estimator;
+    private Double compression;
 
+    /**
+     * Sole constructor.
+     */
     public PercentilesBuilder(String name) {
         super(name, InternalPercentiles.TYPE.name());
     }
 
+    /**
+     * Set the percentiles to compute.
+     */
     public PercentilesBuilder percentiles(double... percentiles) {
         for (int i = 0; i < percentiles.length; i++) {
             if (percentiles[i] < 0 || percentiles[i] > 100) {
                 throw new IllegalArgumentException("the percents in the percentiles aggregation [" +
-                        name + "] must be in the [0, 100] range");
+                        getName() + "] must be in the [0, 100] range");
             }
         }
         this.percentiles = percentiles;
         return this;
     }
 
-    public PercentilesBuilder estimator(Percentiles.Estimator estimator) {
-        this.estimator = estimator;
+    /**
+     * Expert: set the compression. Higher values improve accuracy but also memory usage.
+     */
+    public PercentilesBuilder compression(double compression) {
+        this.compression = compression;
         return this;
     }
 
@@ -59,9 +68,8 @@ public class PercentilesBuilder extends ValuesSourceMetricsAggregationBuilder<Pe
             builder.field("percents", percentiles);
         }
 
-        if (estimator != null) {
-            builder.field("estimator", estimator.type());
-            estimator.paramsToXContent(builder);
+        if (compression != null) {
+            builder.field("compression", compression);
         }
     }
 }

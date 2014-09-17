@@ -275,9 +275,7 @@ public class IndexTemplateMetaData {
             builder.field("template", indexTemplateMetaData.template());
 
             builder.startObject("settings");
-            for (Map.Entry<String, String> entry : indexTemplateMetaData.settings().getAsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            indexTemplateMetaData.settings().toXContent(builder, params);
             builder.endObject();
 
             if (params.paramAsBoolean("reduce_mappings", false)) {

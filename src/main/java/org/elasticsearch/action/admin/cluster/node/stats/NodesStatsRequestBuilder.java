@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  *
@@ -31,7 +30,7 @@ import org.elasticsearch.client.internal.InternalClusterAdminClient;
 public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<NodesStatsRequest, NodesStatsResponse, NodesStatsRequestBuilder> {
 
     public NodesStatsRequestBuilder(ClusterAdminClient clusterClient) {
-        super((InternalClusterAdminClient) clusterClient, new NodesStatsRequest());
+        super(clusterClient, new NodesStatsRequest());
     }
 
     /**
@@ -137,6 +136,6 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
 
     @Override
     protected void doExecute(ActionListener<NodesStatsResponse> listener) {
-        ((ClusterAdminClient) client).nodesStats(request, listener);
+        client.nodesStats(request, listener);
     }
 }

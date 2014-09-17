@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistance;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -297,7 +298,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                         .addUnboundedTo(500)
                         .addRange(500, 1000)
                         .addUnboundedFrom(1000)
-                        .subAggregation(terms("cities").field("city")))
+                        .subAggregation(terms("cities").field("city")
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))))
                 .execute().actionGet();
 
         assertSearchResponse(response);

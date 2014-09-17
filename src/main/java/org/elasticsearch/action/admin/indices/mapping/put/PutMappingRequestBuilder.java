@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.util.Map;
@@ -31,10 +30,10 @@ import java.util.Map;
 /**
  * Builder for a put mapping request
  */
-public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder> {
+public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder, IndicesAdminClient> {
 
     public PutMappingRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new PutMappingRequest());
+        super(indicesClient, new PutMappingRequest());
     }
 
     public PutMappingRequestBuilder setIndices(String... indices) {
@@ -105,6 +104,6 @@ public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<PutMapp
 
     @Override
     protected void doExecute(ActionListener<PutMappingResponse> listener) {
-        ((IndicesAdminClient) client).putMapping(request, listener);
+        client.putMapping(request, listener);
     }
 }

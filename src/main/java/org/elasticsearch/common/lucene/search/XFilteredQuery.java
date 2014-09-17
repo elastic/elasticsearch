@@ -211,26 +211,26 @@ public final class XFilteredQuery extends Query {
         }
 
         @Override
-        public Scorer filteredScorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Weight weight, DocIdSet docIdSet) throws IOException {
+        public Scorer filteredScorer(AtomicReaderContext context, Weight weight, DocIdSet docIdSet) throws IOException {
             // CHANGE: If threshold is 0, always pass down the accept docs, don't pay the price of calling nextDoc even...
             if (threshold == 0) {
                 final Bits filterAcceptDocs = docIdSet.bits();
                 if (filterAcceptDocs != null) {
-                    return weight.scorer(context, scoreDocsInOrder, topScorer, filterAcceptDocs);
+                    return weight.scorer(context, filterAcceptDocs);
                 } else {
-                    return FilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY.filteredScorer(context, scoreDocsInOrder, topScorer, weight, docIdSet);
+                    return FilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY.filteredScorer(context, weight, docIdSet);
                 }
             }
 
             // CHANGE: handle "default" value
             if (threshold == -1) {
                 // default  value, don't iterate on only apply filter after query if its not a "fast" docIdSet
-                if (!DocIdSets.isFastIterator(docIdSet)) {
-                    return FilteredQuery.QUERY_FIRST_FILTER_STRATEGY.filteredScorer(context, scoreDocsInOrder, topScorer, weight, docIdSet);
+                if (!DocIdSets.isFastIterator(ApplyAcceptedDocsFilter.unwrap(docIdSet))) {
+                    return FilteredQuery.QUERY_FIRST_FILTER_STRATEGY.filteredScorer(context, weight, docIdSet);
                 }
             }
 
-            return super.filteredScorer(context, scoreDocsInOrder, topScorer, weight, docIdSet);
+            return super.filteredScorer(context, weight, docIdSet);
         }
 
         /**

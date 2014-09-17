@@ -40,9 +40,9 @@ public class CLibrary {
         try {
             Native.register("c");
         } catch (NoClassDefFoundError e) {
-            logger.warn("jna not found. native methods (mlockall) will be disabled.");
+            logger.warn("JNA not found. native methods (mlockall) will be disabled.");
         } catch (UnsatisfiedLinkError e) {
-            logger.debug("unable to link C library. native methods (mlockall) will be disabled.");
+            logger.warn("unable to link C library. native methods (mlockall) will be disabled.");
         }
     }
 

@@ -32,14 +32,15 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numNodes = 3)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 3)
 public class ScriptFieldTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put("plugin.types", CustomScriptPlugin.class.getName()).put(super.nodeSettings(nodeOrdinal)).build();
+        return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("plugin.types", CustomScriptPlugin.class.getName()).build();
     }
 
     static int[] intArray = { Integer.MAX_VALUE, Integer.MIN_VALUE, 3 };

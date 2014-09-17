@@ -26,6 +26,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -39,7 +40,6 @@ import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.FloatFieldMapper;
@@ -79,7 +79,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         protected Float nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), Defaults.PRECISION_STEP_32_BIT);
             builder = this;
         }
 
@@ -91,7 +91,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         @Override
         public BoostFieldMapper build(BuilderContext context) {
             return new BoostFieldMapper(name, buildIndexName(context),
-                    precisionStep, boost, fieldType, docValues, nullValue, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+                    fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -119,7 +119,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     protected BoostFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.PRECISION_STEP, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
+        this(name, indexName, Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
                 Defaults.NULL_VALUE, null, null, null, ImmutableSettings.EMPTY);
     }
 
@@ -168,9 +168,9 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     @Override
     public BytesRef indexedValueForSearch(Object value) {
         int intValue = NumericUtils.floatToSortableInt(parseValue(value));
-        BytesRef bytesRef = new BytesRef();
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
         NumericUtils.intToPrefixCoded(intValue, precisionStep(), bytesRef);
-        return bytesRef;
+        return bytesRef.get();
     }
 
     private float parseValue(Object value) {
@@ -210,8 +210,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
-    public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newFloatRange((IndexNumericFieldData) fieldData.getForField(this),
+    public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeFieldDataFilter.newFloatRange((IndexNumericFieldData) parseContext.getForField(this),
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
@@ -234,10 +234,6 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-    }
-
-    @Override
-    public void validate(ParseContext context) throws MapperParsingException {
     }
 
     @Override
@@ -302,7 +298,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
             builder.field("null_value", nullValue);
         }
         if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", fieldType.indexed());
+            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
         }
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());

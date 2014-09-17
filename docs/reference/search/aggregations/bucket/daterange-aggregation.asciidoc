@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-daterange-aggregation]]
-=== Date Range
+=== Date Range Aggregation
 
 A range aggregation that is dedicated for date values. The main difference between this aggregation and the normal <<search-aggregations-bucket-range-aggregation,range>> aggregation is that the `from` and `to` values can be expressed in Date Math expressions, and it is also possible to specify a date format by which the `from` and `to` response fields will be returned.
 Note that this aggregration includes the `from` value and excludes the `to` value for each range.
@@ -93,7 +93,7 @@ All ASCII letters are reserved as format pattern letters, which are defined as f
 |'      |escape for text              |delimiter
 |''     |single quote                 |literal      |'
 |=======
- 
+
 The count of pattern letters determine the format.
 
 Text:: If the number of pattern letters is 4 or more, the full form is used; otherwise a short or abbreviated form is used if available.

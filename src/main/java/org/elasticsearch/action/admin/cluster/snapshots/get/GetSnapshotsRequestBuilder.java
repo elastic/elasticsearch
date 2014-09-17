@@ -23,12 +23,11 @@ import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * Get snapshots request builder
  */
-public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<GetSnapshotsRequest, GetSnapshotsResponse, GetSnapshotsRequestBuilder> {
+public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilder<GetSnapshotsRequest, GetSnapshotsResponse, GetSnapshotsRequestBuilder, ClusterAdminClient> {
 
     /**
      * Constructs the new get snapshot request
@@ -36,7 +35,7 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
      * @param clusterAdminClient cluster admin client
      */
     public GetSnapshotsRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super((InternalClusterAdminClient) clusterAdminClient, new GetSnapshotsRequest());
+        super(clusterAdminClient, new GetSnapshotsRequest());
     }
 
     /**
@@ -46,7 +45,7 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
      * @param repository         repository name
      */
     public GetSnapshotsRequestBuilder(ClusterAdminClient clusterAdminClient, String repository) {
-        super((InternalClusterAdminClient) clusterAdminClient, new GetSnapshotsRequest(repository));
+        super(clusterAdminClient, new GetSnapshotsRequest(repository));
     }
 
     /**
@@ -84,6 +83,6 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
 
     @Override
     protected void doExecute(ActionListener<GetSnapshotsResponse> listener) {
-        ((ClusterAdminClient) client).getSnapshots(request, listener);
+        client.getSnapshots(request, listener);
     }
 }

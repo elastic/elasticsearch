@@ -21,8 +21,8 @@ package org.elasticsearch.index.codec.postingsformat;
 
 import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.*;
+import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -51,6 +51,8 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
 
     public static final String BLOOM_CODEC_NAME = "XBloomFilter"; // the Lucene one is named BloomFilter
     public static final int BLOOM_CODEC_VERSION = 1;
+    public static final int BLOOM_CODEC_VERSION_CHECKSUM = 2;
+    public static final int BLOOM_CODEC_VERSION_CURRENT = BLOOM_CODEC_VERSION_CHECKSUM;
 
     /**
      * Extension of Bloom Filters file
@@ -116,12 +118,12 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
 
             String bloomFileName = IndexFileNames.segmentFileName(
                     state.segmentInfo.name, state.segmentSuffix, BLOOM_EXTENSION);
-            IndexInput bloomIn = null;
+            ChecksumIndexInput bloomIn = null;
             boolean success = false;
             try {
-                bloomIn = state.directory.openInput(bloomFileName, state.context);
-                CodecUtil.checkHeader(bloomIn, BLOOM_CODEC_NAME, BLOOM_CODEC_VERSION,
-                        BLOOM_CODEC_VERSION);
+                bloomIn = state.directory.openChecksumInput(bloomFileName, state.context);
+                int version = CodecUtil.checkHeader(bloomIn, BLOOM_CODEC_NAME, BLOOM_CODEC_VERSION,
+                        BLOOM_CODEC_VERSION_CURRENT);
                 // // Load the hash function used in the BloomFilter
                 // hashFunction = HashFunction.forName(bloomIn.readString());
                 // Load the delegate postings format
@@ -145,6 +147,11 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
                         BloomFilter bloom = BloomFilter.deserialize(bloomIn);
                         FieldInfo fieldInfo = state.fieldInfos.fieldInfo(fieldNum);
                         bloomsByFieldName.put(fieldInfo.name, bloom);
+                    }
+                    if (version >= BLOOM_CODEC_VERSION_CHECKSUM) {
+                        CodecUtil.checkFooter(bloomIn);
+                    } else {
+                        CodecUtil.checkEOF(bloomIn);
                     }
                 }
                 IOUtils.close(bloomIn);
@@ -196,6 +203,11 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
                 size += bloomFilter.getSizeInBytes();
             }
             return size;
+        }
+
+        @Override
+        public void checkIntegrity() throws IOException {
+            delegateFieldsProducer.checkIntegrity();
         }
     }
 
@@ -382,7 +394,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
                 bloomOutput = state.directory
                         .createOutput(bloomFileName, state.context);
                 CodecUtil.writeHeader(bloomOutput, BLOOM_CODEC_NAME,
-                        BLOOM_CODEC_VERSION);
+                        BLOOM_CODEC_VERSION_CURRENT);
                 // remember the name of the postings format we will delegate to
                 bloomOutput.writeString(delegatePostingsFormat.getName());
 
@@ -394,6 +406,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
                     bloomOutput.writeInt(fieldInfo.number);
                     saveAppropriatelySizedBloomFilter(bloomOutput, bloomFilter, fieldInfo);
                 }
+                CodecUtil.writeFooter(bloomOutput);
             } finally {
                 IOUtils.close(bloomOutput);
             }

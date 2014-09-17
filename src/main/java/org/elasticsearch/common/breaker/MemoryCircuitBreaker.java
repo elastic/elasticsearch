@@ -27,11 +27,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * MemoryCircuitBreaker is a circuit breaker that breaks once a
  * configurable memory limit has been reached.
  */
-public class MemoryCircuitBreaker {
+public class MemoryCircuitBreaker implements CircuitBreaker {
 
     private final long memoryBytesLimit;
     private final double overheadConstant;
     private final AtomicLong used;
+    private final AtomicLong trippedCount;
     private final ESLogger logger;
 
 
@@ -43,14 +44,7 @@ public class MemoryCircuitBreaker {
      * @param overheadConstant constant multiplier for byte estimations
      */
     public MemoryCircuitBreaker(ByteSizeValue limit, double overheadConstant, ESLogger logger) {
-        this.memoryBytesLimit = limit.bytes();
-        this.overheadConstant = overheadConstant;
-        this.used = new AtomicLong(0);
-        this.logger = logger;
-        if (logger.isTraceEnabled()) {
-            logger.trace("Creating MemoryCircuitBreaker with a limit of {} bytes ({}) and a overhead constant of {}",
-                    this.memoryBytesLimit, limit, this.overheadConstant);
-        }
+        this(limit, overheadConstant, null, logger);
     }
 
     /**
@@ -67,8 +61,10 @@ public class MemoryCircuitBreaker {
         this.overheadConstant = overheadConstant;
         if (oldBreaker == null) {
             this.used = new AtomicLong(0);
+            this.trippedCount = new AtomicLong(0);
         } else {
             this.used = oldBreaker.used;
+            this.trippedCount = oldBreaker.trippedCount;
         }
         this.logger = logger;
         if (logger.isTraceEnabled()) {
@@ -81,9 +77,10 @@ public class MemoryCircuitBreaker {
      * Method used to trip the breaker
      * @throws CircuitBreakingException
      */
-    public void circuitBreak() throws CircuitBreakingException {
-        throw new CircuitBreakingException("Data too large, data would be larger than limit of [" +
-                memoryBytesLimit + "] bytes");
+    public void circuitBreak(String fieldName, long bytesNeeded) throws CircuitBreakingException {
+        this.trippedCount.incrementAndGet();
+        throw new CircuitBreakingException("Data too large, data for field [" + fieldName + "] would be larger than limit of [" +
+                memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]");
     }
 
     /**
@@ -95,10 +92,10 @@ public class MemoryCircuitBreaker {
      * @return number of "used" bytes so far
      * @throws CircuitBreakingException
      */
-    public double addEstimateBytesAndMaybeBreak(long bytes) throws CircuitBreakingException {
+    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
         // short-circuit on no data allowed, immediately throwing an exception
         if (memoryBytesLimit == 0) {
-            circuitBreak();
+            circuitBreak(label, bytes);
         }
 
         long newUsed;
@@ -108,8 +105,8 @@ public class MemoryCircuitBreaker {
         if (this.memoryBytesLimit == -1) {
             newUsed = this.used.addAndGet(bytes);
             if (logger.isTraceEnabled()) {
-                logger.trace("Adding [{}] to used bytes [new used: [{}], limit: [-1b]]",
-                        new ByteSizeValue(bytes), new ByteSizeValue(newUsed));
+                logger.trace("Adding [{}][{}] to used bytes [new used: [{}], limit: [-1b]]",
+                        new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed));
             }
             return newUsed;
         }
@@ -123,16 +120,16 @@ public class MemoryCircuitBreaker {
             newUsed = currentUsed + bytes;
             long newUsedWithOverhead = (long)(newUsed * overheadConstant);
             if (logger.isTraceEnabled()) {
-                logger.trace("Adding [{}] to used bytes [new used: [{}], limit: {} [{}], estimate: {} [{}]]",
-                        new ByteSizeValue(bytes), new ByteSizeValue(newUsed),
+                logger.trace("Adding [{}][{}] to used bytes [new used: [{}], limit: {} [{}], estimate: {} [{}]]",
+                        new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed),
                         memoryBytesLimit, new ByteSizeValue(memoryBytesLimit),
                         newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead));
             }
             if (memoryBytesLimit > 0 && newUsedWithOverhead > memoryBytesLimit) {
-                logger.error("New used memory {} [{}] would be larger than configured breaker: {} [{}], breaking",
-                        newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead),
+                logger.warn("New used memory {} [{}] from field [{}] would be larger than configured breaker: {} [{}], breaking",
+                        newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead), label,
                         memoryBytesLimit, new ByteSizeValue(memoryBytesLimit));
-                circuitBreak();
+                circuitBreak(label, newUsedWithOverhead);
             }
             // Attempt to set the new used value, but make sure it hasn't changed
             // underneath us, if it has, keep trying until we are able to set it
@@ -164,9 +161,9 @@ public class MemoryCircuitBreaker {
     }
 
     /**
-     * @return the maximum number of bytes before the circuit breaker will trip
+     * @return the number of bytes that can be added before the breaker trips
      */
-    public long getMaximum() {
+    public long getLimit() {
         return this.memoryBytesLimit;
     }
 
@@ -175,5 +172,19 @@ public class MemoryCircuitBreaker {
      */
     public double getOverhead() {
         return this.overheadConstant;
+    }
+
+    /**
+     * @return the number of times the breaker has been tripped
+     */
+    public long getTrippedCount() {
+        return this.trippedCount.get();
+    }
+
+    /**
+     * @return the name of the breaker
+     */
+    public Name getName() {
+        return Name.FIELDDATA;
     }
 }

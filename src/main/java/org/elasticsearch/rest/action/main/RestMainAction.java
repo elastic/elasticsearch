@@ -21,11 +21,11 @@ package org.elasticsearch.rest.action.main;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -42,17 +42,19 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestMainAction extends BaseRestHandler {
 
     private final Version version;
+    private final ClusterName clusterName;
 
     @Inject
-    public RestMainAction(Settings settings, Version version, Client client, RestController controller) {
-        super(settings, client);
+    public RestMainAction(Settings settings, Version version, RestController controller, ClusterName clusterName, Client client) {
+        super(settings, controller, client);
         this.version = version;
+        this.clusterName = clusterName;
         controller.registerHandler(GET, "/", this);
         controller.registerHandler(HEAD, "/", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.listenerThreaded(false);
         clusterStateRequest.masterNodeTimeout(TimeValue.timeValueMillis(0));
@@ -81,6 +83,7 @@ public class RestMainAction extends BaseRestHandler {
                 if (settings.get("name") != null) {
                     builder.field("name", settings.get("name"));
                 }
+                builder.field("cluster_name", clusterName.value());
                 builder.startObject("version")
                         .field("number", version.number())
                         .field("build_hash", Build.CURRENT.hash())

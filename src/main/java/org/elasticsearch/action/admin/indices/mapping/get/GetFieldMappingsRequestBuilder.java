@@ -24,12 +24,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalGenericClient;
 
 /** A helper class to build {@link GetFieldMappingsRequest} objects */
-public class GetFieldMappingsRequestBuilder extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse, GetFieldMappingsRequestBuilder> {
+public class GetFieldMappingsRequestBuilder extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse, GetFieldMappingsRequestBuilder, IndicesAdminClient> {
 
-    public GetFieldMappingsRequestBuilder(InternalGenericClient client, String... indices) {
+    public GetFieldMappingsRequestBuilder(IndicesAdminClient client, String... indices) {
         super(client, new GetFieldMappingsRequest().indices(indices));
     }
 
@@ -74,6 +73,6 @@ public class GetFieldMappingsRequestBuilder extends ActionRequestBuilder<GetFiel
 
     @Override
     protected void doExecute(ActionListener<GetFieldMappingsResponse> listener) {
-        ((IndicesAdminClient) client).getFieldMappings(request, listener);
+        client.getFieldMappings(request, listener);
     }
 }

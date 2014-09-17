@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
@@ -49,7 +50,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
  * @see PutMappingResponse
  */
-public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> {
+public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest {
 
     private static ObjectOpenHashSet<String> RESERVED_FIELDS = ObjectOpenHashSet.from(
             "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_boost", "_parent", "_routing", "_index",
@@ -82,9 +83,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> {
         ActionRequestValidationException validationException = null;
         if (type == null) {
             validationException = addValidationError("mapping type is missing", validationException);
+        }else if (type.isEmpty()) {
+            validationException = addValidationError("mapping type is empty", validationException);
         }
         if (source == null) {
             validationException = addValidationError("mapping source is missing", validationException);
+        } else if (source.isEmpty()) {
+            validationException = addValidationError("mapping source is empty", validationException);
         }
         return validationException;
     }
@@ -100,10 +105,12 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> {
     /**
      * The indices the mappings will be put.
      */
+    @Override
     public String[] indices() {
         return indices;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

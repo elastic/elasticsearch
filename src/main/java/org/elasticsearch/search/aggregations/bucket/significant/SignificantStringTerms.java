@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +29,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,18 +88,28 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             return termBytes.utf8ToString();
         }
 
+        @Override
+        Bucket newBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
+            return new Bucket(termBytes, subsetDf, subsetSize, supersetDf, supersetSize, aggregations);
+        }
     }
 
     SignificantStringTerms() {} // for serialization
 
     public SignificantStringTerms(long subsetSize, long supersetSize, String name, int requiredSize,
-            long minDocCount, Collection<InternalSignificantTerms.Bucket> buckets) {
-        super(subsetSize, supersetSize, name, requiredSize, minDocCount, buckets);
+            long minDocCount, SignificanceHeuristic significanceHeuristic, Collection<InternalSignificantTerms.Bucket> buckets) {
+        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets);
     }
 
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    InternalSignificantTerms newAggregation(long subsetSize, long supersetSize,
+            List<InternalSignificantTerms.Bucket> buckets) {
+        return new SignificantStringTerms(subsetSize, supersetSize, getName(), requiredSize, minDocCount, significanceHeuristic, buckets);
     }
 
     @Override
@@ -106,13 +119,16 @@ public class SignificantStringTerms extends InternalSignificantTerms {
         this.minDocCount = in.readVLong();
         this.subsetSize = in.readVLong();
         this.supersetSize = in.readVLong();
+        significanceHeuristic = SignificanceHeuristicStreams.read(in);
         int size = in.readVInt();
         List<InternalSignificantTerms.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             BytesRef term = in.readBytesRef();
             long subsetDf = in.readVLong();
             long supersetDf = in.readVLong();
-            buckets.add(new Bucket(term, subsetDf, subsetSize, supersetDf, supersetSize, InternalAggregations.readAggregations(in)));
+            Bucket readBucket = new Bucket(term, subsetDf, subsetSize, supersetDf, supersetSize, InternalAggregations.readAggregations(in));
+            readBucket.updateScore(significanceHeuristic);
+            buckets.add(readBucket);
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -125,6 +141,9 @@ public class SignificantStringTerms extends InternalSignificantTerms {
         out.writeVLong(minDocCount);
         out.writeVLong(subsetSize);
         out.writeVLong(supersetSize);
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            significanceHeuristic.writeTo(out);
+        }
         out.writeVInt(buckets.size());
         for (InternalSignificantTerms.Bucket bucket : buckets) {
             out.writeBytesRef(((Bucket) bucket).termBytes);
@@ -135,8 +154,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("doc_count", subsetSize);
         builder.startArray(CommonFields.BUCKETS);
         for (InternalSignificantTerms.Bucket bucket : buckets) {
@@ -144,7 +162,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             // and I end up with buckets that contravene the user's min_doc_count criteria in my reducer
             if (bucket.subsetDf >= minDocCount) {
                 builder.startObject();
-                builder.field(CommonFields.KEY, ((Bucket) bucket).termBytes);
+                builder.utf8Field(CommonFields.KEY, ((Bucket) bucket).termBytes);
                 builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
                 builder.field("score", bucket.score);
                 builder.field("bg_count", bucket.supersetDf);
@@ -153,7 +171,6 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             }
         }
         builder.endArray();
-        builder.endObject();
         return builder;
     }
 

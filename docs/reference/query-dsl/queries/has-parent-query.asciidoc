@@ -32,14 +32,14 @@ case equal to the boost on the `has_parent` query (Defaults to 1). If
 the score type is set to `score`, then the score of the matching parent
 document is aggregated into the child documents belonging to the
 matching parent document. The score type can be specified with the
-`score_type` field inside the `has_parent` query:
+`score_mode` field inside the `has_parent` query:
 
 [source,js]
 --------------------------------------------------
 {
     "has_parent" : {
         "parent_type" : "blog",
-        "score_type" : "score",
+        "score_mode" : "score",
         "query" : {
             "term" : {
                 "tag" : "something"
@@ -52,6 +52,19 @@ matching parent document. The score type can be specified with the
 [float]
 ==== Memory Considerations
 
-With the current implementation, all `_parent` field values and all `_id`
-field values of parent documents are loaded into memory (heap) via field data
-in order to support fast lookups, so make sure there is enough memory for it.
+In order to support parent-child joins, all of the (string) parent IDs 
+must be resident in memory (in the <<index-modules-fielddata,field data cache>>. 
+Additionaly, every child document is mapped to its parent using a long 
+value (approximately). It is advisable to keep the string parent ID short
+in order to reduce memory usage.
+
+You can check how much memory is being used by the ID cache using the
+<<indices-stats,indices stats>> or <<cluster-nodes-stats,nodes stats>>
+APIS, eg:
+
+[source,js]
+--------------------------------------------------
+curl -XGET "http://localhost:9200/_stats/id_cache?pretty&human"
+--------------------------------------------------
+
+

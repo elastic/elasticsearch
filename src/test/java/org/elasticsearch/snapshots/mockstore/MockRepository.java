@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
@@ -33,6 +33,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -45,10 +46,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class MockRepository extends FsRepository {
 
     private final AtomicLong failureCounter = new AtomicLong();
-
-    public void resetFailureCount() {
-        failureCounter.set(0);
-    }
 
     public long getFailureCount() {
         return failureCounter.get();
@@ -133,8 +130,8 @@ public class MockRepository extends FsRepository {
         }
 
         @Override
-        public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
-            return new MockImmutableBlobContainer(super.immutableBlobContainer(path));
+        public BlobContainer blobContainer(BlobPath path) {
+            return new MockBlobContainer(super.blobContainer(path));
         }
 
         public synchronized void unblockExecution() {
@@ -165,7 +162,7 @@ public class MockRepository extends FsRepository {
             return wasBlocked;
         }
 
-        private class MockImmutableBlobContainer extends ImmutableBlobContainerWrapper {
+        private class MockBlobContainer extends BlobContainerWrapper {
             private MessageDigest digest;
 
             private boolean shouldFail(String blobName, double probability) {
@@ -231,42 +228,9 @@ public class MockRepository extends FsRepository {
                 }
             }
 
-            private boolean maybeIOExceptionOrBlock(String blobName, ImmutableBlobContainer.WriterListener listener) {
-                try {
-                    maybeIOExceptionOrBlock(blobName);
-                    return true;
-                } catch (IOException ex) {
-                    listener.onFailure(ex);
-                    return false;
-                }
-            }
 
-            private boolean maybeIOExceptionOrBlock(String blobName, ImmutableBlobContainer.ReadBlobListener listener) {
-                try {
-                    maybeIOExceptionOrBlock(blobName);
-                    return true;
-                } catch (IOException ex) {
-                    listener.onFailure(ex);
-                    return false;
-                }
-            }
-
-
-            public MockImmutableBlobContainer(ImmutableBlobContainer delegate) {
+            public MockBlobContainer(BlobContainer delegate) {
                 super(delegate);
-            }
-
-            @Override
-            public void writeBlob(String blobName, InputStream is, long sizeInBytes, WriterListener listener) {
-                if (maybeIOExceptionOrBlock(blobName, listener) ) {
-                    super.writeBlob(blobName, is, sizeInBytes, listener);
-                }
-            }
-
-            @Override
-            public void writeBlob(String blobName, InputStream is, long sizeInBytes) throws IOException {
-                maybeIOExceptionOrBlock(blobName);
-                super.writeBlob(blobName, is, sizeInBytes);
             }
 
             @Override
@@ -275,16 +239,9 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void readBlob(String blobName, ReadBlobListener listener) {
-                if (maybeIOExceptionOrBlock(blobName, listener)) {
-                    super.readBlob(blobName, listener);
-                }
-            }
-
-            @Override
-            public byte[] readBlobFully(String blobName) throws IOException {
-                maybeIOExceptionOrBlock(blobName);
-                return super.readBlobFully(blobName);
+            public InputStream openInput(String name) throws IOException {
+                maybeIOExceptionOrBlock(name);
+                return super.openInput(name);
             }
 
             @Override
@@ -317,6 +274,11 @@ public class MockRepository extends FsRepository {
                 return super.listBlobsByPrefix(blobNamePrefix);
             }
 
+            @Override
+            public OutputStream createOutput(String blobName) throws IOException {
+                maybeIOExceptionOrBlock(blobName);
+                return super.createOutput(blobName);
+            }
         }
     }
 }

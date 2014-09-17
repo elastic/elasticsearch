@@ -20,16 +20,17 @@
 package org.elasticsearch.search.query;
 
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.transport.TransportResponse;
 
 /**
  *
  */
-public interface QuerySearchResultProvider extends SearchPhaseResult {
+public abstract class QuerySearchResultProvider extends TransportResponse implements SearchPhaseResult {
 
     /**
      * If both query and fetch happened on the same call.
      */
-    boolean includeFetch();
+    public abstract boolean includeFetch();
 
-    QuerySearchResult queryResult();
+    public abstract QuerySearchResult queryResult();
 }

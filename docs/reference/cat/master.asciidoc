@@ -1,5 +1,5 @@
 [[cat-master]]
-== Master
+== cat master
 
 `master` doesn't have any extra options. It simply displays the
 master's node ID, bound IP address, and node name.

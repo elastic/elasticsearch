@@ -33,6 +33,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -67,7 +68,9 @@ public class TransportClientNodesService extends AbstractComponent {
 
     private final ThreadPool threadPool;
 
-    private final Version version;
+    private final Version minCompatibilityVersion;
+
+    private final Headers headers;
 
     // nodes that are added to be discovered
     private volatile ImmutableList<DiscoveryNode> listedNodes = ImmutableList.of();
@@ -90,12 +93,14 @@ public class TransportClientNodesService extends AbstractComponent {
     private volatile boolean closed;
 
     @Inject
-    public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService, ThreadPool threadPool, Version version) {
+    public TransportClientNodesService(Settings settings, ClusterName clusterName, TransportService transportService,
+                                       ThreadPool threadPool, Headers headers, Version version) {
         super(settings);
         this.clusterName = clusterName;
         this.transportService = transportService;
         this.threadPool = threadPool;
-        this.version = version;
+        this.minCompatibilityVersion = version.minimumCompatibilityVersion();
+        this.headers = headers;
 
         this.nodesSamplerInterval = componentSettings.getAsTime("nodes_sampler_interval", timeValueSeconds(5));
         this.pingTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(5)).millis();
@@ -111,9 +116,6 @@ public class TransportClientNodesService extends AbstractComponent {
             this.nodesSampler = new SimpleNodeSampler();
         }
         this.nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.GENERIC, new ScheduledNodeSampler());
-
-        // we want the transport service to throw connect exceptions, so we can retry
-        transportService.throwConnectException(true);
     }
 
     public ImmutableList<TransportAddress> transportAddresses() {
@@ -161,7 +163,7 @@ public class TransportClientNodesService extends AbstractComponent {
             ImmutableList.Builder<DiscoveryNode> builder = ImmutableList.builder();
             builder.addAll(listedNodes());
             for (TransportAddress transportAddress : filtered) {
-                DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress, version);
+                DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(), transportAddress, minCompatibilityVersion);
                 logger.debug("adding address [{}]", node);
                 builder.add(node);
             }
@@ -190,48 +192,17 @@ public class TransportClientNodesService extends AbstractComponent {
         return this;
     }
 
-    public <T> T execute(NodeCallback<T> callback) throws ElasticsearchException {
-        ImmutableList<DiscoveryNode> nodes = this.nodes;
-        if (nodes.isEmpty()) {
-            throw new NoNodeAvailableException();
-        }
-        int index = randomNodeGenerator.incrementAndGet();
-        if (index < 0) {
-            index = 0;
-            randomNodeGenerator.set(0);
-        }
-        for (int i = 0; i < nodes.size(); i++) {
-            DiscoveryNode node = nodes.get((index + i) % nodes.size());
-            try {
-                return callback.doWithNode(node);
-            } catch (ElasticsearchException e) {
-                if (!(e.unwrapCause() instanceof ConnectTransportException)) {
-                    throw e;
-                }
-            }
-        }
-        throw new NoNodeAvailableException();
-    }
-
     public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) throws ElasticsearchException {
         ImmutableList<DiscoveryNode> nodes = this.nodes;
-        if (nodes.isEmpty()) {
-            throw new NoNodeAvailableException();
-        }
-        int index = randomNodeGenerator.incrementAndGet();
-        if (index < 0) {
-            index = 0;
-            randomNodeGenerator.set(0);
-        }
+        ensureNodesAreAvailable(nodes);
+        int index = getNodeNumber();
         RetryListener<Response> retryListener = new RetryListener<>(callback, listener, nodes, index);
+        DiscoveryNode node = nodes.get((index) % nodes.size());
         try {
-            callback.doWithNode(nodes.get((index) % nodes.size()), retryListener);
-        } catch (ElasticsearchException e) {
-            if (e.unwrapCause() instanceof ConnectTransportException) {
-                retryListener.onFailure(e);
-            } else {
-                throw e;
-            }
+            callback.doWithNode(node, retryListener);
+        } catch (Throwable t) {
+            //this exception can't come from the TransportService as it doesn't throw exception at all
+            listener.onFailure(t);
         }
     }
 
@@ -260,13 +231,13 @@ public class TransportClientNodesService extends AbstractComponent {
             if (ExceptionsHelper.unwrapCause(e) instanceof ConnectTransportException) {
                 int i = ++this.i;
                 if (i >= nodes.size()) {
-                    listener.onFailure(new NoNodeAvailableException());
+                    listener.onFailure(new NoNodeAvailableException("None of the configured nodes were available: " + nodes, e));
                 } else {
                     try {
                         callback.doWithNode(nodes.get((index + i) % nodes.size()), this);
-                    } catch (Throwable e1) {
-                        // retry the next one...
-                        onFailure(e);
+                    } catch(Throwable t) {
+                        //this exception can't come from the TransportService as it doesn't throw exceptions at all
+                        listener.onFailure(t);
                     }
                 }
             } else {
@@ -289,6 +260,22 @@ public class TransportClientNodesService extends AbstractComponent {
                 transportService.disconnectFromNode(listedNode);
             }
             nodes = ImmutableList.of();
+        }
+    }
+
+    private int getNodeNumber() {
+        int index = randomNodeGenerator.incrementAndGet();
+        if (index < 0) {
+            index = 0;
+            randomNodeGenerator.set(0);
+        }
+        return index;
+    }
+
+    private void ensureNodesAreAvailable(ImmutableList<DiscoveryNode> nodes) {
+        if (nodes.isEmpty()) {
+            String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", nodes);
+            throw new NoNodeAvailableException(message);
         }
     }
 
@@ -360,7 +347,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 }
                 try {
                     NodesInfoResponse nodeInfo = transportService.submitRequest(listedNode, NodesInfoAction.NAME,
-                            Requests.nodesInfoRequest("_local"),
+                            headers.applyTo(Requests.nodesInfoRequest("_local")),
                             TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout),
                             new FutureTransportResponseHandler<NodesInfoResponse>() {
                                 @Override
@@ -415,7 +402,7 @@ public class TransportClientNodesService extends AbstractComponent {
                             if (!transportService.nodeConnected(listedNode)) {
                                 try {
 
-                                    // if its one of hte actual nodes we will talk to, not to listed nodes, fully connect
+                                    // if its one of the actual nodes we will talk to, not to listed nodes, fully connect
                                     if (nodes.contains(listedNode)) {
                                         logger.trace("connecting to cluster node [{}]", listedNode);
                                         transportService.connectToNode(listedNode);
@@ -431,8 +418,7 @@ public class TransportClientNodesService extends AbstractComponent {
                                 }
                             }
                             transportService.sendRequest(listedNode, ClusterStateAction.NAME,
-                                    Requests.clusterStateRequest()
-                                            .clear().nodes(true).local(true),
+                                    headers.applyTo(Requests.clusterStateRequest().clear().nodes(true).local(true)),
                                     TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout),
                                     new BaseTransportResponseHandler<ClusterStateResponse>() {
 
@@ -474,7 +460,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 return;
             }
 
-            HashSet<DiscoveryNode> newNodes = new HashSet<>(listedNodes);
+            HashSet<DiscoveryNode> newNodes = new HashSet<>();
             HashSet<DiscoveryNode> newFilteredNodes = new HashSet<>();
             for (Map.Entry<DiscoveryNode, ClusterStateResponse> entry : clusterStateResponses.entrySet()) {
                 if (!ignoreClusterName && !clusterName.equals(entry.getValue().getClusterName())) {
@@ -492,13 +478,8 @@ public class TransportClientNodesService extends AbstractComponent {
         }
     }
 
-    public static interface NodeCallback<T> {
-
-        T doWithNode(DiscoveryNode node) throws ElasticsearchException;
-    }
-
     public static interface NodeListenerCallback<Response> {
 
-        void doWithNode(DiscoveryNode node, ActionListener<Response> listener) throws ElasticsearchException;
+        void doWithNode(DiscoveryNode node, ActionListener<Response> listener);
     }
 }

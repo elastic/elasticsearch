@@ -24,25 +24,23 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class IdMappingTests extends ElasticsearchTestCase {
+public class IdMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void simpleIdTests() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -76,7 +74,7 @@ public class IdMappingTests extends ElasticsearchTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_id").field("index", "not_analyzed").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -101,7 +99,7 @@ public class IdMappingTests extends ElasticsearchTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_id").field("path", "my_path").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         // serialize the id mapping
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.hash;
 
-import org.elasticsearch.common.util.UnsafeUtils;
+import org.elasticsearch.common.util.ByteUtils;
 
 
 /**
@@ -41,7 +41,7 @@ public enum MurmurHash3 {
     protected static long getblock(byte[] key, int offset, int index) {
         int i_8 = index << 3;
         int blockOffset = offset + i_8;
-        return UnsafeUtils.readLongLE(key, blockOffset);
+        return ByteUtils.readLongLE(key, blockOffset);
     }
 
     protected static long fmix(long k) {
@@ -55,6 +55,9 @@ public enum MurmurHash3 {
 
     /**
      * Compute the hash of the MurmurHash3_x64_128 hashing function.
+     *
+     * Note, this hashing function might be used to persist hashes, so if the way hashes are computed
+     * changes for some reason, it needs to be addressed (like in BloomFilter and MurmurHashField).
      */
     public static Hash128 hash128(byte[] key, int offset, int length, long seed, Hash128 hash) {
         long h1 = seed;
@@ -65,8 +68,8 @@ public enum MurmurHash3 {
             final int len16 = length & 0xFFFFFFF0; // higher multiple of 16 that is lower than or equal to length
             final int end = offset + len16;
             for (int i = offset; i < end; i += 16) {
-                long k1 = UnsafeUtils.readLongLE(key, i);
-                long k2 = UnsafeUtils.readLongLE(key, i + 8);
+                long k1 = ByteUtils.readLongLE(key, i);
+                long k2 = ByteUtils.readLongLE(key, i + 8);
 
                 k1 *= C1;
                 k1 = Long.rotateLeft(k1, 31);

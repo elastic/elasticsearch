@@ -18,125 +18,58 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
-import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 
 /**
  *
  */
-public class DoubleTermsAggregator extends BucketsAggregator {
-
-    private final InternalOrder order;
-    private final int requiredSize;
-    private final int shardSize;
-    private final long minDocCount;
-    private final ValuesSource.Numeric valuesSource;
-    private final ValueFormatter formatter;
-    private final LongHash bucketOrds;
-    private DoubleValues values;
+public class DoubleTermsAggregator extends LongTermsAggregator {
 
     public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
-                               InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
-        this.valuesSource = valuesSource;
-        this.formatter = format != null ? format.formatter() : null;
-        this.order = InternalOrder.validate(order, this);
-        this.requiredSize = requiredSize;
-        this.shardSize = shardSize;
-        this.minDocCount = minDocCount;
-        bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
+            Terms.Order order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError) {
+        super(name, factories, valuesSource, format, estimatedBucketCount, order, bucketCountThresholds, aggregationContext, parent, collectionMode, showTermDocCountError);
     }
 
     @Override
-    public boolean shouldCollect() {
-        return true;
-    }
-
-    @Override
-    public void setNextReader(AtomicReaderContext reader) {
-        values = valuesSource.doubleValues();
-    }
-
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-        final int valuesCount = values.setDocument(doc);
-
-        for (int i = 0; i < valuesCount; ++i) {
-            final double val = values.nextValue();
-            final long bits = Double.doubleToRawLongBits(val);
-            long bucketOrdinal = bucketOrds.add(bits);
-            if (bucketOrdinal < 0) { // already seen
-                bucketOrdinal = - 1 - bucketOrdinal;
-            }
-            collectBucket(doc, bucketOrdinal);
-        }
+    protected SortedNumericDocValues getValues(Numeric valuesSource) {
+        return FieldData.toSortableLongBits(valuesSource.doubleValues());
     }
 
     @Override
     public DoubleTerms buildAggregation(long owningBucketOrdinal) {
-        assert owningBucketOrdinal == 0;
-
-        if (minDocCount == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < requiredSize)) {
-            // we need to fill-in the blanks
-            for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
-                context.setNextReader(ctx);
-                final DoubleValues values = valuesSource.doubleValues();
-                for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                    final int valueCount = values.setDocument(docId);
-                    for (int i = 0; i < valueCount; ++i) {
-                        bucketOrds.add(Double.doubleToLongBits(values.nextValue()));
-                    }
-                }
-            }
-        }
-
-        final int size = (int) Math.min(bucketOrds.size(), shardSize);
-
-        BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
-        DoubleTerms.Bucket spare = null;
-        for (long i = 0; i < bucketOrds.size(); i++) {
-            if (spare == null) {
-                spare = new DoubleTerms.Bucket(0, 0, null);
-            }
-            spare.term = Double.longBitsToDouble(bucketOrds.get(i));
-            spare.docCount = bucketDocCount(i);
-            spare.bucketOrd = i;
-            spare = (DoubleTerms.Bucket) ordered.insertWithOverflow(spare);
-        }
-
-        final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
-        for (int i = ordered.size() - 1; i >= 0; --i) {
-            final DoubleTerms.Bucket bucket = (DoubleTerms.Bucket) ordered.pop();
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-            list[i] = bucket;
-        }
-        return new DoubleTerms(name, order, formatter, requiredSize, minDocCount, Arrays.asList(list));
+        final LongTerms terms = (LongTerms) super.buildAggregation(owningBucketOrdinal);
+        return convertToDouble(terms);
     }
 
     @Override
     public DoubleTerms buildEmptyAggregation() {
-        return new DoubleTerms(name, order, formatter, requiredSize, minDocCount, Collections.<InternalTerms.Bucket>emptyList());
+        final LongTerms terms = (LongTerms) super.buildEmptyAggregation();
+        return convertToDouble(terms);
     }
 
-    @Override
-    public void doClose() {
-        Releasables.close(bucketOrds);
+    private static DoubleTerms.Bucket convertToDouble(InternalTerms.Bucket bucket) {
+        final long term = bucket.getKeyAsNumber().longValue();
+        final double value = NumericUtils.sortableLongToDouble(term);
+        return new DoubleTerms.Bucket(value, bucket.docCount, bucket.aggregations, bucket.showDocCountError, bucket.docCountError);
+    }
+
+    private static DoubleTerms convertToDouble(LongTerms terms) {
+        final InternalTerms.Bucket[] buckets = terms.getBuckets().toArray(new InternalTerms.Bucket[0]);
+        for (int i = 0; i < buckets.length; ++i) {
+            buckets[i] = convertToDouble(buckets[i]);
+        }
+        return new DoubleTerms(terms.getName(), terms.order, terms.formatter, terms.requiredSize, terms.shardSize, terms.minDocCount, Arrays.asList(buckets), terms.showTermDocCountError, terms.docCountError);
     }
 
 }

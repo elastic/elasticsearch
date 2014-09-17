@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.segments.*;
@@ -35,7 +34,6 @@ import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -44,14 +42,14 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestSegmentsAction extends AbstractCatAction {
 
     @Inject
-    public RestSegmentsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestSegmentsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/segments", this);
         controller.registerHandler(GET, "/_cat/segments/{index}", this);
     }
 
     @Override
-    void doRequest(final RestRequest request, final RestChannel channel) {
+    void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();

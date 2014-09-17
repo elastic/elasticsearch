@@ -35,15 +35,15 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 public class RestNodesRestartAction extends BaseRestHandler {
 
     @Inject
-    public RestNodesRestartAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestNodesRestartAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/nodes/_restart", this);
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/nodes/{nodeId}/_restart", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesRestartRequest nodesRestartRequest = new NodesRestartRequest(nodesIds);
         nodesRestartRequest.listenerThreaded(false);

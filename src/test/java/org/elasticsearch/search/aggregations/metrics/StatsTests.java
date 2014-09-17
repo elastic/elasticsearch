@@ -339,7 +339,7 @@ public class StatsTests extends AbstractNumericTests {
     public void testScript_MultiValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(stats("stats").script("new double[] { doc['value'].value, doc['value'].value - dec }").param("dec", 1))
+                .addAggregation(stats("stats").script("[ doc['value'].value, doc['value'].value - dec ]").param("dec", 1))
                 .execute().actionGet();
 
         assertShardExecutionState(searchResponse, 0);
@@ -361,7 +361,7 @@ public class StatsTests extends AbstractNumericTests {
         ShardSearchFailure[] failures = response.getShardFailures();
         if (failures.length != expectedFailures) {
             for (ShardSearchFailure failure : failures) {
-                logger.error("Shard Failure: {}", failure.failure(), failure.toString());
+                logger.error("Shard Failure: {}", failure.reason(), failure.toString());
             }
             fail("Unexpected shard failures!");
         }

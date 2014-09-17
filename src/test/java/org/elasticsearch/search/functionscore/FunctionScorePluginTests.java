@@ -50,14 +50,14 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@ClusterScope(scope = Scope.SUITE, numNodes = 1)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class FunctionScorePluginTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
-                .put("plugin.types", CustomDistanceScorePlugin.class.getName())
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("plugin.types", CustomDistanceScorePlugin.class.getName())
                 .build();
     }
 

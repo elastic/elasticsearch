@@ -19,20 +19,15 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
-
-import java.io.IOException;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -44,8 +39,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSearchScrollAction extends BaseRestHandler {
 
     @Inject
-    public RestSearchScrollAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestSearchScrollAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         controller.registerHandler(GET, "/_search/scroll", this);
         controller.registerHandler(POST, "/_search/scroll", this);
@@ -54,7 +49,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String scrollId = request.param("scroll_id");
         if (scrollId == null) {
             scrollId = RestActions.getRestContent(request).toUtf8();
@@ -65,14 +60,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
         if (scroll != null) {
             searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
         }
-        SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), null);
-        if (operationThreading != null) {
-            if (operationThreading == SearchOperationThreading.NO_THREADS) {
-                // since we don't spawn, don't allow no_threads, but change it to a single thread
-                operationThreading = SearchOperationThreading.SINGLE_THREAD;
-            }
-            searchScrollRequest.operationThreading(operationThreading);
-        }
-        client.searchScroll(searchScrollRequest, new RestToXContentListener<SearchResponse>(channel));
+
+        client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<SearchResponse>(channel));
     }
 }

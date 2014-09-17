@@ -23,14 +23,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.suggest.Suggest;
 
@@ -42,7 +41,7 @@ import static org.elasticsearch.search.internal.InternalSearchResponse.readInter
 /**
  * A response of a search request.
  */
-public class SearchResponse extends ActionResponse implements ToXContent {
+public class SearchResponse extends ActionResponse implements StatusToXContent {
 
     private InternalSearchResponse internalResponse;
 
@@ -96,13 +95,6 @@ public class SearchResponse extends ActionResponse implements ToXContent {
         return internalResponse.hits();
     }
 
-    /**
-     * The search facets.
-     */
-    public Facets getFacets() {
-        return internalResponse.facets();
-    }
-
     public Aggregations getAggregations() {
         return internalResponse.aggregations();
     }
@@ -117,6 +109,14 @@ public class SearchResponse extends ActionResponse implements ToXContent {
      */
     public boolean isTimedOut() {
         return internalResponse.timedOut();
+    }
+
+    /**
+     * Has the search operation terminated early due to reaching
+     * <code>terminateAfter</code>
+     */
+    public Boolean isTerminatedEarly() {
+        return internalResponse.terminatedEarly();
     }
 
     /**
@@ -171,6 +171,10 @@ public class SearchResponse extends ActionResponse implements ToXContent {
         return scrollId;
     }
 
+    public void scrollId(String scrollId) {
+        this.scrollId = scrollId;
+    }
+
     static final class Fields {
         static final XContentBuilderString _SCROLL_ID = new XContentBuilderString("_scroll_id");
         static final XContentBuilderString _SHARDS = new XContentBuilderString("_shards");
@@ -184,6 +188,7 @@ public class SearchResponse extends ActionResponse implements ToXContent {
         static final XContentBuilderString REASON = new XContentBuilderString("reason");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
         static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
+        static final XContentBuilderString TERMINATED_EARLY = new XContentBuilderString("terminated_early");
     }
 
     @Override
@@ -193,6 +198,9 @@ public class SearchResponse extends ActionResponse implements ToXContent {
         }
         builder.field(Fields.TOOK, tookInMillis);
         builder.field(Fields.TIMED_OUT, isTimedOut());
+        if (isTerminatedEarly() != null) {
+            builder.field(Fields.TERMINATED_EARLY, isTerminatedEarly());
+        }
         builder.startObject(Fields._SHARDS);
         builder.field(Fields.TOTAL, getTotalShards());
         builder.field(Fields.SUCCESSFUL, getSuccessfulShards());

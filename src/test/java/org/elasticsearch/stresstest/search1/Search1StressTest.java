@@ -19,7 +19,6 @@
 
 package org.elasticsearch.stresstest.search1;
 
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -38,6 +37,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.junit.Ignore;
 
 import java.util.Arrays;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;

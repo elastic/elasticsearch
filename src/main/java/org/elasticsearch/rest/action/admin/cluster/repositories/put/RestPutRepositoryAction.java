@@ -37,15 +37,15 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutRepositoryAction extends BaseRestHandler {
 
     @Inject
-    public RestPutRepositoryAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestPutRepositoryAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(PUT, "/_snapshot/{repository}", this);
         controller.registerHandler(POST, "/_snapshot/{repository}", this);
     }
 
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         PutRepositoryRequest putRepositoryRequest = putRepositoryRequest(request.param("repository"));
         putRepositoryRequest.listenerThreaded(false);
         putRepositoryRequest.source(request.content().toUtf8());

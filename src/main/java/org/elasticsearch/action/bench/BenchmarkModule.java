@@ -19,14 +19,30 @@
 package org.elasticsearch.action.bench;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * Benchmark module
  */
 public class BenchmarkModule extends AbstractModule  {
 
+    private final Settings settings;
+
+    public static final String BENCHMARK_SERVICE_KEY = "benchmark.service.impl";
+
+    public BenchmarkModule(Settings settings) {
+        this.settings = settings;
+    }
+
     @Override
     protected void configure() {
-        bind(BenchmarkService.class).asEagerSingleton();
+
+        final Class<? extends BenchmarkService> service = settings.getAsClass(BENCHMARK_SERVICE_KEY, BenchmarkService.class);
+
+        if (!BenchmarkService.class.equals(service)) {
+            bind(BenchmarkService.class).to(service).asEagerSingleton();
+        } else {
+            bind(BenchmarkService.class).asEagerSingleton();
+        }
     }
 }

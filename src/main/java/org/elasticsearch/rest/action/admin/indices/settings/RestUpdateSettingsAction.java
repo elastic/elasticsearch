@@ -40,14 +40,14 @@ import static org.elasticsearch.client.Requests.updateSettingsRequest;
 public class RestUpdateSettingsAction extends BaseRestHandler {
 
     @Inject
-    public RestUpdateSettingsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestUpdateSettingsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}/_settings", this);
         controller.registerHandler(RestRequest.Method.PUT, "/_settings", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         updateSettingsRequest.listenerThreaded(false);
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
@@ -69,7 +69,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             }
         }
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
-            if (entry.getKey().equals("pretty") || entry.getKey().equals("timeout") || entry.getKey().equals("master_timeout")) {
+            if (entry.getKey().equals("pretty") || entry.getKey().equals("timeout") || entry.getKey().equals("master_timeout") || entry.getKey().equals("index")) {
                 continue;
             }
             updateSettings.put(entry.getKey(), entry.getValue());

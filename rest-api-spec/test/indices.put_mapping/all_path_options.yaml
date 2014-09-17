@@ -43,7 +43,7 @@ setup:
   - match: {test_index2.mappings.test_type.properties.text.type:     string}
   - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - is_false: foo
+  - match: { foo.mappings: {} }
 
 ---
 "put mapping in _all index":
@@ -118,7 +118,7 @@ setup:
   - match: {test_index2.mappings.test_type.properties.text.type:     string}
   - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - is_false: foo
+  - match: { foo.mappings: {} }
 
 ---
 "put mapping in list of indices":
@@ -142,7 +142,7 @@ setup:
   - match: {test_index2.mappings.test_type.properties.text.type:     string}
   - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - is_false: foo
+  - match: { foo.mappings: {} }
 
 ---
 "put mapping with blank index":

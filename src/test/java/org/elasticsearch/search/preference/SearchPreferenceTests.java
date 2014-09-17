@@ -28,6 +28,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.io.IOException;
+
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -37,16 +39,16 @@ import static org.hamcrest.Matchers.*;
 public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
 
     @Test // see #2896
-    public void testStopOneNodePreferenceWithRedState() throws InterruptedException {
-        assertAcked(prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", immutableCluster().dataNodes()+2).put("index.number_of_replicas", 0)));
+    public void testStopOneNodePreferenceWithRedState() throws InterruptedException, IOException {
+        assertAcked(prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", cluster().numDataNodes()+2).put("index.number_of_replicas", 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", ""+i).setSource("field1", "value1").execute().actionGet();
         }
         refresh();
-        cluster().stopRandomNode();
+        internalCluster().stopRandomDataNode();
         client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).execute().actionGet();
-        String[] preferences = new String[] {"_primary", "_local", "_primary_first", "_only_local", "_prefer_node:somenode", "_prefer_node:server2"};
+        String[] preferences = new String[] {"_primary", "_local", "_primary_first", "_prefer_node:somenode", "_prefer_node:server2"};
         for (String pref : preferences) {
             SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT).setPreference(pref).execute().actionGet();
             assertThat(RestStatus.OK, equalTo(searchResponse.status()));
@@ -55,6 +57,14 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
             assertThat(RestStatus.OK, equalTo(searchResponse.status()));
             assertThat(pref, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
         }
+
+        //_only_local is a stricter preference, we need to send the request to a data node
+        SearchResponse searchResponse = dataNodeClient().prepareSearch().setSearchType(SearchType.COUNT).setPreference("_only_local").execute().actionGet();
+        assertThat(RestStatus.OK, equalTo(searchResponse.status()));
+        assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
+        searchResponse = dataNodeClient().prepareSearch().setPreference("_only_local").execute().actionGet();
+        assertThat(RestStatus.OK, equalTo(searchResponse.status()));
+        assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
     }
 
     @Test
@@ -68,7 +78,7 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
         refresh();
 
-        final Client client = cluster().smartClient();
+        final Client client = internalCluster().smartClient();
         SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
         String firstNodeId = searchResponse.getHits().getAt(0).shard().nodeId();
         searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();

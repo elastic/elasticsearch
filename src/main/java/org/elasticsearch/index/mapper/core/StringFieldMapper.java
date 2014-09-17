@@ -20,9 +20,6 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -181,7 +178,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                 } else {
-                    parseMultiField(builder, name, node, parserContext, propName, propNode);
+                    parseMultiField(builder, name, parserContext, propName, propNode);
                 }
             }
             return builder;
@@ -286,7 +283,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         }
 
         if (fieldType.indexed() || fieldType.stored()) {
-            Field field = new StringField(names.indexName(), valueAndBoost.value(), fieldType);
+            Field field = new Field(names.indexName(), valueAndBoost.value(), fieldType);
             field.setBoost(valueAndBoost.boost());
             fields.add(field);
         }
@@ -382,86 +379,6 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         }
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
-        }
-    }
-
-    /** Extension of {@link Field} supporting reuse of a cached TokenStream for not-tokenized values. */
-    static class StringField extends Field {
-
-        public StringField(String name, String value, FieldType fieldType) {
-            super(name, fieldType);
-            fieldsData = value;
-        }
-
-        @Override
-        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
-            if (!fieldType().indexed()) {
-                return null;
-            }
-            // Only use the cached TokenStream if the value is indexed and not-tokenized
-            if (fieldType().tokenized()) {
-                return super.tokenStream(analyzer);
-            }
-            return NOT_ANALYZED_TOKENSTREAM.get().setValue((String) fieldsData);
-        }
-    }
-
-    private static final ThreadLocal<StringTokenStream> NOT_ANALYZED_TOKENSTREAM = new ThreadLocal<StringTokenStream>() {
-        @Override
-        protected StringTokenStream initialValue() {
-            return new StringTokenStream();
-        }
-    };
-
-
-    // Copied from Field.java
-    static final class StringTokenStream extends TokenStream {
-        private final CharTermAttribute termAttribute = addAttribute(CharTermAttribute.class);
-        private final OffsetAttribute offsetAttribute = addAttribute(OffsetAttribute.class);
-        private boolean used = false;
-        private String value = null;
-
-        /**
-         * Creates a new TokenStream that returns a String as single token.
-         * <p>Warning: Does not initialize the value, you must call
-         * {@link #setValue(String)} afterwards!
-         */
-        StringTokenStream() {
-        }
-
-        /** Sets the string value. */
-        StringTokenStream setValue(String value) {
-            this.value = value;
-            return this;
-        }
-
-        @Override
-        public boolean incrementToken() {
-            if (used) {
-                return false;
-            }
-            clearAttributes();
-            termAttribute.append(value);
-            offsetAttribute.setOffset(0, value.length());
-            used = true;
-            return true;
-        }
-
-        @Override
-        public void end() {
-            final int finalOffset = value.length();
-            offsetAttribute.setOffset(finalOffset, finalOffset);
-            value = null;
-        }
-
-        @Override
-        public void reset() {
-            used = false;
-        }
-
-        @Override
-        public void close() {
-            value = null;
         }
     }
 

@@ -30,6 +30,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
@@ -46,7 +47,6 @@ import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -83,7 +83,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         protected Float nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), Defaults.PRECISION_STEP_32_BIT);
             builder = this;
         }
 
@@ -96,7 +96,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         public FloatFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             FloatFieldMapper fieldMapper = new FloatFieldMapper(buildNames(context),
-                    precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context), postingsProvider, 
+                    fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context), postingsProvider, 
                     docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -167,9 +167,9 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     @Override
     public BytesRef indexedValueForSearch(Object value) {
         int intValue = NumericUtils.floatToSortableInt(parseValue(value));
-        BytesRef bytesRef = new BytesRef();
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
         NumericUtils.intToPrefixCoded(intValue, 0, bytesRef);   // 0 because of exact match
-        return bytesRef;
+        return bytesRef.get();
     }
 
     private float parseValue(Object value) {
@@ -223,8 +223,8 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
-    public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newFloatRange((IndexNumericFieldData) fieldData.getForField(this),
+    public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeFieldDataFilter.newFloatRange((IndexNumericFieldData) parseContext.getForField(this),
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
@@ -322,12 +322,16 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            CustomFloatNumericDocValuesField field = (CustomFloatNumericDocValuesField) context.doc().getByKey(names().indexName());
-            if (field != null) {
-                field.add(value);
+            if (useSortedNumericDocValues) {
+                addDocValue(context, fields, NumericUtils.floatToSortableInt(value));
             } else {
-                field = new CustomFloatNumericDocValuesField(names().indexName(), value);
-                context.doc().addWithKey(names().indexName(), field);
+                CustomFloatNumericDocValuesField field = (CustomFloatNumericDocValuesField) context.doc().getByKey(names().indexName());
+                if (field != null) {
+                    field.add(value);
+                } else {
+                    field = new CustomFloatNumericDocValuesField(names().indexName(), value);
+                    context.doc().addWithKey(names().indexName(), field);
+                }
             }
         }
     }
@@ -354,7 +358,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP) {
+        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP_32_BIT) {
             builder.field("precision_step", precisionStep);
         }
         if (includeDefaults || nullValue != null) {
@@ -381,7 +385,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
             if (fieldType().indexed()) {
                 return mapper.popCachedStream().setFloatValue(number);
             }

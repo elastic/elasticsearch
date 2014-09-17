@@ -22,10 +22,13 @@ package org.elasticsearch.search.aggregations.metrics.avg;
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
 
 /**
- *
+ * Builder for the {@link Avg} aggregation.
  */
 public class AvgBuilder extends ValuesSourceMetricsAggregationBuilder<AvgBuilder> {
 
+    /**
+     * Sole constructor.
+     */
     public AvgBuilder(String name) {
         super(name, InternalAvg.TYPE.name());
     }

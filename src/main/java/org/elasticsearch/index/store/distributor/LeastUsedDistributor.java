@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.store.distributor;
 
-import jsr166y.ThreadLocalRandom;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.store.DirectoryService;
 
 import java.io.IOException;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Implements directory distributor that always return the directory is the most available space

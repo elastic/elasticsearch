@@ -24,19 +24,26 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
- *
+ * Builder for {@link PutWarmerRequest}
+ * @see PutWarmerRequest for details
  */
-public class PutWarmerRequestBuilder extends AcknowledgedRequestBuilder<PutWarmerRequest, PutWarmerResponse, PutWarmerRequestBuilder> {
+public class PutWarmerRequestBuilder extends AcknowledgedRequestBuilder<PutWarmerRequest, PutWarmerResponse, PutWarmerRequestBuilder, IndicesAdminClient> {
 
+    /**
+     * Creates a new {@link PutWarmerRequestBuilder} with a given name.
+     */
     public PutWarmerRequestBuilder(IndicesAdminClient indicesClient, String name) {
-        super((InternalIndicesAdminClient) indicesClient, new PutWarmerRequest().name(name));
+        super(indicesClient, new PutWarmerRequest().name(name));
     }
 
+    /**
+     * Creates a new {@link PutWarmerRequestBuilder}
+     * Note: {@link #setName(String)} must be called with a non-null value before this request is executed.
+     */
     public PutWarmerRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new PutWarmerRequest());
+        super(indicesClient, new PutWarmerRequest());
     }
 
     /**
@@ -65,6 +72,6 @@ public class PutWarmerRequestBuilder extends AcknowledgedRequestBuilder<PutWarme
 
     @Override
     protected void doExecute(ActionListener<PutWarmerResponse> listener) {
-        ((IndicesAdminClient) client).putWarmer(request, listener);
+        client.putWarmer(request, listener);
     }
 }

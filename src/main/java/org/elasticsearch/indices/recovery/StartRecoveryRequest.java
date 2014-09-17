@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,14 +30,11 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  *
  */
 public class StartRecoveryRequest extends TransportRequest {
-
-    private static final AtomicLong recoveryIdGenerator = new AtomicLong();
 
     private long recoveryId;
 
@@ -65,8 +63,8 @@ public class StartRecoveryRequest extends TransportRequest {
      * @param existingFiles
      */
     public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, boolean markAsRelocated, Map<String,
-                                StoreFileMetaData> existingFiles, RecoveryState.Type recoveryType) {
-        this.recoveryId = recoveryIdGenerator.incrementAndGet();
+                                StoreFileMetaData> existingFiles, RecoveryState.Type recoveryType, long recoveryId) {
+        this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
@@ -117,6 +115,9 @@ public class StartRecoveryRequest extends TransportRequest {
             StoreFileMetaData md = StoreFileMetaData.readStoreFileMetaData(in);
             existingFiles.put(md.name(), md);
         }
+        if (in.getVersion().onOrAfter(Version.V_1_2_2)) {
+            recoveryType = RecoveryState.Type.fromId(in.readByte());
+        }
     }
 
     @Override
@@ -130,6 +131,9 @@ public class StartRecoveryRequest extends TransportRequest {
         out.writeVInt(existingFiles.size());
         for (StoreFileMetaData md : existingFiles.values()) {
             md.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_2_2)) {
+            out.writeByte(recoveryType.id());
         }
     }
 }

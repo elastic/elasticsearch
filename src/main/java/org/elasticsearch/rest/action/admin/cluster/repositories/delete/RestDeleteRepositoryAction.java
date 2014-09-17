@@ -36,13 +36,13 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteRepositoryAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteRepositoryAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestDeleteRepositoryAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(DELETE, "/_snapshot/{repository}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         DeleteRepositoryRequest deleteRepositoryRequest = deleteRepositoryRequest(request.param("repository"));
         deleteRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRepositoryRequest.masterNodeTimeout()));
         deleteRepositoryRequest.listenerThreaded(false);

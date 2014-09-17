@@ -49,4 +49,22 @@ public class FieldDataLoadingTests extends ElasticsearchIntegrationTest {
         assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
     }
 
+    @Test
+    public void testEagerGlobalOrdinalsFieldDataLoading() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                        .startObject("name")
+                        .field("type", "string")
+                        .startObject("fielddata").field("loading", "eager_global_ordinals").endObject()
+                        .endObject()
+                        .endObject().endObject().endObject()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type", "1").setSource("name", "name").get();
+        client().admin().indices().prepareRefresh("test").get();
+
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+    }
+
 }

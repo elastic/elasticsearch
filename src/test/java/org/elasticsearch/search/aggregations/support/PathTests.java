@@ -20,19 +20,18 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 
 /**
  *
  */
-public class PathTests {
+public class PathTests extends ElasticsearchTestCase {
 
     @Test
     public void testInvalidPaths() throws Exception {
@@ -53,8 +52,8 @@ public class PathTests {
         assertValidPath("foo[bar]>baz", tokens().add("foo", "bar").add("baz"));
         assertValidPath("foo[bar]>baz[qux]", tokens().add("foo", "bar").add("baz", "qux"));
         assertValidPath("foo[bar]>baz.qux", tokens().add("foo", "bar").add("baz", "qux"));
-        assertValidPath("foo.bar>baz.qux", tokens().add("foo", "bar").add("baz", "qux"));
-        assertValidPath("foo.bar>baz[qux]", tokens().add("foo", "bar").add("baz", "qux"));
+        assertValidPath("foo.bar>baz.qux", tokens().add("foo.bar").add("baz", "qux"));
+        assertValidPath("foo.bar>baz[qux]", tokens().add("foo.bar").add("baz", "qux"));
     }
 
     private void assertInvalidPath(String path, String reason) {

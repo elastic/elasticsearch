@@ -20,57 +20,44 @@ package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
-import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder.OrdinalMappingSource;
-import org.elasticsearch.index.fielddata.plain.AtomicFieldDataWithOrdinalsTermsEnum;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.search.MultiValueMode;
 
 /**
- * {@link IndexFieldData} impl based on global ordinals.
+ * {@link IndexFieldData} base class for concrete global ordinals implementations.
  */
-public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent implements IndexFieldData.WithOrdinals, RamUsage {
+public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent implements IndexOrdinalsFieldData, Accountable {
 
     private final FieldMapper.Names fieldNames;
     private final FieldDataType fieldDataType;
-    private final Atomic[] atomicReaders;
     private final long memorySizeInBytes;
 
-    public GlobalOrdinalsIndexFieldData(Index index, Settings settings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData.WithOrdinals[] segmentAfd, LongValues globalOrdToFirstSegment, LongValues globalOrdToFirstSegmentDelta, OrdinalMappingSource[] segmentOrdToGlobalOrds, long memorySizeInBytes) {
+    protected GlobalOrdinalsIndexFieldData(Index index, Settings settings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, long memorySizeInBytes) {
         super(index, settings);
         this.fieldNames = fieldNames;
         this.fieldDataType = fieldDataType;
-        this.atomicReaders = new Atomic[segmentAfd.length];
-        for (int i = 0; i < segmentAfd.length; i++) {
-            atomicReaders[i] = new Atomic(segmentAfd[i], globalOrdToFirstSegment, globalOrdToFirstSegmentDelta, segmentOrdToGlobalOrds[i]);
-        }
         this.memorySizeInBytes = memorySizeInBytes;
     }
 
     @Override
-    public AtomicFieldData.WithOrdinals load(AtomicReaderContext context) {
-        return atomicReaders[context.ord];
-    }
-
-    @Override
-    public AtomicFieldData.WithOrdinals loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicOrdinalsFieldData loadDirect(AtomicReaderContext context) throws Exception {
         return load(context);
     }
 
     @Override
-    public WithOrdinals loadGlobal(IndexReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
         return this;
     }
 
     @Override
-    public WithOrdinals localGlobalDirect(IndexReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
         return this;
     }
 
@@ -85,12 +72,7 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
     }
 
     @Override
-    public boolean valuesOrdered() {
-        return false;
-    }
-
-    @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
         throw new UnsupportedOperationException("no global ordinals sorting yet");
     }
 
@@ -105,91 +87,8 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
     }
 
     @Override
-    public long getMemorySizeInBytes() {
+    public long ramBytesUsed() {
         return memorySizeInBytes;
-    }
-
-    private final class Atomic implements AtomicFieldData.WithOrdinals {
-
-        private final AtomicFieldData.WithOrdinals afd;
-        private final OrdinalMappingSource segmentOrdToGlobalOrdLookup;
-        private final LongValues globalOrdToFirstSegment;
-        private final LongValues globalOrdToFirstSegmentDelta;
-
-        private Atomic(WithOrdinals afd, LongValues globalOrdToFirstSegment, LongValues globalOrdToFirstSegmentDelta, OrdinalMappingSource segmentOrdToGlobalOrdLookup) {
-            this.afd = afd;
-            this.segmentOrdToGlobalOrdLookup = segmentOrdToGlobalOrdLookup;
-            this.globalOrdToFirstSegment = globalOrdToFirstSegment;
-            this.globalOrdToFirstSegmentDelta = globalOrdToFirstSegmentDelta;
-        }
-
-        @Override
-        public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
-            BytesValues.WithOrdinals values = afd.getBytesValues(false);
-            Ordinals.Docs segmentOrdinals = values.ordinals();
-            Ordinals.Docs globalOrdinals = segmentOrdToGlobalOrdLookup.globalOrdinals(segmentOrdinals);
-
-            final BytesValues.WithOrdinals[] bytesValues = new BytesValues.WithOrdinals[atomicReaders.length];
-            for (int i = 0; i < bytesValues.length; i++) {
-                bytesValues[i] = atomicReaders[i].afd.getBytesValues(false);
-            }
-            return new BytesValues.WithOrdinals(globalOrdinals) {
-
-                int readerIndex;
-
-                @Override
-                public BytesRef getValueByOrd(long globalOrd) {
-                    final long segmentOrd = globalOrd - globalOrdToFirstSegmentDelta.get(globalOrd);
-                    readerIndex = (int) globalOrdToFirstSegment.get(globalOrd);
-                    return bytesValues[readerIndex].getValueByOrd(segmentOrd);
-                }
-
-                @Override
-                public BytesRef copyShared() {
-                    return bytesValues[readerIndex].copyShared();
-                }
-
-                @Override
-                public int currentValueHash() {
-                    return bytesValues[readerIndex].currentValueHash();
-                }
-            };
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return afd.isMultiValued();
-        }
-
-        @Override
-        public int getNumDocs() {
-            return afd.getNumDocs();
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return afd.getNumberUniqueValues();
-        }
-
-        @Override
-        public long getMemorySizeInBytes() {
-            return afd.getMemorySizeInBytes();
-        }
-
-        @Override
-        public ScriptDocValues getScriptValues() {
-            throw new UnsupportedOperationException("Script values not supported on global ordinals");
-        }
-
-        @Override
-        public TermsEnum getTermsEnum() {
-            return new AtomicFieldDataWithOrdinalsTermsEnum(this);
-        }
-
-        @Override
-        public void close() {
-        }
-
     }
 
 }

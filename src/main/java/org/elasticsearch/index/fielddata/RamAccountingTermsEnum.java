@@ -21,8 +21,8 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
-import org.elasticsearch.index.fielddata.AbstractIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractIndexFieldData;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 
 import java.io.IOException;
 
@@ -36,18 +36,21 @@ public final class RamAccountingTermsEnum extends FilteredTermsEnum {
     // Flush every 5mb
     private static final long FLUSH_BUFFER_SIZE = 1024 * 1024 * 5;
 
-    private final MemoryCircuitBreaker breaker;
+    private final CircuitBreaker breaker;
     private final TermsEnum termsEnum;
     private final AbstractIndexFieldData.PerValueEstimator estimator;
+    private final String fieldName;
     private long totalBytes;
     private long flushBuffer;
 
 
-    public RamAccountingTermsEnum(TermsEnum termsEnum, MemoryCircuitBreaker breaker, AbstractIndexFieldData.PerValueEstimator estimator) {
+    public RamAccountingTermsEnum(TermsEnum termsEnum, CircuitBreaker breaker, AbstractIndexFieldData.PerValueEstimator estimator,
+                                  String fieldName) {
         super(termsEnum);
         this.breaker = breaker;
         this.termsEnum = termsEnum;
         this.estimator = estimator;
+        this.fieldName = fieldName;
         this.totalBytes = 0;
         this.flushBuffer = 0;
     }
@@ -65,7 +68,7 @@ public final class RamAccountingTermsEnum extends FilteredTermsEnum {
      * bytes and resetting the buffer.
      */
     public void flush() {
-        breaker.addEstimateBytesAndMaybeBreak(this.flushBuffer);
+        breaker.addEstimateBytesAndMaybeBreak(this.flushBuffer, this.fieldName);
         this.totalBytes += this.flushBuffer;
         this.flushBuffer = 0;
     }

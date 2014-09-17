@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.routing;
 
 import java.util.List;
-import java.util.ListIterator;
 
 /**
  * A simple {@link ShardsIterator} that iterates a list or sub-list of
@@ -29,37 +28,32 @@ public class PlainShardsIterator implements ShardsIterator {
 
     private final List<ShardRouting> shards;
 
-    private ListIterator<ShardRouting> iterator;
+    // Calls to nextOrNull might be performed on different threads in the transport actions so we need the volatile
+    // keyword in order to ensure visibility. Note that it is fine to use `volatile` for a counter in that case given
+    // that although nextOrNull might be called from different threads, it can never happen concurrently.
+    private volatile int index;
 
     public PlainShardsIterator(List<ShardRouting> shards) {
         this.shards = shards;
-        this.iterator = shards.listIterator();
+        reset();
     }
 
     @Override
     public void reset() {
-        iterator = shards.listIterator();
+        index = 0;
     }
 
     @Override
     public int remaining() {
-        return shards.size() - iterator.nextIndex();
-    }
-
-    @Override
-    public ShardRouting firstOrNull() {
-        if (shards.isEmpty()) {
-            return null;
-        }
-        return shards.get(0);
+        return shards.size() - index;
     }
 
     @Override
     public ShardRouting nextOrNull() {
-        if (iterator.hasNext()) {
-            return iterator.next();
-        } else {
+        if (index == shards.size()) {
             return null;
+        } else {
+            return shards.get(index++);
         }
     }
 

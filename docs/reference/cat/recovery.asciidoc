@@ -1,57 +1,70 @@
 [[cat-recovery]]
-== Recovery
+== cat recovery
 
-`recovery` is a view of shard replication.  It will show information
-anytime data from at least one shard is copying to a different node.
-It can also show up on cluster restarts.  If your recovery process
-seems stuck, try it to see if there's any movement.
+The `recovery` command is a view of index shard recoveries, both on-going and previously
+completed. It is a more compact view of the JSON <<indices-recovery,recovery>> API.
 
-As an example, let's enable replicas on a cluster which has two
-indices, three shards each.  Afterward we'll have twelve total shards,
-but before those replica shards are `STARTED`, we'll take a snapshot
-of the recovery:
+A recovery event occurs anytime an index shard moves to a different node in the cluster.
+This can happen during a snapshot recovery, a change in replication level, node failure, or
+on node startup. This last type is called a local gateway recovery and is the normal
+way for shards to be loaded from disk when a node starts up.
+
+As an example, here is what the recovery state of a cluster may look like when there
+are no shards in transit from one node to another:
 
 [source,shell]
---------------------------------------------------
-% curl -XPUT 192.168.56.30:9200/_settings -d'{"number_of_replicas":1}'
+----------------------------------------------------------------------------
+> curl -XGET 'localhost:9200/_cat/recovery?v'
+index shard time type    stage source target files percent bytes     percent
+wiki  0     73   gateway done  hostA  hostA  36    100.0%  24982806 100.0%
+wiki  1     245  gateway done  hostA  hostA  33    100.0%  24501912 100.0%
+wiki  2     230  gateway done  hostA  hostA  36    100.0%  30267222 100.0%
+---------------------------------------------------------------------------
+
+In the above case, the source and target nodes are the same because the recovery
+type was gateway, i.e. they were read from local storage on node start.
+
+Now let's see what a live recovery looks like. By increasing the replica count
+of our index and bringing another node online to host the replicas, we can see
+what a live shard recovery looks like.
+
+[source,shell]
+----------------------------------------------------------------------------
+> curl -XPUT 'localhost:9200/wiki/_settings' -d'{"number_of_replicas":1}'
 {"acknowledged":true}
-% curl '192.168.56.30:9200/_cat/recovery?v'
-index shard   target recovered     % ip            node
-wiki1 2     68083830   7865837 11.6% 192.168.56.20 Adam II
-wiki2 1      2542400    444175 17.5% 192.168.56.20 Adam II
-wiki2 2      3242108    329039 10.1% 192.168.56.10 Jarella
-wiki2 0      2614132         0  0.0% 192.168.56.30 Solarr
-wiki1 0     60992898   4719290  7.7% 192.168.56.30 Solarr
-wiki1 1     47630362   6798313 14.3% 192.168.56.10 Jarella
---------------------------------------------------
 
-We have six total shards in recovery (a replica for each primary), at
-varying points of progress.
+> curl -XGET 'localhost:9200/_cat/recovery?v'
+index shard time type    stage source target files percent bytes    percent
+wiki  0     1252 gateway done  hostA  hostA  4     100.0%  23638870 100.0%
+wiki  0     1672 replica index hostA  hostB  4     75.0%   23638870 48.8%
+wiki  1     1698 replica index hostA  hostB  4     75.0%   23348540 49.4%
+wiki  1     4812 gateway done  hostA  hostA  33    100.0%  24501912 100.0%
+wiki  2     1689 replica index hostA  hostB  4     75.0%   28681851 40.2%
+wiki  2     5317 gateway done  hostA  hostA  36    100.0%  30267222 100.0%
+----------------------------------------------------------------------------
 
-Let's restart the cluster and then lose a node.  This output shows us
-what was moving around shortly after the node left the cluster.
+We can see in the above listing that our 3 initial shards are in various stages
+of being replicated from one node to another. Notice that the recovery type is
+shown as `replica`. The files and bytes copied are real-time measurements.
+
+Finally, let's see what a snapshot recovery looks like. Assuming I have previously
+made a backup of my index, I can restore it using the <<modules-snapshots,snapshot and restore>>
+API.
 
 [source,shell]
---------------------------------------------------
-% curl 192.168.56.30:9200/_cat/health; curl 192.168.56.30:9200/_cat/recovery
-1384315040 19:57:20 foo yellow 2 2 8 6 0 4 0
-wiki2 2  1621477        0  0.0% 192.168.56.30 Garrett, Jonathan "John"
-wiki2 0  1307488        0  0.0% 192.168.56.20 Commander Kraken
-wiki1 0 32696794 20984240 64.2% 192.168.56.20 Commander Kraken
-wiki1 1 31123128 21951695 70.5% 192.168.56.30 Garrett, Jonathan "John"
---------------------------------------------------
+--------------------------------------------------------------------------------
+> curl -XPOST 'localhost:9200/_snapshot/imdb/snapshot_2/_restore'
+{"acknowledged":true}
+> curl -XGET 'localhost:9200/_cat/recovery?v'
+index shard time type     stage repository snapshot files percent bytes percent
+imdb  0     1978 snapshot done  imdb       snap_1   79    8.0%    12086 9.0%
+imdb  1     2790 snapshot index imdb       snap_1   88    7.7%    11025 8.1%
+imdb  2     2790 snapshot index imdb       snap_1   85    0.0%    12072 0.0%
+imdb  3     2796 snapshot index imdb       snap_1   85    2.4%    12048 7.2%
+imdb  4     819  snapshot init  imdb       snap_1   0     0.0%    0     0.0%
+--------------------------------------------------------------------------------
 
-[float]
-[[big-percent]]
-=== Why am I seeing recovery percentages greater than 100?
 
-This can happen if a shard copy goes away and comes back while the
-primary was indexing.  The replica shard will catch up with the
-primary by receiving any new segments created during its outage.
-These new segments can contain data from segments it already has
-because they're the result of merging that happened on the primary,
-but now live in different, larger segments.  After the new segments
-are copied over the replica will delete unneeded segments, resulting
-in a dataset that more closely matches the primary (or exactly,
-assuming indexing isn't still happening).
+
+
 

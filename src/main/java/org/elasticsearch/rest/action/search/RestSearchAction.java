@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -30,20 +29,19 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.exists.RestExistsAction;
+import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
+import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 /**
  *
@@ -51,8 +49,8 @@ import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
 public class RestSearchAction extends BaseRestHandler {
 
     @Inject
-    public RestSearchAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestSearchAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
@@ -65,22 +63,22 @@ public class RestSearchAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_search/template", this);
         controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
         controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
+
+        RestExistsAction restExistsAction = new RestExistsAction(settings, controller, client);
+        controller.registerHandler(GET, "/_search/exists", restExistsAction);
+        controller.registerHandler(POST, "/_search/exists", restExistsAction);
+        controller.registerHandler(GET, "/{index}/_search/exists", restExistsAction);
+        controller.registerHandler(POST, "/{index}/_search/exists", restExistsAction);
+        controller.registerHandler(GET, "/{index}/{type}/_search/exists", restExistsAction);
+        controller.registerHandler(POST, "/{index}/{type}/_search/exists", restExistsAction);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         SearchRequest searchRequest;
         searchRequest = RestSearchAction.parseSearchRequest(request);
         searchRequest.listenerThreaded(false);
-        SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), null);
-        if (operationThreading != null) {
-            if (operationThreading == SearchOperationThreading.NO_THREADS) {
-                // since we don't spawn, don't allow no_threads, but change it to a single thread
-                operationThreading = SearchOperationThreading.SINGLE_THREAD;
-            }
-            searchRequest.operationThreading(operationThreading);
-        }
-        client.search(searchRequest, new RestToXContentListener<SearchResponse>(channel));
+        client.search(searchRequest, new RestStatusToXContentListener<SearchResponse>(channel));
     }
 
     public static SearchRequest parseSearchRequest(RestRequest request) {
@@ -108,6 +106,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         searchRequest.extraSource(parseSearchSource(request));
         searchRequest.searchType(request.param("search_type"));
+        searchRequest.queryCache(request.paramAsBoolean("query_cache", null));
 
         String scroll = request.param("scroll");
         if (scroll != null) {
@@ -180,6 +179,18 @@ public class RestSearchAction extends BaseRestHandler {
                 searchSourceBuilder = new SearchSourceBuilder();
             }
             searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
+        }
+        if (request.hasParam("terminate_after")) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            int terminateAfter = request.paramAsInt("terminate_after",
+                    SearchContext.DEFAULT_TERMINATE_AFTER);
+            if (terminateAfter < 0) {
+                throw new ElasticsearchIllegalArgumentException("terminateAfter must be > 0");
+            } else if (terminateAfter > 0) {
+                searchSourceBuilder.terminateAfter(terminateAfter);
+            }
         }
 
         String sField = request.param("fields");

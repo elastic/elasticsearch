@@ -39,6 +39,9 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
     private List<AbstractAggregationBuilder> aggregations;
     private BytesReference aggregationsBinary;
 
+    /**
+     * Sole constructor, typically used by sub-classes.
+     */
     protected AggregationBuilder(String name, String type) {
         super(name, type);
     }
@@ -81,26 +84,26 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
     /**
      * Sets a raw (xcontent / json) sub addAggregation.
      */
-    public B subAggregation(XContentBuilder facets) {
-        return subAggregation(facets.bytes());
+    public B subAggregation(XContentBuilder aggs) {
+        return subAggregation(aggs.bytes());
     }
 
     /**
      * Sets a raw (xcontent / json) sub addAggregation.
      */
-    public B subAggregation(Map<String, Object> facets) {
+    public B subAggregation(Map<String, Object> aggs) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(facets);
+            builder.map(aggs);
             return subAggregation(builder);
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + facets + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + aggs + "]", e);
         }
     }
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        builder.startObject(getName());
 
         builder.field(type);
         internalXContent(builder, params);

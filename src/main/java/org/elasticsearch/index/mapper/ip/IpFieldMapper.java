@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.ip;
 
+import com.google.common.net.InetAddresses;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -27,6 +28,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
@@ -43,7 +45,6 @@ import org.elasticsearch.index.analysis.NumericTokenizer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
@@ -80,9 +81,12 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     public static long ipToLong(String ip) throws ElasticsearchIllegalArgumentException {
         try {
+            if (!InetAddresses.isInetAddress(ip)) {
+                throw new ElasticsearchIllegalArgumentException("failed to parse ip [" + ip + "], not a valid ip address");
+            }
             String[] octets = pattern.split(ip);
             if (octets.length != 4) {
-                throw new ElasticsearchIllegalArgumentException("failed to parse ip [" + ip + "], not full ip address (4 dots)");
+                throw new ElasticsearchIllegalArgumentException("failed to parse ip [" + ip + "], not a valid ipv4 address (4 dots)");
             }
             return (Long.parseLong(octets[0]) << 24) + (Integer.parseInt(octets[1]) << 16) +
                     (Integer.parseInt(octets[2]) << 8) + Integer.parseInt(octets[3]);
@@ -109,7 +113,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         protected String nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), Defaults.PRECISION_STEP_64_BIT);
             builder = this;
         }
 
@@ -122,7 +126,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         public IpFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
-                    precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context),
+                    fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context),
                     postingsProvider, docValuesProvider, similarity,
                     normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -203,9 +207,9 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public BytesRef indexedValueForSearch(Object value) {
-        BytesRef bytesRef = new BytesRef();
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
         NumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
-        return bytesRef;
+        return bytesRef.get();
     }
 
     private long parseValue(Object value) {
@@ -250,8 +254,8 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newLongRange((IndexNumericFieldData) fieldData.getForField(this),
+    public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeFieldDataFilter.newLongRange((IndexNumericFieldData) parseContext.getForField(this),
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
@@ -299,7 +303,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             fields.add(field);
         }
         if (hasDocValues()) {
-            addDocValue(context, value);
+            addDocValue(context, fields, value);
         }
     }
 
@@ -323,7 +327,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP) {
+        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP_64_BIT) {
             builder.field("precision_step", precisionStep);
         }
         if (includeDefaults || nullValue != null) {
@@ -340,10 +344,6 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     public static class NumericIpAnalyzer extends NumericAnalyzer<NumericIpTokenizer> {
 
         private final int precisionStep;
-
-        public NumericIpAnalyzer() {
-            this(NumericUtils.PRECISION_STEP_DEFAULT);
-        }
 
         public NumericIpAnalyzer(int precisionStep) {
             this.precisionStep = precisionStep;

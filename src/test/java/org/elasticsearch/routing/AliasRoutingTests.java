@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -70,7 +71,7 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
         logger.info("--> updating with id [1] and routing through alias");
         client().prepareUpdate("alias0", "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
-                .setScript("ctx._source.field = 'value2'")
+                .setScript("ctx._source.field = 'value2'", ScriptService.ScriptType.INLINE)
                 .execute().actionGet();
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));

@@ -98,6 +98,9 @@ public class StringAndBytesText implements Text {
 
     @Override
     public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
         return bytes().equals(((Text) obj).bytes());
     }
 

@@ -20,16 +20,15 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.lang.ref.SoftReference;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,19 +38,6 @@ import java.util.Map;
  *
  */
 public abstract class StreamOutput extends OutputStream {
-
-    private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<>();
-
-    public static UTF8StreamWriter utf8StreamWriter() {
-        SoftReference<UTF8StreamWriter> ref = utf8StreamWriter.get();
-        UTF8StreamWriter writer = (ref == null) ? null : ref.get();
-        if (writer == null) {
-            writer = new UTF8StreamWriter(1024 * 4);
-            utf8StreamWriter.set(new SoftReference<>(writer));
-        }
-        writer.reset();
-        return writer;
-    }
 
     private Version version = Version.CURRENT;
 
@@ -207,19 +193,14 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    private final BytesRefBuilder spare = new BytesRefBuilder();
+
     public void writeText(Text text) throws IOException {
-        if (!text.hasBytes() && seekPositionSupported()) {
-            long pos1 = position();
-            // make room for the size
-            seek(pos1 + 4);
-            UTF8StreamWriter utf8StreamWriter = utf8StreamWriter();
-            utf8StreamWriter.setOutput(this);
-            utf8StreamWriter.write(text.string());
-            utf8StreamWriter.close();
-            long pos2 = position();
-            seek(pos1);
-            writeInt((int) (pos2 - pos1 - 4));
-            seek(pos2);
+        if (!text.hasBytes()) {
+            final String string = text.string();
+            spare.copyChars(string);
+            writeInt(spare.length());
+            write(spare.bytes(), 0, spare.length());
         } else {
             BytesReference bytes = text.bytes();
             writeInt(bytes.length());

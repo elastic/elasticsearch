@@ -28,20 +28,21 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numNodes=2)
+@ClusterScope(scope= Scope.SUITE, numDataNodes =2)
 public class ClusterSearchShardsTests extends ElasticsearchIntegrationTest {
     
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         switch(nodeOrdinal) {
         case 1:
-            return settingsBuilder().put("node.tag", "B").build();
+            return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("node.tag", "B").build();
         case 0:
-            return settingsBuilder().put("node.tag", "A").build();
+            return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("node.tag", "A").build();
         }
         return super.nodeSettings(nodeOrdinal);
     }

@@ -20,7 +20,9 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -37,53 +39,68 @@ import java.util.concurrent.TimeUnit;
  */
 public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryService> {
 
+    public static final String SETTING_INITIAL_STATE_TIMEOUT = "discovery.initial_state_timeout";
+
+    private static class InitialStateListener implements InitialStateDiscoveryListener {
+
+        private final CountDownLatch latch = new CountDownLatch(1);
+        private volatile boolean initialStateReceived;
+
+        @Override
+        public void initialStateProcessed() {
+            initialStateReceived = true;
+            latch.countDown();
+        }
+
+        public boolean waitForInitialState(TimeValue timeValue) throws InterruptedException {
+            if (timeValue.millis() > 0) {
+                latch.await(timeValue.millis(), TimeUnit.MILLISECONDS);
+            }
+            return initialStateReceived;
+        }
+    }
+
     private final TimeValue initialStateTimeout;
-
     private final Discovery discovery;
-
-    private volatile boolean initialStateReceived;
+    private InitialStateListener initialStateListener;
+    private final DiscoverySettings discoverySettings;
 
     @Inject
-    public DiscoveryService(Settings settings, Discovery discovery) {
+    public DiscoveryService(Settings settings, DiscoverySettings discoverySettings, Discovery discovery) {
         super(settings);
+        this.discoverySettings = discoverySettings;
         this.discovery = discovery;
-        this.initialStateTimeout = componentSettings.getAsTime("initial_state_timeout", TimeValue.timeValueSeconds(30));
+        this.initialStateTimeout = settings.getAsTime(SETTING_INITIAL_STATE_TIMEOUT, TimeValue.timeValueSeconds(30));
+    }
+
+    public ClusterBlock getNoMasterBlock() {
+        return discoverySettings.getNoMasterBlock();
     }
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        final CountDownLatch latch = new CountDownLatch(1);
-        InitialStateDiscoveryListener listener = new InitialStateDiscoveryListener() {
-            @Override
-            public void initialStateProcessed() {
-                latch.countDown();
-            }
-        };
-        discovery.addListener(listener);
-        try {
-            discovery.start();
-            if (initialStateTimeout.millis() > 0) {
-                try {
-                    logger.trace("waiting for {} for the initial state to be set by the discovery", initialStateTimeout);
-                    if (latch.await(initialStateTimeout.millis(), TimeUnit.MILLISECONDS)) {
-                        logger.trace("initial state set from discovery");
-                        initialStateReceived = true;
-                    } else {
-                        initialStateReceived = false;
-                        logger.warn("waited for {} and no initial state was set by the discovery", initialStateTimeout);
-                    }
-                } catch (InterruptedException e) {
-                    // ignore
-                }
-            }
-        } finally {
-            discovery.removeListener(listener);
-        }
+        initialStateListener = new InitialStateListener();
+        discovery.addListener(initialStateListener);
+        discovery.start();
         logger.info(discovery.nodeDescription());
+    }
+
+    public void waitForInitialState() {
+        try {
+            if (!initialStateListener.waitForInitialState(initialStateTimeout)) {
+                logger.warn("waited for {} and no initial state was set by the discovery", initialStateTimeout);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
+        }
     }
 
     @Override
     protected void doStop() throws ElasticsearchException {
+        if (initialStateListener != null) {
+            discovery.removeListener(initialStateListener);
+        }
         discovery.stop();
     }
 
@@ -101,7 +118,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
      * on {@link #doStart()}.
      */
     public boolean initialStateReceived() {
-        return initialStateReceived;
+        return initialStateListener.initialStateReceived;
     }
 
     public String nodeDescription() {
@@ -124,7 +141,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     public static String generateNodeId(Settings settings) {
         String seed = settings.get("discovery.id.seed");
         if (seed != null) {
-            Strings.randomBase64UUID(new Random(Long.parseLong(seed)));
+            return Strings.randomBase64UUID(new Random(Long.parseLong(seed)));
         }
         return Strings.randomBase64UUID();
     }

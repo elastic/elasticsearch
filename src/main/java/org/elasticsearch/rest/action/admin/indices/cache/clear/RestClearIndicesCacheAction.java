@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.indices.cache.clear;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -45,8 +44,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestClearIndicesCacheAction extends BaseRestHandler {
 
     @Inject
-    public RestClearIndicesCacheAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestClearIndicesCacheAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/_cache/clear", this);
         controller.registerHandler(POST, "/{index}/_cache/clear", this);
 
@@ -55,18 +54,11 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(Strings.splitStringByCommaToArray(request.param("index")));
         clearIndicesCacheRequest.listenerThreaded(false);
         clearIndicesCacheRequest.indicesOptions(IndicesOptions.fromRequest(request, clearIndicesCacheRequest.indicesOptions()));
         fromRequest(request, clearIndicesCacheRequest);
-        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.THREAD_PER_SHARD);
-        if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
-            // since we don't spawn, don't allow no_threads, but change it to a single thread
-            operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
-        }
-        clearIndicesCacheRequest.operationThreading(operationThreading);
-
         client.admin().indices().clearCache(clearIndicesCacheRequest, new RestBuilderListener<ClearIndicesCacheResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClearIndicesCacheResponse response, XContentBuilder builder) throws Exception {

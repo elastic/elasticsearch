@@ -24,9 +24,12 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData;
 import org.elasticsearch.common.Strings;
@@ -54,8 +57,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
     private final TransportNodesSnapshotsStatus transportNodesSnapshotsStatus;
 
     @Inject
-    public TransportSnapshotsStatusAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, SnapshotsService snapshotsService, TransportNodesSnapshotsStatus transportNodesSnapshotsStatus) {
-        super(settings, transportService, clusterService, threadPool);
+    public TransportSnapshotsStatusAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, SnapshotsService snapshotsService, TransportNodesSnapshotsStatus transportNodesSnapshotsStatus, ActionFilters actionFilters) {
+        super(settings, SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.snapshotsService = snapshotsService;
         this.transportNodesSnapshotsStatus = transportNodesSnapshotsStatus;
     }
@@ -66,8 +69,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
     }
 
     @Override
-    protected String transportAction() {
-        return SnapshotsStatusAction.NAME;
+    protected ClusterBlockException checkBlock(SnapshotsStatusRequest request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
     }
 
     @Override
@@ -109,18 +112,22 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
 
             transportNodesSnapshotsStatus.status(nodesIds.toArray(new String[nodesIds.size()]),
                     snapshotIds, request.masterNodeTimeout(), new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
-                @Override
-                public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
-                    ImmutableList<SnapshotMetaData.Entry> currentSnapshots =
-                            snapshotsService.currentSnapshots(request.repository(), request.snapshots());
-                    listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
-                }
+                        @Override
+                        public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
+                            try {
+                                ImmutableList<SnapshotMetaData.Entry> currentSnapshots =
+                                        snapshotsService.currentSnapshots(request.repository(), request.snapshots());
+                                listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
+                            } catch (Throwable e) {
+                                listener.onFailure(e);
+                            }
+                        }
 
-                @Override
-                public void onFailure(Throwable e) {
-                    listener.onFailure(e);
-                }
-            });
+                        @Override
+                        public void onFailure(Throwable e) {
+                            listener.onFailure(e);
+                        }
+                    });
         } else {
             // We don't have any in-progress shards, just return current stats
             listener.onResponse(buildResponse(request, currentSnapshots, null));
@@ -169,6 +176,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                             stage = SnapshotIndexShardStage.FAILURE;
                             break;
                         case INIT:
+                        case WAITING:
                         case STARTED:
                             stage = SnapshotIndexShardStage.STARTED;
                             break;
@@ -178,7 +186,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                         default:
                             throw new ElasticsearchIllegalArgumentException("Unknown snapshot state " + shardEntry.getValue().state());
                     }
-                    SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.getKey().getIndex(), shardEntry.getKey().getId(), stage);
+                    SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.getKey(), stage);
                     shardStatusBuilder.add(shardStatus);
                 }
                 builder.add(new SnapshotStatus(entry.snapshotId(), entry.state(), shardStatusBuilder.build()));
@@ -206,6 +214,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                                 state = SnapshotMetaData.State.FAILED;
                                 break;
                             case SUCCESS:
+                            case PARTIAL:
+                                // Translating both PARTIAL and SUCCESS to SUCCESS for now
+                                // TODO: add the differentiation on the metadata level in the next major release
                                 state = SnapshotMetaData.State.SUCCESS;
                                 break;
                             default:

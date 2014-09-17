@@ -8,9 +8,20 @@
           id:             1
           body:           { foo: bar }
           version_type:   external
+          version:        0
+
+ - match:   { _version: 0 }
+
+ - do:
+      index:
+          index:          test_1
+          type:           test
+          id:             1
+          body:           { foo: bar }
+          version_type:   external
           version:        5
 
- - match:   { _version: 5}
+ - match:   { _version: 5 }
 
  - do:
       catch:             conflict
@@ -21,6 +32,16 @@
           body:           { foo: bar }
           version_type:   external
           version:        5
+
+ - do:
+      catch:             conflict
+      index:
+          index:          test_1
+          type:           test
+          id:             1
+          body:           { foo: bar }
+          version_type:   external
+          version:        0
 
  - do:
       index:

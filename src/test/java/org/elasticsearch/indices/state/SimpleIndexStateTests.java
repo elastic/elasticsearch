@@ -25,14 +25,13 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
-import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -75,15 +74,11 @@ public class SimpleIndexStateTests extends ElasticsearchIntegrationTest {
         assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
-        logger.info("--> testing indices status api...");
-        IndicesStatusResponse indicesStatusResponse = client().admin().indices().prepareStatus().get();
-        assertThat(indicesStatusResponse.getIndices().size(), equalTo(0));
-
         logger.info("--> trying to index into a closed index ...");
         try {
             client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
             fail();
-        } catch (ClusterBlockException e) {
+        } catch (IndexClosedException e) {
             // all is well
         }
 

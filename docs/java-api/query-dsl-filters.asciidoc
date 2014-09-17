@@ -258,11 +258,11 @@ See:
 [source,java]
 --------------------------------------------------
 // Has Child
-QFilterBuilders.hasChildFilter("blog_tag",
+FilterBuilders.hasChildFilter("blog_tag",
     QueryBuilders.termQuery("tag", "something"));
 
 // Has Parent
-QFilterBuilders.hasParentFilter("blog",
+FilterBuilders.hasParentFilter("blog",
     QueryBuilders.termQuery("tag", "something"));
 --------------------------------------------------
 

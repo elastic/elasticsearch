@@ -35,6 +35,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.query.GeoShapeFilterParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -64,7 +65,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
             TTL_FIELD_TYPE.freeze();
         }
 
-        public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.DISABLED;
+        public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.UNSET_DISABLED;
         public static final long DEFAULT = -1;
     }
 
@@ -74,7 +75,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         private long defaultTTL = Defaults.DEFAULT;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.TTL_FIELD_TYPE));
+            super(Defaults.NAME, new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.PRECISION_STEP_64_BIT);
         }
 
         public Builder enabled(EnabledAttributeMapper enabled) {
@@ -125,7 +126,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     protected TTLFieldMapper(FieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,
                 Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                 @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
+        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP_64_BIT,
                 Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE, ignoreMalformed, coerce,
                 postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;
@@ -162,10 +163,6 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     // Other implementation for realtime get display
     public Object valueForSearch(long expirationTime) {
         return expirationTime - System.currentTimeMillis();
-    }
-
-    @Override
-    public void validate(ParseContext context) throws MapperParsingException {
     }
 
     @Override
@@ -242,12 +239,20 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         TTLFieldMapper ttlMergeWith = (TTLFieldMapper) mergeWith;
-        if (!mergeContext.mergeFlags().simulate()) {
-            if (ttlMergeWith.defaultTTL != -1) {
-                this.defaultTTL = ttlMergeWith.defaultTTL;
+        if (((TTLFieldMapper) mergeWith).enabledState != Defaults.ENABLED_STATE) {//only do something if actually something was set for the document mapper that we merge with
+            if (this.enabledState == EnabledAttributeMapper.ENABLED && ((TTLFieldMapper) mergeWith).enabledState == EnabledAttributeMapper.DISABLED) {
+                mergeContext.addConflict("_ttl cannot be disabled once it was enabled.");
+            } else {
+                if (!mergeContext.mergeFlags().simulate()) {
+                    this.enabledState = ttlMergeWith.enabledState;
+                }
             }
-            if (ttlMergeWith.enabledState != enabledState && !ttlMergeWith.enabledState.unset()) {
-                this.enabledState = ttlMergeWith.enabledState;
+        }
+        if (ttlMergeWith.defaultTTL != -1) {
+            // we never build the default when the field is disabled so we should also not set it
+            // (it does not make a difference though as everything that is not build in toXContent will also not be set in the cluster)
+            if (!mergeContext.mergeFlags().simulate() && (enabledState == EnabledAttributeMapper.ENABLED)) {
+                this.defaultTTL = ttlMergeWith.defaultTTL;
             }
         }
     }

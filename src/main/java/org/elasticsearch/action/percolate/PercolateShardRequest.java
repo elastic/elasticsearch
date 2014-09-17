@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.percolate;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,24 +37,26 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
     private BytesReference source;
     private BytesReference docSource;
     private boolean onlyCount;
+    private int numberOfShards;
 
-    public PercolateShardRequest() {
+    PercolateShardRequest() {
     }
 
-    public PercolateShardRequest(String index, int shardId) {
-        super(index, shardId);
-    }
-
-    public PercolateShardRequest(String index, int shardId, PercolateRequest request) {
-        super(index, shardId, request);
+    PercolateShardRequest(ShardId shardId, int numberOfShards, PercolateRequest request) {
+        super(shardId, request);
         this.documentType = request.documentType();
         this.source = request.source();
         this.docSource = request.docSource();
         this.onlyCount = request.onlyCount();
+        this.numberOfShards = numberOfShards;
     }
 
-    public PercolateShardRequest(ShardId shardId, PercolateRequest request) {
-        super(shardId.index().name(), shardId.id());
+    PercolateShardRequest(ShardId shardId, OriginalIndices originalIndices) {
+        super(shardId, originalIndices);
+    }
+
+    PercolateShardRequest(ShardId shardId, PercolateRequest request) {
+        super(shardId, request);
         this.documentType = request.documentType();
         this.source = request.source();
         this.docSource = request.docSource();
@@ -91,6 +95,14 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         this.onlyCount = onlyCount;
     }
 
+    public int getNumberOfShards() {
+        return numberOfShards;
+    }
+
+    OriginalIndices originalIndices() {
+        return originalIndices;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -98,6 +110,9 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         source = in.readBytesReference();
         docSource = in.readBytesReference();
         onlyCount = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            numberOfShards = in.readVInt();
+        }
     }
 
     @Override
@@ -107,6 +122,9 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         out.writeBytesReference(source);
         out.writeBytesReference(docSource);
         out.writeBoolean(onlyCount);
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeVInt(numberOfShards);
+        }
     }
 
 }

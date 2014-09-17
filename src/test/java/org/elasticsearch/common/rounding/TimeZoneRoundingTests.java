@@ -33,7 +33,7 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
 
     @Test
     public void testUTCMonthRounding() {
-        TimeZoneRounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.MONTH_OF_YEAR).build();
+        Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.MONTH_OF_YEAR).build();
         assertThat(tzRounding.round(utc("2009-02-03T01:01:01")), equalTo(utc("2009-02-01T00:00:00.000Z")));
         assertThat(tzRounding.nextRoundingValue(utc("2009-02-01T00:00:00.000Z")), equalTo(utc("2009-03-01T00:00:00.000Z")));
 
@@ -48,7 +48,7 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
 
     @Test
     public void testDayTimeZoneRounding() {
-        TimeZoneRounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).preZone(DateTimeZone.forOffsetHours(-2)).build();
+        Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).preZone(DateTimeZone.forOffsetHours(-2)).build();
         assertThat(tzRounding.round(0), equalTo(0l - TimeValue.timeValueHours(24).millis()));
         assertThat(tzRounding.nextRoundingValue(0l - TimeValue.timeValueHours(24).millis()), equalTo(0l));
 
@@ -67,7 +67,7 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
 
     @Test
     public void testTimeTimeZoneRounding() {
-        TimeZoneRounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forOffsetHours(-2)).build();
+        Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forOffsetHours(-2)).build();
         assertThat(tzRounding.round(0), equalTo(0l));
         assertThat(tzRounding.nextRoundingValue(0l), equalTo(TimeValue.timeValueHours(1l).getMillis()));
 

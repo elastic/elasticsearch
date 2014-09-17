@@ -62,7 +62,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         final float balanceTreshold = 1.0f;
 
         ImmutableSettings.Builder settings = settingsBuilder();
-        settings.put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
+        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, indexBalance);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, replicaBalance);
         settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, primaryBalance);
@@ -90,7 +90,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         final float balanceTreshold = 1.0f;
 
         ImmutableSettings.Builder settings = settingsBuilder();
-        settings.put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
+        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, indexBalance);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, replicaBalance);
         settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, primaryBalance);
@@ -118,7 +118,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         final float balanceTreshold = 1.0f;
 
         ImmutableSettings.Builder settings = settingsBuilder();
-        settings.put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
+        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
         settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, indexBalance);
         settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, replicaBalance);
         settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, primaryBalance);
@@ -329,7 +329,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         assertThat(allocator.getThreshold(), Matchers.equalTo(2.0f));
 
         settings = settingsBuilder();
-        settings.put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
+        settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
         listeners[0].onRefreshSettings(settings.build());
         assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.2f));
         assertThat(allocator.getShardBalance(), Matchers.equalTo(0.3f));

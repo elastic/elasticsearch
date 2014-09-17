@@ -28,12 +28,12 @@ import org.apache.lucene.search.Explanation;
 public abstract class ScoreFunction {
 
     private final CombineFunction scoreCombiner;
-    
+
     public abstract void setNextReader(AtomicReaderContext context);
 
     public abstract double score(int docId, float subQueryScore);
 
-    public abstract Explanation explainScore(int docId, Explanation subQueryExpl);
+    public abstract Explanation explainScore(int docId, float subQueryScore);
 
     public CombineFunction getDefaultScoreCombiner() {
         return scoreCombiner;
@@ -42,5 +42,4 @@ public abstract class ScoreFunction {
     protected ScoreFunction(CombineFunction scoreCombiner) {
         this.scoreCombiner = scoreCombiner;
     }
-
 }

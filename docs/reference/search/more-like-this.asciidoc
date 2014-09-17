@@ -14,7 +14,9 @@ The API simply results in executing a search request with
 parameters match the parameters to the `more_like_this` query). This
 means that the body of the request can optionally include all the
 request body options in the <<search-search,search
-API>> (facets, from/to and so on).
+API>> (aggs, from/to and so on). Internally, the more like this
+API is equivalent to performing a boolean query of `more_like_this_field`
+queries, with one query per specified `mlt_fields`.
 
 Rest parameters relating to search are also allowed, including
 `search_type`, `search_indices`, `search_types`, `search_scroll`,
@@ -22,6 +24,9 @@ Rest parameters relating to search are also allowed, including
 
 When no `mlt_fields` are specified, all the fields of the document will
 be used in the `more_like_this` query generated.
+
+By default, the queried document is excluded from the response (`include`
+set to false).
 
 Note: In order to use the `mlt` feature a `mlt_field` needs to be either
 be `stored`, store `term_vector` or `source` needs to be enabled.

@@ -32,7 +32,7 @@ public class GetAliasesRequestBuilder extends BaseAliasesRequestBuilder<GetAlias
 
     @Override
     protected void doExecute(ActionListener<GetAliasesResponse> listener) {
-        ((IndicesAdminClient) client).getAliases(request, listener);
+        client.getAliases(request, listener);
     }
 
 }

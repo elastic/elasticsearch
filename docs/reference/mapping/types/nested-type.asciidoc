@@ -1,46 +1,87 @@
 [[mapping-nested-type]]
 === Nested Type
 
-Nested objects/documents allow to map certain sections in the document
-indexed as nested allowing to query them as if they are separate docs
-joining with the parent owning doc.
-
-One of the problems when indexing inner objects that occur several times
-in a doc is that "cross object" search match will occur, for example:
+The `nested` type works like the <<mapping-object-type,`object` type>> except
+that an array of `objects` is flattened, while an array of `nested`  objects
+allows each object to be queried independently.  To explain, consider this
+document:
 
 [source,js]
 --------------------------------------------------
 {
-    "obj1" : [
+    "group" : "fans",
+    "user" : [
         {
-            "name" : "blue",
-            "count" : 4
+            "first" : "John",
+            "last" :  "Smith"
         },
         {
-            "name" : "green",
-            "count" : 6
-        }
+            "first" : "Alice",
+            "last" :  "White"
+        },
     ]
 }
 --------------------------------------------------
 
-Searching for name set to blue and count higher than 5 will match the
-doc, because in the first element the name matches blue, and in the
-second element, count matches "higher than 5".
+If the `user` field is of type `object`, this document would be indexed
+internally something like this:
 
-Nested mapping allows mapping certain inner objects (usually multi
-instance ones), for example:
+[source,js]
+--------------------------------------------------
+{
+    "group" :        "fans",
+    "user.first" : [ "alice", "john" ],
+    "user.last" :  [ "smith", "white" ]
+}
+--------------------------------------------------
+
+The `first` and `last` fields are flattened, and the association between
+`alice` and `white` is lost.  This document would incorrectly match a query
+for `alice AND smith`.
+
+If the `user` field is of type `nested`, each object is indexed as a separate
+document, something like this:
+
+[source,js]
+--------------------------------------------------
+{ <1>
+    "user.first" : "alice",
+    "user.last" :  "white"
+}
+{ <1>
+    "user.first" : "john",
+    "user.last" :  "smith"
+}
+{ <2>
+    "group" :       "fans"
+}
+--------------------------------------------------
+<1> Hidden nested documents.
+<2> Visible ``parent'' document.
+
+By keeping each nested object separate, the association between the
+`user.first` and `user.last` fields is maintained. The query for `alice AND
+smith` would *not* match this document.
+
+Searching on nested docs can be done using either the
+<<query-dsl-nested-query,nested query>> or
+<<query-dsl-nested-filter,nested filter>>.
+
+==== Mapping
+
+The mapping for `nested` fields is the same as `object` fields, except that it
+uses type `nested`:
 
 [source,js]
 --------------------------------------------------
 {
     "type1" : {
         "properties" : {
-            "obj1" : {
+            "users" : {
                 "type" : "nested",
                 "properties": {
-                    "name" : {"type": "string", "index": "not_analyzed"},
-                    "count" : {"type": "integer"}
+                    "first" : {"type": "string" },
+                    "last"  : {"type": "string" }
                 }
             }
         }
@@ -48,26 +89,60 @@ instance ones), for example:
 }
 --------------------------------------------------
 
-The above will cause all `obj1` to be indexed as a nested doc. The
-mapping is similar in nature to setting `type` to `object`, except that
-it's `nested`. Nested object fields can be defined explicitly as in the
-example above or added dynamically in the same way as for the root object.
+NOTE: changing an `object` type to `nested` type requires reindexing.
 
-Note: changing an object type to nested type requires reindexing.
+You may want to index inner objects both as `nested` fields *and*  as flattened
+`object` fields, eg for highlighting.  This can be achieved by setting
+`include_in_parent` to `true`:
 
-The `nested` object fields can also be automatically added to the
-immediate parent by setting `include_in_parent` to true, and also
-included in the root object by setting `include_in_root` to true.
+[source,js]
+--------------------------------------------------
+{
+    "type1" : {
+        "properties" : {
+            "users" : {
+                "type" : "nested",
+                "include_in_parent": true,
+                "properties": {
+                    "first" : {"type": "string" },
+                    "last"  : {"type": "string" }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
 
-Nested docs will also automatically use the root doc `_all` field.
+The result of indexing our example document would be something like this:
 
-Searching on nested docs can be done using either the
-<<query-dsl-nested-query,nested query>> or
-<<query-dsl-nested-filter,nested filter>>.
+[source,js]
+--------------------------------------------------
+{ <1>
+    "user.first" : "alice",
+    "user.last" :  "white"
+}
+{ <1>
+    "user.first" : "john",
+    "user.last" :  "smith"
+}
+{ <2>
+    "group" :        "fans",
+    "user.first" : [ "alice", "john" ],
+    "user.last" :  [ "smith", "white" ]
+}
+--------------------------------------------------
+<1> Hidden nested documents.
+<2> Visible ``parent'' document.
 
-[float]
-==== Internal Implementation
 
+Nested fields may contain other nested fields.  The `include_in_parent` object
+refers to the direct parent of the field, while the `include_in_root`
+parameter refers only to the topmost ``root'' object or document.
+
+Nested docs will automatically use the root doc `_all` field only.
+
+.Internal Implementation
+*********************************************
 Internally, nested objects are indexed as additional documents, but,
 since they can be guaranteed to be indexed within the same "block", it
 allows for extremely fast joining with parent docs.
@@ -84,3 +159,4 @@ the `nested` query scope.
 
 The `_source` field is always associated with the parent document and
 because of that field values via the source can be fetched for nested object.
+*********************************************

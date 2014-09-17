@@ -20,10 +20,11 @@
 package org.elasticsearch.action.admin.indices.recovery;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
@@ -41,11 +42,10 @@ public class ShardRecoveryResponse extends BroadcastShardOperationResponse imple
     /**
      * Constructs shard recovery information for the given index and shard id.
      *
-     * @param index     Name of the index
      * @param shardId   Id of the shard
      */
-    public ShardRecoveryResponse(String index, int shardId) {
-        super(index, shardId);
+    ShardRecoveryResponse(ShardId shardId) {
+        super(shardId);
     }
 
     /**

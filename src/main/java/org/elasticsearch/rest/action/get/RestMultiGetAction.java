@@ -19,33 +19,27 @@
 
 package org.elasticsearch.rest.action.get;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestMultiGetAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
     @Inject
-    public RestMultiGetAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestMultiGetAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_mget", this);
         controller.registerHandler(POST, "/_mget", this);
         controller.registerHandler(GET, "/{index}/_mget", this);
@@ -57,12 +51,13 @@ public class RestMultiGetAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.listenerThreaded(false);
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
         multiGetRequest.preference(request.param("preference"));
         multiGetRequest.realtime(request.paramAsBoolean("realtime", null));
+        multiGetRequest.ignoreErrorsOnGeneratedFields(request.paramAsBoolean("ignore_errors_on_generated_fields", false));
 
         String[] sFields = null;
         String sField = request.param("fields");

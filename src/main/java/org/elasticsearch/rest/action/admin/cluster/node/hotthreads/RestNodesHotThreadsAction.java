@@ -36,8 +36,8 @@ import org.elasticsearch.rest.action.support.RestResponseListener;
 public class RestNodesHotThreadsAction extends BaseRestHandler {
 
     @Inject
-    public RestNodesHotThreadsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestNodesHotThreadsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hotthreads", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hot_threads", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hotthreads", this);
@@ -50,7 +50,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(nodesIds);
         nodesHotThreadsRequest.threads(request.paramAsInt("threads", nodesHotThreadsRequest.threads()));

@@ -22,8 +22,7 @@ package org.elasticsearch.action.search.type;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -85,24 +84,30 @@ public abstract class TransportSearchHelper {
                 sb.append(entry.getKey()).append(':').append(entry.getValue()).append(';');
             }
         }
-        BytesRef bytesRef = new BytesRef();
-        UnicodeUtil.UTF16toUTF8(sb, 0, sb.length(), bytesRef);
-
+        BytesRef bytesRef = new BytesRef(sb);
         return Base64.encodeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length, Base64.URL_SAFE);
     }
 
     public static ParsedScrollId parseScrollId(String scrollId) {
-        CharsRef spare = new CharsRef();
+        CharsRefBuilder spare = new CharsRefBuilder();
         try {
             byte[] decode = Base64.decode(scrollId, Base64.URL_SAFE);
-            UnicodeUtil.UTF8toUTF16(decode, 0, decode.length, spare);
-        } catch (IOException e) {
+            spare.copyUTF8Bytes(decode, 0, decode.length);
+        } catch (Exception e) {
             throw new ElasticsearchIllegalArgumentException("Failed to decode scrollId", e);
         }
-        String[] elements = Strings.splitStringToArray(spare, ';');
+        String[] elements = Strings.splitStringToArray(spare.get(), ';');
+        if (elements.length < 2) {
+            throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
+        }
+
         int index = 0;
         String type = elements[index++];
         int contextSize = Integer.parseInt(elements[index++]);
+        if (elements.length < contextSize + 2) {
+            throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
+        }
+
         @SuppressWarnings({"unchecked"}) Tuple<String, Long>[] context = new Tuple[contextSize];
         for (int i = 0; i < contextSize; i++) {
             String element = elements[index++];

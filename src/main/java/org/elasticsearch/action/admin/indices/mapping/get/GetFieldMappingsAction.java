@@ -21,14 +21,13 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalGenericClient;
 
 /**
  */
 public class GetFieldMappingsAction extends IndicesAction<GetFieldMappingsRequest, GetFieldMappingsResponse, GetFieldMappingsRequestBuilder> {
 
     public static final GetFieldMappingsAction INSTANCE = new GetFieldMappingsAction();
-    public static final String NAME = "mappings/fields/get";
+    public static final String NAME = "indices:admin/mappings/fields/get";
 
     private GetFieldMappingsAction() {
         super(NAME);
@@ -36,7 +35,7 @@ public class GetFieldMappingsAction extends IndicesAction<GetFieldMappingsReques
 
     @Override
     public GetFieldMappingsRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new GetFieldMappingsRequestBuilder((InternalGenericClient) client);
+        return new GetFieldMappingsRequestBuilder(client);
     }
 
     @Override

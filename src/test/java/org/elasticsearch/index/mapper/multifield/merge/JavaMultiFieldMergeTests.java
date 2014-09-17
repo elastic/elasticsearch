@@ -24,9 +24,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -39,12 +38,12 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class JavaMultiFieldMergeTests extends ElasticsearchTestCase {
+public class JavaMultiFieldMergeTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testMergeMultiField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping1.json");
-        DocumentMapperParser parser = MapperTestUtils.newParser();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
 
@@ -120,7 +119,7 @@ public class JavaMultiFieldMergeTests extends ElasticsearchTestCase {
     @Test
     public void testUpgradeFromMultiFieldTypeToMultiFields() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping1.json");
-        DocumentMapperParser parser = MapperTestUtils.newParser();
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
 

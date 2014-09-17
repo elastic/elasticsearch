@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.exists.types;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,19 +40,14 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadOperation
 
     @Inject
     public TransportTypesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+                                      ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override
     protected String executor() {
         // lightweight check
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return TypesExistsAction.NAME;
     }
 
     @Override
@@ -66,12 +62,12 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadOperation
 
     @Override
     protected ClusterBlockException checkBlock(TypesExistsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
     protected void masterOperation(final TypesExistsRequest request, final ClusterState state, final ActionListener<TypesExistsResponse> listener) throws ElasticsearchException {
-        String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.indicesOptions());
+        String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         if (concreteIndices.length == 0) {
             listener.onResponse(new TypesExistsResponse(false));
             return;

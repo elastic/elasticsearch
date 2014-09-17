@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.termvector;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvector.TermVectorRequest;
@@ -27,20 +26,18 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestMultiTermVectorsAction extends BaseRestHandler {
 
     @Inject
-    public RestMultiTermVectorsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestMultiTermVectorsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_mtermvectors", this);
         controller.registerHandler(POST, "/_mtermvectors", this);
         controller.registerHandler(GET, "/{index}/_mtermvectors", this);
@@ -50,7 +47,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
         multiTermVectorsRequest.listenerThreaded(false);
         TermVectorRequest template = new TermVectorRequest();

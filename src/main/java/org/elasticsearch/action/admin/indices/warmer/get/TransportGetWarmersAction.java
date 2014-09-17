@@ -22,9 +22,13 @@ package org.elasticsearch.action.admin.indices.warmer.get;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -33,17 +37,26 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
+ * Internal Actions executed on the master fetching the warmer from the cluster state metadata.
+ *
+ * Note: this is an internal API and should not be used / called by any client code.
  */
 public class TransportGetWarmersAction extends TransportClusterInfoAction<GetWarmersRequest, GetWarmersResponse> {
 
     @Inject
-    public TransportGetWarmersAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+    public TransportGetWarmersAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, GetWarmersAction.NAME, transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override
-    protected String transportAction() {
-        return GetWarmersAction.NAME;
+    protected String executor() {
+        // very lightweight operation, no need to fork
+        return ThreadPool.Names.SAME;
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(GetWarmersRequest request, ClusterState state) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
@@ -57,9 +70,9 @@ public class TransportGetWarmersAction extends TransportClusterInfoAction<GetWar
     }
 
     @Override
-    protected void doMasterOperation(final GetWarmersRequest request, final ClusterState state, final ActionListener<GetWarmersResponse> listener) throws ElasticsearchException {
+    protected void doMasterOperation(final GetWarmersRequest request, String[] concreteIndices, final ClusterState state, final ActionListener<GetWarmersResponse> listener) throws ElasticsearchException {
         ImmutableOpenMap<String, ImmutableList<IndexWarmersMetaData.Entry>> result = state.metaData().findWarmers(
-                request.indices(), request.types(), request.warmers()
+                concreteIndices, request.types(), request.warmers()
         );
         listener.onResponse(new GetWarmersResponse(result));
     }

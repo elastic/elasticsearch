@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.service;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,51 +37,41 @@ public class PendingClusterTask implements Streamable {
     private Priority priority;
     private Text source;
     private long timeInQueue;
+    private boolean executing;
 
     public PendingClusterTask() {
     }
 
-    public PendingClusterTask(long insertOrder, Priority priority, Text source, long timeInQueue) {
+    public PendingClusterTask(long insertOrder, Priority priority, Text source, long timeInQueue, boolean executing) {
         this.insertOrder = insertOrder;
         this.priority = priority;
         this.source = source;
         this.timeInQueue = timeInQueue;
-    }
-
-    public long insertOrder() {
-        return insertOrder;
+        this.executing = executing;
     }
 
     public long getInsertOrder() {
-        return insertOrder();
-    }
-
-    public Priority priority() {
-        return priority;
+        return insertOrder;
     }
 
     public Priority getPriority() {
-        return priority();
-    }
-
-    public Text source() {
-        return source;
+        return priority;
     }
 
     public Text getSource() {
-        return source();
-    }
-
-    public long timeInQueueInMillis() {
-        return timeInQueue;
+        return source;
     }
 
     public long getTimeInQueueInMillis() {
-        return timeInQueueInMillis();
+        return timeInQueue;
     }
 
     public TimeValue getTimeInQueue() {
         return new TimeValue(getTimeInQueueInMillis());
+    }
+
+    public boolean isExecuting() {
+        return executing;
     }
 
     @Override
@@ -89,6 +80,9 @@ public class PendingClusterTask implements Streamable {
         priority = Priority.readFrom(in);
         source = in.readText();
         timeInQueue = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+            executing = in.readBoolean();
+        }
     }
 
     @Override
@@ -97,5 +91,8 @@ public class PendingClusterTask implements Streamable {
         Priority.writeTo(priority, out);
         out.writeText(source);
         out.writeVLong(timeInQueue);
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            out.writeBoolean(executing);
+        }
     }
 }

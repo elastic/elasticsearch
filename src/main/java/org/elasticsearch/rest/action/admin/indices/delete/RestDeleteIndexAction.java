@@ -35,14 +35,14 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 public class RestDeleteIndexAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteIndexAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestDeleteIndexAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.DELETE, "/", this);
         controller.registerHandler(RestRequest.Method.DELETE, "/{index}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteIndexRequest.listenerThreaded(false);
         deleteIndexRequest.timeout(request.paramAsTime("timeout", deleteIndexRequest.timeout()));

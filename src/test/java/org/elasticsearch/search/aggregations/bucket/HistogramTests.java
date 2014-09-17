@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import com.carrotsearch.hppc.LongOpenHashSet;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -124,6 +125,52 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
             Histogram.Bucket bucket = histo.getBucketByKey(i * interval);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
+        }
+    }
+
+    @Test
+    public void singleValuedField_withPreOffset() throws Exception {
+        long preOffsetMultiplier = randomIntBetween(2, 10);
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).preOffset(preOffsetMultiplier * interval))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
+
+        for (int i = 0; i < numValueBuckets; ++i) {
+            Histogram.Bucket bucket = histo.getBucketByKey((i + preOffsetMultiplier) * interval);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) (i + preOffsetMultiplier) * interval));
+            assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
+        }
+    }
+
+    @Test
+    public void singleValuedField_withPostOffset() throws Exception {
+        long postOffsetMultiplier = randomIntBetween(2, 10);
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).postOffset(postOffsetMultiplier * interval))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
+
+        for (int i = 0; i < numValueBuckets; ++i) {
+            Histogram.Bucket bucket = histo.getBucketByKey((i + postOffsetMultiplier) * interval);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) (i + postOffsetMultiplier) * interval));
             assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
         }
     }
@@ -608,7 +655,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
     public void multiValuedField_WithValueScript_WithInheritedSubAggregator() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(MULTI_VALUED_FIELD_NAME).script("_value + 1").interval(interval)
-                        .subAggregation(terms(MULTI_VALUED_FIELD_NAME).order(Terms.Order.term(true))))
+                        .subAggregation(terms(MULTI_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values())).order(Terms.Order.term(true))))
                 .execute().actionGet();
 
         assertSearchResponse(response);

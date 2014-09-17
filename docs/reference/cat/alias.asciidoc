@@ -1,5 +1,5 @@
 [[cat-alias]]
-== Aliases
+== cat aliases
 
 `aliases` shows information about currently configured aliases to indices
 including filter and routing infos.
@@ -15,7 +15,7 @@ alias3 test1 -      1            1
 --------------------------------------------------
 
 The output shows that `alias` has configured a filter, and specific routing
-configurations in `alias3` and `alias4`. 
+configurations in `alias3` and `alias4`.
 
 If you only want to get information about a single alias, you can specify
 the alias in the URL, for example `/_cat/aliases/alias1`.

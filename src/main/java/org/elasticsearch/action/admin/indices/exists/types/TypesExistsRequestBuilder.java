@@ -22,23 +22,22 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.Strings;
 
 /**
  * A builder for {@link TypesExistsRequest}.
  */
-public class TypesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder> {
+public class TypesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder, IndicesAdminClient> {
 
     /**
      * @param indices What indices to check for types
      */
     public TypesExistsRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
-        super((InternalIndicesAdminClient) indicesClient, new TypesExistsRequest(indices, Strings.EMPTY_ARRAY));
+        super(indicesClient, new TypesExistsRequest(indices, Strings.EMPTY_ARRAY));
     }
 
     TypesExistsRequestBuilder(IndicesAdminClient client) {
-        super((InternalIndicesAdminClient) client, new TypesExistsRequest());
+        super(client, new TypesExistsRequest());
     }
 
     /**
@@ -66,6 +65,6 @@ public class TypesExistsRequestBuilder extends MasterNodeReadOperationRequestBui
     }
 
     protected void doExecute(ActionListener<TypesExistsResponse> listener) {
-        ((IndicesAdminClient) client).typesExists(request, listener);
+        client.typesExists(request, listener);
     }
 }

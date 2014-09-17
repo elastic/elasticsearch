@@ -25,8 +25,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
@@ -98,11 +96,12 @@ public class AggregationPhase implements SearchPhase {
     @Override
     public void execute(SearchContext context) throws ElasticsearchException {
         if (context.aggregations() == null) {
+            context.queryResult().aggregations(null);
             return;
         }
 
         if (context.queryResult().aggregations() != null) {
-            // no need to compute the facets twice, they should be computed on a per context basis
+            // no need to compute the aggs twice, they should be computed on a per context basis
             return;
         }
 
@@ -124,10 +123,10 @@ public class AggregationPhase implements SearchPhase {
             }
             try {
                 context.searcher().search(query, collector);
+                collector.postCollection();
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);
             }
-            collector.postCollection();
         }
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
@@ -135,6 +134,9 @@ public class AggregationPhase implements SearchPhase {
             aggregations.add(aggregator.buildAggregation(0));
         }
         context.queryResult().aggregations(new InternalAggregations(aggregations));
+
+        // disable aggregations so that they don't run on next pages in case of scrolling
+        context.aggregations(null);
     }
 
 
@@ -167,11 +169,11 @@ public class AggregationPhase implements SearchPhase {
 
         @Override
         public boolean acceptsDocsOutOfOrder() {
-            return true;
+            return !aggregationContext.scoreDocsInOrder();
         }
 
         @Override
-        public void postCollection() {
+        public void postCollection() throws IOException {
             for (Aggregator collector : collectors) {
                 collector.postCollection();
             }

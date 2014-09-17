@@ -166,6 +166,14 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     }
 
     @Override
+    public ShardRouting targetRoutingIfRelocating() {
+        if (!relocating()) {
+            return null;
+        }
+        return new ImmutableShardRouting(index, shardId, relocatingNodeId, currentNodeId, primary, ShardRoutingState.INITIALIZING, version);
+    }
+
+    @Override
     public RestoreSource restoreSource() {
         return restoreSource;
     }
@@ -276,20 +284,32 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
+        if (this == o) {
+            return true;
+        }
         // we check on instanceof so we also handle the MutableShardRouting case as well
-        if (o == null || !(o instanceof ImmutableShardRouting)) return false;
+        if (o == null || !(o instanceof ImmutableShardRouting)) {
+            return false;
+        }
 
         ImmutableShardRouting that = (ImmutableShardRouting) o;
 
-        if (primary != that.primary) return false;
-        if (shardId != that.shardId) return false;
+        if (primary != that.primary) {
+            return false;
+        }
+        if (shardId != that.shardId) {
+            return false;
+        }
         if (currentNodeId != null ? !currentNodeId.equals(that.currentNodeId) : that.currentNodeId != null)
             return false;
-        if (index != null ? !index.equals(that.index) : that.index != null) return false;
+        if (index != null ? !index.equals(that.index) : that.index != null) {
+            return false;
+        }
         if (relocatingNodeId != null ? !relocatingNodeId.equals(that.relocatingNodeId) : that.relocatingNodeId != null)
             return false;
-        if (state != that.state) return false;
+        if (state != that.state) {
+            return false;
+        }
         if (restoreSource != null ? !restoreSource.equals(that.restoreSource) : that.restoreSource != null)
             return false;
 

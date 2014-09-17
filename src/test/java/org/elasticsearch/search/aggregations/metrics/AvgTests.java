@@ -224,7 +224,7 @@ public class AvgTests extends AbstractNumericTests {
     public void testScript_MultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(avg("avg").script("new double[] { doc['value'].value, doc['value'].value + 1 }"))
+                .addAggregation(avg("avg").script("[ doc['value'].value, doc['value'].value + 1 ]"))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -239,7 +239,7 @@ public class AvgTests extends AbstractNumericTests {
     public void testScript_ExplicitMultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(avg("avg").script("new double[] { doc['value'].value, doc['value'].value + 1 }"))
+                .addAggregation(avg("avg").script("[ doc['value'].value, doc['value'].value + 1 ]"))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
@@ -255,7 +255,7 @@ public class AvgTests extends AbstractNumericTests {
     public void testScript_MultiValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(avg("avg").script("new double[] { doc['value'].value, doc['value'].value + inc }").param("inc", 1))
+                .addAggregation(avg("avg").script("[ doc['value'].value, doc['value'].value + inc ]").param("inc", 1))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));

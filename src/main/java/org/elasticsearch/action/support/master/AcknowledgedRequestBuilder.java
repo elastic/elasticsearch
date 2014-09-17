@@ -18,16 +18,18 @@
  */
 package org.elasticsearch.action.support.master;
 
-import org.elasticsearch.client.internal.InternalGenericClient;
+import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * Base request builder for master node operations that support acknowledgements
  */
-public abstract class AcknowledgedRequestBuilder<Request extends AcknowledgedRequest<Request>, Response extends AcknowledgedResponse, RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder>>
-        extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder>  {
+public abstract class AcknowledgedRequestBuilder<Request extends AcknowledgedRequest<Request>, Response extends AcknowledgedResponse, RequestBuilder extends AcknowledgedRequestBuilder<Request, Response, RequestBuilder, Client>, Client extends ElasticsearchClient>
+        extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder, Client>  {
 
-    protected AcknowledgedRequestBuilder(InternalGenericClient client, Request request) {
+    protected AcknowledgedRequestBuilder(Client client, Request request) {
         super(client, request);
     }
 

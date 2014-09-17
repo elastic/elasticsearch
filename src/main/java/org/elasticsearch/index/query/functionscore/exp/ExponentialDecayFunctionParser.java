@@ -51,7 +51,7 @@ public class ExponentialDecayFunctionParser extends DecayFunctionParser {
         public Explanation explainFunction(String valueExpl, double value, double scale) {
             ComplexExplanation ce = new ComplexExplanation();
             ce.setValue((float) evaluate(value, scale));
-            ce.setDescription("exp(- abs(" + valueExpl + ") * " + -1 * scale + ")");
+            ce.setDescription("exp(- " + valueExpl + " * " + -1 * scale + ")");
             return ce;
         }
 

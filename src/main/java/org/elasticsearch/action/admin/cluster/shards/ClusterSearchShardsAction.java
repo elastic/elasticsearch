@@ -27,7 +27,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class ClusterSearchShardsAction extends ClusterAction<ClusterSearchShardsRequest, ClusterSearchShardsResponse, ClusterSearchShardsRequestBuilder> {
 
     public static final ClusterSearchShardsAction INSTANCE = new ClusterSearchShardsAction();
-    public static final String NAME = "cluster/shards/search_shards";
+    public static final String NAME = "indices:admin/shards/search_shards";
 
     private ClusterSearchShardsAction() {
         super(NAME);

@@ -101,15 +101,15 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
+import org.elasticsearch.client.ClusterAdminClient;
 
 /**
  *
  */
-public abstract class AbstractClusterAdminClient implements InternalClusterAdminClient {
+public abstract class AbstractClusterAdminClient implements ClusterAdminClient {
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(ClusterAction<Request, Response, RequestBuilder> action) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> RequestBuilder prepareExecute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action) {
         return action.newRequestBuilder(this);
     }
 

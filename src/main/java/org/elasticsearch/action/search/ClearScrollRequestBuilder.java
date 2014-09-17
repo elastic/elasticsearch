@@ -22,16 +22,15 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 
 import java.util.List;
 
 /**
  */
-public class ClearScrollRequestBuilder extends ActionRequestBuilder<ClearScrollRequest, ClearScrollResponse, ClearScrollRequestBuilder> {
+public class ClearScrollRequestBuilder extends ActionRequestBuilder<ClearScrollRequest, ClearScrollResponse, ClearScrollRequestBuilder, Client> {
 
     public ClearScrollRequestBuilder(Client client) {
-        super((InternalClient) client, new ClearScrollRequest());
+        super(client, new ClearScrollRequest());
     }
 
     public ClearScrollRequestBuilder setScrollIds(List<String> cursorIds) {
@@ -46,6 +45,6 @@ public class ClearScrollRequestBuilder extends ActionRequestBuilder<ClearScrollR
 
     @Override
     protected void doExecute(ActionListener<ClearScrollResponse> listener) {
-        ((Client) client).clearScroll(request, listener);
+        client.clearScroll(request, listener);
     }
 }

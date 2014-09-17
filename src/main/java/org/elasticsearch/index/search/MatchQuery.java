@@ -279,7 +279,7 @@ public class MatchQuery {
         }
 
         public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, FieldMapper<?> mapper) {
-            Query booleanQuery = createBooleanQuery(field, queryText, Occur.SHOULD);
+            Query booleanQuery = createBooleanQuery(field, queryText, lowFreqOccur);
             if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) booleanQuery;
                 ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, ((BooleanQuery)booleanQuery).isCoordDisabled(), mapper);

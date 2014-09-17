@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.client.http;
 
+import org.apache.http.Header;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -26,6 +27,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Response obtained from an http request
@@ -39,11 +42,15 @@ public class HttpResponse {
     private final int statusCode;
     private final String reasonPhrase;
     private final String body;
+    private final Map<String, String> headers = new HashMap<>();
 
     HttpResponse(HttpUriRequest httpRequest, CloseableHttpResponse httpResponse) {
         this.httpRequest = httpRequest;
         this.statusCode = httpResponse.getStatusLine().getStatusCode();
         this.reasonPhrase = httpResponse.getStatusLine().getReasonPhrase();
+        for (Header header : httpResponse.getAllHeaders()) {
+            this.headers.put(header.getName(), header.getValue());
+        }
         if (httpResponse.getEntity() != null) {
             try {
                 this.body = EntityUtils.toString(httpResponse.getEntity(), HttpRequestBuilder.DEFAULT_CHARSET);
@@ -84,6 +91,10 @@ public class HttpResponse {
 
     public boolean supportsBody() {
         return !HttpHead.METHOD_NAME.equals(httpRequest.getMethod());
+    }
+
+    public Map<String, String> getHeaders() {
+        return headers;
     }
 
     @Override

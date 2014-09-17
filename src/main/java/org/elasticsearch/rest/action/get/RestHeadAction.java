@@ -38,14 +38,14 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestHeadAction extends BaseRestHandler {
 
     @Inject
-    public RestHeadAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestHeadAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
         controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.listenerThreaded(false);
         getRequest.operationThreaded(true);

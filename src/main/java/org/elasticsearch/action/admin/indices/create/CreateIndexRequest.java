@@ -25,9 +25,12 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -45,9 +48,9 @@ import java.util.Set;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -58,7 +61,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsT
  * @see org.elasticsearch.client.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
  */
-public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> {
+public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
 
     private String cause = "";
 
@@ -73,6 +76,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private final Map<String, IndexMetaData.Custom> customs = newHashMap();
 
     CreateIndexRequest() {
+    }
+
+    /**
+     * Constructs a new request to create an index that was triggered by a different request,
+     * provided as an argument so that its headers and context can be copied to the new request.
+     */
+    public CreateIndexRequest(ActionRequest request) {
+        super(request);
     }
 
     /**
@@ -96,7 +107,25 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         if (index == null) {
             validationException = addValidationError("index is missing", validationException);
         }
+        Integer number_of_primaries = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
+        Integer number_of_replicas = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
+        if (number_of_primaries != null && number_of_primaries <= 0) {
+            validationException = addValidationError("index must have 1 or more primary shards", validationException);
+        }
+        if (number_of_replicas != null && number_of_replicas < 0) {
+            validationException = addValidationError("index must have 0 or more replica shards", validationException);
+        }
         return validationException;
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[]{index};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     /**
@@ -191,6 +220,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(String type, String source) {
+        if (mappings.containsKey(type)) {
+            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
+        }
         mappings.put(type, source);
         return this;
     }
@@ -210,6 +242,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(String type, XContentBuilder source) {
+        if (mappings.containsKey(type)) {
+            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
+        }
         try {
             mappings.put(type, source.string());
         } catch (IOException e) {
@@ -226,6 +261,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     @SuppressWarnings("unchecked")
     public CreateIndexRequest mapping(String type, Map source) {
+        if (mappings.containsKey(type)) {
+            throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
+        }
         // wrap it in a type map if its not
         if (source.size() != 1 || !source.containsKey(type)) {
             source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();

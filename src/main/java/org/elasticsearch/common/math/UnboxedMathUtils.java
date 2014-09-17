@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.math;
 
-import jsr166y.ThreadLocalRandom;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  *

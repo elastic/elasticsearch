@@ -24,24 +24,33 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
  * Defines how scores from child documents are mapped into the parent document.
  */
 public enum ScoreType {
-
     /**
-     * Only the highest score of all matching child documents is mapped into the parent.
+     * Only the highest score of all matching child documents is mapped into the
+     * parent.
      */
     MAX,
 
     /**
-     * The average score based on all matching child documents are mapped into the parent.
+     * The average score based on all matching child documents are mapped into
+     * the parent.
      */
     AVG,
 
     /**
      * The matching children scores is summed up and mapped into the parent.
      */
-    SUM;
+    SUM,
+
+    /**
+     * Scores are not taken into account
+     */
+    NONE;
+
 
     public static ScoreType fromString(String type) {
-        if ("max".equals(type)) {
+        if ("none".equals(type)) {
+            return NONE;
+        } else if ("max".equals(type)) {
             return MAX;
         } else if ("avg".equals(type)) {
             return AVG;

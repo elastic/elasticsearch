@@ -22,16 +22,12 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -45,8 +41,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestCountAction extends AbstractCatAction {
 
     @Inject
-    protected RestCountAction(Settings settings, Client client, RestController restController) {
-        super(settings, client);
+    protected RestCountAction(Settings settings, RestController restController, RestController controller, Client client) {
+        super(settings, controller, client);
         restController.registerHandler(GET, "/_cat/count", this);
         restController.registerHandler(GET, "/_cat/count/{index}", this);
     }
@@ -58,11 +54,9 @@ public class RestCountAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         CountRequest countRequest = new CountRequest(indices);
-        countRequest.operationThreading(BroadcastOperationThreading.SINGLE_THREAD);
-
         String source = request.param("source");
         if (source != null) {
             countRequest.source(source);

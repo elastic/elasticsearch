@@ -155,10 +155,17 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
 
         final GeoPoint topLeft = sparse.reset(top, left);  //just keep the object
         final GeoPoint bottomRight = new GeoPoint(bottom, right);
-        
+
         if (normalize) {
-            GeoUtils.normalizePoint(topLeft);
-            GeoUtils.normalizePoint(bottomRight);
+            // Special case: if the difference bettween the left and right is 360 and the right is greater than the left, we are asking for 
+            // the complete longitude range so need to set longitude to the complete longditude range
+            boolean completeLonRange = ((right - left) % 360 == 0 && right > left);
+            GeoUtils.normalizePoint(topLeft, true, !completeLonRange);
+            GeoUtils.normalizePoint(bottomRight, true, !completeLonRange);
+            if (completeLonRange) {
+                topLeft.resetLon(-180);
+                bottomRight.resetLon(180);
+            }
         }
 
         MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
@@ -175,7 +182,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         if ("indexed".equals(type)) {
             filter = IndexedGeoBoundingBoxFilter.create(topLeft, bottomRight, geoMapper);
         } else if ("memory".equals(type)) {
-            IndexGeoPointFieldData<?> indexFieldData = parseContext.fieldData().getForField(mapper);
+            IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
             filter = new InMemoryGeoBoundingBoxFilter(topLeft, bottomRight, indexFieldData);
         } else {
             throw new QueryParsingException(parseContext.index(), "geo bounding box type [" + type + "] not supported, either 'indexed' or 'memory' are allowed");

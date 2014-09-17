@@ -20,9 +20,11 @@
 package org.elasticsearch.common.compress.lzf;
 
 import com.ning.compress.lzf.ChunkDecoder;
+import com.ning.compress.lzf.ChunkEncoder;
 import com.ning.compress.lzf.LZFChunk;
 import com.ning.compress.lzf.LZFEncoder;
 import com.ning.compress.lzf.util.ChunkDecoderFactory;
+import com.ning.compress.lzf.util.ChunkEncoderFactory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -49,12 +51,9 @@ public class LZFCompressor implements Compressor {
     private ChunkDecoder decoder;
 
     public LZFCompressor() {
-        if (Constants.SUN_OS) {
-            this.decoder = ChunkDecoderFactory.safeInstance();
-        } else {
-            this.decoder = ChunkDecoderFactory.optimalInstance();
-        }
-        Loggers.getLogger(LZFCompressor.class).debug("using [{}] decoder", this.decoder.getClass().getSimpleName());
+        this.decoder = ChunkDecoderFactory.safeInstance();
+        Loggers.getLogger(LZFCompressor.class).debug("using encoder [{}] and decoder[{}] ",
+                this.decoder.getClass().getSimpleName());
     }
 
     @Override
@@ -63,20 +62,7 @@ public class LZFCompressor implements Compressor {
     }
 
     @Override
-    public void configure(Settings settings) {
-        String decoderType = settings.get("compress.lzf.decoder", null);
-        if (decoderType != null) {
-            if ("optimal".equalsIgnoreCase(decoderType)) {
-                this.decoder = ChunkDecoderFactory.optimalInstance();
-                Loggers.getLogger(LZFCompressor.class).debug("using [{}] decoder", this.decoder.getClass().getSimpleName());
-            } else if ("safe".equalsIgnoreCase(decoderType)) {
-                this.decoder = ChunkDecoderFactory.safeInstance();
-                Loggers.getLogger(LZFCompressor.class).debug("using [{}] decoder", this.decoder.getClass().getSimpleName());
-            } else {
-                Loggers.getLogger(LZFCompressor.class).warn("decoder type not recognized [{}], still using [{}]", decoderType, this.decoder.getClass().getSimpleName());
-            }
-        }
-    }
+    public void configure(Settings settings) {}
 
     @Override
     public boolean isCompressed(BytesReference bytes) {
@@ -127,7 +113,7 @@ public class LZFCompressor implements Compressor {
 
     @Override
     public byte[] compress(byte[] data, int offset, int length) throws IOException {
-        return LZFEncoder.encode(data, offset, length);
+        return LZFEncoder.safeEncode(data, offset, length);
     }
 
     @Override

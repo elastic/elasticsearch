@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregationBuilder;
@@ -136,7 +137,7 @@ public class NaNSortingTests extends ElasticsearchIntegrationTest {
         final boolean asc = randomBoolean();
         SubAggregation agg = randomFrom(SubAggregation.values());
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field(fieldName).subAggregation(agg.builder()).order(Terms.Order.aggregation(agg.sortKey(), asc)))
+                .addAggregation(terms("terms").field(fieldName).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(agg.builder()).order(Terms.Order.aggregation(agg.sortKey(), asc)))
                 .execute().actionGet();
 
         assertSearchResponse(response);

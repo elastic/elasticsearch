@@ -1,0 +1,33 @@
+---
+"Test benchmark submit":
+
+  - skip:
+        features:    "benchmark"
+
+  - do:
+      indices.create:
+        index: test_1
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+        benchmark:
+            index: test_1
+            body:
+                    "name": "my_benchmark"
+                    "competitors":
+                      -
+                        "name": "my_competitor"
+                        "requests":
+                          -
+                            "query":
+                                "match": { "_all": "*" }
+
+  - match: { status: COMPLETE }
+

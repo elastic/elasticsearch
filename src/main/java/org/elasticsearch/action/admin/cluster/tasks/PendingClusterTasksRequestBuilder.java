@@ -22,18 +22,17 @@ package org.elasticsearch.action.admin.cluster.tasks;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  */
-public class PendingClusterTasksRequestBuilder extends MasterNodeReadOperationRequestBuilder<PendingClusterTasksRequest, PendingClusterTasksResponse, PendingClusterTasksRequestBuilder> {
+public class PendingClusterTasksRequestBuilder extends MasterNodeReadOperationRequestBuilder<PendingClusterTasksRequest, PendingClusterTasksResponse, PendingClusterTasksRequestBuilder, ClusterAdminClient> {
 
     public PendingClusterTasksRequestBuilder(ClusterAdminClient client) {
-        super((InternalClusterAdminClient) client, new PendingClusterTasksRequest());
+        super(client, new PendingClusterTasksRequest());
     }
 
     @Override
     protected void doExecute(ActionListener<PendingClusterTasksResponse> listener) {
-        ((InternalClusterAdminClient) client).pendingClusterTasks(request, listener);
+        client.pendingClusterTasks(request, listener);
     }
 }

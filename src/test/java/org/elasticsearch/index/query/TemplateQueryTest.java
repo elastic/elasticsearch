@@ -19,27 +19,36 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
+import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
+import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
  * Full integration test of the template query plugin.
- * */
+ */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
@@ -55,8 +64,8 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        String scriptPath = this.getClass().getResource("config").getPath();
-        return settingsBuilder().put("path.conf", scriptPath).build();
+        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+                .put("path.conf", this.getResource("config").getPath()).build();
     }
 
     @Test
@@ -69,6 +78,41 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 2);
+    }
+
+    @Test
+    public void testTemplateInBodyWithSize() throws IOException {
+        String request = "{\n" +
+                "    \"size\":0," +
+                "    \"query\": {\n" +
+                "        \"template\": {\n" +
+                "            \"query\": {\"match_{{template}}\": {}},\n" +
+                "            \"params\" : {\n" +
+                "                \"template\" : \"all\"\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}";
+        SearchResponse sr = client().prepareSearch().setSource(request)
+                .execute().actionGet();
+        assertNoFailures(sr);
+        assertThat(sr.getHits().hits().length, equalTo(0));
+        request = "{\n" +
+                "    \"query\": {\n" +
+                "        \"template\": {\n" +
+                "            \"query\": {\"match_{{template}}\": {}},\n" +
+                "            \"params\" : {\n" +
+                "                \"template\" : \"all\"\n" +
+                "            }\n" +
+                "        }\n" +
+                "    },\n" +
+                "    \"size\":0" +
+                "}";
+
+        sr = client().prepareSearch().setSource(request)
+                .execute().actionGet();
+        assertNoFailures(sr);
+        assertThat(sr.getHits().hits().length, equalTo(0));
     }
 
     @Test
@@ -88,11 +132,10 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         vars.put("template", "all");
 
         TemplateQueryBuilder builder = new TemplateQueryBuilder(
-                "storedTemplate", vars);
+                "storedTemplate", ScriptService.ScriptType.FILE, vars);
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 2);
-
     }
 
     @Test
@@ -112,7 +155,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRawFSTemplate() throws IOException {
-        String query = "{\"template\": {\"query\": \"storedTemplate\",\"params\" : {\"template\" : \"all\"}}}";
+        String query = "{\"template\": {\"file\": \"storedTemplate\",\"params\" : {\"template\" : \"all\"}}}";
 
         SearchResponse sr = client().prepareSearch().setQuery(query).get();
         assertHitCount(sr, 2);
@@ -129,6 +172,28 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().search(searchRequest).get();
         assertHitCount(searchResponse, 2);
+    }
+
+    @Test
+    // Releates to #6318
+    public void testSearchRequestFail() throws Exception {
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indices("_all");
+        try {
+            String query = "{ \"template\" : { \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  } }";
+            BytesReference bytesRef = new BytesArray(query);
+            searchRequest.templateSource(bytesRef, false);
+            client().search(searchRequest).get();
+            fail("expected exception");
+        } catch (Throwable ex) {
+            // expected - no params
+        }
+        String query = "{ \"template\" : { \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  }, \"params\" : { \"my_size\": 1 } }";
+        BytesReference bytesRef = new BytesArray(query);
+        searchRequest.templateSource(bytesRef, false);
+
+        SearchResponse searchResponse = client().search(searchRequest).get();
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
     }
 
     @Test
@@ -153,5 +218,154 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         templateParams.put("myField", "otherField");
         searchResponse = client().prepareSearch("test").setTypes("type").setTemplateName("full-query-template").setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 1);
+    }
+
+    @Test(expected = SearchPhaseExecutionException.class)
+    public void testIndexedTemplateClient() throws Exception {
+        createIndex(ScriptService.SCRIPT_INDEX);
+        ensureGreen(ScriptService.SCRIPT_INDEX);
+
+        PutIndexedScriptResponse scriptResponse = client().preparePutIndexedScript("mustache", "testTemplate", "{" +
+                "\"template\":{" +
+                "                \"query\":{" +
+                "                   \"match\":{" +
+                "                    \"theField\" : \"{{fieldParam}}\"}" +
+                "       }" +
+                "}" +
+                "}").get();
+
+        assertTrue(scriptResponse.isCreated());
+
+        scriptResponse = client().preparePutIndexedScript("mustache", "testTemplate", "{" +
+                "\"template\":{" +
+                "                \"query\":{" +
+                "                   \"match\":{" +
+                "                    \"theField\" : \"{{fieldParam}}\"}" +
+                "       }" +
+                "}" +
+                "}").get();
+
+        assertEquals(scriptResponse.getVersion(), 2);
+
+        GetIndexedScriptResponse getResponse = client().prepareGetIndexedScript("mustache", "testTemplate").get();
+        assertTrue(getResponse.isExists());
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+
+        builders.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}"));
+        builders.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}"));
+        builders.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}"));
+        builders.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}"));
+        builders.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}"));
+
+        indexRandom(true,builders);
+
+        Map<String, String> templateParams = Maps.newHashMap();
+        templateParams.put("fieldParam", "foo");
+
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").
+                setTemplateName("testTemplate").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+        assertHitCount(searchResponse, 4);
+
+        DeleteIndexedScriptResponse deleteResponse = client().prepareDeleteIndexedScript("mustache","testTemplate").get();
+        assertTrue(deleteResponse.isFound());
+
+        getResponse = client().prepareGetIndexedScript("mustache", "testTemplate").get();
+        assertFalse(getResponse.isExists());
+
+        client().prepareSearch("test").setTypes("type").
+                setTemplateName("/template_index/mustache/1000").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+    }
+
+    @Test
+    public void testIndexedTemplate() throws Exception {
+        createIndex(ScriptService.SCRIPT_INDEX);
+        ensureGreen(ScriptService.SCRIPT_INDEX);
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "1a").setSource("{" +
+                "\"template\":{"+
+                "                \"query\":{" +
+                "                   \"match\":{" +
+                "                    \"theField\" : \"{{fieldParam}}\"}" +
+                "       }" +
+                    "}" +
+                "}"));
+        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "2").setSource("{" +
+                "\"template\":{"+
+                "                \"query\":{" +
+                "                   \"match\":{" +
+                "                    \"theField\" : \"{{fieldParam}}\"}" +
+                "       }" +
+                    "}" +
+                "}"));
+
+        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "3").setSource("{" +
+                "\"template\":{"+
+                "             \"match\":{" +
+                "                    \"theField\" : \"{{fieldParam}}\"}" +
+                "       }" +
+                "}"));
+
+
+        indexRandom(true, builders);
+
+        builders.clear();
+
+        builders.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}"));
+        builders.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}"));
+        builders.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}"));
+        builders.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}"));
+        builders.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}"));
+
+        indexRandom(true,builders);
+
+        Map<String, String> templateParams = Maps.newHashMap();
+        templateParams.put("fieldParam", "foo");
+
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").
+                setTemplateName("/mustache/1a").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+        assertHitCount(searchResponse, 4);
+
+        try {
+            client().prepareSearch("test").setTypes("type").
+                    setTemplateName("/template_index/mustache/1000").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+            fail("shouldn't get here");
+        } catch (SearchPhaseExecutionException spee) {
+            //all good
+        }
+
+        try {
+            searchResponse = client().prepareSearch("test").setTypes("type").
+                    setTemplateName("/myindex/mustache/1").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+            assertFailures(searchResponse);
+        } catch (SearchPhaseExecutionException spee) {
+            //all good
+        }
+
+        searchResponse = client().prepareSearch("test").setTypes("type").
+                setTemplateName("1a").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+        assertHitCount(searchResponse, 4);
+
+        templateParams.put("fieldParam", "bar");
+        searchResponse = client().prepareSearch("test").setTypes("type").
+                setTemplateName("/mustache/2").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+        assertHitCount(searchResponse, 1);
+
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("fieldParam", "bar");
+
+        TemplateQueryBuilder builder = new TemplateQueryBuilder(
+                "3", ScriptService.ScriptType.INDEXED, vars);
+        SearchResponse sr = client().prepareSearch().setQuery(builder)
+                .execute().actionGet();
+        assertHitCount(sr, 1);
+
+        String query = "{\"template\": {\"id\": \"3\",\"params\" : {\"fieldParam\" : \"foo\"}}}";
+        sr = client().prepareSearch().setQuery(query).get();
+        assertHitCount(sr, 4);
+
+        query = "{\"template\": {\"id\": \"/mustache/3\",\"params\" : {\"fieldParam\" : \"foo\"}}}";
+        sr = client().prepareSearch().setQuery(query).get();
+        assertHitCount(sr, 4);
     }
 }

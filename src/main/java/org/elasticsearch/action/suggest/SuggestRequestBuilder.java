@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -36,12 +35,12 @@ import java.io.IOException;
 /**
  * A suggest action request builder.
  */
-public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<SuggestRequest, SuggestResponse, SuggestRequestBuilder> {
+public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<SuggestRequest, SuggestResponse, SuggestRequestBuilder , Client> {
 
     final SuggestBuilder suggest = new SuggestBuilder();
 
     public SuggestRequestBuilder(Client client) {
-        super((InternalClient) client, new SuggestRequest());
+        super(client, new SuggestRequest());
     }
 
     /**
@@ -94,6 +93,6 @@ public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<Sugg
             throw new ElasticsearchException("Unable to build suggestion request", e);
         }
 
-        ((InternalClient) client).suggest(request, listener);
+        client.suggest(request, listener);
     }
 }

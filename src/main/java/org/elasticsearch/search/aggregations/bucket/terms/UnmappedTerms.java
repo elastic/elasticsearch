@@ -22,10 +22,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -35,7 +36,7 @@ public class UnmappedTerms extends InternalTerms {
 
     public static final Type TYPE = new Type("terms", "umterms");
 
-    private static final Collection<Bucket> BUCKETS = Collections.emptyList();
+    private static final List<Bucket> BUCKETS = Collections.emptyList();
     private static final Map<String, Bucket> BUCKETS_MAP = Collections.emptyMap();
 
     public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
@@ -53,8 +54,8 @@ public class UnmappedTerms extends InternalTerms {
 
     UnmappedTerms() {} // for serialization
 
-    public UnmappedTerms(String name, InternalOrder order, int requiredSize, long minDocCount) {
-        super(name, order, requiredSize, minDocCount, BUCKETS);
+    public UnmappedTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount) {
+        super(name, order, requiredSize, shardSize, minDocCount, BUCKETS, false, 0);
     }
 
     @Override
@@ -65,6 +66,7 @@ public class UnmappedTerms extends InternalTerms {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         this.name = in.readString();
+        this.docCountError = 0;
         this.order = InternalOrder.Streams.readOrder(in);
         this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
@@ -81,10 +83,24 @@ public class UnmappedTerms extends InternalTerms {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+    public InternalAggregation reduce(ReduceContext reduceContext) {
+        for (InternalAggregation agg : reduceContext.aggregations()) {
+            if (!(agg instanceof UnmappedTerms)) {
+                return agg.reduce(reduceContext);
+            }
+        }
+        return this;
+    }
+
+    @Override
+    protected InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError) {
+        throw new UnsupportedOperationException("How did you get there?");
+    }
+
+    @Override
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
         builder.startArray(CommonFields.BUCKETS).endArray();
-        builder.endObject();
         return builder;
     }
 

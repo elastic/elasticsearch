@@ -112,11 +112,11 @@ public class FunctionScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
+        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             // we ignore scoreDocsInOrder parameter, because we need to score in
             // order if documents are scored with a script. The
             // ShardLookup depends on in order scoring.
-            Scorer subQueryScorer = subQueryWeight.scorer(context, true, false, acceptDocs);
+            Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs);
             if (subQueryScorer == null) {
                 return null;
             }
@@ -131,7 +131,7 @@ public class FunctionScoreQuery extends Query {
                 return subQueryExpl;
             }
             function.setNextReader(context);
-            Explanation functionExplanation = function.explainScore(doc, subQueryExpl);
+            Explanation functionExplanation = function.explainScore(doc, subQueryExpl.getValue());
             return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
         }
     }

@@ -24,15 +24,13 @@ import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.search.spell.SuggestWord;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.suggest.SuggestUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 //TODO public for tests
 public final class DirectCandidateGenerator extends CandidateGenerator {
@@ -49,8 +47,8 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     private final Analyzer postFilter;
     private final double nonErrorLikelihood;
     private final boolean useTotalTermFrequency;
-    private final CharsRef spare = new CharsRef();
-    private final BytesRef byteSpare = new BytesRef();
+    private final CharsRefBuilder spare = new CharsRefBuilder();
+    private final BytesRefBuilder byteSpare = new BytesRefBuilder();
     private final int numCandidates;
     
     public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood, int numCandidates) throws IOException {
@@ -127,11 +125,11 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         return set;
     }
     
-    protected BytesRef preFilter(final BytesRef term, final CharsRef spare, final BytesRef byteSpare) throws IOException {
+    protected BytesRef preFilter(final BytesRef term, final CharsRefBuilder spare, final BytesRefBuilder byteSpare) throws IOException {
         if (preFilter == null) {
             return term;
         }
-        final BytesRef result = byteSpare;
+        final BytesRefBuilder result = byteSpare;
         SuggestUtils.analyze(preFilter, term, field, new SuggestUtils.TokenConsumer() {
             
             @Override
@@ -139,25 +137,25 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
                 this.fillBytesRef(result);
             }
         }, spare);
-        return result;
+        return result.get();
     }
     
-    protected void postFilter(final Candidate candidate, final CharsRef spare, BytesRef byteSpare, final List<Candidate> candidates) throws IOException {
+    protected void postFilter(final Candidate candidate, final CharsRefBuilder spare, BytesRefBuilder byteSpare, final List<Candidate> candidates) throws IOException {
         if (postFilter == null) {
             candidates.add(candidate);
         } else {
-            final BytesRef result = byteSpare;
+            final BytesRefBuilder result = byteSpare;
             SuggestUtils.analyze(postFilter, candidate.term, field, new SuggestUtils.TokenConsumer() {
                 @Override
                 public void nextToken() throws IOException {
                     this.fillBytesRef(result);
                     
-                    if (posIncAttr.getPositionIncrement() > 0 && result.bytesEquals(candidate.term))  {
-                        BytesRef term = BytesRef.deepCopyOf(result);    
+                    if (posIncAttr.getPositionIncrement() > 0 && result.get().bytesEquals(candidate.term))  {
+                        BytesRef term = result.toBytesRef();
                         long freq = frequency(term);
-                        candidates.add(new Candidate(BytesRef.deepCopyOf(term), freq, candidate.stringDistance, score(candidate.frequency, candidate.stringDistance, dictSize), false));
+                        candidates.add(new Candidate(result.toBytesRef(), freq, candidate.stringDistance, score(candidate.frequency, candidate.stringDistance, dictSize), false));
                     } else {
-                        candidates.add(new Candidate(BytesRef.deepCopyOf(result), candidate.frequency, nonErrorLikelihood, score(candidate.frequency, candidate.stringDistance, dictSize), false));
+                        candidates.add(new Candidate(result.toBytesRef(), candidate.frequency, nonErrorLikelihood, score(candidate.frequency, candidate.stringDistance, dictSize), false));
                     }
                 }
             }, spare);
@@ -186,11 +184,15 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         }
         
         public void addCandidates(List<Candidate> candidates) {
+            // Merge new candidates into existing ones,
+            // deduping:
             final Set<Candidate> set = new HashSet<>(candidates);
             for (int i = 0; i < this.candidates.length; i++) {
                 set.add(this.candidates[i]);
             }
             this.candidates = set.toArray(new Candidate[set.size()]);
+            // Sort strongest to weakest:
+            Arrays.sort(this.candidates, Collections.reverseOrder());
         }
 
         public void addOneCandidate(Candidate candidate) {
@@ -202,7 +204,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
 
     }
 
-    public static class Candidate {
+    public static class Candidate implements Comparable<Candidate> {
         public static final Candidate[] EMPTY = new Candidate[0];
         public final BytesRef term;
         public final double stringDistance;
@@ -220,7 +222,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
 
         @Override
         public String toString() {
-            return "Candidate [term=" + term.utf8ToString() + ", stringDistance=" + stringDistance + ", frequency=" + frequency + 
+            return "Candidate [term=" + term.utf8ToString() + ", stringDistance=" + stringDistance + ", score=" + score + ", frequency=" + frequency + 
                     (userInput ? ", userInput" : "" ) + "]";
         }
 
@@ -247,6 +249,17 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
             } else if (!term.equals(other.term))
                 return false;
             return true;
+        }
+
+        /** Lower scores sort first; if scores are equal, then later (zzz) terms sort first */
+        @Override
+        public int compareTo(Candidate other) {
+            if (score == other.score) {
+                // Later (zzz) terms sort before earlier (aaa) terms:
+                return other.term.compareTo(term);
+            } else {
+                return Double.compare(score, other.score);
+            }
         }
     }
 

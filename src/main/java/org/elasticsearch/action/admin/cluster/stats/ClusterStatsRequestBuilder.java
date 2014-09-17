@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  *
@@ -30,11 +29,11 @@ import org.elasticsearch.client.internal.InternalClusterAdminClient;
 public class ClusterStatsRequestBuilder extends NodesOperationRequestBuilder<ClusterStatsRequest, ClusterStatsResponse, ClusterStatsRequestBuilder> {
 
     public ClusterStatsRequestBuilder(ClusterAdminClient clusterClient) {
-        super((InternalClusterAdminClient) clusterClient, new ClusterStatsRequest());
+        super(clusterClient, new ClusterStatsRequest());
     }
 
     @Override
     protected void doExecute(ActionListener<ClusterStatsResponse> listener) {
-        ((ClusterAdminClient) client).clusterStats(request, listener);
+        client.clusterStats(request, listener);
     }
 }

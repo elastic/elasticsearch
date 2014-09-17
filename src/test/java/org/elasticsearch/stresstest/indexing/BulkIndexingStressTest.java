@@ -19,7 +19,6 @@
 
 package org.elasticsearch.stresstest.indexing;
 
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -29,6 +28,8 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
+
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  */

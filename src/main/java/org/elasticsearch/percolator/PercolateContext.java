@@ -23,18 +23,16 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
@@ -54,7 +52,6 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
@@ -88,11 +85,11 @@ public class PercolateContext extends SearchContext {
     private final IndexService indexService;
     private final IndexFieldDataService fieldDataService;
     private final IndexShard indexShard;
-    private final CacheRecycler cacheRecycler;
     private final PageCacheRecycler pageCacheRecycler;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
-    private final ConcurrentMap<HashedBytesRef, Query> percolateQueries;
+    private final ConcurrentMap<BytesRef, Query> percolateQueries;
+    private final int numberOfShards;
     private String[] types;
 
     private Engine.Searcher docSearcher;
@@ -106,13 +103,12 @@ public class PercolateContext extends SearchContext {
     private boolean queryRewritten;
     private Query percolateQuery;
     private FetchSubPhase.HitContext hitContext;
-    private SearchContextFacets facets;
     private SearchContextAggregations aggregations;
     private QuerySearchResult querySearchResult;
     private Sort sort;
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
-                            IndexService indexService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler,
+                            IndexService indexService, PageCacheRecycler pageCacheRecycler,
                             BigArrays bigArrays, ScriptService scriptService) {
         this.indexShard = indexShard;
         this.indexService = indexService;
@@ -120,13 +116,13 @@ public class PercolateContext extends SearchContext {
         this.searchShardTarget = searchShardTarget;
         this.percolateQueries = indexShard.percolateRegistry().percolateQueries();
         this.types = new String[]{request.documentType()};
-        this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
-        this.bigArrays = bigArrays;
+        this.bigArrays = bigArrays.withCircuitBreaking();
         this.querySearchResult = new QuerySearchResult(0, searchShardTarget);
         this.engineSearcher = indexShard.acquireSearcher("percolate");
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
         this.scriptService = scriptService;
+        this.numberOfShards = request.getNumberOfShards();
     }
 
     public IndexSearcher docSearcher() {
@@ -160,7 +156,7 @@ public class PercolateContext extends SearchContext {
         return indexService;
     }
 
-    public ConcurrentMap<HashedBytesRef, Query> percolateQueries() {
+    public ConcurrentMap<BytesRef, Query> percolateQueries() {
         return percolateQueries;
     }
 
@@ -208,13 +204,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     protected void doClose() {
-        try (Releasable releasable = Releasables.wrap(engineSearcher, docSearcher)) {
-            if (docSearcher != null) {
-                IndexReader indexReader = docSearcher.reader();
-                fieldDataService.clear(indexReader);
-                indexService.cache().clear(indexReader);
-            }
-        }
+        Releasables.close(engineSearcher, docSearcher);
     }
 
     @Override
@@ -278,17 +268,6 @@ public class PercolateContext extends SearchContext {
         return this;
     }
 
-    @Override
-    public SearchContextFacets facets() {
-        return facets;
-    }
-
-    @Override
-    public SearchContext facets(SearchContextFacets facets) {
-        this.facets = facets;
-        return this;
-    }
-
     // Unused:
     @Override
     public void preProcess() {
@@ -327,7 +306,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public int numberOfShards() {
-        throw new UnsupportedOperationException();
+        return numberOfShards;
     }
 
     @Override
@@ -346,7 +325,7 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public long nowInMillis() {
+    protected long nowInMillisImpl() {
         throw new UnsupportedOperationException();
     }
 
@@ -456,11 +435,6 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public CacheRecycler cacheRecycler() {
-        return cacheRecycler;
-    }
-
-    @Override
     public PageCacheRecycler pageCacheRecycler() {
         return pageCacheRecycler;
     }
@@ -476,8 +450,8 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public DocSetCache docSetCache() {
-        return indexService.cache().docSet();
+    public FixedBitSetFilterCache fixedBitSetFilterCache() {
+        return indexService.fixedBitSetFilterCache();
     }
 
     @Override
@@ -487,6 +461,16 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public void timeoutInMillis(long timeoutInMillis) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int terminateAfter() {
+        return DEFAULT_TERMINATE_AFTER;
+    }
+
+    @Override
+    public void terminateAfter(int terminateAfter) {
         throw new UnsupportedOperationException();
     }
 

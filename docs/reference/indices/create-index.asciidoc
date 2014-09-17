@@ -18,10 +18,12 @@ $ curl -XPUT 'http://localhost:9200/twitter/'
 
 $ curl -XPUT 'http://localhost:9200/twitter/' -d '
 index :
-    number_of_shards : 3
-    number_of_replicas : 2
+    number_of_shards : 3 <1>
+    number_of_replicas : 2 <2>
 '
 --------------------------------------------------
+<1> Default for `number_of_shards` is 5
+<2> Default for `number_of_replicas` is 1 (ie one replica for each primary shard)
 
 The above second curl example shows how an index called `twitter` can be
 created with specific settings for it using http://www.yaml.org[YAML].
@@ -127,3 +129,21 @@ curl -XPUT localhost:9200/test -d '{
     }
 }'
 --------------------------------------------------
+
+[float]
+=== Creation Date
+
+coming[1.4.0]
+
+When an index is created, a timestamp is stored in the index metadata for the creation date.  By 
+default this it is automatically generated but it can also be specified using the 
+`creation_date` parameter on the create index API:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/test -d '{
+    "creation_date" : 1407751337000 <1>
+}'
+--------------------------------------------------
+
+<1> `creation_date` is set using epoch time in milliseconds.

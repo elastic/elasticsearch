@@ -81,7 +81,7 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         CloseIndexResponse closeIndexResponse = client.admin().indices().prepareClose("test1", "test2")
-                .setIndicesOptions(IndicesOptions.lenient()).execute().actionGet();
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsClosed("test1");
     }
@@ -102,7 +102,7 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         OpenIndexResponse openIndexResponse = client.admin().indices().prepareOpen("test1", "test2")
-                .setIndicesOptions(IndicesOptions.lenient()).execute().actionGet();
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
         assertThat(openIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsOpened("test1");
     }

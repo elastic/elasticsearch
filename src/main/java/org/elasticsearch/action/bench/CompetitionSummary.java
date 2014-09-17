@@ -34,10 +34,15 @@ import java.util.*;
  *
  * Statistics are calculated over all iteration results for all nodes
  * that executed the competition.
+ *
+ * Since values are calculated lazily on first access, users of this class
+ * should first call computeSummaryStatistics() prior to accessing individual
+ * measurements.
  */
 public class CompetitionSummary implements ToXContent {
 
     private List<CompetitionNodeResult> nodeResults;
+    private boolean computed = false;
 
     private long min = 0;
     private long max = 0;
@@ -54,9 +59,9 @@ public class CompetitionSummary implements ToXContent {
     private double stdDeviation = 0.0;
     private double queriesPerSecond = 0.0;
     private double[] percentiles;
-    private Map<Double, Double> percentileValues = new TreeMap<>();
+    Map<Double, Double> percentileValues = new TreeMap<>();
 
-    List<Tuple<String, CompetitionIteration.SlowRequest>> slowest = new ArrayList<>();
+    private List<Tuple<String, CompetitionIteration.SlowRequest>> slowest = new ArrayList<>();
 
     public CompetitionSummary() { }
 
@@ -67,10 +72,26 @@ public class CompetitionSummary implements ToXContent {
         this.percentiles = percentiles;
     }
 
-    private void computeSummaryStatistics() {
+    /**
+     * Gets node-level competition results
+     * @return  A list of node-level competition results
+     */
+    public List<CompetitionNodeResult> nodeResults() {
+        return nodeResults;
+    }
+
+    /**
+     * Calculates statistical measures from raw measurements. Should be called prior to accessing
+     * individual measurements.
+     */
+    public void computeSummaryStatistics() {
+
+        if (computed) {
+            return;
+        }
 
         long totalWarmupTime = 0;
-        SinglePassStatistics single = new SinglePassStatistics();
+        final SinglePassStatistics single = new SinglePassStatistics();
 
         for (CompetitionNodeResult nodeResult : nodeResults) {
 
@@ -122,6 +143,7 @@ public class CompetitionSummary implements ToXContent {
                 return Long.compare(o2.v2().maxTimeTaken(), o1.v2().maxTimeTaken());
             }
         });
+        computed = true;
     }
 
     @Override
@@ -159,8 +181,8 @@ public class CompetitionSummary implements ToXContent {
 
         builder.endObject();
 
-        builder.startArray(Fields.SLOWEST);
         if (totalIterations > 0 && slowest.size() > 0) {
+            builder.startArray(Fields.SLOWEST);
             int n = (int) (slowest.size() / totalIterations);
             for (int i = 0; i < n; i++) {
                 builder.startObject();
@@ -168,11 +190,155 @@ public class CompetitionSummary implements ToXContent {
                 slowest.get(i).v2().toXContent(builder, params);
                 builder.endObject();
             }
+            builder.endArray();
         }
-        builder.endArray();
 
         builder.endObject();
         return builder;
+    }
+
+    /**
+     * List of per-node competition results
+     * @return  Per-node competition results
+     */
+    public List<CompetitionNodeResult> getNodeResults() {
+        return nodeResults;
+    }
+
+    /**
+     * Shortest execution time of any search
+     * @return  Shortest execution time of any search
+     */
+    public long getMin() {
+        return min;
+    }
+
+    /**
+     * Longest execution time of any search
+     * @return  Longest execution time of any search
+     */
+    public long getMax() {
+        return max;
+    }
+
+    /**
+     * Total execution time
+     * @return  Total execution time
+     */
+    public long getTotalTime() {
+        return totalTime;
+    }
+
+    /**
+     * Total hit count
+     * @return  Total hit count
+     */
+    public long getSumTotalHits() {
+        return sumTotalHits;
+    }
+
+    /**
+     * Number of requested iterations
+     * @return  Number of requested iterations
+     */
+    public long getTotalIterations() {
+        return totalIterations;
+    }
+
+    /**
+     * Number of iterations actually completed
+     * @return  Number of iterations actually completed
+     */
+    public long getCompletedIterations() {
+        return completedIterations;
+    }
+
+    /**
+     * Total number of queries actually executed
+     * @return  Number of queries actually executed
+     */
+    public long getTotalQueries() {
+        return totalQueries;
+    }
+
+    /**
+     * Mean average of warmup times across all nodes
+     * @return  Average warmup time
+     */
+    public double getAvgWarmupTime() {
+        return avgWarmupTime;
+    }
+
+    /**
+     * Number of concurrent searches
+     * @return  Concurrency
+     */
+    public int getConcurrency() {
+        return concurrency;
+    }
+
+    /**
+     * Loop multiplier
+     * @return  Multiplier
+     */
+    public int getMultiplier() {
+        return multiplier;
+    }
+
+    /**
+     * Mean average
+     * @return  Mean average
+     */
+    public double getMean() {
+        return mean;
+    }
+
+    /**
+     * Total time considered as a percentage of total hits
+     * @return  Milliseconds-per-hit
+     */
+    public double getMillisPerHit() {
+        return millisPerHit;
+    }
+
+    /**
+     * Standard deviation from the mean of all measurements
+     * @return  Standard deviation
+     */
+    public double getStdDeviation() {
+        return stdDeviation;
+    }
+
+    /**
+     * Measurement of the queries-per-second calculated as: numQueries * (1000.0 / totalTime)
+     * @return  Queries-per-second
+     */
+    public double getQueriesPerSecond() {
+        return queriesPerSecond;
+    }
+
+    /**
+     * The user-requested percentiles to measure
+     * @return  Array of percentiles to measure
+     */
+    public double[] getPercentiles() {
+        return percentiles;
+    }
+
+    /**
+     * A map of percentiles and their measurements.
+     * @return  A map of entries of (percentile, measurement)
+     */
+    public Map<Double, Double> getPercentileValues() {
+        return percentileValues;
+    }
+
+    /**
+     * A list of the N slowest requests and the node that each executed on.
+     * @return  A list of pairs of (node, request)
+     */
+    public List<Tuple<String, CompetitionIteration.SlowRequest>> getSlowest() {
+        return slowest;
     }
 
     static final class Fields {

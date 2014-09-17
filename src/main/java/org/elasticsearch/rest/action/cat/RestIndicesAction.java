@@ -27,16 +27,14 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -48,8 +46,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestIndicesAction extends AbstractCatAction {
 
     @Inject
-    public RestIndicesAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestIndicesAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/indices", this);
         controller.registerHandler(GET, "/_cat/indices/{index}", this);
     }
@@ -61,7 +59,7 @@ public class RestIndicesAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().indices(indices).metaData(true);
@@ -71,7 +69,7 @@ public class RestIndicesAction extends AbstractCatAction {
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndicesIgnoreMissing(indices);
+                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), indices);
                 ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(concreteIndices);
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
                 client.admin().cluster().health(clusterHealthRequest, new RestActionListener<ClusterHealthResponse>(channel) {
@@ -121,6 +119,18 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("filter_cache.evictions", "sibling:pri;alias:fce,filterCacheEvictions;default:false;text-align:right;desc:filter cache evictions");
         table.addCell("pri.filter_cache.evictions", "default:false;text-align:right;desc:filter cache evictions");
+
+        table.addCell("query_cache.memory_size", "sibling:pri;alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
+        table.addCell("pri.query_cache.memory_size", "default:false;text-align:right;desc:used query cache");
+
+        table.addCell("query_cache.evictions", "sibling:pri;alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("pri.query_cache.evictions", "default:false;text-align:right;desc:query cache evictions");
+
+        table.addCell("query_cache.hit_count", "sibling:pri;alias:qchc,queryCacheHitCount;default:false;text-align:right;desc:query cache hit count");
+        table.addCell("pri.query_cache.hit_count", "default:false;text-align:right;desc:query cache hit count");
+
+        table.addCell("query_cache.miss_count", "sibling:pri;alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:query cache miss count");
+        table.addCell("pri.query_cache.miss_count", "default:false;text-align:right;desc:query cache miss count");
 
         table.addCell("flush.total", "sibling:pri;alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
         table.addCell("pri.flush.total", "default:false;text-align:right;desc:number of flushes");
@@ -239,6 +249,18 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("segments.memory", "sibling:pri;alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
         table.addCell("pri.segments.memory", "default:false;text-align:right;desc:memory used by segments");
 
+        table.addCell("segments.index_writer_memory", "sibling:pri;alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
+        table.addCell("pri.segments.index_writer_memory", "default:false;text-align:right;desc:memory used by index writer");
+
+        table.addCell("segments.index_writer_max_memory", "sibling:pri;alias:siwmx,segmentsIndexWriterMaxMemory;default:false;text-align:right;desc:maximum memory index writer may use before it must write buffered documents to a new segment");
+        table.addCell("pri.segments.index_writer_max_memory", "default:false;text-align:right;desc:maximum memory index writer may use before it must write buffered documents to a new segment");
+
+        table.addCell("segments.version_map_memory", "sibling:pri;alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
+        table.addCell("pri.segments.version_map_memory", "default:false;text-align:right;desc:memory used by version map");
+
+        table.addCell("segments.fixed_bitset_memory", "sibling:pri;alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields");
+        table.addCell("pri.segments.fixed_bitset_memory", "default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields");
+
         table.addCell("warmer.current", "sibling:pri;alias:wc,warmerCurrent;default:false;text-align:right;desc:current warmer ops");
         table.addCell("pri.warmer.current", "default:false;text-align:right;desc:current warmer ops");
 
@@ -294,6 +316,18 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getFilterCache().getEvictions());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFilterCache().getEvictions());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getQueryCache().getMemorySize());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getQueryCache().getMemorySize());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getQueryCache().getEvictions());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getQueryCache().getEvictions());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getQueryCache().getHitCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getQueryCache().getHitCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getQueryCache().getMissCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getQueryCache().getMissCount());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getFlush().getTotal());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getFlush().getTotal());
@@ -411,6 +445,18 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getMemory());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getMemory());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getIndexWriterMemory());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getIndexWriterMemory());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getIndexWriterMaxMemory());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getIndexWriterMaxMemory());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getVersionMapMemory());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getVersionMapMemory());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getFixedBitSetMemory());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getFixedBitSetMemory());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getWarmer().current());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().current());

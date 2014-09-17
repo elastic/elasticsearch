@@ -19,33 +19,50 @@
 
 package org.elasticsearch.http;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.Modules;
-import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.netty.NettyHttpServerTransportModule;
+import org.elasticsearch.http.netty.NettyHttpServerTransport;
+import org.elasticsearch.plugins.Plugin;
+
+import static org.elasticsearch.common.Preconditions.checkNotNull;
 
 /**
  *
  */
-public class HttpServerModule extends AbstractModule implements SpawnModules {
+public class HttpServerModule extends AbstractModule {
 
     private final Settings settings;
+    private final ESLogger logger;
+
+    private Class<? extends HttpServerTransport> configuredHttpServerTransport;
+    private String configuredHttpServerTransportSource;
 
     public HttpServerModule(Settings settings) {
         this.settings = settings;
-    }
-
-    @Override
-    public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(Modules.createModule(settings.getAsClass("http.type", NettyHttpServerTransportModule.class, "org.elasticsearch.http.", "HttpServerTransportModule"), settings));
+        this.logger = Loggers.getLogger(getClass(), settings);
     }
 
     @SuppressWarnings({"unchecked"})
     @Override
     protected void configure() {
+        if (configuredHttpServerTransport != null) {
+            logger.info("Using [{}] as http transport, overridden by [{}]", configuredHttpServerTransport.getName(), configuredHttpServerTransportSource);
+            bind(HttpServerTransport.class).to(configuredHttpServerTransport).asEagerSingleton();
+        } else {
+            Class<? extends HttpServerTransport> defaultHttpServerTransport = NettyHttpServerTransport.class;
+            Class<? extends HttpServerTransport> httpServerTransport = settings.getAsClass("http.type", defaultHttpServerTransport, "org.elasticsearch.http.", "HttpServerTransport");
+            bind(HttpServerTransport.class).to(httpServerTransport).asEagerSingleton();
+        }
+
         bind(HttpServer.class).asEagerSingleton();
+    }
+
+    public void setHttpServerTransport(Class<? extends HttpServerTransport> httpServerTransport, String source) {
+        checkNotNull(httpServerTransport, "Configured http server transport may not be null");
+        checkNotNull(source, "Plugin, that changes transport may not be null");
+        this.configuredHttpServerTransport = httpServerTransport;
+        this.configuredHttpServerTransportSource = source;
     }
 }

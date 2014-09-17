@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.hppc.IntObjectOpenHashMap;
-import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -49,10 +48,6 @@ public class NumericLongAnalyzer extends NumericAnalyzer<NumericLongTokenizer> {
     }
 
     private final int precisionStep;
-
-    public NumericLongAnalyzer() {
-        this(NumericUtils.PRECISION_STEP_DEFAULT);
-    }
 
     public NumericLongAnalyzer(int precisionStep) {
         this.precisionStep = precisionStep;

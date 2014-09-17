@@ -125,4 +125,36 @@ public class WordDelimiterTokenFilterFactoryTests extends ElasticsearchTokenStre
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
+    /** Correct offset order when doing both parts and concatenation: PowerShot is a synonym of Power */
+    @Test
+    public void testPartsAndCatenate() throws IOException {
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+                .put("index.analysis.filter.my_word_delimiter.type", "word_delimiter")
+                .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
+                .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
+                .build());
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_word_delimiter");
+        String source = "PowerShot";
+        String[] expected = new String[]{"Power", "PowerShot", "Shot" };
+        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+                    assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
+    }
+     
+    /** Back compat: 
+     * old offset order when doing both parts and concatenation: PowerShot is a synonym of Shot */
+    @Test
+    public void testDeprecatedPartsAndCatenate() throws IOException {
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+                .put("index.analysis.filter.my_word_delimiter.type", "word_delimiter")
+                .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
+                .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
+                .put("index.analysis.filter.my_word_delimiter.version", "4.7")
+                .build());
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_word_delimiter");
+        String source = "PowerShot";
+        String[] expected = new String[]{"Power", "Shot", "PowerShot" };
+        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+                    assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
+    }
+
 }

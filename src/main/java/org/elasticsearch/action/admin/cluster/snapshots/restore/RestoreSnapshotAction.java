@@ -28,7 +28,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class RestoreSnapshotAction extends ClusterAction<RestoreSnapshotRequest, RestoreSnapshotResponse, RestoreSnapshotRequestBuilder> {
 
     public static final RestoreSnapshotAction INSTANCE = new RestoreSnapshotAction();
-    public static final String NAME = "cluster/snapshot/restore";
+    public static final String NAME = "cluster:admin/snapshot/restore";
 
     private RestoreSnapshotAction() {
         super(NAME);

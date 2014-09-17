@@ -33,6 +33,8 @@ public interface ScriptEngineService {
 
     String[] extensions();
 
+    boolean sandboxed();
+
     Object compile(String script);
 
     ExecutableScript executable(Object compiledScript, @Nullable Map<String, Object> vars);

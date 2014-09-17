@@ -1,0 +1,16 @@
+---
+"Basic /_search_shards test":
+  - do:
+      indices.create:
+        index: test_1
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      search_shards:
+        index:  test_1
+        routing: foo
+
+  - match: { shards.0.0.index: test_1 }

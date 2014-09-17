@@ -27,17 +27,15 @@ import java.util.List;
 
 /**
  * A filter that matches documents matching boolean combinations of other filters.
- *
- *
  */
 public class BoolFilterBuilder extends BaseFilterBuilder {
-    
+
     private ArrayList<FilterBuilder> mustClauses = new ArrayList<>();
 
     private ArrayList<FilterBuilder> mustNotClauses = new ArrayList<>();
 
     private ArrayList<FilterBuilder> shouldClauses = new ArrayList<>();
-    
+
     private Boolean cache;
     private String cacheKey;
 
@@ -47,27 +45,27 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
      * Adds a filter that <b>must</b> appear in the matching documents.
      */
     public BoolFilterBuilder must(FilterBuilder filterBuilder) {
-    	mustClauses.add(filterBuilder);
-    	return this;
+        mustClauses.add(filterBuilder);
+        return this;
     }
 
     /**
      * Adds a filter that <b>must not</b> appear in the matching documents.
      */
     public BoolFilterBuilder mustNot(FilterBuilder filterBuilder) {
-    	mustNotClauses.add(filterBuilder);
-    	return this;
+        mustNotClauses.add(filterBuilder);
+        return this;
     }
 
-    
+
     /**
      * Adds a filter that <i>should</i> appear in the matching documents. For a boolean filter
      * with no <tt>MUST</tt> clauses one or more <code>SHOULD</code> clauses must match a document
      * for the BooleanQuery to match.
      */
     public BoolFilterBuilder should(FilterBuilder filterBuilder) {
-    	shouldClauses.add(filterBuilder);
-    	return this;
+        shouldClauses.add(filterBuilder);
+        return this;
     }
 
     /**
@@ -75,7 +73,7 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
      */
     public BoolFilterBuilder must(FilterBuilder... filterBuilders) {
         for (FilterBuilder fb : filterBuilders) {
-        	mustClauses.add(fb);
+            mustClauses.add(fb);
         }
         return this;
     }
@@ -85,7 +83,7 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
      */
     public BoolFilterBuilder mustNot(FilterBuilder... filterBuilders) {
         for (FilterBuilder fb : filterBuilders) {
-        	mustNotClauses.add(fb);
+            mustNotClauses.add(fb);
         }
         return this;
     }
@@ -95,7 +93,7 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
      */
     public BoolFilterBuilder should(FilterBuilder... filterBuilders) {
         for (FilterBuilder fb : filterBuilders) {
-        	shouldClauses.add(fb);
+            shouldClauses.add(fb);
         }
         return this;
     }
@@ -107,7 +105,7 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
     public boolean hasClauses() {
         return !(mustClauses.isEmpty() && shouldClauses.isEmpty() && mustNotClauses.isEmpty());
     }
-    
+
     /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */
@@ -135,7 +133,7 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
         doXArrayContent("must", mustClauses, builder, params);
         doXArrayContent("must_not", mustNotClauses, builder, params);
         doXArrayContent("should", shouldClauses, builder, params);
-        
+
         if (filterName != null) {
             builder.field("_name", filterName);
         }

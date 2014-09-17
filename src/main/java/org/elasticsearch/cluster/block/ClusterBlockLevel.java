@@ -21,6 +21,8 @@ package org.elasticsearch.cluster.block;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
+import java.util.EnumSet;
+
 /**
  *
  */
@@ -29,8 +31,8 @@ public enum ClusterBlockLevel {
     WRITE(1),
     METADATA(2);
 
-    public static final ClusterBlockLevel[] ALL = new ClusterBlockLevel[]{READ, WRITE, METADATA};
-    public static final ClusterBlockLevel[] READ_WRITE = new ClusterBlockLevel[]{READ, WRITE};
+    public static final EnumSet<ClusterBlockLevel> ALL = EnumSet.of(READ, WRITE, METADATA);
+    public static final EnumSet<ClusterBlockLevel> READ_WRITE = EnumSet.of(READ, WRITE);
 
     private final int id;
 

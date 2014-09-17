@@ -1,5 +1,5 @@
 [[cat-health]]
-== Health
+== cat health
 
 `health` is a terse, one-line representation of the same information
 from `/_cluster/health`. It has one option `ts` to disable the

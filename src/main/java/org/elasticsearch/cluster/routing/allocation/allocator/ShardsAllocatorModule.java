@@ -26,7 +26,7 @@ import org.elasticsearch.gateway.none.NoneGatewayAllocator;
 /**
  */
 public class ShardsAllocatorModule extends AbstractModule {
-	
+
     public static final String EVEN_SHARD_COUNT_ALLOCATOR_KEY = "even_shard";
 
     public static final String BALANCED_ALLOCATOR_KEY = "balanced"; // default
@@ -60,7 +60,7 @@ public class ShardsAllocatorModule extends AbstractModule {
         bind(GatewayAllocator.class).to(gatewayAllocator).asEagerSingleton();
         bind(ShardsAllocator.class).to(shardsAllocator).asEagerSingleton();
     }
-    
+
     private Class<? extends ShardsAllocator> loadShardsAllocator(Settings settings) {
         final Class<? extends ShardsAllocator> shardsAllocator;
         final String type = settings.get(TYPE_KEY, BALANCED_ALLOCATOR_KEY);

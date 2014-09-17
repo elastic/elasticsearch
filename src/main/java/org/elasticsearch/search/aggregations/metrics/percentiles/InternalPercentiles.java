@@ -20,21 +20,16 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
+import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 
 /**
 *
 */
-public class InternalPercentiles extends MetricsAggregation.MultiValue implements Percentiles {
+public class InternalPercentiles extends AbstractInternalPercentiles implements Percentiles {
 
     public final static Type TYPE = new Type("percentiles");
 
@@ -51,20 +46,29 @@ public class InternalPercentiles extends MetricsAggregation.MultiValue implement
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    private PercentilesEstimator.Result result;
-    private boolean keyed;
-
     InternalPercentiles() {} // for serialization
 
-    public InternalPercentiles(String name, PercentilesEstimator.Result result, boolean keyed) {
-        super(name);
-        this.result = result;
-        this.keyed = keyed;
+    public InternalPercentiles(String name, double[] percents, TDigestState state, boolean keyed) {
+        super(name, percents, state, keyed);
     }
 
     @Override
-    public double value(String name) {
-        return result.estimate(Double.valueOf(name));
+    public Iterator<Percentile> iterator() {
+        return new Iter(keys, state);
+    }
+
+    @Override
+    public double percentile(double percent) {
+        return state.quantile(percent / 100);
+    }
+
+    @Override
+    public double value(double key) {
+        return percentile(key);
+    }
+
+    protected AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed) {
+        return new InternalPercentiles(name, keys, merged, keyed);
     }
 
     @Override
@@ -72,119 +76,28 @@ public class InternalPercentiles extends MetricsAggregation.MultiValue implement
         return TYPE;
     }
 
-    @Override
-    public double percentile(double percent) {
-        return result.estimate(percent);
-    }
+    public static class Iter extends UnmodifiableIterator<Percentile> {
 
-    @Override
-    public Iterator<Percentiles.Percentile> iterator() {
-        return new Iter(result);
-    }
-
-    @Override
-    public InternalPercentiles reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
-        InternalPercentiles first = (InternalPercentiles) aggregations.get(0);
-        if (aggregations.size() == 1) {
-            return first;
-        }
-        PercentilesEstimator.Result.Merger merger = first.result.merger(aggregations.size());
-        for (InternalAggregation aggregation : aggregations) {
-            merger.add(((InternalPercentiles) aggregation).result);
-        }
-        first.result = merger.merge();
-        return first;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        valueFormatter = ValueFormatterStreams.readOptional(in);
-        result = PercentilesEstimator.Streams.read(in);
-        keyed = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
-        PercentilesEstimator.Streams.write(result, out);
-        out.writeBoolean(keyed);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        double[] percents = result.percents;
-        if (keyed) {
-            builder.startObject(name);
-            for(int i = 0; i < percents.length; ++i) {
-                String key = String.valueOf(percents[i]);
-                double value = result.estimate(i);
-                builder.field(key, value);
-                if (valueFormatter != null) {
-                    builder.field(key + "_as_string", valueFormatter.format(value));
-                }
-            }
-            builder.endObject();
-        } else {
-            builder.startArray(name);
-            for (int i = 0; i < percents.length; i++) {
-                double value = result.estimate(i);
-                builder.startObject();
-                builder.field(CommonFields.KEY, percents[i]);
-                builder.field(CommonFields.VALUE, value);
-                if (valueFormatter != null) {
-                    builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));
-                }
-                builder.endObject();
-            }
-            builder.endArray();
-        }
-        return builder;
-    }
-
-    public static class Iter extends UnmodifiableIterator<Percentiles.Percentile> {
-
-        private final PercentilesEstimator.Result result;
+        private final double[] percents;
+        private final TDigestState state;
         private int i;
 
-        public Iter(PercentilesEstimator.Result estimator) {
-            this.result = estimator;
+        public Iter(double[] percents, TDigestState state) {
+            this.percents = percents;
+            this.state = state;
             i = 0;
         }
 
         @Override
         public boolean hasNext() {
-            return i < result.percents.length;
+            return i < percents.length;
         }
 
         @Override
-        public Percentiles.Percentile next() {
-            final Percentiles.Percentile next = new InnerPercentile(result.percents[i], result.estimate(i));
+        public Percentile next() {
+            final Percentile next = new InternalPercentile(percents[i], state.quantile(percents[i] / 100));
             ++i;
             return next;
-        }
-    }
-
-    private static class InnerPercentile implements Percentiles.Percentile {
-
-        private final double percent;
-        private final double value;
-
-        private InnerPercentile(double percent, double value) {
-            this.percent = percent;
-            this.value = value;
-        }
-
-        @Override
-        public double getPercent() {
-            return percent;
-        }
-
-        @Override
-        public double getValue() {
-            return value;
         }
     }
 }

@@ -20,9 +20,9 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
@@ -32,7 +32,6 @@ import org.jboss.netty.buffer.ChannelBuffers;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 import java.nio.channels.GatheringByteChannel;
 import java.util.Arrays;
 
@@ -95,7 +94,7 @@ public class PagedBytesReference implements BytesReference {
 
         BytesRef ref = new BytesRef();
         int written = 0;
-        
+
         // are we a slice?
         if (offset != 0) {
             // remaining size of page fragment at offset
@@ -122,53 +121,21 @@ public class PagedBytesReference implements BytesReference {
             return;
         }
 
-        ByteBuffer[] buffers;
-        ByteBuffer currentBuffer = null;
+        int currentLength = length;
+        int currentOffset = offset;
         BytesRef ref = new BytesRef();
-        int pos = 0; 
 
-        // are we a slice?
-        if (offset != 0) {
-            // remaining size of page fragment at offset
-            int fragmentSize = Math.min(length, PAGE_SIZE - (offset % PAGE_SIZE));
-            bytearray.get(offset, fragmentSize, ref);
-            currentBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, fragmentSize);
-            pos += fragmentSize;
+        while (currentLength > 0) {
+            // try to align to the underlying pages while writing, so no new arrays will be created.
+            int fragmentSize = Math.min(currentLength, PAGE_SIZE - (currentOffset % PAGE_SIZE));
+            boolean newArray = bytearray.get(currentOffset, fragmentSize, ref);
+            assert !newArray : "PagedBytesReference failed to align with underlying bytearray. offset [" + currentOffset + "], size [" + fragmentSize + "]";
+            Channels.writeToChannel(ref.bytes, ref.offset, ref.length, channel);
+            currentLength -= ref.length;
+            currentOffset += ref.length;
         }
 
-        // we only have a single page
-        if (pos == length && currentBuffer != null) {
-            channel.write(currentBuffer);
-            return;
-        }
-
-        // a slice > pagesize will likely require extra buffers for initial/trailing fragments
-        int numBuffers = countRequiredBuffers((currentBuffer != null ? 1 : 0), length - pos);
-
-        buffers = new ByteBuffer[numBuffers];
-        int bufferSlot = 0;
-        
-        if (currentBuffer != null) {
-            buffers[bufferSlot] = currentBuffer;
-            bufferSlot++;
-        }
-
-        // handle remainder of pages + trailing fragment
-        while (pos < length) {
-            int remaining = length - pos;
-            int bulkSize = (remaining > PAGE_SIZE) ? PAGE_SIZE : remaining;
-            bytearray.get(offset + pos, bulkSize, ref);
-            currentBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, bulkSize);
-            buffers[bufferSlot] = currentBuffer;
-            bufferSlot++;
-            pos += bulkSize;
-        }
-
-        // this would indicate that our numBuffer calculation is off by one.
-        assert (numBuffers == bufferSlot);
-
-        // finally write all buffers
-        channel.write(buffers);
+        assert currentLength == 0;
     }
 
     @Override
@@ -205,8 +172,7 @@ public class PagedBytesReference implements BytesReference {
         if (copied) {
             // BigArray has materialized for us, no need to do it again
             return new BytesArray(ref.bytes, ref.offset, ref.length);
-        }
-        else {
+        } else {
             // here we need to copy the bytes even when shared
             byte[] copy = Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + ref.length);
             return new BytesArray(copy);
@@ -223,7 +189,7 @@ public class PagedBytesReference implements BytesReference {
         ChannelBuffer[] buffers;
         ChannelBuffer currentBuffer = null;
         BytesRef ref = new BytesRef();
-        int pos = 0; 
+        int pos = 0;
 
         // are we a slice?
         if (offset != 0) {
@@ -307,8 +273,8 @@ public class PagedBytesReference implements BytesReference {
         }
 
         byte[] bytes = toBytes();
-        final CharsRef ref = new CharsRef(length);
-        UnicodeUtil.UTF8toUTF16(bytes, offset, length, ref);
+        final CharsRefBuilder ref = new CharsRefBuilder();
+        ref.copyUTF8Bytes(bytes, offset, length);
         return ref.toString();
     }
 
@@ -349,10 +315,10 @@ public class PagedBytesReference implements BytesReference {
         }
 
         if (!(obj instanceof PagedBytesReference)) {
-            return BytesReference.Helper.bytesEqual(this, (BytesReference)obj);
+            return BytesReference.Helper.bytesEqual(this, (BytesReference) obj);
         }
 
-        PagedBytesReference other = (PagedBytesReference)obj;
+        PagedBytesReference other = (PagedBytesReference) obj;
         if (length != other.length) {
             return false;
         }
@@ -422,7 +388,7 @@ public class PagedBytesReference implements BytesReference {
 
         @Override
         public int read() throws IOException {
-            return (pos < length) ? bytearray.get(offset + pos++) : -1; 
+            return (pos < length) ? bytearray.get(offset + pos++) : -1;
         }
 
         @Override
@@ -445,7 +411,7 @@ public class PagedBytesReference implements BytesReference {
 
             while (copiedBytes < numBytesToCopy) {
                 long pageFragment = PAGE_SIZE - (byteArrayOffset % PAGE_SIZE); // how much can we read until hitting N*PAGE_SIZE?
-                int bulkSize = (int)Math.min(pageFragment, numBytesToCopy - copiedBytes); // we cannot copy more than a page fragment
+                int bulkSize = (int) Math.min(pageFragment, numBytesToCopy - copiedBytes); // we cannot copy more than a page fragment
                 boolean copied = bytearray.get(byteArrayOffset, bulkSize, ref); // get the fragment
                 assert (copied == false); // we should never ever get back a materialized byte[]
                 System.arraycopy(ref.bytes, ref.offset, b, bOffset + copiedBytes, bulkSize); // copy fragment contents

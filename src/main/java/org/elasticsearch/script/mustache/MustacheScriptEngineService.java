@@ -33,6 +33,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.lang.ref.SoftReference;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -121,6 +122,11 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
     }
 
     @Override
+    public boolean sandboxed() {
+        return true;
+    }
+
+    @Override
     public ExecutableScript executable(Object mustache,
             @Nullable Map<String, Object> vars) {
         return new MustacheExecutableScript((Mustache) mustache, vars);
@@ -158,7 +164,7 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
         public MustacheExecutableScript(Mustache mustache,
                 Map<String, Object> vars) {
             this.mustache = mustache;
-            this.vars = vars;
+            this.vars = vars == null ? Collections.EMPTY_MAP : vars;
         }
 
         @Override

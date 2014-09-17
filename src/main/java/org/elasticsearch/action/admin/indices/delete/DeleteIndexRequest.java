@@ -20,12 +20,14 @@
 package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 
@@ -35,7 +37,7 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 /**
  * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
  */
-public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRequest> {
+public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRequest> implements IndicesRequest {
 
     private String[] indices;
     // Delete index should work by default on both open and closed indices.
@@ -63,6 +65,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
         this.indices = indices;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
@@ -75,7 +78,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (indices == null || indices.length == 0) {
+        if (CollectionUtils.isEmpty(indices)) {
             validationException = addValidationError("index / indices is missing", validationException);
         }
         return validationException;
@@ -89,7 +92,8 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
     /**
      * The index to delete.
      */
-    String[] indices() {
+    @Override
+    public String[] indices() {
         return indices;
     }
 

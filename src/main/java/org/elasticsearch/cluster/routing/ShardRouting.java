@@ -117,6 +117,13 @@ public interface ShardRouting extends Streamable, Serializable, ToXContent {
     String relocatingNodeId();
 
     /**
+     * If the shard is relocating, return a shard routing representing the target shard or null o.w.
+     * The target shard routing will be the INITIALIZING state and have relocatingNodeId set to the
+     * source node.
+     */
+    ShardRouting targetRoutingIfRelocating();
+
+    /**
      * Snapshot id and repository where this shard is being restored from
      */
     RestoreSource restoreSource();

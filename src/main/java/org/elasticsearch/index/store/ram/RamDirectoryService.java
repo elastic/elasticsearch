@@ -71,10 +71,10 @@ public final class RamDirectoryService extends AbstractIndexShardComponent imple
                 throw new FileNotFoundException(from);
             RAMFile toFile = fileMap.get(to);
             if (toFile != null) {
-                sizeInBytes.addAndGet(-fileLength(from));
-                fileMap.remove(from);
+                sizeInBytes.addAndGet(-fileLength(to));
             }
             fileMap.put(to, fromFile);
+            fileMap.remove(from);
         }
 
         @Override

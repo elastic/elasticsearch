@@ -26,8 +26,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +38,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.transport.TransportRequestOptions.options;
 import static org.hamcrest.Matchers.*;
@@ -62,7 +63,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new ThreadPool();
+        threadPool = new ThreadPool(getClass().getName());
         serviceA = build(ImmutableSettings.builder().put("name", "TS_A").build(), version0);
         nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
         serviceB = build(ImmutableSettings.builder().put("name", "TS_B").build(), version1);
@@ -382,6 +383,45 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     }
 
     @Test
+    public void testNotifyOnShutdown() throws Exception {
+        final CountDownLatch latch2 = new CountDownLatch(1);
+
+        serviceA.registerHandler("foobar", new BaseTransportRequestHandler<StringMessageRequest>() {
+            @Override
+            public StringMessageRequest newInstance() {
+                return new StringMessageRequest();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.GENERIC;
+            }
+
+            @Override
+            public void messageReceived(StringMessageRequest request, TransportChannel channel) {
+
+                try {
+                    latch2.await();
+                    logger.info("Stop ServiceB now");
+                    serviceB.stop();
+                } catch (Exception e) {
+                    fail(e.getMessage());
+                }
+            }
+        });
+        TransportFuture<TransportResponse.Empty> foobar = serviceB.submitRequest(nodeA, "foobar",
+                new StringMessageRequest(""), options(), EmptyTransportResponseHandler.INSTANCE_SAME);
+        latch2.countDown();
+        try {
+            foobar.txGet();
+            fail("TransportException expected");
+        } catch (TransportException ex) {
+
+        }
+        serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
+    }
+
+    @Test
     public void testTimeoutSendExceptionWithNeverSendingBackResponse() throws Exception {
         serviceA.registerHandler("sayHelloTimeoutNoResponse", new BaseTransportRequestHandler<StringMessageRequest>() {
             @Override
@@ -441,7 +481,6 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     }
 
     @Test
-    @TestLogging("_root:TRACE")
     public void testTimeoutSendExceptionWithDelayedResponse() throws Exception {
         serviceA.registerHandler("sayHelloTimeoutDelayedResponse", new BaseTransportRequestHandler<StringMessageRequest>() {
             @Override
@@ -470,7 +509,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
                 }
             }
         });
-
+        final CountDownLatch latch = new CountDownLatch(1);
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHelloTimeoutDelayedResponse",
                 new StringMessageRequest("300ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
@@ -485,11 +524,13 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
             @Override
             public void handleResponse(StringMessageResponse response) {
+                latch.countDown();
                 assertThat("got response instead of exception", false, equalTo(true));
             }
 
             @Override
             public void handleException(TransportException exp) {
+                latch.countDown();
                 assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
             }
         });
@@ -500,15 +541,13 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         } catch (Exception e) {
             assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
         }
-
-        // sleep for 400 millis to make sure we get back the response
-        Thread.sleep(400);
+        latch.await();
 
         for (int i = 0; i < 10; i++) {
             final int counter = i;
             // now, try and send another request, this times, with a short timeout
             res = serviceB.submitRequest(nodeA, "sayHelloTimeoutDelayedResponse",
-                    new StringMessageRequest(counter + "ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
+                    new StringMessageRequest(counter + "ms"), options().withTimeout(3000), new BaseTransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse newInstance() {
                     return new StringMessageResponse();
@@ -1010,5 +1049,71 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         }
 
         serviceA.removeHandler("sayHello");
+    }
+
+
+    @Test
+    public void testHostOnMessages() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(2);
+        final AtomicReference<TransportAddress> addressA = new AtomicReference<>();
+        final AtomicReference<TransportAddress> addressB = new AtomicReference<>();
+        serviceB.registerHandler("action1", new TransportRequestHandler<TestRequest>() {
+            @Override
+            public TestRequest newInstance() {
+                return new TestRequest();
+            }
+
+            @Override
+            public void messageReceived(TestRequest request, TransportChannel channel) throws Exception {
+                addressA.set(request.remoteAddress());
+                channel.sendResponse(new TestResponse());
+                latch.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return false;
+            }
+        });
+        serviceA.sendRequest(nodeB, "action1", new TestRequest(), new TransportResponseHandler<TestResponse>() {
+            @Override
+            public TestResponse newInstance() {
+                return new TestResponse();
+            }
+
+            @Override
+            public void handleResponse(TestResponse response) {
+                addressB.set(response.remoteAddress());
+                latch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                latch.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        });
+
+        if (!latch.await(10, TimeUnit.SECONDS)) {
+            fail("message round trip did not complete within a sensible time frame");
+        }
+
+        assertTrue(nodeA.address().sameHost(addressA.get()));
+        assertTrue(nodeB.address().sameHost(addressB.get()));
+    }
+
+    private static class TestRequest extends TransportRequest {
+    }
+
+    private static class TestResponse extends TransportResponse {
     }
 }

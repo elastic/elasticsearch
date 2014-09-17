@@ -28,7 +28,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class DeleteSnapshotAction extends ClusterAction<DeleteSnapshotRequest, DeleteSnapshotResponse, DeleteSnapshotRequestBuilder> {
 
     public static final DeleteSnapshotAction INSTANCE = new DeleteSnapshotAction();
-    public static final String NAME = "cluster/snapshot/delete";
+    public static final String NAME = "cluster:admin/snapshot/delete";
 
     private DeleteSnapshotAction() {
         super(NAME);

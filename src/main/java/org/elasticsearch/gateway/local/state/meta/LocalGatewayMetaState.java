@@ -370,7 +370,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         }
 
         if (!wroteAtLeastOnce) {
-            logger.warn("[{}]: failed to state", lastFailure, indexMetaData.index());
+            logger.warn("[{}]: failed to write index state", lastFailure, indexMetaData.index());
             throw new IOException("failed to write state for [" + indexMetaData.index() + "]", lastFailure);
         }
 

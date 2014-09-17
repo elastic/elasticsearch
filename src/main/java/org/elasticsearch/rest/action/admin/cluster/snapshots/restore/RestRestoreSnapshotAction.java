@@ -24,10 +24,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import static org.elasticsearch.client.Requests.restoreSnapshotRequest;
@@ -39,13 +36,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestRestoreSnapshotAction extends BaseRestHandler {
 
     @Inject
-    public RestRestoreSnapshotAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestRestoreSnapshotAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/_snapshot/{repository}/{snapshot}/_restore", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         RestoreSnapshotRequest restoreSnapshotRequest = restoreSnapshotRequest(request.param("repository"), request.param("snapshot"));
         restoreSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", restoreSnapshotRequest.masterNodeTimeout()));
         restoreSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));

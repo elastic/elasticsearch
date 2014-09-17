@@ -21,6 +21,7 @@ package org.elasticsearch.index.merge;
 
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.MergeTrigger;
 
 import java.io.IOException;
 
@@ -31,44 +32,22 @@ import java.io.IOException;
  * <p/>
  * This merge scheduler can be used to get around the fact that even though a merge
  * policy can control that no new merges will be created as a result of a segment flush
- * (during indexing operation for example), the {@link #merge(org.apache.lucene.index.IndexWriter)}
+ * (during indexing operation for example), the {@link #merge(org.apache.lucene.index.IndexWriter, org.apache.lucene.index.MergeTrigger, boolean)}
  * call will still be called, and can result in stalling indexing.
  */
 public class EnableMergeScheduler extends MergeScheduler {
 
     private final MergeScheduler mergeScheduler;
 
-    private final ThreadLocal<Boolean> enabled = new ThreadLocal<Boolean>() {
-        @Override
-        protected Boolean initialValue() {
-            return Boolean.FALSE;
-        }
-    };
-
     public EnableMergeScheduler(MergeScheduler mergeScheduler) {
         this.mergeScheduler = mergeScheduler;
     }
 
-    /**
-     * Enable merges on the current thread.
-     */
-    void enableMerge() {
-        assert !enabled.get();
-        enabled.set(Boolean.TRUE);
-    }
-
-    /**
-     * Disable merges on the current thread.
-     */
-    void disableMerge() {
-        assert enabled.get();
-        enabled.set(Boolean.FALSE);
-    }
 
     @Override
-    public void merge(IndexWriter writer) throws IOException {
-        if (enabled.get()) {
-            mergeScheduler.merge(writer);
+    public void merge(IndexWriter writer, MergeTrigger trigger, boolean newMergesFound) throws IOException {
+        if (trigger == MergeTrigger.EXPLICIT) {
+            mergeScheduler.merge(writer, trigger, newMergesFound);
         }
     }
 
@@ -82,5 +61,10 @@ public class EnableMergeScheduler extends MergeScheduler {
         // Lucene IW makes a clone internally but since we hold on to this instance
         // the clone will just be the identity.
         return this;
+    }
+
+    @Override
+    public String toString() {
+        return "EnableMergeScheduler(" + mergeScheduler + ")";
     }
 }

@@ -21,14 +21,13 @@ package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalGenericClient;
 
 /**
  */
 public class GetSettingsAction extends IndicesAction<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
 
     public static final GetSettingsAction INSTANCE = new GetSettingsAction();
-    public static final String NAME = "indices/settings/get";
+    public static final String NAME = "indices:monitor/settings/get";
 
     public GetSettingsAction() {
         super(NAME);
@@ -36,7 +35,7 @@ public class GetSettingsAction extends IndicesAction<GetSettingsRequest, GetSett
 
     @Override
     public GetSettingsRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new GetSettingsRequestBuilder((InternalGenericClient) client);
+        return new GetSettingsRequestBuilder(client);
     }
 
     @Override

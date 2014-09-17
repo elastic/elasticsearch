@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class OptimizeAction extends IndicesAction<OptimizeRequest, OptimizeResponse, OptimizeRequestBuilder> {
 
     public static final OptimizeAction INSTANCE = new OptimizeAction();
-    public static final String NAME = "indices/optimize";
+    public static final String NAME = "indices:admin/optimize";
 
     private OptimizeAction() {
         super(NAME);

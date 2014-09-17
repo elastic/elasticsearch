@@ -21,9 +21,11 @@ package org.elasticsearch.action.admin.cluster.repositories.put;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
@@ -41,19 +43,14 @@ public class TransportPutRepositoryAction extends TransportMasterNodeOperationAc
 
     @Inject
     public TransportPutRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                        RepositoriesService repositoriesService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+                                        RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.repositoriesService = repositoriesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return PutRepositoryAction.NAME;
     }
 
     @Override
@@ -77,10 +74,10 @@ public class TransportPutRepositoryAction extends TransportMasterNodeOperationAc
         repositoriesService.registerRepository(new RepositoriesService.RegisterRepositoryRequest("put_repository [" + request.name() + "]", request.name(), request.type())
                 .settings(request.settings())
                 .masterNodeTimeout(request.masterNodeTimeout())
-                .ackTimeout(request.timeout()), new ActionListener<RepositoriesService.RegisterRepositoryResponse>() {
+                .ackTimeout(request.timeout()), new ActionListener<ClusterStateUpdateResponse>() {
 
             @Override
-            public void onResponse(RepositoriesService.RegisterRepositoryResponse response) {
+            public void onResponse(ClusterStateUpdateResponse response) {
                 listener.onResponse(new PutRepositoryResponse(response.isAcknowledged()));
             }
 

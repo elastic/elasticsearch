@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.*;
 import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.PairOutputs;
@@ -204,7 +205,7 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
       if (unicodeAware) {
         // FLORIAN EDIT: get converted Automaton from superclass
         Automaton utf8automaton = new UTF32ToUTF8().convert(super.convertAutomaton(a));
-        BasicOperations.determinize(utf8automaton);
+        utf8automaton = Operations.determinize(utf8automaton);
         return utf8automaton;
       } else {
         return super.convertAutomaton(a);
@@ -219,46 +220,40 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
     }
 
     Automaton toLevenshteinAutomata(Automaton automaton) {
-        final Set<IntsRef> ref = SpecialOperations.getFiniteStrings(automaton, -1);
+        final Set<IntsRef> ref = Operations.getFiniteStrings(automaton, -1);
         Automaton subs[] = new Automaton[ref.size()];
         int upto = 0;
         for (IntsRef path : ref) {
-            if (path.length <= nonFuzzyPrefix || path.length < minFuzzyLength) {
-                subs[upto] = BasicAutomata.makeString(path.ints, path.offset, path.length);
-                upto++;
-            } else {
-                Automaton prefix = BasicAutomata.makeString(path.ints, path.offset, nonFuzzyPrefix);
-                int ints[] = new int[path.length-nonFuzzyPrefix];
-                System.arraycopy(path.ints, path.offset+nonFuzzyPrefix, ints, 0, ints.length);
-                // TODO: maybe add alphaMin to LevenshteinAutomata,
-                // and pass 1 instead of 0?  We probably don't want
-                // to allow the trailing dedup bytes to be
-                // edited... but then 0 byte is "in general" allowed
-                // on input (but not in UTF8).
-                LevenshteinAutomata lev = new LevenshteinAutomata(ints, unicodeAware ? Character.MAX_CODE_POINT : 255, transpositions);
-                Automaton levAutomaton = lev.toAutomaton(maxEdits);
-                Automaton combined = BasicOperations.concatenate(Arrays.asList(prefix, levAutomaton));
-                combined.setDeterministic(true); // its like the special case in concatenate itself, except we cloneExpanded already
-                subs[upto] = combined;
-                upto++;
-            }
+          if (path.length <= nonFuzzyPrefix || path.length < minFuzzyLength) {
+            subs[upto] = Automata.makeString(path.ints, path.offset, path.length);
+            upto++;
+          } else {
+            int ints[] = new int[path.length-nonFuzzyPrefix];
+            System.arraycopy(path.ints, path.offset+nonFuzzyPrefix, ints, 0, ints.length);
+            // TODO: maybe add alphaMin to LevenshteinAutomata,
+            // and pass 1 instead of 0?  We probably don't want
+            // to allow the trailing dedup bytes to be
+            // edited... but then 0 byte is "in general" allowed
+            // on input (but not in UTF8).
+            LevenshteinAutomata lev = new LevenshteinAutomata(ints, unicodeAware ? Character.MAX_CODE_POINT : 255, transpositions);
+            subs[upto] = lev.toAutomaton(maxEdits, UnicodeUtil.newString(path.ints, path.offset, nonFuzzyPrefix));
+            upto++;
+          }
         }
 
         if (subs.length == 0) {
-            // automaton is empty, there is no accepted paths through it
-            return BasicAutomata.makeEmpty(); // matches nothing
+          // automaton is empty, there is no accepted paths through it
+          return Automata.makeEmpty(); // matches nothing
         } else if (subs.length == 1) {
-            // no synonyms or anything: just a single path through the tokenstream
-            return subs[0];
+          // no synonyms or anything: just a single path through the tokenstream
+          return subs[0];
         } else {
-            // multiple paths: this is really scary! is it slow?
-            // maybe we should not do this and throw UOE?
-            Automaton a = BasicOperations.union(Arrays.asList(subs));
-            // TODO: we could call toLevenshteinAutomata() before det?
-            // this only happens if you have multiple paths anyway (e.g. synonyms)
-            BasicOperations.determinize(a);
-
-            return a;
+          // multiple paths: this is really scary! is it slow?
+          // maybe we should not do this and throw UOE?
+          Automaton a = Operations.union(Arrays.asList(subs));
+          // TODO: we could call toLevenshteinAutomata() before det? 
+          // this only happens if you have multiple paths anyway (e.g. synonyms)
+          return Operations.determinize(a);
         }
-    }
+      }
 }

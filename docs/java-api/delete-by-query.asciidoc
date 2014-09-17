@@ -1,7 +1,7 @@
 [[delete-by-query]]
 == Delete By Query API
 
-The delete by query API allows to delete documents from one or more
+The delete by query API allows one to delete documents from one or more
 indices and one or more types based on a <<query-dsl-queries,query>>. Here
 is an example:
 

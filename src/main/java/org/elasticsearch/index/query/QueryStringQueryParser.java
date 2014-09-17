@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.util.Locale;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.elasticsearch.common.lucene.search.Queries.optimizeQuery;
 
 /**
  *
@@ -210,7 +209,7 @@ public class QueryStringQueryParser implements QueryParser {
         }
 
         qpSettings.queryTypes(parseContext.queryTypes());
-        Query query = parseContext.indexCache().queryParserCache().get(qpSettings);
+        Query query = parseContext.queryParserCache().get(qpSettings);
         if (query != null) {
             if (queryName != null) {
                 parseContext.addNamedQuery(queryName, query);
@@ -228,11 +227,11 @@ public class QueryStringQueryParser implements QueryParser {
             if (qpSettings.boost() != QueryParserSettings.DEFAULT_BOOST) {
                 query.setBoost(query.getBoost() * qpSettings.boost());
             }
-            query = optimizeQuery(fixNegativeQueryIfNeeded(query));
+            query = fixNegativeQueryIfNeeded(query);
             if (query instanceof BooleanQuery) {
                 Queries.applyMinimumShouldMatch((BooleanQuery) query, qpSettings.minimumShouldMatch());
             }
-            parseContext.indexCache().queryParserCache().put(qpSettings, query);
+            parseContext.queryParserCache().put(qpSettings, query);
             if (queryName != null) {
                 parseContext.addNamedQuery(queryName, query);
             }

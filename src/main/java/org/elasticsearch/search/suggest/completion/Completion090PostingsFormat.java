@@ -54,6 +54,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
 
     public static final String CODEC_NAME = "completion090";
     public static final int SUGGEST_CODEC_VERSION = 1;
+    public static final int SUGGEST_VERSION_CURRENT = SUGGEST_CODEC_VERSION;
     public static final String EXTENSION = "cmp";
 
     private final static ESLogger logger = Loggers.getLogger(Completion090PostingsFormat.class);
@@ -110,7 +111,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
             boolean success = false;
             try {
                 output = state.directory.createOutput(suggestFSTFile, state.context);
-                CodecUtil.writeHeader(output, CODEC_NAME, SUGGEST_CODEC_VERSION);
+                CodecUtil.writeHeader(output, CODEC_NAME, SUGGEST_VERSION_CURRENT);
                 /*
                  * we write the delegate postings format name so we can load it
                  * without getting an instance in the ctor
@@ -206,11 +207,12 @@ public class Completion090PostingsFormat extends PostingsFormat {
 
         private final FieldsProducer delegateProducer;
         private final LookupFactory lookupFactory;
+        private final int version;
 
         public CompletionFieldsProducer(SegmentReadState state) throws IOException {
             String suggestFSTFile = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, EXTENSION);
             IndexInput input = state.directory.openInput(suggestFSTFile, state.context);
-            CodecUtil.checkHeader(input, CODEC_NAME, SUGGEST_CODEC_VERSION, SUGGEST_CODEC_VERSION);
+            version = CodecUtil.checkHeader(input, CODEC_NAME, SUGGEST_CODEC_VERSION, SUGGEST_VERSION_CURRENT);
             FieldsProducer delegateProducer = null;
             boolean success = false;
             try {
@@ -273,6 +275,11 @@ public class Completion090PostingsFormat extends PostingsFormat {
         public long ramBytesUsed() {
             return (lookupFactory == null ? 0 : lookupFactory.ramBytesUsed()) + delegateProducer.ramBytesUsed();
         }
+
+        @Override
+        public void checkIntegrity() throws IOException {
+            delegateProducer.checkIntegrity();
+        }
     }
 
     public static final class CompletionTerms extends FilterTerms {
@@ -332,12 +339,12 @@ public class Completion090PostingsFormat extends PostingsFormat {
             ref.weight = input.readVLong() - 1;
             int len = input.readVInt();
             ref.surfaceForm.grow(len);
-            ref.surfaceForm.length = len;
-            input.readBytes(ref.surfaceForm.bytes, ref.surfaceForm.offset, ref.surfaceForm.length);
+            ref.surfaceForm.setLength(len);
+            input.readBytes(ref.surfaceForm.bytes(), 0, ref.surfaceForm.length());
             len = input.readVInt();
             ref.payload.grow(len);
-            ref.payload.length = len;
-            input.readBytes(ref.payload.bytes, ref.payload.offset, ref.payload.length);
+            ref.payload.setLength(len);
+            input.readBytes(ref.payload.bytes(), 0, ref.payload.length());
             input.close();
         }
     }

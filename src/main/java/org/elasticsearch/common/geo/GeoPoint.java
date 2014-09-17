@@ -78,11 +78,6 @@ public final class GeoPoint {
         return this;
     }
 
-    void latlon(double lat, double lon) {
-        this.lat = lat;
-        this.lon = lon;
-    }
-
     public final double lat() {
         return this.lat;
     }

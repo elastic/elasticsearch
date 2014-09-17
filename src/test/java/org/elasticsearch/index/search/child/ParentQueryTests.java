@@ -21,6 +21,7 @@ package org.elasticsearch.index.search.child;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.IntIntOpenHashMap;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -29,9 +30,12 @@ import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -39,7 +43,7 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.TestSearchContext;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -47,13 +51,10 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Random;
 import java.util.TreeMap;
 
-import static org.elasticsearch.index.search.child.ChildrenConstantScoreQueryTests.assertBitSet;
-import static org.elasticsearch.index.search.child.ChildrenConstantScoreQueryTests.createSearchContext;
-import static org.elasticsearch.index.search.child.ChildrenQueryTests.assertTopDocs;
-
-public class ParentQueryTests extends ElasticsearchLuceneTestCase {
+public class ParentQueryTests extends AbstractChildTests {
 
     @BeforeClass
     public static void before() throws IOException {
@@ -63,7 +64,9 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
 
     @AfterClass
     public static void after() throws IOException {
+        SearchContext current = SearchContext.current();
         SearchContext.removeCurrent();
+        Releasables.close(current);
     }
 
     @Test
@@ -71,7 +74,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
         Query parentQuery = new TermQuery(new Term("field", "value"));
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        Filter childrenFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "child"));
+        FixedBitSetFilter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
         Query query = new ParentQuery(parentChildIndexFieldData, parentQuery, "parent", childrenFilter);
         QueryUtils.check(query);
     }
@@ -79,15 +82,20 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testRandom() throws Exception {
         Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        int numUniqueParentValues = 1 + random().nextInt(TEST_NIGHTLY ? 6000 : 600);
+        final Random r = random();
+        final IndexWriterConfig iwc = LuceneTestCase.newIndexWriterConfig(r,
+                LuceneTestCase.TEST_VERSION_CURRENT, new MockAnalyzer(r))
+                .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+                .setRAMBufferSizeMB(scaledRandomIntBetween(16, 64)); // we might index a lot - don't go crazy here
+        RandomIndexWriter indexWriter = new RandomIndexWriter(r, directory, iwc);
+        int numUniqueParentValues = scaledRandomIntBetween(100, 2000);
         String[] parentValues = new String[numUniqueParentValues];
         for (int i = 0; i < numUniqueParentValues; i++) {
             parentValues[i] = Integer.toString(i);
         }
 
         int childDocId = 0;
-        int numParentDocs = 1 + random().nextInt(TEST_NIGHTLY ? 20000 : 1000);
+        int numParentDocs = scaledRandomIntBetween(1, numUniqueParentValues);
         ObjectObjectOpenHashMap<String, NavigableMap<String, Float>> parentValueToChildIds = new ObjectObjectOpenHashMap<>();
         IntIntOpenHashMap childIdToParentId = new IntIntOpenHashMap();
         for (int parentDocId = 0; parentDocId < numParentDocs; parentDocId++) {
@@ -103,12 +111,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
             }
             indexWriter.addDocument(document);
 
-            int numChildDocs;
-            if (rarely()) {
-                numChildDocs = random().nextInt(TEST_NIGHTLY ? 100 : 25);
-            } else {
-                numChildDocs = random().nextInt(TEST_NIGHTLY ? 40 : 10);
-            }
+            int numChildDocs = scaledRandomIntBetween(0, 100);
             if (parentDocId == numParentDocs - 1 && childIdToParentId.isEmpty()) {
                 // ensure there is at least one child in the index
                 numChildDocs = Math.max(1, numChildDocs);
@@ -158,19 +161,10 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
 
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        TermFilter rawChildrenFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "child"));
+        FixedBitSetFilter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
         Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueParentValues / 4;
         for (int i = 0; i < max; i++) {
-            // Randomly pick a cached version: there is specific logic inside ChildrenQuery that deals with the fact
-            // that deletes are applied at the top level when filters are cached.
-            Filter childrenFilter;
-            if (random().nextBoolean()) {
-                childrenFilter = SearchContext.current().filterCache().cache(rawChildrenFilter);
-            } else {
-                childrenFilter = rawChildrenFilter;
-            }
-
             // Using this in FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs
             Filter filterMe;
             if (random().nextBoolean()) {
@@ -181,7 +175,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
 
             // Simulate a child update
             if (random().nextBoolean()) {
-                int numberOfUpdates = 1 + random().nextInt(TEST_NIGHTLY ? 25 : 5);
+                int numberOfUpdates = childIdToParentId.isEmpty() ? 0 : scaledRandomIntBetween(1, 5);
                 int[] childIds = childIdToParentId.keys().toArray();
                 for (int j = 0; j < numberOfUpdates; j++) {
                     int childId = childIds[random().nextInt(childIds.length)];

@@ -20,15 +20,13 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.facet.Facets;
-import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
@@ -38,17 +36,17 @@ import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 /**
  *
  */
-public class QuerySearchResult extends TransportResponse implements QuerySearchResultProvider {
+public class QuerySearchResult extends QuerySearchResultProvider {
 
     private long id;
     private SearchShardTarget shardTarget;
     private int from;
     private int size;
     private TopDocs topDocs;
-    private InternalFacets facets;
     private InternalAggregations aggregations;
     private Suggest suggest;
     private boolean searchTimedOut;
+    private Boolean terminatedEarly = null;
 
     public QuerySearchResult() {
 
@@ -90,20 +88,20 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         return searchTimedOut;
     }
 
+    public void terminatedEarly(boolean terminatedEarly) {
+        this.terminatedEarly = terminatedEarly;
+    }
+
+    public Boolean terminatedEarly() {
+        return this.terminatedEarly;
+    }
+
     public TopDocs topDocs() {
         return topDocs;
     }
 
     public void topDocs(TopDocs topDocs) {
         this.topDocs = topDocs;
-    }
-
-    public Facets facets() {
-        return facets;
-    }
-
-    public void facets(InternalFacets facets) {
-        this.facets = facets;
     }
 
     public Aggregations aggregations() {
@@ -149,14 +147,16 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        id = in.readLong();
+        long id = in.readLong();
+        readFromWithId(id, in);
+    }
+
+    public void readFromWithId(long id, StreamInput in) throws IOException {
+        this.id = id;
 //        shardTarget = readSearchShardTarget(in);
         from = in.readVInt();
         size = in.readVInt();
         topDocs = readTopDocs(in);
-        if (in.readBoolean()) {
-            facets = InternalFacets.readFacets(in);
-        }
         if (in.readBoolean()) {
             aggregations = InternalAggregations.readAggregations(in);
         }
@@ -164,22 +164,23 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         searchTimedOut = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            terminatedEarly = in.readOptionalBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(id);
+        writeToNoId(out);
+    }
+
+    public void writeToNoId(StreamOutput out) throws IOException {
 //        shardTarget.writeTo(out);
         out.writeVInt(from);
         out.writeVInt(size);
         writeTopDocs(out, topDocs, 0);
-        if (facets == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            facets.writeTo(out);
-        }
         if (aggregations == null) {
             out.writeBoolean(false);
         } else {
@@ -193,5 +194,8 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
             suggest.writeTo(out);
         }
         out.writeBoolean(searchTimedOut);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            out.writeOptionalBoolean(terminatedEarly);
+        }
     }
 }

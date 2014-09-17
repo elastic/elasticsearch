@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.indices.optimize;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -42,8 +41,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestOptimizeAction extends BaseRestHandler {
 
     @Inject
-    public RestOptimizeAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestOptimizeAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/_optimize", this);
         controller.registerHandler(POST, "/{index}/_optimize", this);
 
@@ -52,7 +51,7 @@ public class RestOptimizeAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         OptimizeRequest optimizeRequest = new OptimizeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         optimizeRequest.listenerThreaded(false);
         optimizeRequest.indicesOptions(IndicesOptions.fromRequest(request, optimizeRequest.indicesOptions()));
@@ -61,14 +60,6 @@ public class RestOptimizeAction extends BaseRestHandler {
         optimizeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", optimizeRequest.onlyExpungeDeletes()));
         optimizeRequest.flush(request.paramAsBoolean("flush", optimizeRequest.flush()));
         optimizeRequest.force(request.paramAsBoolean("force", optimizeRequest.force()));
-
-        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);
-        if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
-            // since we don't spawn, don't allow no_threads, but change it to a single thread
-            operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
-        }
-        optimizeRequest.operationThreading(operationThreading);
-
         client.admin().indices().optimize(optimizeRequest, new RestBuilderListener<OptimizeResponse>(channel) {
             @Override
             public RestResponse buildResponse(OptimizeResponse response, XContentBuilder builder) throws Exception {

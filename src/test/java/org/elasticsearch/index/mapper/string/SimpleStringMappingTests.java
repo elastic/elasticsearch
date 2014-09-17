@@ -24,7 +24,6 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfo.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
-import org.apache.mahout.math.Arrays;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -36,16 +35,29 @@ import org.elasticsearch.index.mapper.DocumentMapper.MergeResult;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.junit.Before;
 import org.junit.Test;
+
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class SimpleStringMappingTests extends ElasticsearchTestCase {
+public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
 
     private static Settings DOC_VALUES_SETTINGS = ImmutableSettings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
+
+    IndexService indexService;
+    DocumentMapperParser parser;
+
+    @Before
+    public void before() {
+        indexService = createIndex("test");
+        parser = indexService.mapperService().documentMapperParser();
+    }
 
     @Test
     public void testLimit() throws Exception {
@@ -53,7 +65,7 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
                 .startObject("properties").startObject("field").field("type", "string").field("ignore_above", 5).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = parser.parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -100,7 +112,7 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
 
     private void assertParseIdemPotent(IndexableFieldType expected, DocumentMapper mapper) throws Exception {
         String mapping = mapper.toXContent(XContentFactory.jsonBuilder().startObject(), new ToXContent.MapParams(ImmutableMap.<String, String>of())).endObject().string();
-        mapper = MapperTestUtils.newParser().parse(mapping);
+        mapper = parser.parse(mapping);
         ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "2345")
@@ -115,7 +127,7 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
                 .startObject("properties").startObject("field").field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = parser.parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -134,7 +146,7 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
                 .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = parser.parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -157,7 +169,7 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
                 .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").startObject("norms").field("enabled", true).endObject().field("index_options", "freqs").endObject().endObject()
                 .endObject().endObject().string();
 
-        defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        defaultMapper = parser.parse(mapping);
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -180,7 +192,7 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
                 .startObject("properties").startObject("field").field("type", "string").field("index", "not_analyzed").field("omit_norms", false).endObject().endObject()
                 .endObject().endObject().string();
 
-        defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        defaultMapper = parser.parse(mapping);
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -224,7 +236,7 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = parser.parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -270,7 +282,7 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
 
     public void testDocValues() throws Exception {
         // doc values only work on non-analyzed content
-        final BuilderContext ctx = new BuilderContext(null, new ContentPath(1));
+        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
         try {
             new StringFieldMapper.Builder("anything").fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx);
             fail();
@@ -300,7 +312,7 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = parser.parse(mapping);
 
         ParsedDocument parsedDoc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -328,7 +340,7 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
                 .startObject("properties").startObject("field").field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = parser.parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -342,7 +354,7 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
         String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", false).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        MergeResult mergeResult = defaultMapper.merge(MapperTestUtils.newParser().parse(updatedMapping), MergeFlags.mergeFlags().simulate(false));
+        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping), MergeFlags.mergeFlags().simulate(false));
         assertFalse(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts());
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -357,7 +369,7 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
         updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        mergeResult = defaultMapper.merge(MapperTestUtils.newParser().parse(updatedMapping), MergeFlags.mergeFlags());
+        mergeResult = defaultMapper.merge(parser.parse(updatedMapping), MergeFlags.mergeFlags());
         assertTrue(mergeResult.hasConflicts());
         assertEquals(1, mergeResult.conflicts().length);
         assertTrue(mergeResult.conflicts()[0].contains("cannot enable norms"));

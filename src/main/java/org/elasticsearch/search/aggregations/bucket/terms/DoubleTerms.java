@@ -18,24 +18,20 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.DoubleObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -62,8 +58,8 @@ public class DoubleTerms extends InternalTerms {
 
         double term;
 
-        public Bucket(double term, long docCount, InternalAggregations aggregations) {
-            super(docCount, aggregations);
+        public Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError) {
+            super(docCount, aggregations, showDocCountError, docCountError);
             this.term = term;
         }
 
@@ -87,14 +83,23 @@ public class DoubleTerms extends InternalTerms {
             return Double.compare(term, other.getKeyAsNumber().doubleValue());
         }
 
+        @Override
+        Object getKeyAsObject() {
+            return getKeyAsNumber();
+        }
+
+        @Override
+        Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
+            return new Bucket(term, docCount, aggs, showDocCountError, docCountError);
+        }
     }
 
     private @Nullable ValueFormatter formatter;
 
     DoubleTerms() {} // for serialization
 
-    public DoubleTerms(String name, InternalOrder order, @Nullable ValueFormatter formatter, int requiredSize, long minDocCount, Collection<InternalTerms.Bucket> buckets) {
-        super(name, order, requiredSize, minDocCount, buckets);
+    public DoubleTerms(String name, Terms.Order order, @Nullable ValueFormatter formatter, int requiredSize, int shardSize, long minDocCount, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError) {
+        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError);
         this.formatter = formatter;
     }
 
@@ -104,72 +109,40 @@ public class DoubleTerms extends InternalTerms {
     }
 
     @Override
-    public InternalTerms reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
-        if (aggregations.size() == 1) {
-            InternalTerms terms = (InternalTerms) aggregations.get(0);
-            terms.trimExcessEntries(reduceContext.bigArrays());
-            return terms;
-        }
-        InternalTerms reduced = null;
-
-        DoubleObjectPagedHashMap<List<Bucket>> buckets = null;
-        for (InternalAggregation aggregation : aggregations) {
-            InternalTerms terms = (InternalTerms) aggregation;
-            if (terms instanceof UnmappedTerms) {
-                continue;
-            }
-            if (reduced == null) {
-                reduced = terms;
-            }
-            if (buckets == null) {
-                buckets = new DoubleObjectPagedHashMap<>(terms.buckets.size(), reduceContext.bigArrays());
-            }
-            for (Terms.Bucket bucket : terms.buckets) {
-                List<Bucket> existingBuckets = buckets.get(((Bucket) bucket).term);
-                if (existingBuckets == null) {
-                    existingBuckets = new ArrayList<>(aggregations.size());
-                    buckets.put(((Bucket) bucket).term, existingBuckets);
-                }
-                existingBuckets.add((Bucket) bucket);
-            }
-        }
-
-        if (reduced == null) {
-            // there are only unmapped terms, so we just return the first one (no need to reduce)
-            return (UnmappedTerms) aggregations.get(0);
-        }
-
-        // TODO: would it be better to sort the backing array buffer of hppc map directly instead of using a PQ?
-        final int size = (int) Math.min(requiredSize, buckets.size());
-        BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(null));
-        for (DoubleObjectPagedHashMap.Cursor<List<DoubleTerms.Bucket>> cursor : buckets) {
-            List<DoubleTerms.Bucket> sameTermBuckets = cursor.value;
-            final InternalTerms.Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.bigArrays());
-            if (b.getDocCount() >= minDocCount) {
-                ordered.insertWithOverflow(b);
-            }
-        }
-        buckets.close();
-        InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
-        for (int i = ordered.size() - 1; i >= 0; i--) {
-            list[i] = (Bucket) ordered.pop();
-        }
-        reduced.buckets = Arrays.asList(list);
-        return reduced;
+    protected InternalTerms newAggregation(String name, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError) {
+        return new DoubleTerms(name, order, formatter, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         this.name = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            this.docCountError = in.readLong();
+        } else {
+            this.docCountError = -1;
+        }
         this.order = InternalOrder.Streams.readOrder(in);
         this.formatter = ValueFormatterStreams.readOptional(in);
         this.requiredSize = readSize(in);
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            this.shardSize = readSize(in);
+            this.showTermDocCountError = in.readBoolean();
+        } else {
+            this.shardSize = requiredSize;
+            this.showTermDocCountError = false;
+        }
         this.minDocCount = in.readVLong();
         int size = in.readVInt();
         List<InternalTerms.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            buckets.add(new Bucket(in.readDouble(), in.readVLong(), InternalAggregations.readAggregations(in)));
+            double term = in.readDouble();
+            long docCount = in.readVLong();
+            long bucketDocCountError = -1;
+            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && showTermDocCountError) {
+                bucketDocCountError = in.readLong();
+        }
+            InternalAggregations aggregations = InternalAggregations.readAggregations(in);
+            buckets.add(new Bucket(term, docCount, aggregations, showTermDocCountError, bucketDocCountError));
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -178,34 +151,46 @@ public class DoubleTerms extends InternalTerms {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            out.writeLong(docCountError);
+        }
         InternalOrder.Streams.writeOrder(order, out);
         ValueFormatterStreams.writeOptional(formatter, out);
         writeSize(requiredSize, out);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            writeSize(shardSize, out);
+            out.writeBoolean(showTermDocCountError);
+        }
         out.writeVLong(minDocCount);
         out.writeVInt(buckets.size());
         for (InternalTerms.Bucket bucket : buckets) {
             out.writeDouble(((Bucket) bucket).term);
             out.writeVLong(bucket.getDocCount());
+            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && showTermDocCountError) {
+                out.writeLong(bucket.docCountError);
+            }
             ((InternalAggregations) bucket.getAggregations()).writeTo(out);
         }
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
         builder.startArray(CommonFields.BUCKETS);
         for (InternalTerms.Bucket bucket : buckets) {
             builder.startObject();
             builder.field(CommonFields.KEY, ((Bucket) bucket).term);
-            if (formatter != null) {
+            if (formatter != null && formatter != ValueFormatter.RAW) {
                 builder.field(CommonFields.KEY_AS_STRING, formatter.format(((Bucket) bucket).term));
             }
             builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
+            if (showTermDocCountError) {
+                builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, bucket.getDocCountError());
+            }
             ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);
             builder.endObject();
         }
         builder.endArray();
-        builder.endObject();
         return builder;
     }
 

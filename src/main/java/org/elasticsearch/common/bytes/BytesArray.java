@@ -21,8 +21,8 @@ package org.elasticsearch.common.bytes;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -30,7 +30,6 @@ import org.jboss.netty.buffer.ChannelBuffers;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 import java.nio.channels.GatheringByteChannel;
 import java.util.Arrays;
 
@@ -43,8 +42,7 @@ public class BytesArray implements BytesReference {
     private int length;
 
     public BytesArray(String bytes) {
-        BytesRef bytesRef = new BytesRef();
-        UnicodeUtil.UTF16toUTF8(bytes, 0, bytes.length(), bytesRef);
+        BytesRef bytesRef = new BytesRef(bytes);
         this.bytes = bytesRef.bytes;
         this.offset = bytesRef.offset;
         this.length = bytesRef.length;
@@ -109,7 +107,7 @@ public class BytesArray implements BytesReference {
 
     @Override
     public void writeTo(GatheringByteChannel channel) throws IOException {
-        channel.write(ByteBuffer.wrap(bytes, offset, length()));
+        Channels.writeToChannel(bytes, offset, length(), channel);
     }
 
     @Override

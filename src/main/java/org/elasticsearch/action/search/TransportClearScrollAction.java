@@ -20,6 +20,8 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,28 +39,33 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.search.type.TransportSearchHelper.parseScrollId;
 
 /**
  */
-public class TransportClearScrollAction extends TransportAction<ClearScrollRequest, ClearScrollResponse> {
+public class TransportClearScrollAction extends HandledTransportAction<ClearScrollRequest, ClearScrollResponse> {
 
     private final ClusterService clusterService;
     private final SearchServiceTransportAction searchServiceTransportAction;
 
     @Inject
-    public TransportClearScrollAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService, SearchServiceTransportAction searchServiceTransportAction) {
-        super(settings, threadPool);
+    public TransportClearScrollAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService, SearchServiceTransportAction searchServiceTransportAction, ActionFilters actionFilters) {
+        super(settings, ClearScrollAction.NAME, threadPool, transportService, actionFilters);
         this.clusterService = clusterService;
         this.searchServiceTransportAction = searchServiceTransportAction;
-        transportService.registerHandler(ClearScrollAction.NAME, new TransportHandler());
     }
 
     @Override
     protected void doExecute(ClearScrollRequest request, final ActionListener<ClearScrollResponse> listener) {
         new Async(request, listener, clusterService.state()).run();
+    }
+
+    @Override
+    public ClearScrollRequest newRequestInstance() {
+        return new ClearScrollRequest();
     }
 
     private class Async {
@@ -67,8 +74,9 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
         final CountDown expectedOps;
         final ClearScrollRequest request;
         final List<Tuple<String, Long>[]> contexts = new ArrayList<>();
-        final AtomicReference<Throwable> expHolder;
         final ActionListener<ClearScrollResponse> listener;
+        final AtomicReference<Throwable> expHolder;
+        final AtomicInteger numberOfFreedSearchContexts = new AtomicInteger(0);
 
         private Async(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener, ClusterState clusterState) {
             int expectedOps = 0;
@@ -91,7 +99,7 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
 
         public void run() {
             if (expectedOps.isCountedDown()) {
-                listener.onResponse(new ClearScrollResponse(true));
+                listener.onResponse(new ClearScrollResponse(true, 0));
                 return;
             }
 
@@ -99,8 +107,8 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
                 for (final DiscoveryNode node : nodes) {
                     searchServiceTransportAction.sendClearAllScrollContexts(node, request, new ActionListener<Boolean>() {
                         @Override
-                        public void onResponse(Boolean success) {
-                            onFreedContext();
+                        public void onResponse(Boolean freed) {
+                            onFreedContext(freed);
                         }
 
                         @Override
@@ -114,14 +122,14 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
                     for (Tuple<String, Long> target : context) {
                         final DiscoveryNode node = nodes.get(target.v1());
                         if (node == null) {
-                            onFreedContext();
+                            onFreedContext(false);
                             continue;
                         }
 
                         searchServiceTransportAction.sendFreeContext(node, target.v2(), request, new ActionListener<Boolean>() {
                             @Override
-                            public void onResponse(Boolean success) {
-                                onFreedContext();
+                            public void onResponse(Boolean freed) {
+                                onFreedContext(freed);
                             }
 
                             @Override
@@ -134,60 +142,25 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
             }
         }
 
-        void onFreedContext() {
+        void onFreedContext(boolean freed) {
+            if (freed) {
+                numberOfFreedSearchContexts.incrementAndGet();
+            }
             if (expectedOps.countDown()) {
                 boolean succeeded = expHolder.get() == null;
-                listener.onResponse(new ClearScrollResponse(succeeded));
+                listener.onResponse(new ClearScrollResponse(succeeded, numberOfFreedSearchContexts.get()));
             }
         }
 
         void onFailedFreedContext(Throwable e, DiscoveryNode node) {
             logger.warn("Clear SC failed on node[{}]", e, node);
             if (expectedOps.countDown()) {
-                listener.onResponse(new ClearScrollResponse(false));
+                listener.onResponse(new ClearScrollResponse(false, numberOfFreedSearchContexts.get()));
             } else {
                 expHolder.set(e);
             }
         }
 
-    }
-    
-    class TransportHandler extends BaseTransportRequestHandler<ClearScrollRequest> {
-
-        @Override
-        public ClearScrollRequest newInstance() {
-            return new ClearScrollRequest();
-        }
-
-        @Override
-        public void messageReceived(final ClearScrollRequest request, final TransportChannel channel) throws Exception {
-            // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<ClearScrollResponse>() {
-                @Override
-                public void onResponse(ClearScrollResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [clear_sc] and request [" + request + "]", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
 
 }

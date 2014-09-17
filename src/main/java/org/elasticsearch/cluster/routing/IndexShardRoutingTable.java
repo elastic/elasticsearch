@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.UnmodifiableIterator;
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -32,6 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static com.google.common.collect.Lists.newArrayList;
 
@@ -88,7 +88,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
             if (shard.relocating()) {
                 // create the target initializing shard routing on the node the shard is relocating to
-                allInitializingShards.add(new ImmutableShardRouting(shard.index(), shard.id(), shard.relocatingNodeId(), shard.currentNodeId(), shard.primary(), ShardRoutingState.INITIALIZING, shard.version()));
+                allInitializingShards.add(shard.targetRoutingIfRelocating());
             }
             if (shard.assignedToNode()) {
                 assignedShards.add(shard);

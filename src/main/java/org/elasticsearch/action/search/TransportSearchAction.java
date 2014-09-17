@@ -21,6 +21,8 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.type.*;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,22 +42,15 @@ import static org.elasticsearch.action.search.SearchType.*;
 /**
  *
  */
-public class TransportSearchAction extends TransportAction<SearchRequest, SearchResponse> {
+public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
     private final ClusterService clusterService;
-
     private final TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction;
-
     private final TransportSearchQueryThenFetchAction queryThenFetchAction;
-
     private final TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction;
-
     private final TransportSearchQueryAndFetchAction queryAndFetchAction;
-
     private final TransportSearchScanAction scanAction;
-
     private final TransportSearchCountAction countAction;
-
     private final boolean optimizeSingleShard;
 
     @Inject
@@ -66,8 +61,8 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
                                  TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction,
                                  TransportSearchQueryAndFetchAction queryAndFetchAction,
                                  TransportSearchScanAction scanAction,
-                                 TransportSearchCountAction countAction) {
-        super(settings, threadPool);
+                                 TransportSearchCountAction countAction, ActionFilters actionFilters) {
+        super(settings, SearchAction.NAME, threadPool, transportService, actionFilters);
         this.clusterService = clusterService;
         this.dfsQueryThenFetchAction = dfsQueryThenFetchAction;
         this.queryThenFetchAction = queryThenFetchAction;
@@ -78,7 +73,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
 
         this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
 
-        transportService.registerHandler(SearchAction.NAME, new TransportHandler());
+
     }
 
     @Override
@@ -87,7 +82,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
         if (optimizeSingleShard && searchRequest.searchType() != SCAN && searchRequest.searchType() != COUNT) {
             try {
                 ClusterState clusterState = clusterService.state();
-                String[] concreteIndices = clusterState.metaData().concreteIndices(searchRequest.indices(), searchRequest.indicesOptions());
+                String[] concreteIndices = clusterState.metaData().concreteIndices(searchRequest.indicesOptions(), searchRequest.indices());
                 Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(searchRequest.routing(), searchRequest.indices());
                 int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, searchRequest.indices(), concreteIndices, routingMap, searchRequest.preference());
                 if (shardCount == 1) {
@@ -117,45 +112,8 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
         }
     }
 
-    private class TransportHandler extends BaseTransportRequestHandler<SearchRequest> {
-
-        @Override
-        public SearchRequest newInstance() {
-            return new SearchRequest();
-        }
-
-        @Override
-        public void messageReceived(SearchRequest request, final TransportChannel channel) throws Exception {
-            // no need for a threaded listener
-            request.listenerThreaded(false);
-            // we don't spawn, so if we get a request with no threading, change it to single threaded
-            if (request.operationThreading() == SearchOperationThreading.NO_THREADS) {
-                request.operationThreading(SearchOperationThreading.SINGLE_THREAD);
-            }
-            execute(request, new ActionListener<SearchResponse>() {
-                @Override
-                public void onResponse(SearchResponse result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send response for search", e1);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
+    @Override
+    public SearchRequest newRequestInstance() {
+        return new SearchRequest();
     }
 }

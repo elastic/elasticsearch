@@ -1,0 +1,11 @@
+{
+    "mapping": {
+        "test": {
+            "properties": {
+                "foo": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

@@ -41,7 +41,7 @@ public class RescoreParseElement implements SearchParseElement {
         }
     }
 
-    private void parseSingleRescoreContext(XContentParser parser, SearchContext context) throws Exception {
+    public void parseSingleRescoreContext(XContentParser parser, SearchContext context) throws Exception {
         String fieldName = null;
         RescoreSearchContext rescoreContext = null;
         Integer windowSize = null;

@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.indices.segments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -40,23 +39,17 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestIndicesSegmentsAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesSegmentsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestIndicesSegmentsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_segments", this);
         controller.registerHandler(GET, "/{index}/_segments", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         indicesSegmentsRequest.listenerThreaded(false);
         indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
-        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);
-        if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
-            // since we don't spawn, don't allow no_threads, but change it to a single thread
-            operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
-        }
-        indicesSegmentsRequest.operationThreading(operationThreading);
         client.admin().indices().segments(indicesSegmentsRequest, new RestBuilderListener<IndicesSegmentResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndicesSegmentResponse response, XContentBuilder builder) throws Exception {

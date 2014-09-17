@@ -22,8 +22,8 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.util.Locale;
 
@@ -37,7 +37,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
     private final float boostFactor;
     private final Modifier modifier;
     private final IndexNumericFieldData indexFieldData;
-    private DoubleValues values;
+    private SortedNumericDoubleValues values;
 
     public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType, IndexNumericFieldData indexFieldData) {
         super(CombineFunction.MULT);
@@ -54,9 +54,10 @@ public class FieldValueFactorFunction extends ScoreFunction {
 
     @Override
     public double score(int docId, float subQueryScore) {
-        final int numValues = this.values.setDocument(docId);
+        this.values.setDocument(docId);
+        final int numValues = this.values.count();
         if (numValues > 0) {
-            double val = this.values.nextValue() * boostFactor;
+            double val = this.values.valueAt(0) * boostFactor;
             double result = modifier.apply(val);
             if (Double.isNaN(result) || Double.isInfinite(result)) {
                 throw new ElasticsearchException("Result of field modification [" + modifier.toString() +
@@ -69,14 +70,13 @@ public class FieldValueFactorFunction extends ScoreFunction {
     }
 
     @Override
-    public Explanation explainScore(int docId, Explanation subQueryExpl) {
+    public Explanation explainScore(int docId, float subQueryScore) {
         Explanation exp = new Explanation();
         String modifierStr = modifier != null ? modifier.toString() : "";
-        double score = score(docId, subQueryExpl.getValue());
+        double score = score(docId, subQueryScore);
         exp.setValue(CombineFunction.toFloat(score));
         exp.setDescription("field value function: " +
                 modifierStr + "(" + "doc['" + field + "'].value * factor=" + boostFactor + ")");
-        exp.addDetail(subQueryExpl);
         return exp;
     }
 

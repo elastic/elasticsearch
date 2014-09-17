@@ -21,23 +21,22 @@ package org.elasticsearch.action.admin.indices.template.delete;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public class DeleteIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse, DeleteIndexTemplateRequestBuilder> {
+public class DeleteIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteIndexTemplateRequest, DeleteIndexTemplateResponse, DeleteIndexTemplateRequestBuilder, IndicesAdminClient> {
 
     public DeleteIndexTemplateRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new DeleteIndexTemplateRequest());
+        super(indicesClient, new DeleteIndexTemplateRequest());
     }
 
     public DeleteIndexTemplateRequestBuilder(IndicesAdminClient indicesClient, String name) {
-        super((InternalIndicesAdminClient) indicesClient, new DeleteIndexTemplateRequest(name));
+        super(indicesClient, new DeleteIndexTemplateRequest(name));
     }
 
     @Override
     protected void doExecute(ActionListener<DeleteIndexTemplateResponse> listener) {
-        ((IndicesAdminClient) client).deleteTemplate(request, listener);
+        client.deleteTemplate(request, listener);
     }
 }

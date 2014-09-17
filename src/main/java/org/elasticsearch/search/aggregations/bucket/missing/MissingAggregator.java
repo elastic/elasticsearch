@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.index.fielddata.BytesValues;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -37,7 +37,7 @@ import java.io.IOException;
 public class MissingAggregator extends SingleBucketAggregator {
 
     private final ValuesSource valuesSource;
-    private BytesValues values;
+    private Bits docsWithValue;
 
     public MissingAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
                              AggregationContext aggregationContext, Aggregator parent) {
@@ -48,13 +48,15 @@ public class MissingAggregator extends SingleBucketAggregator {
     @Override
     public void setNextReader(AtomicReaderContext reader) {
         if (valuesSource != null) {
-            values = valuesSource.bytesValues();
+            docsWithValue = valuesSource.docsWithValue(reader.reader().maxDoc());
+        } else {
+            docsWithValue = new Bits.MatchNoBits(reader.reader().maxDoc());
         }
     }
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        if (valuesSource == null || values.setDocument(doc) == 0) {
+        if (docsWithValue != null && !docsWithValue.get(doc)) {
             collectBucket(doc, owningBucketOrdinal);
         }
     }

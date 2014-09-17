@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +27,7 @@ import java.util.List;
 /**
  *
  */
-public class ActionRequestValidationException extends ElasticsearchException {
+public class ActionRequestValidationException extends ElasticsearchIllegalArgumentException {
 
     private final List<String> validationErrors = new ArrayList<>();
 

@@ -26,6 +26,8 @@ import org.elasticsearch.action.support.master.TransportMasterNodeOperationActio
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -66,6 +68,17 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
     protected String executor() {
         return ThreadPool.Names.SAME;
     }
+
+    @Override
+    protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
+        // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
+        if ((request.transientSettings().getAsMap().isEmpty() && request.persistentSettings().getAsMap().size() == 1 && request.persistentSettings().get(MetaData.SETTING_READ_ONLY) != null) ||
+                request.persistentSettings().getAsMap().isEmpty() && request.transientSettings().getAsMap().size() == 1 && request.transientSettings().get(MetaData.SETTING_READ_ONLY) != null) {
+            return null;
+        }
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+    }
+
 
     @Override
     protected ClusterUpdateSettingsRequest newRequest() {

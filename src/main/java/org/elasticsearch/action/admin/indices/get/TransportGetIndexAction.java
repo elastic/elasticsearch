@@ -27,6 +27,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
@@ -44,8 +46,19 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
 
     @Inject
     public TransportGetIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-            ThreadPool threadPool, ActionFilters actionFilters) {
+                                   ThreadPool threadPool, ActionFilters actionFilters) {
         super(settings, GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters);
+    }
+
+    @Override
+    protected String executor() {
+        // very lightweight operation, no need to fork
+        return ThreadPool.Names.SAME;
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(GetIndexRequest request, ClusterState state) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
@@ -60,7 +73,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
 
     @Override
     protected void doMasterOperation(final GetIndexRequest request, String[] concreteIndices, final ClusterState state,
-            final ActionListener<GetIndexResponse> listener) throws ElasticsearchException {
+                                     final ActionListener<GetIndexResponse> listener) throws ElasticsearchException {
         ImmutableOpenMap<String, ImmutableList<Entry>> warmersResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliasesResult = ImmutableOpenMap.of();
@@ -72,40 +85,40 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         boolean doneWarmers = false;
         for (String feature : features) {
             switch (feature) {
-            case "_warmer":
-            case "_warmers":
-                if (!doneWarmers) {
-                    warmersResult = state.metaData().findWarmers(concreteIndices, request.types(), Strings.EMPTY_ARRAY);
-                    doneWarmers = true;
-                }
-                break;
-            case "_mapping":
-            case "_mappings":
-                if (!doneMappings) {
-                    mappingsResult = state.metaData().findMappings(concreteIndices, request.types());
-                    doneMappings = true;
-                }
-                break;
-            case "_alias":
-            case "_aliases":
-                if (!doneAliases) {
-                    aliasesResult = state.metaData().findAliases(Strings.EMPTY_ARRAY, concreteIndices);
-                    doneAliases = true;
-                }
-                break;
-            case "_settings":
-                if (!doneSettings) {
-                    ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
-                    for (String index : concreteIndices) {
-                        settingsMapBuilder.put(index, state.metaData().index(index).getSettings());
+                case "_warmer":
+                case "_warmers":
+                    if (!doneWarmers) {
+                        warmersResult = state.metaData().findWarmers(concreteIndices, request.types(), Strings.EMPTY_ARRAY);
+                        doneWarmers = true;
                     }
-                    settings = settingsMapBuilder.build();
-                    doneSettings = true;
-                }
-                break;
+                    break;
+                case "_mapping":
+                case "_mappings":
+                    if (!doneMappings) {
+                        mappingsResult = state.metaData().findMappings(concreteIndices, request.types());
+                        doneMappings = true;
+                    }
+                    break;
+                case "_alias":
+                case "_aliases":
+                    if (!doneAliases) {
+                        aliasesResult = state.metaData().findAliases(Strings.EMPTY_ARRAY, concreteIndices);
+                        doneAliases = true;
+                    }
+                    break;
+                case "_settings":
+                    if (!doneSettings) {
+                        ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
+                        for (String index : concreteIndices) {
+                            settingsMapBuilder.put(index, state.metaData().index(index).getSettings());
+                        }
+                        settings = settingsMapBuilder.build();
+                        doneSettings = true;
+                    }
+                    break;
 
-            default:
-                throw new ElasticsearchIllegalStateException("feature [" + feature + "] is not valid");
+                default:
+                    throw new ElasticsearchIllegalStateException("feature [" + feature + "] is not valid");
             }
         }
         listener.onResponse(new GetIndexResponse(concreteIndices, warmersResult, mappingsResult, aliasesResult, settings));

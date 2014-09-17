@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -61,6 +62,7 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
 
     @Test
     @LuceneTestCase.Slow
+    @TestLogging("discovery.zen:TRACE")
     public void testReusePeerRecovery() throws Exception {
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings()).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)));
         logger.info("--> indexing docs");

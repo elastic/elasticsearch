@@ -28,6 +28,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -139,27 +140,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             createIndex(request, listener, mdLock);
             return;
         }
-        try {
-            threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        if (!mdLock.tryAcquire(request.masterNodeTimeout().nanos(), TimeUnit.NANOSECONDS)) {
-                            listener.onFailure(new ProcessClusterEventTimeoutException(request.masterNodeTimeout(), "acquire index lock"));
-                            return;
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.interrupted();
-                        listener.onFailure(e);
-                        return;
-                    }
-
-                    createIndex(request, listener, mdLock);
+        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new ActionRunnable(listener) {
+            @Override
+            public void doRun() throws InterruptedException {
+                if (!mdLock.tryAcquire(request.masterNodeTimeout().nanos(), TimeUnit.NANOSECONDS)) {
+                    listener.onFailure(new ProcessClusterEventTimeoutException(request.masterNodeTimeout(), "acquire index lock"));
+                    return;
                 }
-            });
-        } catch (EsRejectedExecutionException ex) {
-            listener.onFailure(ex);
-        }
+                createIndex(request, listener, mdLock);
+            }
+        });
     }
 
     public void validateIndexName(String index, ClusterState state) throws ElasticsearchException {

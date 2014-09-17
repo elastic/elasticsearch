@@ -733,7 +733,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     try {
                         threadPool.executor(executor).execute(new AbstractRunnable() {
                             @Override
-                            public void run() {
+                            protected void doRun() {
                                 try {
                                     shardOperationOnReplica(shardRequest);
                                 } catch (Throwable e) {
@@ -749,6 +749,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             public boolean isForceExecution() {
                                 return true;
                             }
+
+                            @Override
+                            public void onFailure(Throwable t) {}
                         });
                     } catch (Throwable e) {
                         failReplicaIfNeeded(shard.index(), shard.id(), e);

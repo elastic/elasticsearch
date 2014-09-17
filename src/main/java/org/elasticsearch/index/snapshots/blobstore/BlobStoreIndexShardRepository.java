@@ -486,11 +486,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         // snapshotStatus.startTime() is assigned on the same machine, so it's safe to use with VLong
                         System.currentTimeMillis() - snapshotStatus.startTime(), indexNumberOfFiles, indexTotalFilesSize);
                 //TODO: The time stored in snapshot doesn't include cleanup time.
-                try {
-                    logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
-                    try (OutputStream output = blobContainer.createOutput(commitPointName)) {
-                        writeSnapshot(snapshot, output);
-                    }
+                logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
+                try (OutputStream output = blobContainer.createOutput(commitPointName)) {
+                    writeSnapshot(snapshot, output);
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
@@ -520,6 +518,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         private void snapshotFile(final BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
             final String file = fileInfo.physicalName();
+            final byte[] buffer = new byte[BUFFER_SIZE];
             try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())) {
                 for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                     final InputStreamIndexInput inputStreamIndexInput = new InputStreamIndexInput(indexInput, fileInfo.partBytes());
@@ -527,7 +526,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     inputStream = new AbortableInputStream(inputStream, fileInfo.physicalName());
                     try (OutputStream output = blobContainer.createOutput(fileInfo.partName(i))) {
                         int len;
-                        final byte[] buffer = new byte[BUFFER_SIZE];
                         while ((len = inputStream.read(buffer)) > 0) {
                             output.write(buffer, 0, len);
                         }

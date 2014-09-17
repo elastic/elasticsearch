@@ -25,6 +25,11 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
  */
 public enum ScoreType {
     /**
+     * Only the lowest score of all matching child documents is mapped into the
+     * parent.
+     */
+    MIN,
+    /**
      * Only the highest score of all matching child documents is mapped into the
      * parent.
      */
@@ -50,6 +55,8 @@ public enum ScoreType {
     public static ScoreType fromString(String type) {
         if ("none".equals(type)) {
             return NONE;
+        } else if ("min".equals(type)) {
+            return MIN;
         } else if ("max".equals(type)) {
             return MAX;
         } else if ("avg".equals(type)) {

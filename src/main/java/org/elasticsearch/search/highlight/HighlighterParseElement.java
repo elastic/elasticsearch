@@ -172,6 +172,10 @@ public class HighlighterParseElement implements SearchParseElement {
                         } else if (token == XContentParser.Token.START_OBJECT) {
                             fieldsOptions.add(Tuple.tuple(highlightFieldName, parseFields(parser, queryParserService)));
                         }
+                        else if (token == XContentParser.Token.START_ARRAY && parser.nextToken() == XContentParser.Token.END_ARRAY){
+                            final SearchContextHighlight.FieldOptions.Builder fieldOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();
+                            fieldsOptions.add(Tuple.tuple(highlightFieldName, fieldOptionsBuilder));
+                        }
                     }
                 } else if ("highlight_query".equals(topLevelFieldName) || "highlightQuery".equals(topLevelFieldName)) {
                     globalOptionsBuilder.highlightQuery(queryParserService.parse(parser).query());

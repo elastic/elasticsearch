@@ -63,7 +63,6 @@ import static org.hamcrest.Matchers.*;
 public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "Shay is working on this")
     public void restorePersistentSettingsTest() throws Exception {
         logger.info("--> start node");
         internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));

@@ -237,12 +237,13 @@ public class MockTransportService extends TransportService {
 
                 threadPool.schedule(delay, ThreadPool.Names.GENERIC, new AbstractRunnable() {
                     @Override
-                    public void run() {
-                        try {
-                            original.sendRequest(node, requestId, action, clonedRequest, options);
-                        } catch (Throwable e) {
-                            logger.debug("failed to send delayed request", e);
-                        }
+                    public void onFailure(Throwable e) {
+                        logger.debug("failed to send delayed request", e);
+                    }
+
+                    @Override
+                    protected void doRun() throws IOException {
+                        original.sendRequest(node, requestId, action, clonedRequest, options);
                     }
                 });
             }

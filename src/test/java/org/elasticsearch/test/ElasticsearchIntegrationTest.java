@@ -618,7 +618,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 // tests get a new / clean cluster
                 clearClusters();
                 if (currentCluster == GLOBAL_CLUSTER) {
-                    GLOBAL_CLUSTER.close();
+                    if (GLOBAL_CLUSTER != null) {
+                        GLOBAL_CLUSTER.close();
+                    }
                     GLOBAL_CLUSTER = null;
                     initializeGlobalCluster(); // re-init that cluster
                 }

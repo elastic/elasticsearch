@@ -52,6 +52,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -138,24 +139,27 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             createIndex(request, listener, mdLock);
             return;
         }
-
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    if (!mdLock.tryAcquire(request.masterNodeTimeout().nanos(), TimeUnit.NANOSECONDS)) {
-                        listener.onFailure(new ProcessClusterEventTimeoutException(request.masterNodeTimeout(), "acquire index lock"));
+        try {
+            threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (!mdLock.tryAcquire(request.masterNodeTimeout().nanos(), TimeUnit.NANOSECONDS)) {
+                            listener.onFailure(new ProcessClusterEventTimeoutException(request.masterNodeTimeout(), "acquire index lock"));
+                            return;
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.interrupted();
+                        listener.onFailure(e);
                         return;
                     }
-                } catch (InterruptedException e) {
-                    Thread.interrupted();
-                    listener.onFailure(e);
-                    return;
-                }
 
-                createIndex(request, listener, mdLock);
-            }
-        });
+                    createIndex(request, listener, mdLock);
+                }
+            });
+        } catch (EsRejectedExecutionException ex) {
+            listener.onFailure(ex);
+        }
     }
 
     public void validateIndexName(String index, ClusterState state) throws ElasticsearchException {

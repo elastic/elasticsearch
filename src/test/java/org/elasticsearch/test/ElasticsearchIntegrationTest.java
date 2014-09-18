@@ -94,7 +94,6 @@ import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -610,7 +609,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
             throw e;
         } finally {
-            if (!success || suiteFailureMarker.hadFailures()) {
+            if (!success || CurrentTestFailedMarker.testFailed()) {
                 // if we failed that means that something broke horribly so we should
                 // clear all clusters and if the current cluster is the global we shut that one
                 // down as well to prevent subsequent tests from failing due to the same problem.

@@ -235,12 +235,12 @@ public final class InternalNode implements Node {
         injector.getInstance(IndicesTTLService.class).start();
         injector.getInstance(RiversManager.class).start();
         injector.getInstance(SnapshotsService.class).start();
+        injector.getInstance(TransportService.class).start();
         injector.getInstance(ClusterService.class).start();
         injector.getInstance(RoutingService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(MonitorService.class).start();
         injector.getInstance(RestController.class).start();
-        injector.getInstance(TransportService.class).start();
         DiscoveryService discoService = injector.getInstance(DiscoveryService.class).start();
         discoService.waitForInitialState();
 

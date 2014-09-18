@@ -22,6 +22,7 @@ package org.elasticsearch.discovery;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -134,9 +135,10 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
         // make sure we don't ping
         settings.put(FaultDetection.SETTING_CONNECT_ON_NETWORK_DISCONNECT, shouldRetry)
                 .put(FaultDetection.SETTING_PING_INTERVAL, "5m");
-        NodesFaultDetection nodesFD = new NodesFaultDetection(settings.build(), threadPool, serviceA, new ClusterName("test"));
-        nodesFD.start();
-        nodesFD.updateNodes(buildNodesForA(true), -1);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(buildNodesForA(true)).build();
+        NodesFaultDetection nodesFD = new NodesFaultDetection(settings.build(), threadPool, serviceA, clusterState.getClusterName());
+        nodesFD.setLocalNode(clusterState.nodes().localNode());
+        nodesFD.start(clusterState);
         final String[] failureReason = new String[1];
         final DiscoveryNode[] failureNode = new DiscoveryNode[1];
         final CountDownLatch notified = new CountDownLatch(1);
@@ -200,7 +202,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
             }
 
             @Override
-            public void onDisconnectedFromMaster() {
+            public void notListedOnMaster() {
 
             }
         });

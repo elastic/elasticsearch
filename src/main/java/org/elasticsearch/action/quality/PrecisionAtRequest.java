@@ -21,7 +21,6 @@ package org.elasticsearch.action.quality;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -78,9 +77,7 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
 
             Specification spec = new Specification();
             spec.setTargetIndex(in.readString());
-            SearchRequest searchRequest = new SearchRequest();
-            searchRequest.readFrom(in);
-            spec.setTemplatedSearchRequest(searchRequest);
+            spec.setSearchRequestTemplate(in.readString());
             spec.setFilter(in.readBytesReference());
             spec.setSpecId(in.readInt());
             specs.add(spec);
@@ -107,7 +104,7 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
         out.writeInt(specs.size());
         for (Specification spec : specs) {
             out.writeString(spec.getTargetIndex());
-            spec.getTemplatedSearchRequest().writeTo(out);
+            out.writeString(spec.getSearchRequestTemplate());
             out.writeBytesReference(spec.getFilter());
             out.writeInt(spec.getSpecId());
         }

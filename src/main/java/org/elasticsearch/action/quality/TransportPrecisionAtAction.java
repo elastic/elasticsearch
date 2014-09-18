@@ -28,8 +28,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -69,19 +72,21 @@ public class TransportPrecisionAtAction extends TransportAction<PrecisionAtReque
         for (Specification spec : qualityTask.getSpecifications()) {
             double precisionAtN = 0;
 
-            SearchRequest specRequest = spec.getTemplatedSearchRequest();
+            String specRequest = spec.getSearchRequestTemplate();
             Collection<Intent<String>> intents = qualityTask.getIntents();
             Map<Integer, Collection<String>> unknownDocs = new HashMap<Integer, Collection<String>>();
             for (Intent<String> intent : intents) {
                 Map<String, String> templateParams = intent.getIntentParameters();
-                SearchRequest templated = new SearchRequest(specRequest, request);
-
                 Joiner.MapJoiner mapJoiner = Joiner.on("\" , \"").withKeyValueSeparator("\" : \"");
-
-                String template = "{ \"template\" : { \"query\": " + templated.templateSource().toUtf8() + " }, \"params\" : {\"" +
+                String template = "{ \"template\" : { \"query\": " + specRequest + " }, \"params\" : {\"" +
                      mapJoiner.join(templateParams.entrySet())  
                 + "\"} }";
-                templated.templateSource(template);
+                
+                SearchRequest templated = new SearchRequest();
+                templated.indices(spec.getTargetIndex());
+                BytesReference bytesRef = new BytesArray(template);
+                templated.templateSource(bytesRef, false);
+                templated.templateType(ScriptService.ScriptType.INLINE);
                 
                 ActionFuture<SearchResponse> searchResponse = transportSearchAction.execute(templated);
                 SearchHits hits = searchResponse.actionGet().getHits();

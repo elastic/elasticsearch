@@ -21,7 +21,6 @@ package org.elasticsearch.action.quality;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.MoreObjects.ToStringHelper;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 
 /**
@@ -34,10 +33,11 @@ public class Specification {
 
     private int specId;
     private String targetIndex;
-    private SearchRequest templatedSearchRequest;
+    private String searchRequestTemplate;
     private BytesReference filter;
     
     /** Returns the index to send a query to. */
+    // TODO could be multiple
     public String getTargetIndex() {
         return targetIndex;
     }
@@ -50,13 +50,13 @@ public class Specification {
 
 
     /** Returns the search request including the search template to use for executing requests in this spec.*/
-    public SearchRequest getTemplatedSearchRequest() {
-        return templatedSearchRequest;
+    public String getSearchRequestTemplate() {
+        return searchRequestTemplate;
     }
 
     /** Sets the search request including the search template to use for executing requests in this spec.*/
-    public void setTemplatedSearchRequest(SearchRequest templatedSearchRequest) {
-        this.templatedSearchRequest = templatedSearchRequest;
+    public void setSearchRequestTemplate(String searchRequestTemplate) {
+        this.searchRequestTemplate = searchRequestTemplate;
     }
 
 
@@ -86,7 +86,7 @@ public class Specification {
     @Override
     public String toString() {
         ToStringHelper help = MoreObjects.toStringHelper(this).add("Target index", targetIndex);
-        help.add("Template SearchRequest", templatedSearchRequest.templateSource().toUtf8());
+        help.add("Template SearchRequest", searchRequestTemplate);
         help.add("Filter", filter.toUtf8());
         help.add("Spec ID", specId);
         return help.toString();

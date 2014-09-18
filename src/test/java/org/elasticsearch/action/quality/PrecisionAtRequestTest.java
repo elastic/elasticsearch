@@ -22,12 +22,8 @@ package org.elasticsearch.action.quality;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.quality.PrecisionAtN.Rating;
 import org.elasticsearch.action.quality.PrecisionAtResponse.PrecisionResult;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
@@ -97,16 +93,6 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPrecisionAction() {
-        
-        SearchRequest request = new SearchRequest();
-        request.indices("_all");
-
-        //String query = "{ \"template\" : { \"query\": {\"match\": {\"text\" : \"{{var}}\" } } }, \"params\" : { } }";
-        String query = "{\"match\": {\"text\" : \"{{var}}\" } }";
-        BytesReference bytesRef = new BytesArray(query);
-        request.templateSource(bytesRef, false);
-        request.templateType(ScriptService.ScriptType.INLINE);
-
         Collection<Intent<String>> intents = new ArrayList<Intent<String>>();
         Intent<String> intentAmsterdam = new Intent<>();
         intentAmsterdam.setIntentId(0);
@@ -125,7 +111,7 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         spec.setSpecId(0);
         spec.setFilter(null);
         spec.setTargetIndex("test");
-        spec.setTemplatedSearchRequest(request);
+        spec.setSearchRequestTemplate("{\"match\": {\"text\" : \"{{var}}\" } }");
         specs.add(spec);
 
         PrecisionTask task = new PrecisionTask();

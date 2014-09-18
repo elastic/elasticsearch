@@ -200,7 +200,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
             }
 
             @Override
-            public void onDisconnectedFromMaster() {
+            public void notListedOnMaster() {
 
             }
         });

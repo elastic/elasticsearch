@@ -81,12 +81,11 @@ public class Intent<RelevancyLevel> {
 
     @Override
     public String toString() {
-        Joiner.MapJoiner mapJoiner = Joiner.on(',').withKeyValueSeparator("=");
-        
+        Joiner.MapJoiner mapJoiner = Joiner.on(',').withKeyValueSeparator(":");
         ToStringHelper help = MoreObjects.toStringHelper(this).add("IntentId", intentId);
         
-        help.add("Intent parameters: ", mapJoiner.join(intentParameters));
-        help.add("Rated documents: ", mapJoiner.join(ratedDocuments));
+        help.add("Intent parameters", mapJoiner.join(intentParameters));
+        help.add("Rated documents", mapJoiner.join(ratedDocuments));
         return help.toString();
     }
 }

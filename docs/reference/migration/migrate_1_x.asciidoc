@@ -58,6 +58,9 @@ curl -XGET 'http://localhost:9200/_all/_aliases'
 curl -XGET 'http://localhost:9200/_aliases'
 --------------------------------------------------
 
+In addition, the <<alias-retrieving, get alias api>> now supports <<multi-index>> options and, by default, will
+produce an error response if a requested index does not exist.
+
 The <<indices-get-mapping, get mapping api>> will return a section for `mappings` even if there are 
 no mappings.  This ensures that the following two examples are equivalent:
 

@@ -103,9 +103,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
      */
     Location add(Operation operation) throws TranslogException;
 
-    byte[] read(Location location);
-
-    Translog.Source readSource(Location location) throws IOException;
+    Translog.Operation read(Location location);
 
     /**
      * Snapshots the current transaction log allowing to safely iterate over the snapshot.
@@ -153,6 +151,11 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         @Override
         public long ramBytesUsed() {
             return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2*RamUsageEstimator.NUM_BYTES_LONG + RamUsageEstimator.NUM_BYTES_INT;
+        }
+
+        @Override
+        public String toString() {
+            return "[id: " + translogId + ", location: " + translogLocation + ", size: " + size + "]";
         }
     }
 

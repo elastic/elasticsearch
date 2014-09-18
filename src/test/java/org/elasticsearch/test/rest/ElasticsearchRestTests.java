@@ -170,8 +170,10 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     @AfterClass
     public static void close() {
-        restTestExecutionContext.close();
-        restTestExecutionContext = null;
+        if (restTestExecutionContext != null) {
+            restTestExecutionContext.close();
+            restTestExecutionContext = null;
+        }
     }
 
     /**

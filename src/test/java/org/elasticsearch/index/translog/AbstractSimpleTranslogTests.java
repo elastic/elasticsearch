@@ -23,8 +23,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
@@ -74,24 +72,19 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
     protected abstract String translogFileDirectory();
 
-    private static Translog.Source readSource(byte[] bytes) throws IOException {
-        BytesStreamInput in = new BytesStreamInput(bytes, false);
-        return TranslogStreams.readTranslogOperation(in).getSource();
-    }
-
     @Test
     public void testRead() throws IOException {
         Translog.Location loc1 = translog.add(new Translog.Create("test", "1", new byte[]{1}));
         Translog.Location loc2 = translog.add(new Translog.Create("test", "2", new byte[]{2}));
-        assertThat(readSource(translog.read(loc1)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
-        assertThat(readSource(translog.read(loc2)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
+        assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
+        assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
         translog.sync();
-        assertThat(translog.readSource(loc1).source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
-        assertThat(translog.readSource(loc2).source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
+        assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
+        assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
         Translog.Location loc3 = translog.add(new Translog.Create("test", "2", new byte[]{3}));
-        assertThat(readSource(translog.read(loc3)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+        assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
         translog.sync();
-        assertThat(translog.readSource(loc3).source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+        assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
     }
 
     @Test
@@ -368,9 +361,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         }
 
         for (LocationOperation locationOperation : writtenOperations) {
-            byte[] data = translog.read(locationOperation.location);
-            StreamInput streamInput = new BytesStreamInput(data, false);
-            Translog.Operation op = TranslogStreams.readTranslogOperation(streamInput);
+            Translog.Operation op = translog.read(locationOperation.location);
             Translog.Operation expectedOp = locationOperation.operation;
             assertEquals(expectedOp.opType(), op.opType());
             switch (op.opType()) {
@@ -434,7 +425,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         AtomicInteger corruptionsCaught = new AtomicInteger(0);
         for (Translog.Location location : locations) {
             try {
-                readSource(translog.read(location));
+                translog.read(location);
             } catch (TranslogCorruptedException e) {
                 corruptionsCaught.incrementAndGet();
             }

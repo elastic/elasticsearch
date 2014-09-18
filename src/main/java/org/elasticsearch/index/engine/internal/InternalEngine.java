@@ -358,13 +358,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     if (!get.loadSource()) {
                         return new GetResult(true, versionValue.version(), null);
                     }
-                    try {
-                        Translog.Source source = translog.readSource(versionValue.translogLocation());
-                        if (source != null) {
-                            return new GetResult(true, versionValue.version(), source);
-                        }
-                    } catch (IOException e) {
-                        // switched on us, read it from the reader
+                    Translog.Operation op = translog.read(versionValue.translogLocation());
+                    if (op != null) {
+                        return new GetResult(true, versionValue.version(), op.getSource());
                     }
                 }
             }

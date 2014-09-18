@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.InternalClusterInfoService.shardIdentifierFromRouting;
@@ -66,23 +68,31 @@ public class DiskThresholdDecider extends AllocationDecider {
     private volatile Double freeDiskThresholdHigh;
     private volatile ByteSizeValue freeBytesThresholdLow;
     private volatile ByteSizeValue freeBytesThresholdHigh;
+    private volatile boolean includeRelocations;
     private volatile boolean enabled;
 
     public static final String CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED = "cluster.routing.allocation.disk.threshold_enabled";
     public static final String CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK = "cluster.routing.allocation.disk.watermark.low";
     public static final String CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK = "cluster.routing.allocation.disk.watermark.high";
+    public static final String CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS = "cluster.routing.allocation.disk.include_relocations";
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
             String newLowWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, null);
             String newHighWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, null);
+            Boolean newRelocationsSetting = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS, null);
             Boolean newEnableSetting =  settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, null);
 
             if (newEnableSetting != null) {
                 logger.info("updating [{}] from [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED,
                         DiskThresholdDecider.this.enabled, newEnableSetting);
                 DiskThresholdDecider.this.enabled = newEnableSetting;
+            }
+            if (newRelocationsSetting != null) {
+                logger.info("updating [{}] from [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS,
+                        DiskThresholdDecider.this.includeRelocations, newRelocationsSetting);
+                DiskThresholdDecider.this.includeRelocations = newRelocationsSetting;
             }
             if (newLowWatermark != null) {
                 if (!validWatermarkSetting(newLowWatermark)) {
@@ -125,9 +135,27 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         this.freeBytesThresholdLow = thresholdBytesFromWatermark(lowWatermark);
         this.freeBytesThresholdHigh = thresholdBytesFromWatermark(highWatermark);
+        this.includeRelocations = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS, true);
 
         this.enabled = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true);
         nodeSettingsService.addListener(new ApplySettings());
+    }
+
+    /**
+     * Returns the size of all shards that are currently being relocated to
+     * the node, but may not be finished transfering yet.
+     */
+    public long sizeOfRelocatingShards(RoutingNode node, RoutingAllocation allocation, Map<String, Long> shardSizes) {
+        List<ShardRouting> relocatingShards = allocation.routingTable().shardsWithState(ShardRoutingState.RELOCATING);
+        long totalSize = 0;
+        for (ShardRouting routing : relocatingShards) {
+            if (routing.relocatingNodeId().equals(node.nodeId())) {
+                Long shardSize = shardSizes.get(shardIdentifierFromRouting(routing));
+                shardSize = shardSize == null ? 0 : shardSize;
+                totalSize += shardSize;
+            }
+        }
+        return totalSize;
     }
 
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -173,6 +201,16 @@ public class DiskThresholdDecider extends AllocationDecider {
                 logger.debug("Unable to determine disk usage for [{}], defaulting to average across nodes [{} total] [{} free] [{}% free]",
                         node.nodeId(), usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeDiskAsPercentage());
             }
+        }
+
+        if (includeRelocations) {
+            long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, shardSizes);
+            DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
+            if (logger.isDebugEnabled()) {
+                logger.debug("usage without relocations: {}", usage);
+                logger.debug("usage with relocations: [{} bytes] {}", relocatingShardsSize, usageIncludingRelocations);
+            }
+            usage = usageIncludingRelocations;
         }
 
         // First, check that the node currently over the low watermark
@@ -226,7 +264,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                             freeDiskThresholdLow, freeDiskPercentage, node.nodeId());
                 }
                 return allocation.decision(Decision.NO, NAME, "less than required [%s%%] free disk on node, free: [%s%%]",
-                        freeDiskThresholdLow, freeDiskThresholdLow);
+                        freeDiskThresholdLow, freeDiskPercentage);
             } else if (freeDiskPercentage > freeDiskThresholdHigh) {
                 // Allow the shard to be allocated because it is primary that
                 // has never been allocated if it's under the high watermark
@@ -245,7 +283,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                             freeDiskThresholdHigh, freeDiskPercentage, node.nodeId());
                 }
                 return allocation.decision(Decision.NO, NAME, "less than required [%s%%] free disk on node, free: [%s%%]",
-                        freeDiskThresholdLow, freeDiskThresholdLow);
+                        freeDiskThresholdLow, freeDiskPercentage);
             }
         }
 
@@ -304,6 +342,17 @@ public class DiskThresholdDecider extends AllocationDecider {
                 logger.debug("Unable to determine disk usage for {}, defaulting to average across nodes [{} total] [{} free] [{}% free]",
                         node.nodeId(), usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeDiskAsPercentage());
             }
+        }
+
+        if (includeRelocations) {
+            Map<String, Long> shardSizes = clusterInfo.getShardSizes();
+            long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, shardSizes);
+            DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
+            if (logger.isDebugEnabled()) {
+                logger.debug("usage without relocations: {}", usage);
+                logger.debug("usage with relocations: [{} bytes] {}", relocatingShardsSize, usageIncludingRelocations);
+            }
+            usage = usageIncludingRelocations;
         }
 
         // If this node is already above the high threshold, the shard cannot remain (get it off!)

@@ -421,23 +421,23 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 clusterService.submitStateUpdateTask("join_master", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
+                        // the joinElectedMaster method should create a full circle and publish a state that includes
+                        // "us" in it from the master node, whereby handleNewClusterStateFromMaster will place the
+                        // latest disco nodes with the new master node in it
                         if (!masterNode.equals(currentState.nodes().masterNode())) {
+                            // The master has switched on us or a full rejoin cycle hasn't completed.
+                            // We need to be sure that the master in the new cluster state is the same
+                            // as the one we picked before joining it, so we retry by doing a retry
                             logger.debug("Master node has switched on us, rejoining...");
                             return rejoin(currentState, "rejoin_due_to_master_switch");
+                        } else {
+                            // TODO in theory, there is no need to even start the masterFD, since it will be started in
+                            // handleNewClusterStateFromMaster
+                            masterFD.start(masterNode, "initial_join");
+                            long count = clusterJoinsCounter.incrementAndGet();
+                            logger.trace("cluster joins counter set to [{}] (joined master)", count);
+                            return currentState;
                         }
-                        // the joinElectedMaster should create a full circle and publish a state that includes "us"
-                        // in it from the master node, whereby handleNewState will place the latest disco nodes
-                        // with the new master node in it
-                        // TODO in theory, there is no need to even start the masterFD, since it will be started in handleNewState
-                        if (latestDiscoNodes.masterNode() == null) {
-                            logger.debug("no master node is set, despite of join request completing, rejoining...");
-                            return rejoin(currentState, "rejoin_because_no_master_node_set");
-                        }
-
-                        masterFD.start(masterNode, "initial_join");
-                        long count = clusterJoinsCounter.incrementAndGet();
-                        logger.trace("cluster joins counter set to [{}] (joined master)", count);
-                        return currentState;
                     }
 
                     @Override

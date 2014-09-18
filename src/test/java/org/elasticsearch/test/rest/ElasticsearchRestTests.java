@@ -105,6 +105,9 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        //skip REST tests if disabled through -Dtests.rest=false
+        assumeTrue(systemPropertyAsBoolean(REST_TESTS, true));
+
         List<RestTestCandidate> restTestCandidates = collectTestCandidates();
         List<Object[]> objects = Lists.newArrayList();
         for (RestTestCandidate restTestCandidate : restTestCandidates) {
@@ -160,9 +163,6 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     @BeforeClass
     public static void initExecutionContext() throws IOException, RestException {
-        //skip REST tests if disabled through -Dtests.rest=false
-        assumeTrue(systemPropertyAsBoolean(REST_TESTS, true));
-
         String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
         RestSpec restSpec = RestSpec.parseFrom(DEFAULT_SPEC_PATH, specPaths);
         restTestExecutionContext = new RestTestExecutionContext(restSpec);

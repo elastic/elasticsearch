@@ -137,3 +137,12 @@ Both watermark settings can be changed dynamically using the cluster
 settings API. By default, Elasticsearch will retrieve information
 about the disk usage of the nodes every 30 seconds. This can also be
 changed by setting the `cluster.info.update.interval` setting.
+
+By default, Elasticsearch will take into account shards that are currently being
+relocated to the target node when computing a node's disk usage. This can be
+changed by setting the `cluster.routing.allocation.disk.include_relocations`
+setting to `false` (defaults to `true`). Taking relocating shards' sizes into
+account may, however, mean that the disk usage for a node is incorrectly
+estimated on the high side, since the relocation could be 90% complete and a
+recently retrieved disk usage would include the total size of the relocating
+shard as well as the space already used by the running relocation.

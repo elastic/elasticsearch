@@ -76,7 +76,7 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
         for (int i = 0; i < specSize; i++) {
 
             Specification spec = new Specification();
-            spec.setTargetIndex(in.readString());
+            spec.setTargetIndices((String[]) in.readGenericValue());
             spec.setSearchRequestTemplate(in.readString());
             spec.setFilter(in.readBytesReference());
             spec.setSpecId(in.readInt());
@@ -103,7 +103,7 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
         
         out.writeInt(specs.size());
         for (Specification spec : specs) {
-            out.writeString(spec.getTargetIndex());
+            out.writeGenericValue(spec.getTargetIndices());
             out.writeString(spec.getSearchRequestTemplate());
             out.writeBytesReference(spec.getFilter());
             out.writeInt(spec.getSpecId());

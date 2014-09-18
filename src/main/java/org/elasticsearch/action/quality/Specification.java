@@ -32,19 +32,18 @@ import org.elasticsearch.common.bytes.BytesReference;
 public class Specification {
 
     private int specId;
-    private String targetIndex;
+    private String[] targetIndex;
     private String searchRequestTemplate;
     private BytesReference filter;
     
     /** Returns the index to send a query to. */
-    // TODO could be multiple
-    public String getTargetIndex() {
+    public String[] getTargetIndices() {
         return targetIndex;
     }
 
 
     /** Sets the index to send a query to. */
-    public void setTargetIndex(String targetIndex) {
+    public void setTargetIndices(String... targetIndex) {
         this.targetIndex = targetIndex;
     }
 

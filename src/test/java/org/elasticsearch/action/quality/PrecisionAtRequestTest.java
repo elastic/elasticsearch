@@ -110,7 +110,7 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         Specification spec = new Specification();
         spec.setSpecId(0);
         spec.setFilter(null);
-        spec.setTargetIndex("test");
+        spec.setTargetIndices("test");
         spec.setSearchRequestTemplate("{\"match\": {\"text\" : \"{{var}}\" } }");
         specs.add(spec);
 

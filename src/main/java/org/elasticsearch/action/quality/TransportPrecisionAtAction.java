@@ -83,7 +83,7 @@ public class TransportPrecisionAtAction extends TransportAction<PrecisionAtReque
                 + "\"} }";
                 
                 SearchRequest templated = new SearchRequest();
-                templated.indices(spec.getTargetIndex());
+                templated.indices(spec.getTargetIndices());
                 BytesReference bytesRef = new BytesArray(template);
                 templated.templateSource(bytesRef, false);
                 templated.templateType(ScriptService.ScriptType.INLINE);

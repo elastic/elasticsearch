@@ -468,7 +468,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService {
         }
     }
 
-    protected final class State {
+    private final class State {
 
         final String benchmarkId;
         final BenchmarkStartRequest request;

@@ -61,6 +61,8 @@ public class NodesFaultDetection extends FaultDetection {
 
     private volatile DiscoveryNodes latestNodes = EMPTY_NODES;
 
+    private volatile DiscoveryNode localNode;
+
     private volatile long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
 
     private volatile boolean running = false;
@@ -73,6 +75,10 @@ public class NodesFaultDetection extends FaultDetection {
         transportService.registerHandler(PING_ACTION_NAME, new PingRequestHandler());
     }
 
+    public void setLocalNode(DiscoveryNode localNode) {
+        this.localNode = localNode;
+    }
+
     public void addListener(Listener listener) {
         listeners.add(listener);
     }
@@ -81,16 +87,16 @@ public class NodesFaultDetection extends FaultDetection {
         listeners.remove(listener);
     }
 
-    public void updateNodes(DiscoveryNodes nodes, long clusterStateVersion) {
-        DiscoveryNodes prevNodes = latestNodes;
-        this.latestNodes = nodes;
-        this.clusterStateVersion = clusterStateVersion;
+    public void updateNodes(ClusterState clusterState) {
         if (!running) {
             return;
         }
-        DiscoveryNodes.Delta delta = nodes.delta(prevNodes);
+        DiscoveryNodes prevNodes = latestNodes;
+        this.latestNodes = clusterState.nodes();
+        this.clusterStateVersion = clusterState.version();
+        DiscoveryNodes.Delta delta = this.latestNodes.delta(prevNodes);
         for (DiscoveryNode newNode : delta.addedNodes()) {
-            if (newNode.id().equals(nodes.localNodeId())) {
+            if (newNode.id().equals(this.localNode.id())) {
                 // no need to monitor the local node
                 continue;
             }
@@ -105,11 +111,9 @@ public class NodesFaultDetection extends FaultDetection {
         }
     }
 
-    public NodesFaultDetection start() {
-        if (running) {
-            return this;
-        }
+    public NodesFaultDetection start(ClusterState clusterState) {
         running = true;
+        updateNodes(clusterState);
         return this;
     }
 
@@ -193,7 +197,7 @@ public class NodesFaultDetection extends FaultDetection {
             if (!running) {
                 return;
             }
-            final PingRequest pingRequest = new PingRequest(node.id(), clusterName, latestNodes.localNode(), clusterStateVersion);
+            final PingRequest pingRequest = new PingRequest(node.id(), clusterName, localNode, clusterStateVersion);
             final TransportRequestOptions options = options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout);
             transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, new BaseTransportResponseHandler<PingResponse>() {
                         @Override
@@ -272,8 +276,8 @@ public class NodesFaultDetection extends FaultDetection {
         public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
-            if (!latestNodes.localNodeId().equals(request.nodeId)) {
-                throw new ElasticsearchIllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + latestNodes.localNodeId() + "]");
+            if (!localNode.id().equals(request.nodeId)) {
+                throw new ElasticsearchIllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + localNode.id() + "]");
             }
 
             // PingRequest will have clusterName set to null if it came from a node of version <1.4.0

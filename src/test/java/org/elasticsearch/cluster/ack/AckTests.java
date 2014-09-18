@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.ack;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -108,7 +109,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testPutWarmerNoAcknowledgement() {
+    public void testPutWarmerNoAcknowledgement() throws InterruptedException {
         createIndex("test");
         ensureGreen();
 
@@ -116,6 +117,22 @@ public class AckTests extends ElasticsearchIntegrationTest {
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertThat(putWarmerResponse.isAcknowledged(), equalTo(false));
+        /* Since we don't wait for the ack here we have to wait until the search request has been executed from the master
+         * otherwise the test infra might have already deleted the index and the search request fails on all shards causing
+         * the test to fail too. We simply wait until the the warmer has been installed and also clean it up afterwards.*/
+        assertTrue(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                for (Client client : clients()) {
+                    GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
+                    if (getWarmersResponse.warmers().size() != 1) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }));
+        assertAcked(client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer"));
     }
 
     @Test

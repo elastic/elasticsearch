@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.BenchmarkMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -48,7 +49,7 @@ public class MockBenchmarkStateManager extends BenchmarkStateManager {
 
     @Override
     public void update(String benchmarkId, BenchmarkMetaData.State benchmarkState, BenchmarkMetaData.Entry.NodeState nodeState,
-                       final Map<String, BenchmarkCoordinatorService.Liveness> nodeLiveness, final ActionListener listener) {
+                       final ImmutableOpenMap<String, BenchmarkCoordinatorService.Liveness> nodeLiveness, final ActionListener listener) {
 
         if (!forceFailureOnUpdate) {
             super.update(benchmarkId, benchmarkState, nodeState, nodeLiveness, listener);

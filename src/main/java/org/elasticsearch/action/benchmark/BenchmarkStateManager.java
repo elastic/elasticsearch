@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.BenchmarkMetaData;
 import org.elasticsearch.cluster.metadata.BenchmarkMetaData.Entry;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -265,7 +266,7 @@ public class BenchmarkStateManager {
      */
     public void update(final String benchmarkId, final BenchmarkMetaData.State benchmarkState,
                        final BenchmarkMetaData.Entry.NodeState nodeState,
-                       final Map<String, Liveness> nodeLiveness, final ActionListener listener) {
+                       final ImmutableOpenMap<String, Liveness> nodeLiveness, final ActionListener listener) {
 
         final String cause = "benchmark-update-state (" + benchmarkId + ":" + benchmarkState + ")";
 

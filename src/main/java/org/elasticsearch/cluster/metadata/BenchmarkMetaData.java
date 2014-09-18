@@ -118,6 +118,17 @@ public class BenchmarkMetaData implements MetaData.Custom {
         }
 
         @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("benchmark metadata state: [").append(benchmarkId).append("] (").append(state()).append(") [");
+            for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : nodeStateMap().entrySet()) {
+                sb.append(" ").append(e.getKey()).append(":").append(e.getValue());
+            }
+            sb.append(" ]");
+            return sb.toString();
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;

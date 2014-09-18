@@ -36,7 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Common response format for commands that operate on potentially more than
- * a single benchmark at a time, e.g. pause/resume
+ * a single benchmark at a time, e.g. pause/resume/abort
  */
 public abstract class BatchedResponse extends ActionResponse implements ToXContent {
 

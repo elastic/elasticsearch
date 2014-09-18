@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,8 +32,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
@@ -647,6 +652,106 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
 
         Double after = decider.freeDiskPercentageAfterShardAssigned(new DiskUsage("node2", 100, 30), 11L);
         assertThat(after, equalTo(19.0));
+    }
+
+    @Test
+    public void testShardRelocationsTakenIntoAccount() {
+        Settings diskSettings = settingsBuilder()
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS, true)
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, 0.7)
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.8).build();
+
+        Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", 100, 40)); // 60% used
+        usages.put("node2", new DiskUsage("node2", 100, 40)); // 60% used
+        usages.put("node2", new DiskUsage("node3", 100, 40)); // 60% used
+
+        Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[test][0][p]", 14L); // 14 bytes
+        shardSizes.put("[test][0][r]", 14L);
+        shardSizes.put("[test2][0][p]", 1L); // 1 bytes
+        shardSizes.put("[test2][0][r]", 1L);
+        final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
+
+        AllocationDeciders deciders = new AllocationDeciders(ImmutableSettings.EMPTY,
+                new HashSet<>(Arrays.asList(
+                        new SameShardAllocationDecider(ImmutableSettings.EMPTY),
+                        new DiskThresholdDecider(diskSettings))));
+
+        ClusterInfoService cis = new ClusterInfoService() {
+            @Override
+            public ClusterInfo getClusterInfo() {
+                logger.info("--> calling fake getClusterInfo");
+                return clusterInfo;
+            }
+        };
+
+        AllocationService strategy = new AllocationService(settingsBuilder()
+                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
+                .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
+                .build(), deciders, new ShardsAllocators(), cis);
+
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test2").numberOfShards(1).numberOfReplicas(1))
+                .build();
+
+        RoutingTable routingTable = RoutingTable.builder()
+                .addAsNew(metaData.index("test"))
+                .addAsNew(metaData.index("test2"))
+                .build();
+
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+
+        logger.info("--> adding two nodes");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+                        .put(newNode("node1"))
+                        .put(newNode("node2"))
+        ).build();
+        routingTable = strategy.reroute(clusterState).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        logShardStates(clusterState);
+
+        // shards should be initializing
+        assertThat(clusterState.routingNodes().shardsWithState(INITIALIZING).size(), equalTo(4));
+
+        logger.info("--> start the shards");
+        routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        logShardStates(clusterState);
+        // Assert that we're able to start the primary and replicas
+        assertThat(clusterState.routingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
+
+        logger.info("--> adding node3");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
+                        .put(newNode("node3"))
+        ).build();
+
+        AllocationCommand relocate1 = new MoveAllocationCommand(new ShardId("test", 0), "node2", "node3");
+        AllocationCommands cmds = new AllocationCommands(relocate1);
+
+        routingTable = strategy.reroute(clusterState, cmds).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        logShardStates(clusterState);
+
+        AllocationCommand relocate2 = new MoveAllocationCommand(new ShardId("test2", 0), "node2", "node3");
+        cmds = new AllocationCommands(relocate2);
+
+        try {
+            // The shard for the "test" index is already being relocated to
+            // node3, which will put it over the low watermark when it
+            // completes, with shard relocations taken into account this should
+            // throw an exception about not being able to complete
+            strategy.reroute(clusterState, cmds).routingTable();
+            fail("should not have been able to reroute the shard");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat("can't allocated because there isn't enough room: " + e.getMessage(),
+                    e.getMessage().contains("less than required [30.0%] free disk on node, free: [26.0%]"), equalTo(true));
+        }
+
     }
 
     public void logShardStates(ClusterState state) {

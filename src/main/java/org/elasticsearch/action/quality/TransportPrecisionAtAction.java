@@ -67,7 +67,7 @@ public class TransportPrecisionAtAction extends TransportAction<PrecisionAtReque
     protected void doExecute(PrecisionAtRequest request, ActionListener<PrecisionAtResponse> listener) {
         PrecisionAtResponse response = new PrecisionAtResponse();
         PrecisionTask qualityTask = request.getTask();
-        PrecisionAtN pan = new PrecisionAtN(10);  //TODO
+        PrecisionAtN pan = new PrecisionAtN(qualityTask.getConfig().getN());
 
         for (Specification spec : qualityTask.getSpecifications()) {
             double precisionAtN = 0;

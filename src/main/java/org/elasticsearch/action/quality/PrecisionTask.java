@@ -36,7 +36,19 @@ public class PrecisionTask {
     private Collection<Intent<String>> intents;
     /** Collection of query specifications, that is e.g. search request templates to use for query translation. */
     private Collection<Specification> specifications;
+    /** Definition of n in precision at n */
+    private PrecisionAtNConfiguration config;
     
+    /** Returns the precision at n configuration (containing level of n to consider).*/
+    public PrecisionAtNConfiguration getConfig() {
+        return config;
+    }
+
+    /** Sets the precision at n configuration (containing level of n to consider).*/
+    public void setConfig(PrecisionAtNConfiguration config) {
+        this.config = config;
+    }
+
     /** Returns a list of search intents to evaluate. */
     public Collection<Intent<String>> getIntents() {
         return intents;
@@ -61,6 +73,7 @@ public class PrecisionTask {
     public String toString() {
         ToStringHelper help = MoreObjects.toStringHelper(this).add("Intent", intents);
         help.add("Specifications", specifications);
+        help.add("Precision configuration", config);
         return help.toString();
     }
 }

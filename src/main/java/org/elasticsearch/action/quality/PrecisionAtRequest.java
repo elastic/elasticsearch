@@ -83,9 +83,13 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
             specs.add(spec);
         }
         
+        PrecisionAtNConfiguration config = new PrecisionAtNConfiguration();
+        config.setN(in.readInt());
+        
         this.task = new PrecisionTask();
         task.setIntents(intents);
         task.setSpecifications(specs);
+        task.setConfig(config);
     }
 
     @Override
@@ -93,6 +97,7 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
         super.writeTo(out);
         Collection<Intent<String>> intents = task.getIntents();
         Collection<Specification> specs = task.getSpecifications();
+        PrecisionAtNConfiguration config = task.getConfig();
         
         out.writeInt(intents.size());
         for (Intent<String> intent : intents) {
@@ -108,5 +113,7 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
             out.writeBytesReference(spec.getFilter());
             out.writeInt(spec.getSpecId());
         }
+        
+        out.writeInt(config.getN());
     }
 }

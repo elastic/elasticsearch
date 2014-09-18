@@ -114,9 +114,13 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         spec.setSearchRequestTemplate("{\"match\": {\"text\" : \"{{var}}\" } }");
         specs.add(spec);
 
+        PrecisionAtNConfiguration config = new PrecisionAtNConfiguration();
+        config.setN(10);
+
         PrecisionTask task = new PrecisionTask();
         task.setIntents(intents);
         task.setSpecifications(specs);
+        task.setConfig(config);
         
         PrecisionAtQueryBuilder builder = (new PrecisionAtQueryBuilder(client()).setTask(task));
         PrecisionAtResponse response = client().execute(PrecisionAtAction.INSTANCE, builder.request()).actionGet();

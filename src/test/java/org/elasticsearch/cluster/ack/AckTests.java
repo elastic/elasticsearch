@@ -32,6 +32,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.client.Client;
@@ -152,14 +153,27 @@ public class AckTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testDeleteWarmerNoAcknowledgement() {
+    public void testDeleteWarmerNoAcknowledgement() throws InterruptedException {
         createIndex("test");
         ensureGreen();
 
-        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer").setTimeout("0s")
-                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
-                .get();
-        assertThat(putWarmerResponse.isAcknowledged(), equalTo(false));
+        assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
+                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));
+
+        DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer").setTimeout("0s").get();
+        assertFalse(deleteWarmerResponse.isAcknowledged());
+        assertTrue(awaitBusy(new Predicate<Object>() { // wait until they are all deleted
+            @Override
+            public boolean apply(Object input) {
+                for (Client client : clients()) {
+                    GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
+                    if (getWarmersResponse.warmers().size() > 0) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }));
     }
 
     @Test

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.quality;
 
+import com.google.common.base.Joiner;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.quality.PrecisionAtN.Precision;
@@ -34,7 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -63,29 +64,34 @@ public class TransportPrecisionAtAction extends TransportAction<PrecisionAtReque
     protected void doExecute(PrecisionAtRequest request, ActionListener<PrecisionAtResponse> listener) {
         PrecisionAtResponse response = new PrecisionAtResponse();
         PrecisionTask qualityTask = request.getTask();
-        PrecisionAtN pan = new PrecisionAtN(10);
+        PrecisionAtN pan = new PrecisionAtN(10);  //TODO
 
         for (Specification spec : qualityTask.getSpecifications()) {
             double precisionAtN = 0;
-            Collection<String> unknownDocs = new HashSet<String>();
 
             SearchRequest specRequest = spec.getTemplatedSearchRequest();
             Collection<Intent<String>> intents = qualityTask.getIntents();
+            Map<Integer, Collection<String>> unknownDocs = new HashMap<Integer, Collection<String>>();
             for (Intent<String> intent : intents) {
                 Map<String, String> templateParams = intent.getIntentParameters();
-                SearchRequest templated = new SearchRequest(specRequest);
-                templated.templateParams(templateParams);
+                SearchRequest templated = new SearchRequest(specRequest, request);
+
+                Joiner.MapJoiner mapJoiner = Joiner.on("\" , \"").withKeyValueSeparator("\" : \"");
+
+                String template = "{ \"template\" : { \"query\": " + templated.templateSource().toUtf8() + " }, \"params\" : {\"" +
+                     mapJoiner.join(templateParams.entrySet())  
+                + "\"} }";
+                templated.templateSource(template);
                 
                 ActionFuture<SearchResponse> searchResponse = transportSearchAction.execute(templated);
                 SearchHits hits = searchResponse.actionGet().getHits();
 
                 Precision precision = pan.evaluate(intent.getRatedDocuments(), hits.getHits());
                 precisionAtN += precision.getPrecision();
-                unknownDocs.addAll(precision.getUnknownDocs());
+                unknownDocs.put(intent.getIntentId(), precision.getUnknownDocs());
             }
             response.addPrecisionAt(spec.getSpecId(), precisionAtN / intents.size(), unknownDocs);
         }
-
         listener.onResponse(response);
     }
 }

@@ -96,8 +96,6 @@ public class PrecisionAtN implements RankedListQualityMetric<String, Precision> 
     
     /** Returned for each search intent and search specification combination. Summarises the document ids found that were not
      * annotated and the average precision of result sets in each particular combination based on the annotations given. 
-     * 
-     * TODO add support for tracking unknown docs per query intent id
      * */
     public class Precision {
         private double precision;
@@ -114,7 +112,7 @@ public class PrecisionAtN implements RankedListQualityMetric<String, Precision> 
         }
 
         public double getPrecision() {
-            return precision;
+            return precision;          
         }
     }
 }

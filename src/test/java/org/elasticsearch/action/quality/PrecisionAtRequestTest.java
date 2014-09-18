@@ -24,8 +24,10 @@ import org.elasticsearch.action.quality.PrecisionAtN.Rating;
 import org.elasticsearch.action.quality.PrecisionAtResponse.PrecisionResult;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.index.query.TemplateQueryBuilder;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
@@ -34,8 +36,8 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
@@ -95,21 +97,27 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPrecisionAction() {
-        TemplateQueryBuilder query = new TemplateQueryBuilder("$template", new HashMap<String, Object>());
-        SearchRequest request = client().prepareSearch("test").setQuery(query.buildAsBytes()).request();
         
+        SearchRequest request = new SearchRequest();
+        request.indices("_all");
+
+        //String query = "{ \"template\" : { \"query\": {\"match\": {\"text\" : \"{{var}}\" } } }, \"params\" : { } }";
+        String query = "{\"match\": {\"text\" : \"{{var}}\" } }";
+        BytesReference bytesRef = new BytesArray(query);
+        request.templateSource(bytesRef, false);
+        request.templateType(ScriptService.ScriptType.INLINE);
 
         Collection<Intent<String>> intents = new ArrayList<Intent<String>>();
         Intent<String> intentAmsterdam = new Intent<>();
         intentAmsterdam.setIntentId(0);
         intentAmsterdam.setRatedDocuments(createRelevant("2", "3", "4", "5"));
-        intentAmsterdam.setIntentParameters(createParams("$template", "amsterdam"));
+        intentAmsterdam.setIntentParameters(createParams("var", "amsterdam"));
         intents.add(intentAmsterdam);
 
         Intent<String> intentBerlin = new Intent<>();
-        intentAmsterdam.setIntentId(0);
-        intentAmsterdam.setRatedDocuments(createRelevant("1"));
-        intentAmsterdam.setIntentParameters(createParams("$template", "berlin"));
+        intentBerlin.setIntentId(1);
+        intentBerlin.setRatedDocuments(createRelevant("1"));
+        intentBerlin.setIntentParameters(createParams("var", "berlin"));
         intents.add(intentBerlin);
 
         Collection<Specification> specs = new ArrayList<Specification>();
@@ -126,11 +134,13 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         
         PrecisionAtQueryBuilder builder = (new PrecisionAtQueryBuilder(client()).setTask(task));
         PrecisionAtResponse response = client().execute(PrecisionAtAction.INSTANCE, builder.request()).actionGet();
-        System.out.println(response);
-        for (PrecisionResult result : response.getPrecision()) {
-            System.out.println(result.getSpecId());
-            System.out.println(result.getPrecision());
-            System.out.println(result.getUnknownDocs());
+        PrecisionResult result = response.getPrecision().iterator().next();
+        for (Entry<Integer, Collection<String>> entry : result.getUnknownDocs().entrySet()) {
+            if (entry.getKey() == 0) {
+                assertEquals(1, entry.getValue().size());
+            } else {
+                assertEquals(0, entry.getValue().size());
+            }
         }
     }
     

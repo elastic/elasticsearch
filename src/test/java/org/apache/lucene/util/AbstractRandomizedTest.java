@@ -31,6 +31,7 @@ import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.test.CurrentTestFailedMarker;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
@@ -56,7 +57,8 @@ import java.util.logging.Logger;
 })
 @Listeners({
         ReproduceInfoPrinter.class,
-        FailureMarker.class
+        FailureMarker.class,
+        CurrentTestFailedMarker.class
 })
 @RunWith(value = com.carrotsearch.randomizedtesting.RandomizedRunner.class)
 @SuppressCodecs(value = "Lucene3x")

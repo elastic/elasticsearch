@@ -46,6 +46,15 @@ using the <<cluster-nodes-info>> API, with:
 --------------------------------------------------
 curl localhost:9200/_nodes/process?pretty
 --------------------------------------------------
+ On Linux, you can increase the limits by
+running the following command as `root`:
+[source,bash]
+-------------------------------------
+sysctl -w fs.file-max=64000
+-------------------------------------
+
+To set this value permanently, update the `fs.file-max` setting in
+`/etc/sysctl.conf`.
 
 [float]
 [[vm-max-map-count]]

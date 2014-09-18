@@ -61,6 +61,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
      * Property that allows to control whether the REST tests need to be run (default) or not (false)
      */
     public static final String REST_TESTS = "tests.rest";
+    public static boolean REST_TESTS_ENABLED_BY_DEFAULT = true;
     /**
      * Property that allows to control which REST tests get run. Supports comma separated list of tests
      * or directories that contain tests e.g. -Dtests.rest.suite=index,get,create/10_with_id
@@ -161,7 +162,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
     @BeforeClass
     public static void initExecutionContext() throws IOException, RestException {
         //skip REST tests if disabled through -Dtests.rest=false
-        assumeTrue(systemPropertyAsBoolean(REST_TESTS, true));
+        assumeTrue(systemPropertyAsBoolean(REST_TESTS, REST_TESTS_ENABLED_BY_DEFAULT));
 
         String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
         RestSpec restSpec = RestSpec.parseFrom(DEFAULT_SPEC_PATH, specPaths);

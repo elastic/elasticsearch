@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -131,6 +132,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<>();
 
+    // TODO: Remove this field in favour of using latestDiscoNodes#masterNode().equals(localNode) or something similar
     private volatile boolean master = false;
 
     private volatile DiscoveryNodes latestDiscoNodes;
@@ -364,18 +366,23 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 return;
             }
             retry = false;
-            DiscoveryNode masterNode = findMaster();
+            final DiscoveryNode masterNode = findMaster();
             if (masterNode == null) {
                 logger.trace("no masterNode returned");
                 retry = true;
                 continue;
             }
             if (localNode.equals(masterNode)) {
-                this.master = true;
-                nodesFD.start(); // start the nodes FD
                 clusterService.submitStateUpdateTask("zen-disco-join (elected_as_master)", Priority.IMMEDIATE, new ProcessedClusterStateNonMasterUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
+                        if (currentState.nodes().masterNode() != null) {
+                            logger.debug("New cluster state has {} as master, but we were about to become master, rejoin");
+                            return rejoin(currentState, "rejoin_due_to_master_switch_after_local_was_picked_as_master");
+                        }
+                        master = true;
+                        nodesFD.start(); // start the nodes FD
+
                         // Take into account the previous known nodes, if they happen not to be available
                         // then fault detection will remove these nodes.
                         DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder(latestDiscoNodes)
@@ -406,22 +413,49 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     }
                 });
             } else {
-                this.master = false;
-                // send join request
                 retry = !joinElectedMaster(masterNode);
                 if (retry) {
                     continue;
                 }
 
-                if (latestDiscoNodes.masterNode() == null) {
-                    logger.debug("no master node is set, despite of join request completing. retrying pings");
-                    retry = true;
-                    continue;
-                }
+                clusterService.submitStateUpdateTask("join_master", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        if (!masterNode.equals(currentState.nodes().masterNode())) {
+                            logger.debug("Master node has switched on us, rejoining...");
+                            return rejoin(currentState, "rejoin_due_to_master_switch");
+                        }
+                        // the joinElectedMaster should create a full circle and publish a state that includes "us"
+                        // in it from the master node, whereby handleNewState will place the latest disco nodes
+                        // with the new master node in it
+                        // TODO in theory, there is no need to even start the masterFD, since it will be started in handleNewState
+                        if (latestDiscoNodes.masterNode() == null) {
+                            logger.debug("no master node is set, despite of join request completing, rejoining...");
+                            return rejoin(currentState, "rejoin_because_no_master_node_set");
+                        }
 
-                masterFD.start(masterNode, "initial_join");
-                long count = clusterJoinsCounter.incrementAndGet();
-                logger.trace("cluster joins counter set to [{}] (joined master)", count);
+                        masterFD.start(masterNode, "initial_join");
+                        long count = clusterJoinsCounter.incrementAndGet();
+                        logger.trace("cluster joins counter set to [{}] (joined master)", count);
+                        return currentState;
+                    }
+
+                    @Override
+                    public void onFailure(String source, final Throwable t1) {
+                        clusterService.submitStateUpdateTask("rejoin_on_join_master", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+                            @Override
+                            public ClusterState execute(ClusterState currentState) throws Exception {
+                                logger.debug("Rejoining rejoin failed", t1);
+                                return rejoin(currentState, "rejoin_on_join_master_failure");
+                            }
+
+                            @Override
+                            public void onFailure(String source, Throwable t2) {
+                                logger.error("Couldn't rejoin after original rejoin failed. Original error {}", t2, t1);
+                            }
+                        });
+                    }
+                });
             }
         }
     }
@@ -1022,6 +1056,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     private ClusterState rejoin(ClusterState clusterState, String reason) {
+        // This method should only be invoked on a update task thread
+        assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME);
         logger.warn(reason + ", current nodes: {}", clusterState.nodes());
         nodesFD.stop();
         masterFD.stop(reason);

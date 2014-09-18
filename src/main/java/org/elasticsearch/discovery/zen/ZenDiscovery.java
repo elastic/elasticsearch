@@ -406,7 +406,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     }
                 });
             } else {
-                this.master = false;
                 // send join request
                 retry = !joinElectedMaster(masterNode);
                 if (retry) {

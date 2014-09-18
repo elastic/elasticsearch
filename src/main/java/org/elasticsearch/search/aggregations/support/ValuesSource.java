@@ -339,7 +339,7 @@ public abstract class ValuesSource {
 
             @Override
             public SortedBinaryDocValues bytesValues() {
-                throw new UnsupportedOperationException();
+                return atomicFieldData.getBytesValues();
             }
 
             @Override

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.simple;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -34,6 +35,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.containsString;
 
 public class SimpleSearchTests extends ElasticsearchIntegrationTest {
 
@@ -198,6 +200,19 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
                     .execute().actionGet();
             assertHitCount(searchResponse, 20l);
 
+        }
+    }
+
+    @Test
+    public void testInsaneFrom() throws Exception {
+        createIndex("idx");
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+
+        try {
+            client().prepareSearch("idx").setFrom(Integer.MAX_VALUE).get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("Result window is too large, from + size must be less than or equal to:"));
         }
     }
 }

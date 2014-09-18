@@ -690,6 +690,10 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService {
         return true;
     }
 
+    private static final EnumSet<BenchmarkMetaData.Entry.NodeState> NOT_FINISHED = EnumSet.of(
+            BenchmarkMetaData.Entry.NodeState.INITIALIZING, BenchmarkMetaData.Entry.NodeState.READY,
+            BenchmarkMetaData.Entry.NodeState.RUNNING, BenchmarkMetaData.Entry.NodeState.PAUSED);
+
     private boolean allNodesFinished(final BenchmarkMetaData.Entry entry) {
         for (Map.Entry<String, BenchmarkMetaData.Entry.NodeState> e : entry.nodeStateMap().entrySet()) {
 
@@ -698,10 +702,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService {
                 continue;   // Dead nodes don't factor in
             }
 
-            if (e.getValue() == BenchmarkMetaData.Entry.NodeState.INITIALIZING ||
-                e.getValue() == BenchmarkMetaData.Entry.NodeState.READY ||
-                e.getValue() == BenchmarkMetaData.Entry.NodeState.RUNNING ||
-                e.getValue() == BenchmarkMetaData.Entry.NodeState.PAUSED) {
+            if (NOT_FINISHED.contains(e.getValue())) {
                 return false;
             }
         }

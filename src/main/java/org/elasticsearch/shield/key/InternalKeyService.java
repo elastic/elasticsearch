@@ -36,10 +36,10 @@ import java.util.regex.Pattern;
 public class InternalKeyService extends AbstractComponent implements KeyService {
 
     public static final String FILE_SETTING = "shield.system_key.file";
+    public static final String KEY_ALGO = "HmacSHA512";
+    public static final int KEY_SIZE = 1024;
 
     static final String FILE_NAME = ".system_key";
-    static final String KEY_ALGO = "HmacSHA512";
-    static final int KEY_SIZE = 1024;
     static final String HMAC_ALGO = "HmacSHA1";
 
     private static final Pattern SIG_PATTERN = Pattern.compile("\\$\\$[0-9]+\\$\\$.+");
@@ -68,7 +68,7 @@ public class InternalKeyService extends AbstractComponent implements KeyService 
         return generator.generateKey().getEncoded();
     }
 
-    static Path resolveFile(Settings settings, Environment env) {
+    public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get(FILE_SETTING);
         if (location == null) {
             return ShieldPlugin.resolveConfigFile(env, FILE_NAME);

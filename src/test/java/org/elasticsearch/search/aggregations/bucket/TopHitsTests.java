@@ -270,7 +270,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                                         topHits("hits").setSize(1)
                                 )
                                 .subAggregation(
-                                        max("max_score").script("_doc.score()")
+                                        max("max_score").script("_score.doubleValue()")
                                 )
                 )
                 .get();

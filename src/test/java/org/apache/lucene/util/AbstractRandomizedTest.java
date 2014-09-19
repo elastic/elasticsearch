@@ -102,6 +102,21 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     public static final String TESTS_BACKWARDS_COMPATIBILITY_PATH = "tests.bwc.path";
 
     /**
+     * Annotation for REST tests
+     */
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @TestGroup(enabled = true, sysProperty = TESTS_REST)
+    public @interface Rest {
+    }
+
+    /**
+     * Property that allows to control whether the REST tests are run (default) or not
+     */
+    public static final String TESTS_REST = "tests.rest";
+
+    /**
      * Annotation for integration tests
      */
     @Inherited

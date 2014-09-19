@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -40,6 +41,7 @@ import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -388,4 +390,44 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
     }
+
+    @Test
+    public void testScriptScoresNested() throws IOException {
+        index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
+        refresh();
+        SearchResponse response = client().search(
+                searchRequest().source(
+                        searchSource().query(
+                                functionScoreQuery(
+                                        functionScoreQuery(
+                                                functionScoreQuery().add(scriptFunction("1")))
+                                                .add(scriptFunction("_score.doubleValue()")))
+                                        .add(scriptFunction("_score.doubleValue()")
+                                        )
+                        )
+                )
+        ).actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getAt(0).score(), equalTo(1.0f));
+    }
+
+    @Test
+    public void testScriptScoresWithAgg() throws IOException {
+        index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
+        refresh();
+        SearchResponse response = client().search(
+                searchRequest().source(
+                        searchSource().query(
+                                functionScoreQuery()
+                                        .add(scriptFunction("_score.doubleValue()")
+                                        )
+                        ).aggregation(terms("score_agg").script("_score.doubleValue()"))
+                )
+        ).actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getAt(0).score(), equalTo(1.0f));
+        assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getKeyAsNumber().floatValue(), is(1f));
+        assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1l));
+    }
 }
+

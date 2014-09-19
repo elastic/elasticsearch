@@ -45,13 +45,6 @@ public class GetIndexedScriptRequest extends ActionRequest<GetIndexedScriptReque
 
     protected String scriptLang;
     protected String id;
-    protected String preference;
-    protected String routing;
-    private FetchSourceContext fetchSourceContext;
-
-    private boolean refresh = false;
-
-    Boolean realtime;
 
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
@@ -117,24 +110,6 @@ public class GetIndexedScriptRequest extends ActionRequest<GetIndexedScriptReque
         return this;
     }
 
-    /**
-     * Controls the shard routing of the request. Using this value to hash the shard
-     * and not the id.
-     */
-    public GetIndexedScriptRequest routing(String routing) {
-        this.routing = routing;
-        return this;
-    }
-
-    /**
-     * Sets the preference to execute the get. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
-     * a custom value, which guarantees that the same order will be used across different requests.
-     */
-    public GetIndexedScriptRequest preference(String preference) {
-        this.preference = preference;
-        return this;
-    }
 
     public String scriptLang() {
         return scriptLang;
@@ -142,37 +117,6 @@ public class GetIndexedScriptRequest extends ActionRequest<GetIndexedScriptReque
 
     public String id() {
         return id;
-    }
-
-    public String routing() {
-        return routing;
-    }
-
-    public String preference() {
-        return this.preference;
-    }
-
-    /**
-     * Should a refresh be executed before this get operation causing the operation to
-     * return the latest value. Note, heavy get should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public GetIndexedScriptRequest refresh(boolean refresh) {
-        this.refresh = refresh;
-        return this;
-    }
-
-    public boolean refresh() {
-        return this.refresh;
-    }
-
-    public boolean realtime() {
-        return this.realtime == null ? true : this.realtime;
-    }
-
-    public GetIndexedScriptRequest realtime(Boolean realtime) {
-        this.realtime = realtime;
-        return this;
     }
 
     /**
@@ -209,19 +153,17 @@ public class GetIndexedScriptRequest extends ActionRequest<GetIndexedScriptReque
         }
         scriptLang = in.readString();
         id = in.readString();
-        preference = in.readOptionalString();
-        refresh = in.readBoolean();
-        byte realtime = in.readByte();
-        if (realtime == 0) {
-            this.realtime = false;
-        } else if (realtime == 1) {
-            this.realtime = true;
+        if (in.getVersion().before(Version.V_1_5_0)) {
+            in.readOptionalString(); //Preference
+            in.readBoolean(); //Refresh
+            in.readByte(); //Realtime
         }
-
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = Versions.readVersionWithVLongForBW(in);
 
-        fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
+        if (in.getVersion().before(Version.V_1_5_0)) {
+            FetchSourceContext.optionalReadFromStream(in);
+        }
     }
 
     @Override
@@ -233,24 +175,23 @@ public class GetIndexedScriptRequest extends ActionRequest<GetIndexedScriptReque
         }
         out.writeString(scriptLang);
         out.writeString(id);
-        out.writeOptionalString(preference);
-        out.writeBoolean(refresh);
-        if (realtime == null) {
-            out.writeByte((byte) -1);
-        } else if (!realtime) {
-            out.writeByte((byte) 0);
-        } else {
-            out.writeByte((byte) 1);
+        if (out.getVersion().before(Version.V_1_5_0)) {
+            out.writeOptionalString("_local"); //Preference
+            out.writeBoolean(true); //Refresh
+            out.writeByte((byte) -1); //Realtime
         }
 
         out.writeByte(versionType.getValue());
         Versions.writeVersionWithVLongForBW(version, out);
 
-        FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
+        if (out.getVersion().before(Version.V_1_5_0)) {
+            FetchSourceContext.optionalWriteToStream(null, out);
+        }
+
     }
 
     @Override
     public String toString() {
-        return "[" + ScriptService.SCRIPT_INDEX + "][" + scriptLang + "][" + id + "]: routing [" + routing + "]";
+        return "[" + ScriptService.SCRIPT_INDEX + "][" + scriptLang + "][" + id + "]";
     }
 }

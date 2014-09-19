@@ -101,7 +101,7 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
 
     @Override
     public void setScorer(Scorer scorer) {
-        lookup.setScorer(scorer);
+        throw new UnsupportedOperationException();
     }
 
     @Override

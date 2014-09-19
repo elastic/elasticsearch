@@ -150,6 +150,7 @@ can be specified as a whole number representing time in milliseconds, or as a ti
 `y`::   Year
 `M`::   Month
 `w`::   Week
+`d`::   Day
 `h`::   Hour
 `m`::   Minute
 `s`::   Second

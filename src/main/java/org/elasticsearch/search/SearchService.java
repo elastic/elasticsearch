@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -77,7 +78,6 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -614,11 +614,21 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
                 if (templateContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
                     //Try to double parse for nested template id/file
-                    parser = XContentFactory.xContent(templateContext.template().getBytes(Charset.defaultCharset())).createParser(templateContext.template().getBytes(Charset.defaultCharset()));
-                    TemplateQueryParser.TemplateContext innerContext = TemplateQueryParser.parse(parser, "params");
-                    if (hasLength(innerContext.template()) && !innerContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
-                        //An inner template referring to a filename or id
-                        templateContext = new TemplateQueryParser.TemplateContext(innerContext.scriptType(), innerContext.template(), templateContext.params());
+                    parser = null;
+                    try {
+                        byte[] templateBytes = templateContext.template().getBytes(Charsets.UTF_8);
+                        parser = XContentFactory.xContent(templateBytes).createParser(templateBytes);
+                    } catch (ElasticsearchParseException epe) {
+                        //This was an non-nested template, the parse failure was due to this, it is safe to assume this refers to a file
+                        //for backwards compatibility and keep going
+                        templateContext = new TemplateQueryParser.TemplateContext(ScriptService.ScriptType.FILE, templateContext.template(), templateContext.params());
+                    }
+                    if (parser != null) {
+                        TemplateQueryParser.TemplateContext innerContext = TemplateQueryParser.parse(parser, "params");
+                        if (hasLength(innerContext.template()) && !innerContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
+                            //An inner template referring to a filename or id
+                            templateContext = new TemplateQueryParser.TemplateContext(innerContext.scriptType(), innerContext.template(), templateContext.params());
+                        }
                     }
                 }
             } catch (IOException e) {

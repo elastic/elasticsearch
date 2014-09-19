@@ -48,7 +48,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.distributor.Distributor;
-import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
 import java.io.*;
 import java.nio.file.NoSuchFileException;
@@ -60,8 +59,8 @@ import java.util.zip.Checksum;
 
 /**
  * A Store provides plain access to files written by an elasticsearch index shard. Each shard
- * has a dedicated store that is uses to access lucenes Directory which represents the lowest level
- * of file abstraction in lucene used to read and write Lucene indices to.
+ * has a dedicated store that is uses to access Lucene's Directory which represents the lowest level
+ * of file abstraction in Lucene used to read and write Lucene indices.
  * This class also provides access to metadata information like checksums for committed files. A committed
  * file is a file that belongs to a segment written by a Lucene commit. Files that have not been committed
  * ie. created during a merge or a shard refresh / NRT reopen are not considered in the MetadataSnapshot.
@@ -91,7 +90,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private final CodecService codecService;
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
-    private final boolean sync;
     private final DistributorDirectory distributorDirectory;
 
     @Inject
@@ -99,7 +97,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         super(shardId, indexSettings);
         this.codecService = codecService;
         this.directoryService = directoryService;
-        this.sync = componentSettings.getAsBoolean("sync", true);
         this.distributorDirectory = new DistributorDirectory(distributor);
         this.directory = new StoreDirectory(distributorDirectory);
     }
@@ -387,9 +384,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     /**
-     * The idea of the store directory is to cache file level meta data, as well as md5 of it
+     * This exists so {@link BloomFilteringPostingsFormat} can load its boolean setting; can we find a more straightforward way?
      */
-    public class StoreDirectory extends FilterDirectory implements ForceSyncDirectory {
+    public class StoreDirectory extends FilterDirectory {
 
         StoreDirectory(Directory delegateDirectory) throws IOException {
             super(delegateDirectory);
@@ -432,20 +429,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             assert false : "Nobody should close this directory except of the Store itself";
         }
 
-        @Override
-        public void sync(Collection<String> names) throws IOException {
-            if (sync) {
-                super.sync(names);
-            }
-        }
-
         private void innerClose() throws IOException {
             super.close();
-        }
-
-        @Override
-        public void forceSync(String name) throws IOException {
-            sync(ImmutableList.of(name));
         }
 
         @Override

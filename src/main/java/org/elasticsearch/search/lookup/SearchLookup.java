@@ -76,10 +76,6 @@ public class SearchLookup {
         return this.docMap;
     }
 
-    public void setScorer(Scorer scorer) {
-        docMap.setScorer(scorer);
-    }
-
     public void setNextReader(AtomicReaderContext context) {
         docMap.setNextReader(context);
         sourceLookup.setNextReader(context);

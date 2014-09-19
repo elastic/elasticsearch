@@ -432,6 +432,11 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         private void innerClose() throws IOException {
             super.close();
         }
+
+        @Override
+        public String toString() {
+            return "store(" + in.toString() + ")";
+        }
     }
 
     /**

@@ -129,7 +129,7 @@ public class InternalFilters extends InternalAggregation implements Filters {
     }
 
     @Override
-    public Collection<Bucket> getBuckets() {
+    public List<Bucket> getBuckets() {
         return buckets;
     }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.HasAggregations;
 import org.elasticsearch.search.aggregations.support.OrderPath;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * An aggregation that returns multiple buckets
@@ -90,7 +91,7 @@ public interface MultiBucketsAggregation extends Aggregation {
     /**
      * @return  The buckets of this aggregation.
      */
-    Collection<? extends Bucket> getBuckets();
+    List<? extends Bucket> getBuckets();
 
     /**
      * The bucket that is associated with the given key.

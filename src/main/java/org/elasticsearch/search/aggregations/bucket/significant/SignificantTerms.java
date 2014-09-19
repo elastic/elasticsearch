@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * An aggregation that collects significant terms in comparison to a background set.
@@ -68,7 +69,7 @@ public interface SignificantTerms extends MultiBucketsAggregation, Iterable<Sign
     }
 
     @Override
-    Collection<Bucket> getBuckets();
+    List<Bucket> getBuckets();
 
     @Override
     Bucket getBucketByKey(String key);

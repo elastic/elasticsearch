@@ -141,9 +141,9 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
     }
 
     @Override
-    public Collection<GeoHashGrid.Bucket> getBuckets() {
+    public List<GeoHashGrid.Bucket> getBuckets() {
         Object o = buckets;
-        return (Collection<GeoHashGrid.Bucket>) o;
+        return (List<GeoHashGrid.Bucket>) o;
     }
 
     @Override

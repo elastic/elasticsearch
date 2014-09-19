@@ -36,7 +36,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
     protected SignificanceHeuristic significanceHeuristic;
     protected int requiredSize;
     protected long minDocCount;
-    protected Collection<Bucket> buckets;
+    protected List<Bucket> buckets;
     protected Map<String, Bucket> bucketMap;
     protected long subsetSize;
     protected long supersetSize;
@@ -110,7 +110,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         }
     }
 
-    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount, SignificanceHeuristic significanceHeuristic, Collection<Bucket> buckets) {
+    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount, SignificanceHeuristic significanceHeuristic, List<Bucket> buckets) {
         super(name);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
@@ -127,9 +127,9 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
     }
 
     @Override
-    public Collection<SignificantTerms.Bucket> getBuckets() {
+    public List<SignificantTerms.Bucket> getBuckets() {
         Object o = buckets;
-        return (Collection<SignificantTerms.Bucket>) o;
+        return (List<SignificantTerms.Bucket>) o;
     }
 
     @Override

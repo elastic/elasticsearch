@@ -97,7 +97,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
     SignificantStringTerms() {} // for serialization
 
     public SignificantStringTerms(long subsetSize, long supersetSize, String name, int requiredSize,
-            long minDocCount, SignificanceHeuristic significanceHeuristic, Collection<InternalSignificantTerms.Bucket> buckets) {
+            long minDocCount, SignificanceHeuristic significanceHeuristic, List<InternalSignificantTerms.Bucket> buckets) {
         super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets);
     }
 

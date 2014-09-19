@@ -189,7 +189,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
     }
 
     @Override
-    public Collection<B> getBuckets() {
+    public List<B> getBuckets() {
         return ranges;
     }
 

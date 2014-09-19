@@ -19,9 +19,14 @@
 
 package org.elasticsearch.search.reducers.bucket;
 
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerFactories;
+import org.elasticsearch.search.reducers.ReductionExecutionException;
+
+import java.util.List;
 
 public abstract class BucketReducer extends Reducer {
 
@@ -29,4 +34,6 @@ public abstract class BucketReducer extends Reducer {
         super(name, factories, context, parent);
     }
 
+    @Override
+    public abstract InternalBucketReducerAggregation reduce(List<Aggregation> aggregations, InternalAggregation.ReduceContext reduceContext) throws ReductionExecutionException;
 }

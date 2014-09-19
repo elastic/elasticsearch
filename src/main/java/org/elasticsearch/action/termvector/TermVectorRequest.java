@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.termvector;
 
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -64,6 +65,8 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     private Set<String> selectedFields;
 
     Boolean realtime;
+
+    private Map<String, Object> perFieldAnalyzer;
 
     private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
             Flag.FieldStatistics);
@@ -314,6 +317,21 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         return this;
     }
 
+    /**
+     * Return the overridden analyzers at each field
+     */
+    public Map<String, Object> perFieldAnalyzer() {
+        return perFieldAnalyzer;
+    }
+
+    /**
+     * Override the analyzer used at each field when generating term vectors
+     */
+    public TermVectorRequest perFieldAnalyzer(Map<String, Object> perFieldAnalyzer) {
+        this.perFieldAnalyzer = perFieldAnalyzer != null && perFieldAnalyzer.size() != 0 ? Maps.newHashMap(perFieldAnalyzer) : null;
+        return this;
+    }
+
     private void setFlag(Flag flag, boolean set) {
         if (set && !flagsEnum.contains(flag)) {
             flagsEnum.add(flag);
@@ -377,6 +395,12 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
             this.realtime = in.readBoolean();
         }
+
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            if (in.readBoolean()) {
+                perFieldAnalyzer = in.readMap();
+            }
+        }
     }
 
     @Override
@@ -412,6 +436,13 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         }
         if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
             out.writeBoolean(realtime());
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            out.writeBoolean(perFieldAnalyzer != null);
+            if (perFieldAnalyzer != null) {
+                out.writeMap(perFieldAnalyzer);
+            }
         }
     }
 
@@ -451,6 +482,8 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                     termVectorRequest.termStatistics(parser.booleanValue());
                 } else if (currentFieldName.equals("field_statistics") || currentFieldName.equals("fieldStatistics")) {
                     termVectorRequest.fieldStatistics(parser.booleanValue());
+                } else if (currentFieldName.equals("per_field_analyzer") || currentFieldName.equals("perFieldAnalyzer")) {
+                    termVectorRequest.perFieldAnalyzer(parser.map());
                 } else if ("_index".equals(currentFieldName)) { // the following is important for multi request parsing.
                     termVectorRequest.index = parser.text();
                 } else if ("_type".equals(currentFieldName)) {

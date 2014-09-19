@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -107,6 +108,11 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             else if (docIdAndVersion != null) {
                 // fields with stored term vectors
                 Fields termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
+                Set<String> selectedFields = request.selectedFields();
+                // generate tvs for fields where analyzer is overridden
+                if (selectedFields == null && request.perFieldAnalyzer() != null) {
+                    selectedFields = getFieldsToGenerate(request.perFieldAnalyzer(), termVectorsByField);
+                }
                 // fields without term vectors
                 if (request.selectedFields() != null) {
                     termVectorsByField = addGeneratedTermVectors(get, termVectorsByField, request);
@@ -154,8 +160,9 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             if (!isValidField(fieldMapper)) {
                 continue;
             }
-            // already retrieved
-            if (fieldMapper.fieldType().storeTermVectors()) {
+            // already retrieved, only if the analyzer hasn't been overridden at the field
+            if (fieldMapper.fieldType().storeTermVectors() &&
+                    (request.perFieldAnalyzer() == null || !request.perFieldAnalyzer().containsKey(field))) {
                 continue;
             }
             validFields.add(field);
@@ -168,25 +175,47 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         /* generate term vectors from fetched document fields */
         GetResult getResult = indexShard.getService().get(
                 get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null, false);
-        Fields generatedTermVectors = generateTermVectors(getResult.getFields().values(), request.offsets());
+        Fields generatedTermVectors = generateTermVectors(getResult.getFields().values(), request.offsets(), request.perFieldAnalyzer());
 
         /* merge with existing Fields */
         if (termVectorsByField == null) {
             return generatedTermVectors;
         } else {
-            return mergeFields(request.selectedFields().toArray(Strings.EMPTY_ARRAY), termVectorsByField, generatedTermVectors);
+            return mergeFields(termVectorsByField, generatedTermVectors);
         }
     }
 
-    private Fields generateTermVectors(Collection<GetField> getFields, boolean withOffsets) throws IOException {
+    private Analyzer getAnalyzerAtField(String field, @Nullable Map<String, Object> perFieldAnalyzer) {
+        MapperService mapperService = indexShard.mapperService();
+        Analyzer analyzer;
+        if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
+            analyzer = mapperService.analysisService().analyzer(perFieldAnalyzer.get(field).toString());
+        } else {
+            analyzer = mapperService.smartNameFieldMapper(field).indexAnalyzer();
+        }
+        if (analyzer == null) {
+            analyzer = mapperService.analysisService().defaultIndexAnalyzer();
+        }
+        return analyzer;
+    }
+
+    private Set<String> getFieldsToGenerate(Map<String, Object> perAnalyzerField, Fields fieldsObject) {
+        Set<String> selectedFields = new HashSet<>();
+        for (String fieldName : fieldsObject) {
+            if (perAnalyzerField.containsKey(fieldName)) {
+                selectedFields.add(fieldName);
+            }
+        }
+        return selectedFields;
+    }
+
+    private Fields generateTermVectors(Collection<GetField> getFields, boolean withOffsets, @Nullable Map<String, Object> perFieldAnalyzer)
+            throws IOException {
         /* store document in memory index */
         MemoryIndex index = new MemoryIndex(withOffsets);
         for (GetField getField : getFields) {
             String field = getField.getName();
-            Analyzer analyzer = indexShard.mapperService().smartNameFieldMapper(field).indexAnalyzer();
-            if (analyzer == null) {
-                analyzer = indexShard.mapperService().analysisService().defaultIndexAnalyzer();
-            }
+            Analyzer analyzer = getAnalyzerAtField(field, perFieldAnalyzer);
             for (Object text : getField.getValues()) {
                 index.addField(field, text.toString(), analyzer);
             }
@@ -223,7 +252,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             String[] values = doc.getValues(field.name());
             getFields.add(new GetField(field.name(), Arrays.asList((Object[]) values)));
         }
-        return generateTermVectors(getFields, request.offsets());
+        return generateTermVectors(getFields, request.offsets(), request.perFieldAnalyzer());
     }
 
     private ParsedDocument parseDocument(String index, String type, BytesReference doc) {
@@ -239,15 +268,21 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return parsedDocument;
     }
 
-    private Fields mergeFields(String[] fieldNames, Fields... fieldsObject) throws IOException {
+    private Fields mergeFields(Fields fields1, Fields fields2) throws IOException {
         ParallelFields parallelFields = new ParallelFields();
-        for (Fields fieldObject : fieldsObject) {
-            assert fieldObject != null;
-            for (String fieldName : fieldNames) {
-                Terms terms = fieldObject.terms(fieldName);
-                if (terms != null) {
-                    parallelFields.addField(fieldName, terms);
-                }
+        for (String fieldName : fields2) {
+            Terms terms = fields2.terms(fieldName);
+            if (terms != null) {
+                parallelFields.addField(fieldName, terms);
+            }
+        }
+        for (String fieldName : fields1) {
+            if (parallelFields.fields.containsKey(fieldName)) {
+                continue;
+            }
+            Terms terms = fields1.terms(fieldName);
+            if (terms != null) {
+                parallelFields.addField(fieldName, terms);
             }
         }
         return parallelFields;

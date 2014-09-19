@@ -19,7 +19,7 @@ running it against one or more fields.
 More Like This can find documents that are "like" a set of
 chosen documents. The syntax to specify one or more documents is similar to
 the <<docs-multi-get,Multi GET API>>, and supports the `ids` or `docs` array.
-If only one document is specified, the query behaves the same as the 
+If only one document is specified, the query behaves the same as the
 <<search-more-like-this,More Like This API>>.
 
 [source,js]
@@ -115,9 +115,11 @@ for `ids` or `docs`.
 |`like_text` |The text to find documents like it, *required* if `ids` or `docs` are
 not specified.
 
-|`ids` or `docs` |A list of documents following the same syntax as the 
+|`ids` or `docs` |A list of documents following the same syntax as the
 <<docs-multi-get,Multi GET API>> or <<docs-multi-termvectors,Multi Term Vectors API>>.
 The text is fetched from `fields` unless specified otherwise in each `doc`.
+The text is analyzed by the default analyzer at the field, unless specified by the
+`per_field_analyzer` parameter of the <<docs-termvectors-per-field-analyzer,Term Vectors API>>.
 
 |`include` |When using `ids` or `docs`, specifies whether the documents should be
 included from the search. Defaults to `false`.

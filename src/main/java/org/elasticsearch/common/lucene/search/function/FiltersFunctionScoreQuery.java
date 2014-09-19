@@ -78,15 +78,17 @@ public class FiltersFunctionScoreQuery extends Query {
     final FilterFunction[] filterFunctions;
     final ScoreMode scoreMode;
     final float maxBoost;
+    private Float minScore;
 
     protected CombineFunction combineFunction;
 
-    public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost) {
+    public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost, Float minScore) {
         this.subQuery = subQuery;
         this.scoreMode = scoreMode;
         this.filterFunctions = filterFunctions;
         this.maxBoost = maxBoost;
         combineFunction = CombineFunction.MULT;
+        this.minScore = minScore;
     }
 
     public FiltersFunctionScoreQuery setCombineFunction(CombineFunction combineFunction) {
@@ -163,7 +165,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 filterFunction.function.setNextReader(context);
                 docSets[i] = DocIdSets.toSafeBits(context.reader(), filterFunction.filter.getDocIdSet(context, acceptDocs));
             }
-            return new CustomBoostFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, docSets, combineFunction);
+            return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, docSets, combineFunction, minScore);
         }
 
         @Override
@@ -245,45 +247,21 @@ public class FiltersFunctionScoreQuery extends Query {
         }
     }
 
-    static class CustomBoostFactorScorer extends Scorer {
-
-        private final float subQueryBoost;
-        private final Scorer scorer;
+    static class FiltersFunctionFactorScorer extends CustomBoostFactorScorer {
         private final FilterFunction[] filterFunctions;
         private final ScoreMode scoreMode;
-        private final float maxBoost;
         private final Bits[] docSets;
-        private final CombineFunction scoreCombiner;
 
-        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode, FilterFunction[] filterFunctions,
-                float maxBoost, Bits[] docSets, CombineFunction scoreCombiner) throws IOException {
-            super(w);
-            this.subQueryBoost = w.getQuery().getBoost();
-            this.scorer = scorer;
+        private FiltersFunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode, FilterFunction[] filterFunctions,
+                                            float maxBoost, Bits[] docSets, CombineFunction scoreCombiner, Float minScore) throws IOException {
+            super(w, scorer, maxBoost, scoreCombiner, minScore);
             this.scoreMode = scoreMode;
             this.filterFunctions = filterFunctions;
-            this.maxBoost = maxBoost;
             this.docSets = docSets;
-            this.scoreCombiner = scoreCombiner;
         }
 
         @Override
-        public int docID() {
-            return scorer.docID();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            return scorer.advance(target);
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            return scorer.nextDoc();
-        }
-
-        @Override
-        public float score() throws IOException {
+        public float innerScore() throws IOException {
             int docId = scorer.docID();
             double factor = 1.0f;
             float subQueryScore = scorer.score();
@@ -337,16 +315,6 @@ public class FiltersFunctionScoreQuery extends Query {
                 }
             }
             return scoreCombiner.combine(subQueryBoost, subQueryScore, factor, maxBoost);
-        }
-
-        @Override
-        public int freq() throws IOException {
-            return scorer.freq();
-        }
-
-        @Override
-        public long cost() {
-            return scorer.cost();
         }
     }
 

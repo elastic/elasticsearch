@@ -52,23 +52,21 @@ public class ScrollIdSigningTests extends ShieldIntegrationTest {
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setScroll(TimeValue.timeValueMinutes(2))
-                .setSize(5)
-                .execute().get();
-        String scrollId = response.getScrollId();
-        assertSigned(scrollId);
+                .setSize(randomIntBetween(1, 10)).get();
 
-        while (true) {
-            response = client().prepareSearchScroll(scrollId)
-                    .setScroll(TimeValue.timeValueMinutes(2))
-                    .execute().get();
-            scrollId = response.getScrollId();
-            assertSigned(scrollId);
-            if (response.getHits().getHits().length == 0) {
-                break;
+        try {
+            assertSigned(response.getScrollId());
+            while (true) {
+                response = client().prepareSearchScroll(response.getScrollId())
+                        .setScroll(TimeValue.timeValueMinutes(2)).get();
+                assertSigned(response.getScrollId());
+                if (response.getHits().getHits().length == 0) {
+                    break;
+                }
             }
+        } finally {
+            clearScroll(response.getScrollId());
         }
-
-        client().prepareClearScroll().addScrollId(scrollId).execute().get();
     }
 
     @Test
@@ -81,23 +79,17 @@ public class ScrollIdSigningTests extends ShieldIntegrationTest {
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setScroll(TimeValue.timeValueMinutes(2))
-                .setSize(5)
-                .execute().get();
+                .setSize(randomIntBetween(1, 10)).get();
         String scrollId = response.getScrollId();
-        scrollId = randomBoolean() ? scrollId.substring(randomInt(10)) : scrollId + randomAsciiOfLength(randomIntBetween(3, 10));
-
+        String tamperedScrollId = randomBoolean() ? scrollId.substring(randomIntBetween(1, 10)) : scrollId + randomAsciiOfLength(randomIntBetween(3, 10));
         try {
-
-            response = client().prepareSearchScroll(scrollId)
-                    .setScroll(TimeValue.timeValueMinutes(2))
-                    .execute().get();
+            client().prepareSearchScroll(tamperedScrollId).setScroll(TimeValue.timeValueMinutes(2)).get();
             fail("Expected an authorization exception to be thrown when scroll id is tampered");
-
         } catch (Exception e) {
             assertThat(ExceptionsHelper.unwrap(e, AuthorizationException.class), notNullValue());
+        } finally {
+            clearScroll(scrollId);
         }
-
-        client().prepareClearScroll().addScrollId(response.getScrollId()).execute().get();
     }
 
     @Test
@@ -110,20 +102,17 @@ public class ScrollIdSigningTests extends ShieldIntegrationTest {
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setScroll(TimeValue.timeValueMinutes(2))
-                .setSize(5)
-                .execute().get();
+                .setSize(5).get();
         String scrollId = response.getScrollId();
-        String tamperedScrollId = randomBoolean() ? scrollId.substring(randomInt(10)) : scrollId + randomAsciiOfLength(randomIntBetween(3, 10));
-
+        String tamperedScrollId = randomBoolean() ? scrollId.substring(randomIntBetween(1, 10)) : scrollId + randomAsciiOfLength(randomIntBetween(3, 10));
         try {
-            client().prepareClearScroll().addScrollId(tamperedScrollId).execute().get();
+            client().prepareClearScroll().addScrollId(tamperedScrollId).get();
             fail("Expected an authorization exception to be thrown when scroll id is tampered");
         } catch (Exception e) {
             assertThat(ExceptionsHelper.unwrap(e, AuthorizationException.class), notNullValue());
+        } finally {
+            clearScroll(scrollId);
         }
-
-        client().prepareClearScroll().addScrollId(response.getScrollId()).execute().get();
-
     }
 
     private void assertSigned(String scrollId) {

@@ -1534,7 +1534,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .addFacet(histogramFacet("stats5").field("date").interval(1, TimeUnit.MINUTES))
                     .addFacet(histogramScriptFacet("stats6").keyField("num").valueScript("doc['num'].value").interval(100))
                     .addFacet(histogramFacet("stats7").field("num").interval(100))
-                    .addFacet(histogramScriptFacet("stats8").keyField("num").valueScript("doc.score").interval(100))
+                    .addFacet(histogramScriptFacet("stats8").keyField("num").valueScript("_score.doubleValue()").interval(100))
                     .execute().actionGet();
 
             assertSearchResponse(searchResponse);
@@ -2266,8 +2266,8 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numberOfRuns(); i++) {
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsStatsFacet("stats1").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.COUNT))
-                    .addFacet(termsStatsFacet("stats2").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.TOTAL))
+                    .addFacet(termsStatsFacet("stats1").keyField("num").valueScript("_score.doubleValue()").order(TermsStatsFacet.ComparatorType.COUNT))
+                    .addFacet(termsStatsFacet("stats2").keyField("num").valueScript("_score.doubleValue()").order(TermsStatsFacet.ComparatorType.TOTAL))
                     .execute().actionGet();
 
             assertSearchResponse(searchResponse);

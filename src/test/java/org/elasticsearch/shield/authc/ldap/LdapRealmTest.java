@@ -14,10 +14,7 @@ import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 
 import static org.hamcrest.Matchers.*;
@@ -46,6 +43,12 @@ public class LdapRealmTest extends ElasticsearchTestCase {
 
     @Rule
     public static ApacheDsRule apacheDsRule = new ApacheDsRule(temporaryFolder);
+
+    @AfterClass
+    public static void cleanup() {
+        temporaryFolder = null;
+        apacheDsRule = null;
+    }
 
     @Test
     public void testRestHeaderRegistration() {

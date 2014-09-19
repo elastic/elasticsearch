@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 
@@ -147,6 +148,78 @@ public final class Fuzziness implements ToXContent {
             }
         }
         return FuzzyQuery.floatToEdits(asFloat(), termLen(text));
+    }
+
+    /**
+     * Converts the String param into a date and substract the number of months stored in this Fuzziness object.
+     * @param dateQuery query with the datetime stamp
+     * @return long
+     */
+    public long asLongMinusMonths(String dateQuery) throws Exception {
+        long result;
+        if (fuzziness.toString().endsWith("M")) {
+            int range = (int) (Double.parseDouble(fuzziness.toString().substring(0, fuzziness.toString().length() - 1)));
+            DateTime dateTime = new DateTime(dateQuery);
+            DateTime dateMinusMonths = dateTime.minusMonths(range);
+            result = dateMinusMonths.getMillis();
+        } else {
+            throw new Exception("No months were added to fuzzy search request");
+        }
+        return result;
+    }
+
+    /**
+     * Converts the String param into a date and substract the number of yeras stored in this Fuzziness object.
+     * @param dateQuery query with the datetime stamp
+     * @return long
+     */
+    public long asLongMinusYears(String dateQuery) throws Exception {
+        long result;
+        if (fuzziness.toString().endsWith("y")) {
+            int range = (int) (Double.parseDouble(fuzziness.toString().substring(0, fuzziness.toString().length() - 1)));
+            DateTime dateTime = new DateTime(dateQuery);
+            DateTime dateMinusYears = dateTime.minusYears(range);
+            result = dateMinusYears.getMillis();
+        } else {
+            throw new Exception("No years were added to fuzzy search request");
+        }
+        return result;
+    }
+
+    /**
+     * Converts the String param into a date and add the number of months stored in this Fuzziness object.
+     * @param dateQuery query with the datetime stamp
+     * @return long
+     */
+    public long asLongPlusMonths(String dateQuery) throws Exception {
+        long result;
+        if (fuzziness.toString().endsWith("M")) {
+            int range = (int) (Double.parseDouble(fuzziness.toString().substring(0, fuzziness.toString().length() - 1)));
+            DateTime dateTime = new DateTime(dateQuery);
+            DateTime datePlusMonths = dateTime.plusMonths(range);
+            result = datePlusMonths.getMillis();
+        } else {
+            throw new Exception("No months were added to fuzzy search request");
+        }
+        return result;
+    }
+
+    /**
+     * Converts the String param into a date and add the number of years stored in this Fuzziness object.
+     * @param dateQuery query with the datetime stamp
+     * @return long
+     */
+    public long asLongPlusYears(String dateQuery) throws Exception {
+        long result;
+        if (fuzziness.toString().endsWith("y")) {
+            int range = (int) (Double.parseDouble(fuzziness.toString().substring(0, fuzziness.toString().length() - 1)));
+            DateTime dateTime = new DateTime(dateQuery);
+            DateTime datePlusYears = dateTime.plusYears(range);
+            result = datePlusYears.getMillis();
+        } else {
+            throw new Exception("No years were added to fuzzy search request");
+        }
+        return result;
     }
 
     public TimeValue asTimeValue() {

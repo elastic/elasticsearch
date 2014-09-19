@@ -275,16 +275,26 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     @Override
     public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
         long iValue = dateMathParser.parse(value, System.currentTimeMillis());
-        long iSim;
+        long startRange;
+        long endRange;
         try {
-            iSim = fuzziness.asTimeValue().millis();
+            if (fuzziness.asString().endsWith("M")) {
+                startRange = fuzziness.asLongMinusMonths(value);
+                endRange = fuzziness.asLongPlusMonths(value);
+            } else if (fuzziness.asString().endsWith("y")) {
+                startRange = fuzziness.asLongMinusYears(value);
+                endRange = fuzziness.asLongPlusYears(value);
+            } else {
+                startRange = iValue - fuzziness.asTimeValue().millis();
+                endRange = iValue + fuzziness.asTimeValue().millis();
+            }
         } catch (Exception e) {
-            // not a time format
-            iSim =  fuzziness.asLong();
+            startRange = iValue - fuzziness.asLong();
+            endRange = iValue + fuzziness.asLong();
         }
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                iValue - iSim,
-                iValue + iSim,
+                startRange,
+                endRange,
                 true, true);
     }
 

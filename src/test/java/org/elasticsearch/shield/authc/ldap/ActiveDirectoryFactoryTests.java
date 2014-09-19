@@ -21,8 +21,6 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
     public static final String AD_LDAP_URL = "ldap://54.213.145.20:389";
     public static final String PASSWORD = "4joD8LmWcrEfRa&p";
 
-    public static String SETTINGS_PREFIX = LdapRealm.class.getPackage().getName().substring("com.elasticsearch.".length()) + '.';
-
     @Ignore
     @Test
     public void testAdAuth() {
@@ -47,7 +45,7 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
         String userTemplate = "cn={0},cn=Users,dc=ad,dc=test,dc=elasticsearch,dc=com";
         boolean isSubTreeSearch = true;
         StandardLdapConnectionFactory connectionFactory = new StandardLdapConnectionFactory(
-                LdapConnectionTests.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, isSubTreeSearch));
+                LdapTest.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, isSubTreeSearch));
 
         String user = "Tony Stark";
         LdapConnection ldap = connectionFactory.bind(user, PASSWORD.toCharArray());
@@ -62,8 +60,8 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
 
     public static Settings buildAdSettings(String ldapUrl, String adDomainName) {
         return ImmutableSettings.builder()
-                .putArray(SETTINGS_PREFIX + ActiveDirectoryConnectionFactory.URLS_SETTING, ldapUrl)
-                .put(SETTINGS_PREFIX + ActiveDirectoryConnectionFactory.AD_DOMAIN_NAME_SETTING, adDomainName)
+                .putArray(LdapTest.SETTINGS_PREFIX + ActiveDirectoryConnectionFactory.URLS_SETTING, ldapUrl)
+                .put(LdapTest.SETTINGS_PREFIX + ActiveDirectoryConnectionFactory.AD_DOMAIN_NAME_SETTING, adDomainName)
                 .build();
     }
 }

@@ -11,21 +11,21 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.junit.*;
-import org.junit.rules.TemporaryFolder;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.*;
 
-public class LdapRealmTest extends ElasticsearchTestCase {
+public class LdapRealmTest extends LdapTest {
 
-    public static String AD_IP = "54.213.145.20";
-    public static String AD_URL = "ldap://" + AD_IP + ":389";
+    public static final String AD_IP = "54.213.145.20";
+    public static final String AD_URL = "ldap://" + AD_IP + ":389";
 
     public static final String VALID_USER_TEMPLATE = "cn={0},ou=people,o=sevenSeas";
     public static final String VALID_USERNAME = "Thomas Masterman Hardy";
@@ -36,18 +36,6 @@ public class LdapRealmTest extends ElasticsearchTestCase {
     @Before
     public void init() throws Exception {
         restController = mock(RestController.class);
-    }
-
-    @Rule
-    public static TemporaryFolder temporaryFolder = new TemporaryFolder();
-
-    @Rule
-    public static ApacheDsRule apacheDsRule = new ApacheDsRule(temporaryFolder);
-
-    @AfterClass
-    public static void cleanup() {
-        temporaryFolder = null;
-        apacheDsRule = null;
     }
 
     @Test
@@ -143,7 +131,7 @@ public class LdapRealmTest extends ElasticsearchTestCase {
         //only set the adDomain, and see if it infers the rest correctly
         String adDomain = AD_IP;
         Settings settings = ImmutableSettings.builder()
-                .put(LdapConnectionTests.SETTINGS_PREFIX + ActiveDirectoryConnectionFactory.AD_DOMAIN_NAME_SETTING, adDomain)
+                .put(SETTINGS_PREFIX + ActiveDirectoryConnectionFactory.AD_DOMAIN_NAME_SETTING, adDomain)
                 .build();
 
         ActiveDirectoryConnectionFactory ldapFactory = new ActiveDirectoryConnectionFactory( settings );
@@ -177,6 +165,5 @@ public class LdapRealmTest extends ElasticsearchTestCase {
         return new LdapGroupToRoleMapper(settings,
                 new Environment(settings),
                 new ResourceWatcherService(settings, new ThreadPool("test")));
-
     }
 }

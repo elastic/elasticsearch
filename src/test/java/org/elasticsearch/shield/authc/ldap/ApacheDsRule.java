@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
-import org.junit.rules.MethodRule;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.junit.rules.ExternalResource;
 import org.junit.rules.TemporaryFolder;
-import org.junit.runners.model.FrameworkMethod;
-import org.junit.runners.model.Statement;
 
 /**
  *
  */
-public class ApacheDsRule implements MethodRule {
+public class ApacheDsRule extends ExternalResource {
+
+    private final ESLogger logger = Loggers.getLogger(getClass());
 
     private ApacheDsEmbedded ldap;
     private final TemporaryFolder temporaryFolder;
@@ -23,20 +25,18 @@ public class ApacheDsRule implements MethodRule {
     }
 
     @Override
-    public Statement apply(final Statement base, final FrameworkMethod method, final Object target) {
+    protected void before() throws Throwable {
+        ldap = new ApacheDsEmbedded("o=sevenSeas", "seven-seas.ldif", temporaryFolder.newFolder());
+        ldap.startServer();
+    }
 
-        return new Statement() {
-            @Override
-            public void evaluate() throws Throwable {
-                try {
-                    ldap = new ApacheDsEmbedded("o=sevenSeas", "seven-seas.ldif", temporaryFolder.newFolder());
-                    ldap.startServer();
-                    base.evaluate();
-                } finally {
-                    ldap.stopAndCleanup();
-                }
-            }
-        };
+    @Override
+    protected void after() {
+        try {
+            ldap.stopAndCleanup();
+        } catch (Exception e) {
+            logger.error("failed to stop and cleanup the embedded ldap server", e);
+        }
     }
 
     public String getUrl() {

@@ -5,33 +5,14 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.AfterClass;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 
-public class LdapConnectionTests extends ElasticsearchTestCase {
-    public static String SETTINGS_PREFIX = LdapRealm.class.getPackage().getName().substring("com.elasticsearch.".length()) + '.';
-
-    @Rule
-    public static TemporaryFolder temporaryFolder = new TemporaryFolder();
-
-    @Rule
-    public static ApacheDsRule apacheDsRule = new ApacheDsRule(temporaryFolder);
-
-    @AfterClass
-    public static void cleanup() {
-        temporaryFolder = null;
-        apacheDsRule = null;
-    }
+public class LdapConnectionTests extends LdapTest {
 
     @Test
     public void testBindWithTemplates() {
@@ -55,7 +36,8 @@ public class LdapConnectionTests extends ElasticsearchTestCase {
         assertThat(attrs, hasKey("uid"));
         assertThat( attrs.get("uid"), arrayContaining("hhornblo"));
     }
-    @Test
+
+    @Test(expected = LdapException.class)
     public void testBindWithBogusTemplates() {
         String[] ldapUrl = new String[]{apacheDsRule.getUrl()};
         String groupSearchBase = "o=sevenSeas";
@@ -70,14 +52,7 @@ public class LdapConnectionTests extends ElasticsearchTestCase {
 
         String user = "Horatio Hornblower";
         char[] userPass = "pass".toCharArray();
-
-        try {
-            LdapConnection ldap = ldapFac.bind(user, userPass);
-            fail("bindWithUserTemplates should have failed");
-        } catch (LdapException le) {
-
-        }
-
+        ldapFac.bind(user, userPass);
     }
 
     @Test
@@ -113,17 +88,4 @@ public class LdapConnectionTests extends ElasticsearchTestCase {
         System.out.println("groups:"+groups);
         assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
     }
-
-    public static Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, boolean isSubTreeSearch) {
-        return buildLdapSettings( new String[]{ldapUrl}, new String[]{userTemplate}, groupSearchBase, isSubTreeSearch );
-    }
-
-    public static Settings buildLdapSettings(String[] ldapUrl, String[] userTemplate, String groupSearchBase, boolean isSubTreeSearch) {
-        return ImmutableSettings.builder()
-                .putArray(SETTINGS_PREFIX + StandardLdapConnectionFactory.URLS_SETTING, ldapUrl)
-                .putArray(SETTINGS_PREFIX + StandardLdapConnectionFactory.USER_DN_TEMPLATES_SETTING, userTemplate)
-                .put(SETTINGS_PREFIX + StandardLdapConnectionFactory.GROUP_SEARCH_BASEDN_SETTING, groupSearchBase)
-                .put(SETTINGS_PREFIX + StandardLdapConnectionFactory.GROUP_SEARCH_SUBTREE_SETTING, isSubTreeSearch).build();
-    }
-
 }

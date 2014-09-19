@@ -89,6 +89,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         FiltersFunctionScoreQuery.ScoreMode scoreMode = FiltersFunctionScoreQuery.ScoreMode.Multiply;
         ArrayList<FiltersFunctionScoreQuery.FilterFunction> filterFunctions = new ArrayList<>();
         float maxBoost = Float.MAX_VALUE;
+        float minScore = Float.MAX_VALUE * -1f;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -113,6 +114,8 @@ public class FunctionScoreQueryParser implements QueryParser {
                 maxBoost = parser.floatValue();
             } else if ("boost".equals(currentFieldName)) {
                 boost = parser.floatValue();
+            } else if ("min_score".equals(currentFieldName) || "minScore".equals(currentFieldName)) {
+                minScore = parser.floatValue();
             } else if ("functions".equals(currentFieldName)) {
                 if (singleFunctionFound) {
                     String errorString = "Found \"" + singleFunctionName + "\" already, now encountering \"functions\": [...].";
@@ -154,7 +157,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         // handle cases where only one score function and no filter was
         // provided. In this case we create a FunctionScoreQuery.
         if (filterFunctions.size() == 1 && (filterFunctions.get(0).filter == null || filterFunctions.get(0).filter instanceof MatchAllDocsFilter)) {
-            FunctionScoreQuery theQuery = new FunctionScoreQuery(query, filterFunctions.get(0).function);
+            FunctionScoreQuery theQuery = new FunctionScoreQuery(query, filterFunctions.get(0).function, minScore);
             if (combineFunction != null) {
                 theQuery.setCombineFunction(combineFunction);
             }
@@ -164,7 +167,7 @@ public class FunctionScoreQueryParser implements QueryParser {
             // in all other cases we create a FiltersFunctionScoreQuery.
         } else {
             FiltersFunctionScoreQuery functionScoreQuery = new FiltersFunctionScoreQuery(query, scoreMode,
-                    filterFunctions.toArray(new FiltersFunctionScoreQuery.FilterFunction[filterFunctions.size()]), maxBoost);
+                    filterFunctions.toArray(new FiltersFunctionScoreQuery.FilterFunction[filterFunctions.size()]), maxBoost, minScore);
             if (combineFunction != null) {
                 functionScoreQuery.setCombineFunction(combineFunction);
             }

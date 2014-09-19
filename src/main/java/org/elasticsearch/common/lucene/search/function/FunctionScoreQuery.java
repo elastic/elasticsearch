@@ -38,7 +38,15 @@ public class FunctionScoreQuery extends Query {
     final ScoreFunction function;
     float maxBoost = Float.MAX_VALUE;
     CombineFunction combineFunction;
-    
+    private Float minScore = null;
+
+    public FunctionScoreQuery(Query subQuery, ScoreFunction function, float minScore) {
+        this.subQuery = subQuery;
+        this.function = function;
+        this.combineFunction = function.getDefaultScoreCombiner();
+        this.minScore = minScore;
+    }
+
     public FunctionScoreQuery(Query subQuery, ScoreFunction function) {
         this.subQuery = subQuery;
         this.function = function;
@@ -121,7 +129,7 @@ public class FunctionScoreQuery extends Query {
                 return null;
             }
             function.setNextReader(context);
-            return new CustomBoostFactorScorer(this, subQueryScorer, function, maxBoost, combineFunction);
+            return new FunctionFactorScorer(this, subQueryScorer, function, maxBoost, combineFunction, minScore);
         }
 
         @Override
@@ -136,54 +144,20 @@ public class FunctionScoreQuery extends Query {
         }
     }
 
-    static class CustomBoostFactorScorer extends Scorer {
+    static class FunctionFactorScorer extends CustomBoostFactorScorer {
 
-        private final float subQueryBoost;
-        private final Scorer scorer;
         private final ScoreFunction function;
-        private final float maxBoost;
-        private final CombineFunction scoreCombiner;
 
-        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function, float maxBoost, CombineFunction scoreCombiner)
+        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function, float maxBoost, CombineFunction scoreCombiner, float minScore)
                 throws IOException {
-            super(w);
-            this.subQueryBoost = w.getQuery().getBoost();
-            this.scorer = scorer;
+            super(w, scorer, maxBoost, scoreCombiner, minScore);
             this.function = function;
-            this.maxBoost = maxBoost;
-            this.scoreCombiner = scoreCombiner;
         }
 
-        @Override
-        public int docID() {
-            return scorer.docID();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            return scorer.advance(target);
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            return scorer.nextDoc();
-        }
-
-        @Override
-        public float score() throws IOException {
+        public float innerScore() throws IOException {
             float score = scorer.score();
             return scoreCombiner.combine(subQueryBoost, score,
                     function.score(scorer.docID(), score), maxBoost);
-        }
-
-        @Override
-        public int freq() throws IOException {
-            return scorer.freq();
-        }
-
-        @Override
-        public long cost() {
-            return scorer.cost();
         }
     }
 

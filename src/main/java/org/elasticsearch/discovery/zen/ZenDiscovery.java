@@ -368,6 +368,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 return;
             }
 
+            // make sure there is still no master
+            if (!Thread.currentThread().equals(currentJoinThread.get())) {
+                logger.trace("thread is no longer in currentJoinThread. Stopping.");
+                return;
+            }
+
             retry = false;
             DiscoveryNode masterNode = findMaster();
             if (masterNode == null) {
@@ -392,6 +398,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                         nodesFD.start(); // start the nodes FD
 
+                        // make sure a new join thread can start, if a node fails and we fail to meet m_m_n
+                        currentJoinThread.set(null);
 
                         // eagerly run reroute to remove dead nodes from routing table
                         RoutingAllocation.Result result = allocationService.reroute(currentState);
@@ -774,6 +782,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         }
 
                         ClusterState updatedState = stateToProcess.clusterState;
+
+                        // stop any background join process, if running - we have an active master
+                        currentJoinThread.set(null);
 
                         // if the new state has a smaller version, and it has the same master node, then no need to process it
                         if (updatedState.version() < currentState.version() && Objects.equal(updatedState.nodes().masterNodeId(), currentState.nodes().masterNodeId())) {

@@ -358,25 +358,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
      * used for testing.
      */
     public boolean joiningCluster() {
-        return currentJoinThread != null;
+        return currentJoinThread.get() != null;
     }
 
     private void innerJoinCluster() {
         boolean retry = true;
-        boolean first = true;
         while (retry) {
             if (lifecycle.stoppedOrClosed()) {
                 return;
             }
 
-            // if this is the first round, the cluster state update task may not have run yet to remove the master from local disco node
-            // TODO: make this better?
-            if (!first && master() != null) {
-                logger.trace("stopping async join, we currently have a master {}", master());
-                return;
-            }
-
-            first = false;
             retry = false;
             DiscoveryNode masterNode = findMaster();
             if (masterNode == null) {
@@ -385,7 +376,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 continue;
             }
             if (localNode.equals(masterNode)) {
-                nodesFD.start(); // start the nodes FD
                 clusterService.submitStateUpdateTask("zen-disco-join (elected_as_master)", Priority.IMMEDIATE, new ProcessedClusterStateNonMasterUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
@@ -399,6 +389,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         // update the fact that we are the master...
                         ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
                         currentState = ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();
+
+                        nodesFD.start(); // start the nodes FD
+
 
                         // eagerly run reroute to remove dead nodes from routing table
                         RoutingAllocation.Result result = allocationService.reroute(currentState);
@@ -430,7 +423,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     continue;
                 }
 
-                masterFD.start(masterNode, "initial_join");
                 long count = clusterJoinsCounter.incrementAndGet();
                 logger.trace("cluster joins counter set to [{}] (joined master)", count);
             }
@@ -864,18 +856,18 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             processJoinRequests.add(new Tuple<>(node, callback));
             clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
 
-                private final List<Tuple<DiscoveryNode, MembershipAction.JoinCallback>> drainedTasks = new ArrayList<>();
+                private final List<Tuple<DiscoveryNode, MembershipAction.JoinCallback>> drainedJoinRequests = new ArrayList<>();
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    processJoinRequests.drainTo(drainedTasks);
-                    if (drainedTasks.isEmpty()) {
+                    processJoinRequests.drainTo(drainedJoinRequests);
+                    if (drainedJoinRequests.isEmpty()) {
                         return currentState;
                     }
 
                     boolean modified = false;
                     DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentState.nodes());
-                    for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> task : drainedTasks) {
+                    for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> task : drainedJoinRequests) {
                         DiscoveryNode node = task.v1();
                         if (currentState.nodes().nodeExists(node.id())) {
                             logger.debug("received a join request for an existing node [{}]", node);
@@ -900,12 +892,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                 @Override
                 public void onNoLongerMaster(String source) {
+                    // we are rejected, so drain all pending task (execute never run)
+                    processJoinRequests.drainTo(drainedJoinRequests);
                     Exception e  = new ElasticsearchIllegalStateException("Node [" + localNode + "] not master for join request from [" + node + "]");
                     innerOnFailure(e);
                 }
 
                 void innerOnFailure(Throwable t) {
-                    for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> drainedTask : drainedTasks) {
+                    for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> drainedTask : drainedJoinRequests) {
                         try {
                             drainedTask.v2().onFailure(t);
                         } catch (Exception e) {
@@ -922,7 +916,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> drainedTask : drainedTasks) {
+                    for (Tuple<DiscoveryNode, MembershipAction.JoinCallback> drainedTask : drainedJoinRequests) {
                         try {
                             drainedTask.v2().onSuccess();
                         } catch (Exception e) {

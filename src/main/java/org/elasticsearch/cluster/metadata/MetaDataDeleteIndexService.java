@@ -33,6 +33,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -80,20 +81,24 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
             return;
         }
 
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
+        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
             @Override
-            public void run() {
-                try {
-                    if (!mdLock.tryAcquire(request.masterTimeout.nanos(), TimeUnit.NANOSECONDS)) {
-                        userListener.onFailure(new ProcessClusterEventTimeoutException(request.masterTimeout, "acquire index lock"));
-                        return;
-                    }
-                } catch (InterruptedException e) {
-                    userListener.onFailure(e);
+            protected void doRun() throws InterruptedException {
+                if (!mdLock.tryAcquire(request.masterTimeout.nanos(), TimeUnit.NANOSECONDS)) {
+                    userListener.onFailure(new ProcessClusterEventTimeoutException(request.masterTimeout, "acquire index lock"));
                     return;
                 }
-
                 deleteIndex(request, userListener, mdLock);
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                userListener.onFailure(t);
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true; // this thread-pool is bounded make sure this goes through
             }
         });
     }

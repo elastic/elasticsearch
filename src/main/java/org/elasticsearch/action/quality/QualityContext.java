@@ -19,26 +19,23 @@
 
 package org.elasticsearch.action.quality;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
-public class PrecisionAtQueryBuilder extends ActionRequestBuilder<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtQueryBuilder, Client> {
+import java.io.IOException;
+
+/**
+ * Implementations of this interface provide a means to retrieve a configured quality metric that can be used to
+ * judge a set of documents given a query based on pre-annotated documents of said query.
+ * */
+public interface QualityContext {
     
-    protected PrecisionAtQueryBuilder(Client client) {
-        super(client, new PrecisionAtRequest());
-    }
-
-    @Override
-    protected void doExecute(ActionListener<PrecisionAtResponse> listener) {
-    }
-
-    public PrecisionAtQueryBuilder setTask(PrecisionTask precisionTask) {
-        request.setTask(precisionTask);
-        return this;
-    }
-
-    public PrecisionAtRequest request() {
-        return request;
-    }
+    /**
+     * Returns the quality metric to be used for judging search results.
+     * */
+    RankedListQualityMetric getMetric();
+    
+    void write(StreamOutput out) throws IOException;
+    
+    void read (StreamInput in) throws IOException;
 }

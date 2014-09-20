@@ -150,8 +150,8 @@ import org.elasticsearch.action.indexedscripts.put.TransportPutIndexedScriptActi
 import org.elasticsearch.action.mlt.MoreLikeThisAction;
 import org.elasticsearch.action.mlt.TransportMoreLikeThisAction;
 import org.elasticsearch.action.percolate.*;
-import org.elasticsearch.action.quality.PrecisionAtAction;
-import org.elasticsearch.action.quality.TransportPrecisionAtAction;
+import org.elasticsearch.action.quality.QualityAction;
+import org.elasticsearch.action.quality.TransportQualityAction;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.suggest.SuggestAction;
@@ -317,7 +317,7 @@ public class ActionModule extends AbstractModule {
         registerAction(AbortBenchmarkAction.INSTANCE, TransportAbortBenchmarkAction.class);
         registerAction(BenchmarkStatusAction.INSTANCE, TransportBenchmarkStatusAction.class);
 
-        registerAction(PrecisionAtAction.INSTANCE, TransportPrecisionAtAction.class);
+        registerAction(QualityAction.INSTANCE, TransportQualityAction.class);
 
         //Indexed scripts
         registerAction(PutIndexedScriptAction.INSTANCE, TransportPutIndexedScriptAction.class);

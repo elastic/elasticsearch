@@ -19,9 +19,11 @@
 
 package org.elasticsearch.action.quality;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+import com.carrotsearch.randomizedtesting.annotations.Seeds;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.quality.PrecisionAtN.Rating;
-import org.elasticsearch.action.quality.PrecisionAtResponse.PrecisionResult;
+import org.elasticsearch.action.quality.QualityResponse.QualityResult;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -66,11 +68,13 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch().setQuery(query)
                 .execute().actionGet();
 
-        Map<String, String> relevant = Maps.newHashMap();
-        relevant.put("1", Rating.RELEVANT.name());
+        Map<String, Integer> relevant = Maps.newHashMap();
+        relevant.put("1", Rating.RELEVANT.ordinal());
+        Intent intent = new Intent();
+        intent.setRatedDocuments(relevant);
         SearchHit[] hits = response.getHits().getHits();
 
-        assertEquals(1, (new PrecisionAtN(5)).evaluate(relevant, hits).getPrecision(), 0.00001);
+        assertEquals(1, (new PrecisionAtN(5)).evaluate(intent, hits).getQualityLevel(), 0.00001);
     }
     
     @Test
@@ -80,27 +84,31 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch().setQuery(query)
                 .execute().actionGet();
 
-        Map<String, String> relevant = Maps.newHashMap();
-        relevant.put("2", Rating.RELEVANT.name());
-        relevant.put("3", Rating.RELEVANT.name());
-        relevant.put("4", Rating.RELEVANT.name());
-        relevant.put("5", Rating.RELEVANT.name());
-        relevant.put("6",  Rating.IRRELEVANT.name());
+        Map<String, Integer> relevant = Maps.newHashMap();
+        relevant.put("2", Rating.RELEVANT.ordinal());
+        relevant.put("3", Rating.RELEVANT.ordinal());
+        relevant.put("4", Rating.RELEVANT.ordinal());
+        relevant.put("5", Rating.RELEVANT.ordinal());
+        relevant.put("6",  Rating.IRRELEVANT.ordinal());
+        Intent intent = new Intent();
+        intent.setRatedDocuments(relevant);
         SearchHit[] hits = response.getHits().getHits();
 
-        assertEquals((double) 4 / 5, (new PrecisionAtN(5)).evaluate(relevant, hits).getPrecision(), 0.00001);
+        assertEquals((double) 4 / 5, (new PrecisionAtN(5)).evaluate(intent, hits).getQualityLevel(), 0.00001);
     }
 
     @Test
+    //@Repeat(iterations = 10)
+    @Seeds({@Seed("A584E5546C406DF2:B1492369439B5F8")})
     public void testPrecisionAction() {
-        Collection<Intent<String>> intents = new ArrayList<Intent<String>>();
-        Intent<String> intentAmsterdam = new Intent<>();
+        Collection<Intent> intents = new ArrayList<Intent>();
+        Intent intentAmsterdam = new Intent();
         intentAmsterdam.setIntentId(0);
         intentAmsterdam.setRatedDocuments(createRelevant("2", "3", "4", "5"));
         intentAmsterdam.setIntentParameters(createParams("var", "amsterdam"));
         intents.add(intentAmsterdam);
 
-        Intent<String> intentBerlin = new Intent<>();
+        Intent intentBerlin = new Intent();
         intentBerlin.setIntentId(1);
         intentBerlin.setRatedDocuments(createRelevant("1"));
         intentBerlin.setIntentParameters(createParams("var", "berlin"));
@@ -114,17 +122,17 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         spec.setSearchRequestTemplate("{\"match\": {\"text\" : \"{{var}}\" } }");
         specs.add(spec);
 
-        PrecisionAtNConfiguration config = new PrecisionAtNConfiguration();
+        PrecisionAtNContext config = new PrecisionAtNContext();
         config.setN(10);
 
-        PrecisionTask task = new PrecisionTask();
+        QualityTask task = new QualityTask();
         task.setIntents(intents);
         task.setSpecifications(specs);
         task.setConfig(config);
         
-        PrecisionAtQueryBuilder builder = (new PrecisionAtQueryBuilder(client()).setTask(task));
-        PrecisionAtResponse response = client().execute(PrecisionAtAction.INSTANCE, builder.request()).actionGet();
-        PrecisionResult result = response.getPrecision().iterator().next();
+        QualityQueryBuilder builder = (new QualityQueryBuilder(client()).setTask(task));
+        QualityResponse response = client().execute(QualityAction.INSTANCE, builder.request()).actionGet();
+        QualityResult result = response.getPrecision().iterator().next();
         for (Entry<Integer, Collection<String>> entry : result.getUnknownDocs().entrySet()) {
             if (entry.getKey() == 0) {
                 assertEquals(1, entry.getValue().size());
@@ -134,10 +142,10 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         }
     }
     
-    private Map<String, String> createRelevant(String... docs) {
-        Map<String, String> relevant = Maps.newHashMap();
+    private Map<String, Integer> createRelevant(String... docs) {
+        Map<String, Integer> relevant = Maps.newHashMap();
         for (String doc : docs) {
-            relevant.put(doc, Rating.RELEVANT.name());
+            relevant.put(doc, Rating.RELEVANT.ordinal());
         }
         return relevant;
     }

@@ -32,11 +32,11 @@ import java.util.Map;
  * 
  * Note: Implements toString for easier debugging, doesn't override equals/hashcode though.
  * */
-public class Intent<RelevancyLevel> {
+public class Intent {
     
     private int intentId;
     private Map<String, String> intentParameters;
-    private Map<String, RelevancyLevel> ratedDocuments;
+    private Map<String, Integer> ratedDocuments;
 
     /** For easier referencing users are allowed to supply unique ids with each search intent they want to check for
      * performance quality wise.*/
@@ -67,7 +67,7 @@ public class Intent<RelevancyLevel> {
     /**
      * Returns a set of documents and their ratings as supplied by the users.
      * */
-    public Map<String, RelevancyLevel> getRatedDocuments() {
+    public Map<String, Integer> getRatedDocuments() {
         return ratedDocuments;
     }
 
@@ -75,7 +75,7 @@ public class Intent<RelevancyLevel> {
      * irrelevant. In the final precision at computation only those documents returned up to a certain position are
      * taken into consideration. Documents of unknown quality (read: haven't been annotated) are returned as is and
      * ignored during precision at n computation. */
-    public void setRatedDocuments(Map<String, RelevancyLevel> ratedDocuments) {
+    public void setRatedDocuments(Map<String, Integer> ratedDocuments) {
         this.ratedDocuments = ratedDocuments;
     }
 

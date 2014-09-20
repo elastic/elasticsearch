@@ -19,28 +19,19 @@
 
 package org.elasticsearch.action.quality;
 
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.client.Client;
 
-/**
- * Needed to be able to send requests through and execute them within e.g. the local transport.
- * */
-public class TransportPrecisionAtActionHandler extends BaseTransportRequestHandler<PrecisionAtRequest> {
+public class QualityRequestBulider extends ActionRequestBuilder<QualityRequest, QualityResponse, QualityRequestBulider, Client> {
 
-    @Override
-    public PrecisionAtRequest newInstance() {
-        return new PrecisionAtRequest();
+    protected QualityRequestBulider(Client client) {
+        super(client, new QualityRequest());
     }
 
     @Override
-    public void messageReceived(PrecisionAtRequest request, TransportChannel channel) throws Exception {
-        PrecisionAtResponse response = new PrecisionAtResponse();
-        channel.sendResponse(response);
+    protected void doExecute(ActionListener<QualityResponse> listener) {
+        client.qa(request, listener);
     }
 
-    @Override
-    public String executor() {
-        return ThreadPool.Names.SEARCH;
-    }
 }

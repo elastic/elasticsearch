@@ -66,9 +66,9 @@ import org.elasticsearch.action.mlt.MoreLikeThisAction;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
 import org.elasticsearch.action.percolate.*;
-import org.elasticsearch.action.quality.PrecisionAtAction;
-import org.elasticsearch.action.quality.PrecisionAtRequest;
-import org.elasticsearch.action.quality.PrecisionAtResponse;
+import org.elasticsearch.action.quality.QualityAction;
+import org.elasticsearch.action.quality.QualityRequest;
+import org.elasticsearch.action.quality.QualityResponse;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.SuggestRequest;
@@ -529,8 +529,8 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public void qa(PrecisionAtRequest request, ActionListener<PrecisionAtResponse> listener) {
-        execute(PrecisionAtAction.INSTANCE, request, listener);
+    public void qa(QualityRequest request, ActionListener<QualityResponse> listener) {
+        execute(QualityAction.INSTANCE, request, listener);
     }
 
     @Override

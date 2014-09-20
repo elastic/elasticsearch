@@ -19,30 +19,28 @@
 
 package org.elasticsearch.action.quality;
 
-import com.google.common.base.MoreObjects;
-import com.google.common.base.MoreObjects.ToStringHelper;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.TransportChannel;
 
 /**
- * Objects of this class encode the level of search results to take into consideration when computing precision.
- * 
- * This should have some correlation to the user interface in production showing search results to users - i.e. if a user sees ten
- * search results per result page this should be set to 10.
+ * Needed to be able to send requests through and execute them within e.g. the local transport.
  * */
-public class PrecisionAtNConfiguration implements MetricConfiguration {
+public class TransportQualityHandler extends BaseTransportRequestHandler<QualityRequest> {
 
-    private int n;
-
-    public int getN() {
-        return n;
-    }
-
-    public void setN(int n) {
-        this.n = n;
-    }
-    
     @Override
-    public String toString() {
-        ToStringHelper help = MoreObjects.toStringHelper(this).add("n", n);
-        return help.toString();
+    public QualityRequest newInstance() {
+        return new QualityRequest();
+    }
+
+    @Override
+    public void messageReceived(QualityRequest request, TransportChannel channel) throws Exception {
+        QualityResponse response = new QualityResponse();
+        channel.sendResponse(response);
+    }
+
+    @Override
+    public String executor() {
+        return ThreadPool.Names.SEARCH;
     }
 }

@@ -25,23 +25,23 @@ import org.elasticsearch.client.Client;
 /** 
  * Action used to start precision at qa evaluations. 
  **/
-public class PrecisionAtAction extends ClientAction<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtRequestBuilder> {
+public class QualityAction extends ClientAction<QualityRequest, QualityResponse, QualityRequestBulider> {
 
-    public static final PrecisionAtAction INSTANCE = new PrecisionAtAction();
-    public static final String NAME = "indices:data/read/precision_at";
+    public static final QualityAction INSTANCE = new QualityAction();
+    public static final String NAME = "indices:data/read/quality";
 
-    private PrecisionAtAction() {
+    private QualityAction() {
         super(NAME);
     }
 
     @Override
-    public PrecisionAtRequestBuilder newRequestBuilder(Client client) {
-        return new PrecisionAtRequestBuilder(client);
+    public QualityRequestBulider newRequestBuilder(Client client) {
+        return new QualityRequestBulider(client);
     }
 
     @Override
-    public PrecisionAtResponse newResponse() {
-        return new PrecisionAtResponse();
+    public QualityResponse newResponse() {
+        return new QualityResponse();
     }
 
 }

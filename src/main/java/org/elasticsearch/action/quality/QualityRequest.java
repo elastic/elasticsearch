@@ -33,10 +33,10 @@ import java.util.Map;
  * Instances of this class represent a complete precision at request. They encode a precision task including search intents and search
  * specifications to be executed subsequently.
  * */
-public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
+public class QualityRequest extends ActionRequest<QualityRequest> {
 
     /** The request data to use for evaluation. */
-    private PrecisionTask task;
+    private QualityTask task;
     
     @Override
     public ActionRequestValidationException validate() {
@@ -46,13 +46,13 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
 
     /** Returns the specification of this qa run including intents to execute, specifications detailing intent translation and metrics
      * to compute. */
-    public PrecisionTask getTask() {
+    public QualityTask getTask() {
         return task;
     }
 
     /** Returns the specification of this qa run including intents to execute, specifications detailing intent translation and metrics
      * to compute. */
-    public void setTask(PrecisionTask task) {
+    public void setTask(QualityTask task) {
         this.task = task;
     }
 
@@ -61,13 +61,13 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        Collection<Intent<String>> intents = new ArrayList<>();
+        Collection<Intent> intents = new ArrayList<>();
         int intentSize = in.readInt();
         for (int i = 0; i < intentSize; i++) {
-            Intent<String> intent = new Intent<String>();
+            Intent intent = new Intent();
             intent.setIntentId(in.readInt());
             intent.setIntentParameters((Map<String, String>) in.readGenericValue());
-            intent.setRatedDocuments((Map<String, String>) in.readGenericValue());
+            intent.setRatedDocuments((Map<String, Integer>) in.readGenericValue());
             intents.add(intent);
         }
         
@@ -76,31 +76,38 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
         for (int i = 0; i < specSize; i++) {
 
             Specification spec = new Specification();
-            spec.setTargetIndices((String[]) in.readGenericValue());
+            Object result = in.readGenericValue();
+            spec.setTargetIndices((String[]) result);
             spec.setSearchRequestTemplate(in.readString());
             spec.setFilter(in.readBytesReference());
             spec.setSpecId(in.readInt());
             specs.add(spec);
         }
         
-        PrecisionAtNConfiguration config = new PrecisionAtNConfiguration();
-        config.setN(in.readInt());
+        String qualityClass = in.readString();
+        QualityContext context;
+        try {
+            context = (QualityContext) Class.forName(qualityClass).newInstance();
+        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
+            throw new IOException("Unable to parse quality parameters from input stream.", e);
+        }
+        context.read(in);
         
-        this.task = new PrecisionTask();
+        this.task = new QualityTask();
         task.setIntents(intents);
         task.setSpecifications(specs);
-        task.setConfig(config);
+        task.setConfig(context);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        Collection<Intent<String>> intents = task.getIntents();
+        Collection<Intent> intents = task.getIntents();
         Collection<Specification> specs = task.getSpecifications();
-        PrecisionAtNConfiguration config = task.getConfig();
+        QualityContext context = task.getQualityContext();
         
         out.writeInt(intents.size());
-        for (Intent<String> intent : intents) {
+        for (Intent intent : intents) {
             out.writeInt(intent.getIntentId());
             out.writeGenericValue(intent.getIntentParameters());
             out.writeGenericValue(intent.getRatedDocuments());
@@ -113,7 +120,7 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
             out.writeBytesReference(spec.getFilter());
             out.writeInt(spec.getSpecId());
         }
-        
-        out.writeInt(config.getN());
+        out.writeString(context.getClass().getName());
+        context.write(out);
     }
 }

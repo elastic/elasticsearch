@@ -56,8 +56,8 @@ import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
 import org.elasticsearch.action.percolate.*;
-import org.elasticsearch.action.quality.PrecisionAtRequest;
-import org.elasticsearch.action.quality.PrecisionAtResponse;
+import org.elasticsearch.action.quality.QualityRequest;
+import org.elasticsearch.action.quality.QualityResponse;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
@@ -696,6 +696,6 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
     /**
      * Executes a search request and checks whether the results returned correspond to a set of expected results.
      * */
-    void qa(PrecisionAtRequest request, ActionListener<PrecisionAtResponse> listener);
+    void qa(QualityRequest request, ActionListener<QualityResponse> listener);
 
 }

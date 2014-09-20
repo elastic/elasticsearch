@@ -19,9 +19,26 @@
 
 package org.elasticsearch.action.quality;
 
-/**
- * So far a marker interface only for quality metric configuration classes.
- * */
-public interface MetricConfiguration {
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.client.Client;
 
+public class QualityQueryBuilder extends ActionRequestBuilder<QualityRequest, QualityResponse, QualityQueryBuilder, Client> {
+    
+    protected QualityQueryBuilder(Client client) {
+        super(client, new QualityRequest());
+    }
+
+    @Override
+    protected void doExecute(ActionListener<QualityResponse> listener) {
+    }
+
+    public QualityQueryBuilder setTask(QualityTask precisionTask) {
+        request.setTask(precisionTask);
+        return this;
+    }
+
+    public QualityRequest request() {
+        return request;
+    }
 }

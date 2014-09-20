@@ -19,19 +19,27 @@
 
 package org.elasticsearch.action.quality;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.Client;
+import java.util.Collection;
 
-public class PrecisionAtRequestBuilder extends ActionRequestBuilder<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtRequestBuilder, Client> {
+/** Returned for each search intent and search specification combination. Summarises the document ids found that were not
+ * annotated and the average precision of result sets in each particular combination based on the annotations given. 
+ * */
+public class IntentQuality {
+    private double qualityLevel;
+        
+    private Collection<String> unknownDocs;
 
-    protected PrecisionAtRequestBuilder(Client client) {
-        super(client, new PrecisionAtRequest());
+    public IntentQuality (double qualityLevel, Collection<String> unknownDocs) {
+       this.qualityLevel = qualityLevel;
+       this.unknownDocs = unknownDocs;
+    }
+        
+    public Collection<String> getUnknownDocs() {
+        return unknownDocs;
     }
 
-    @Override
-    protected void doExecute(ActionListener<PrecisionAtResponse> listener) {
-        client.qa(request, listener);
+    public double getQualityLevel() {
+        return qualityLevel;          
     }
 
 }

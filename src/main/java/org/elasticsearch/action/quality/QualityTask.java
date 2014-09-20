@@ -30,32 +30,32 @@ import java.util.Collection;
  * Each QA run is based on a set of queries to send to the index and multiple QA specifications that define how to translate the query
  * intents into elastic search queries. In addition it contains the quality metrics to compute.
  * */
-public class PrecisionTask {
+public class QualityTask {
 
     /** Collection of query intents to check against including expected document ids.*/
-    private Collection<Intent<String>> intents;
+    private Collection<Intent> intents;
     /** Collection of query specifications, that is e.g. search request templates to use for query translation. */
     private Collection<Specification> specifications;
     /** Definition of n in precision at n */
-    private PrecisionAtNConfiguration config;
+    private QualityContext config;
     
     /** Returns the precision at n configuration (containing level of n to consider).*/
-    public PrecisionAtNConfiguration getConfig() {
+    public QualityContext getQualityContext() {
         return config;
     }
 
     /** Sets the precision at n configuration (containing level of n to consider).*/
-    public void setConfig(PrecisionAtNConfiguration config) {
+    public void setConfig(QualityContext config) {
         this.config = config;
     }
 
     /** Returns a list of search intents to evaluate. */
-    public Collection<Intent<String>> getIntents() {
+    public Collection<Intent> getIntents() {
         return intents;
     }
 
     /** Set a list of search intents to evaluate. */
-    public void setIntents(Collection<Intent<String>> intents) {
+    public void setIntents(Collection<Intent> intents) {
         this.intents = intents;
     }
 

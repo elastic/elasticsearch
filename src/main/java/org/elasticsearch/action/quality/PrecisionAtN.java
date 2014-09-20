@@ -21,7 +21,6 @@ package org.elasticsearch.action.quality;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
-import org.elasticsearch.action.quality.PrecisionAtN.Precision;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.ArrayList;
@@ -36,7 +35,7 @@ import javax.naming.directory.SearchResult;
  * 
  * Documents of unkonwn quality are ignored in the precision at n computation and returned by document id.
  * */
-public class PrecisionAtN implements RankedListQualityMetric<String, Precision> {
+public class PrecisionAtN implements RankedListQualityMetric {
     
     /** Number of results to check against a given set of relevant results. */
     private final int n;
@@ -47,24 +46,32 @@ public class PrecisionAtN implements RankedListQualityMetric<String, Precision> 
     public PrecisionAtN(int n) {
         this.n= n;
     }
+    
+    /**
+     * Return number of search results to check for quality.
+     * */
+    public int getN() {
+        return n;
+    }
 
     /** Compute precisionAtN based on provided relevant document IDs.
      * @param relevantDocIds set of docIds considered relevant for some query.
      * @param hits hits as returned for some query
      * @return precision at n for above {@link SearchResult} list.
      **/
-    public Precision evaluate(Map<String, String> ratedDocIds, SearchHit[] hits) {
-        Collection<String> relevantDocIds = Maps.filterEntries(ratedDocIds, new Predicate<Entry<String, String>> () {
+    public IntentQuality evaluate(Intent intent, SearchHit[] hits) {
+        Map<String, Integer> ratedDocIds = intent.getRatedDocuments();
+        Collection<String> relevantDocIds = Maps.filterEntries(ratedDocIds, new Predicate<Entry<String, Integer>> () {
             @Override
-            public boolean apply(Entry<String, String> input) {
-                return Rating.RELEVANT.equals(Rating.valueOf(input.getValue()));
+            public boolean apply(Entry<String, Integer> input) {
+                return Rating.RELEVANT.equals(RatingMapping.mapTo(input.getValue()));
             }
         }).keySet();
         
-        Collection<String> irrelevantDocIds = Maps.filterEntries(ratedDocIds, new Predicate<Entry<String, String>> () {
+        Collection<String> irrelevantDocIds = Maps.filterEntries(ratedDocIds, new Predicate<Entry<String, Integer>> () {
             @Override
-            public boolean apply(Entry<String, String> input) {
-                return Rating.IRRELEVANT.equals(Rating.valueOf(input.getValue()));
+            public boolean apply(Entry<String, Integer> input) {
+                return Rating.IRRELEVANT.equals(RatingMapping.mapTo(input.getValue()));
             }
         }).keySet();
 
@@ -84,35 +91,29 @@ public class PrecisionAtN implements RankedListQualityMetric<String, Precision> 
 
         double precision = (double) good / (good + bad);
 
-        return new Precision(precision, unknownDocIds);
+        return new IntentQuality(precision, unknownDocIds);
     }
-
-    /** Used for rating documents:
-     * Relevant: Documents expected for result sets returned for this search intent.
-     * Irrelevant: Documents not expected or unrelated to this search intent. */
+    
     public enum Rating {
         RELEVANT, IRRELEVANT;
     }
     
-    /** Returned for each search intent and search specification combination. Summarises the document ids found that were not
-     * annotated and the average precision of result sets in each particular combination based on the annotations given. 
+    /**
+     * Needed to get the enum accross serialisation boundaries.
      * */
-    public class Precision {
-        private double precision;
-        
-        private Collection<String> unknownDocs;
-
-        public Precision (double precision, Collection<String> unknownDocs) {
-            this.precision = precision;
-            this.unknownDocs = unknownDocs;
+    public static class RatingMapping {
+        public static Integer mapFrom(Rating rating) {
+            if (Rating.RELEVANT.equals(rating)) {
+                return 0;
+            }
+            return 1;
         }
         
-        public Collection<String> getUnknownDocs() {
-            return unknownDocs;
-        }
-
-        public double getPrecision() {
-            return precision;          
+        public static Rating mapTo(Integer rating) {
+            if (rating == 0) {
+                return Rating.RELEVANT;
+            }
+            return Rating.IRRELEVANT;
         }
     }
 }

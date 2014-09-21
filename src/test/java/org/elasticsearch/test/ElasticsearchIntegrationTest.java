@@ -917,8 +917,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * are now allocated and started.
      */
     public ClusterHealthStatus  ensureGreen(String... indices) {
+        return ensureGreen(TimeValue.timeValueSeconds(30), indices);
+    }
+
+    /**
+     * Ensures the cluster has a green state via the cluster health API. This method will also wait for relocations.
+     * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
+     * are now allocated and started.
+     *
+     * @param timeout time out value to set on {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest}
+     */
+    public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
         ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest(indices).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
+                .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));

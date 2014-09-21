@@ -56,6 +56,7 @@ import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
@@ -551,7 +552,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 bytes = bStream.bytes();
                 ChannelBuffer headerBuffer = bytes.toChannelBuffer();
                 ChannelBuffer contentBuffer = bRequest.bytes().toChannelBuffer();
-                buffer = NettyUtils.buildComposite(false, headerBuffer, contentBuffer);
+                buffer = ChannelBuffers.wrappedBuffer(NettyUtils.DEFAULT_GATHERING, headerBuffer, contentBuffer);
             } else {
                 request.writeTo(stream);
                 stream.close();

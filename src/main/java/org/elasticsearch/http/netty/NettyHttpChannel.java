@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -134,7 +135,7 @@ public class NettyHttpChannel extends HttpChannel {
                 UnicodeUtil.UTF16toUTF8(callback, 0, callback.length(), callbackBytes);
                 callbackBytes.bytes[callbackBytes.length] = '(';
                 callbackBytes.length++;
-                buffer = ChannelBuffers.wrappedBuffer(
+                buffer = ChannelBuffers.wrappedBuffer(NettyUtils.DEFAULT_GATHERING,
                         ChannelBuffers.wrappedBuffer(callbackBytes.bytes, callbackBytes.offset, callbackBytes.length),
                         buffer,
                         ChannelBuffers.wrappedBuffer(END_JSONP)

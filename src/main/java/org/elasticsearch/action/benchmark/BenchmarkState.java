@@ -20,6 +20,7 @@
 package org.elasticsearch.action.benchmark;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.benchmark.exception.BenchmarkPauseTimedOutException;
 import org.elasticsearch.action.benchmark.start.BenchmarkStartRequest;
 import org.elasticsearch.action.benchmark.start.BenchmarkStartResponse;
@@ -34,16 +35,15 @@ import java.util.concurrent.TimeUnit;
  */
 public class BenchmarkState {
 
-    protected static final ESLogger logger = Loggers.getLogger(BenchmarkState.class);
+    private final ESLogger logger = Loggers.getLogger(BenchmarkState.class);
 
     private static final long TIMEOUT = 60;
     private static final TimeUnit TIMEUNIT = TimeUnit.SECONDS;
 
-    final String benchmarkId;
-    final BenchmarkStartResponse response;
+    private final String benchmarkId;
+    private final BenchmarkStartResponse response;
 
     private final ImmutableOpenMap<String, StoppableSemaphore> semaphores;
-    private final Object lock = new Object();
 
     private volatile boolean stopped = false;
     private volatile boolean paused  = false;
@@ -60,56 +60,56 @@ public class BenchmarkState {
         semaphores = builder.build();
     }
 
+    public String benchmarkId() {
+        return benchmarkId;
+    }
+
+    public BenchmarkStartResponse response() {
+        return response;
+    }
+
     void stopAllCompetitors() {
-        synchronized (lock) {
-            if (!stopped) {
-                for (ObjectObjectCursor<String, StoppableSemaphore> entry : semaphores) {
-                    entry.value.stop();
-                }
-                stopped = true;
+        if (!stopped) {
+            for (ObjectObjectCursor<String, StoppableSemaphore> entry : semaphores) {
+                entry.value.stop();
             }
+            stopped = true;
         }
     }
 
     void abortAllCompetitors() {
-        synchronized (lock) {
-            if (!stopped) {
-                for (ObjectObjectCursor<String, StoppableSemaphore> entry : semaphores) {
-                    entry.value.stop();
-                }
-                response.state(BenchmarkStartResponse.State.ABORTED);
-                stopped = true;
+        if (!stopped) {
+            for (ObjectObjectCursor<String, StoppableSemaphore> entry : semaphores) {
+                entry.value.stop();
             }
+            response.state(BenchmarkStartResponse.State.ABORTED);
+            stopped = true;
         }
     }
 
     void pauseAllCompetitors() {
-        synchronized (lock) {
-            if (!paused && !stopped) {
-                for (ObjectObjectCursor<String, StoppableSemaphore> entry : semaphores) {
-                    try {
-                        entry.value.tryAcquireAll(TIMEOUT, TIMEUNIT);
-                        logger.debug("benchmark [{}]: competitor [{}] paused", benchmarkId, entry.key);
-                    } catch (InterruptedException e) {
-                        throw new BenchmarkPauseTimedOutException("Timed out attempting to pause [" + benchmarkId + "] [" + entry.key + "]", e);
-                    }
+        if (!paused && !stopped) {
+            for (ObjectObjectCursor<String, StoppableSemaphore> entry : semaphores) {
+                try {
+                    entry.value.tryAcquireAll(TIMEOUT, TIMEUNIT);
+                    logger.debug("benchmark [{}]: competitor [{}] paused", benchmarkId, entry.key);
+                } catch (InterruptedException e) {
+                    throw new BenchmarkPauseTimedOutException("Timed out attempting to pause [" + benchmarkId + "] [" + entry.key + "]", e);
                 }
-                response.state(BenchmarkStartResponse.State.PAUSED);
-                paused = true;
             }
+            response.state(BenchmarkStartResponse.State.PAUSED);
+            paused = true;
         }
     }
 
     void resumeAllCompetitors() {
-        synchronized (lock) {
-            if (paused && !stopped) {
-                for (ObjectObjectCursor<String, StoppableSemaphore> entry : semaphores) {
-                    entry.value.releaseAll();
-                    logger.debug("benchmark [{}]: competitor [{}] resumed", benchmarkId, entry.key);
-                }
-                response.state(BenchmarkStartResponse.State.RUNNING);
-                paused = false;
+        if (paused && !stopped) {
+            for (ObjectObjectCursor<String, StoppableSemaphore> entry : semaphores) {
+                entry.value.releaseAll();
+                logger.debug("benchmark [{}]: competitor [{}] resumed", benchmarkId, entry.key);
             }
+            response.state(BenchmarkStartResponse.State.RUNNING);
+            paused = false;
         }
     }
 

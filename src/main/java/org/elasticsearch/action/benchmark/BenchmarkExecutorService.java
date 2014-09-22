@@ -33,6 +33,8 @@ import org.elasticsearch.transport.*;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 
 /**
@@ -44,7 +46,7 @@ import java.util.Map;
 public class BenchmarkExecutorService extends AbstractBenchmarkService {
 
     protected final BenchmarkExecutor executor;
-    protected final Map<String, InternalExecutorState> benchmarks = new HashMap<>();
+    protected final Map<String, InternalExecutorState> benchmarks = new ConcurrentHashMap<>();
 
     @Inject
     public BenchmarkExecutorService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
@@ -57,9 +59,7 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
                                        TransportService transportService, BenchmarkExecutor executor) {
 
         super(settings, clusterService, transportService, threadPool);
-
         this.executor = executor;
-
         transportService.registerHandler(BenchmarkStatusRequestHandler.ACTION, new BenchmarkStatusRequestHandler());
     }
 
@@ -150,7 +150,9 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
                     if (ies.canResumeExecution()) {
                         try {
                             logger.debug("benchmark [{}]: resuming execution", entry.benchmarkId());
-                            executor.resume(entry.benchmarkId());
+                            synchronized (ies.executorLock) {
+                                executor.resume(entry.benchmarkId());
+                            }
                             updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.RUNNING);
                         } catch (Throwable t) {
                             logger.error("benchmark [{}]: failed to resume", t, entry.benchmarkId());
@@ -166,7 +168,9 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
 
                     try {
                         logger.debug("benchmark [{}]: pausing execution", entry.benchmarkId());
-                        executor.pause(entry.benchmarkId());
+                        synchronized (ies.executorLock) {
+                            executor.pause(entry.benchmarkId());
+                        }
                         ies.pauseExecution();
                         updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.PAUSED);
                     } catch (Throwable t) {
@@ -183,7 +187,9 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
 
                     if (ies.canAbortExecution()) {
                         try {
-                            executor.abort(entry.benchmarkId());
+                            synchronized (ies.executorLock) {
+                                executor.abort(entry.benchmarkId());
+                            }
                             logger.debug("benchmark [{}]: aborted", entry.benchmarkId());
                             updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.ABORTED);
                         } catch (Throwable t) {
@@ -197,7 +203,9 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
                         break;
                     }
 
-                    executor.clear(entry.benchmarkId());
+                    synchronized (ies.executorLock) {
+                        executor.clear(entry.benchmarkId());
+                    }
                     benchmarks.remove(entry.benchmarkId());
                     logger.debug("benchmark [{}]: cleared", entry.benchmarkId());
                     break;
@@ -241,11 +249,15 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
 
             try {
                 // Initialize the benchmark state inside the executor
-                executor.create(response.benchmarkStartRequest);
+                synchronized (ies.executorLock) {
+                    executor.create(response.benchmarkStartRequest);
+                }
             } catch (Throwable t) {
                 logger.error("benchmark [{}]: failed to create", t, response.benchmarkId);
                 benchmarks.remove(benchmarkId);
-                executor.clear(benchmarkId);
+                synchronized (ies.executorLock) {
+                    executor.clear(benchmarkId);
+                }
                 newNodeState = BenchmarkMetaData.Entry.NodeState.FAILED;
             }
 
@@ -260,7 +272,12 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
         public void handleException(TransportException e) {
             logger.error("benchmark [{}]: failed to receive definition - cannot execute", e, benchmarkId);
             benchmarks.remove(benchmarkId);
-            executor.clear(benchmarkId);
+            final InternalExecutorState ies = benchmarks.get(benchmarkId);
+            if (ies != null) {
+                synchronized (ies.executorLock) {
+                    executor.clear(benchmarkId);
+                }
+            }
         }
 
         @Override
@@ -292,7 +309,12 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
         public void handleException(TransportException e) {
             logger.error("benchmark [{}]: failed to receive state change acknowledgement - cannot execute", e, benchmarkId);
             benchmarks.remove(benchmarkId);
-            executor.clear(benchmarkId);
+            final InternalExecutorState ies = benchmarks.get(benchmarkId);
+            if (ies != null) {
+                synchronized (ies.executorLock) {
+                    executor.clear(benchmarkId);
+                }
+            }
         }
 
         @Override
@@ -371,15 +393,16 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
 
     protected static final class InternalExecutorState {
 
-        String                 benchmarkId;
-        BenchmarkStartRequest  request;
-        BenchmarkStartResponse response;
+        private final String benchmarkId;
+        private BenchmarkStartRequest request;
+        private BenchmarkStartResponse response;
 
         private volatile boolean running;
         private volatile boolean paused;
         private volatile boolean complete;
 
         private final Object lock = new Object();
+        private final Object executorLock = new Object();
 
         InternalExecutorState(String benchmarkId) {
             this.benchmarkId = benchmarkId;

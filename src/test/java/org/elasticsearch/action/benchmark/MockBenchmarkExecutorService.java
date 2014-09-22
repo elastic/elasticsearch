@@ -28,6 +28,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -43,6 +45,8 @@ import java.util.concurrent.Semaphore;
  * Mock benchmark executor for testing
  */
 public final class MockBenchmarkExecutorService extends BenchmarkExecutorService {
+
+    private static final ESLogger logger = Loggers.getLogger(MockBenchmarkExecutorService.class.getName());
 
     @Inject
     public MockBenchmarkExecutorService(Settings settings, ClusterService clusterService, 

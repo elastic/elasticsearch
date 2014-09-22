@@ -45,67 +45,56 @@ import java.util.concurrent.*;
  */
 public class BenchmarkExecutor {
 
-    protected static final ESLogger logger = Loggers.getLogger(BenchmarkExecutor.class);
+    private static final ESLogger logger = Loggers.getLogger(BenchmarkExecutor.class);
 
-    private final Client           client;
+    private final Client client;
     protected final ClusterService clusterService;
-
-    // This lock is to guard against concurrent access to the 'active' benchmark map, for example
-    // in cases where create() may be called simultaneously with the same benchmark id from different
-    // clients. Similar reasoning holds for simultaneous calls to clear() and create().
-    private final Object lock = new Object();
     private volatile ImmutableOpenMap<String, BenchmarkState> active = ImmutableOpenMap.of();
 
     public BenchmarkExecutor(Client client, ClusterService clusterService) {
-        this.client         = client;
+        this.client = client;
         this.clusterService = clusterService;
     }
 
     public void abort(String benchmarkId) {
 
-        synchronized (lock) {
-            final BenchmarkState state = active.get(benchmarkId);
-            if (state == null) {
-                throw new BenchmarkMissingException("No such benchmark [" + benchmarkId + "]");
-            }
+        final BenchmarkState state = active.get(benchmarkId);
+        if (state == null) {
+            throw new BenchmarkMissingException("No such benchmark [" + benchmarkId + "]");
+        }
 
-            try {
-                state.abortAllCompetitors();
-            } catch (Throwable t) {
-                logger.error("benchmark [{}]: failed to abort", t, benchmarkId);
-            }
+        try {
+            state.abortAllCompetitors();
+        } catch (Throwable t) {
+            logger.error("benchmark [{}]: failed to abort", t, benchmarkId);
         }
     }
 
     public void pause(String benchmarkId) {
 
-        synchronized (lock) {
-            final BenchmarkState state = active.get(benchmarkId);
-            if (state == null) {
-                throw new BenchmarkMissingException("No such benchmark [" + benchmarkId + "]");
-            }
+        final BenchmarkState state = active.get(benchmarkId);
+        if (state == null) {
+            throw new BenchmarkMissingException("No such benchmark [" + benchmarkId + "]");
+        }
 
-            try {
-                state.pauseAllCompetitors();
-            } catch (Throwable t) {
-                logger.error("benchmark [{}]: failed to pause", t, benchmarkId);
-            }
+        try {
+            state.pauseAllCompetitors();
+        } catch (Throwable t) {
+            logger.error("benchmark [{}]: failed to pause", t, benchmarkId);
         }
     }
 
     public void resume(String benchmarkId) {
 
-        synchronized (lock) {
-            final BenchmarkState state = active.get(benchmarkId);
-            if (state == null) {
-                throw new BenchmarkMissingException("No such benchmark [" + benchmarkId + "]");
-            }
+        final BenchmarkState state = active.get(benchmarkId);
+        if (state == null) {
+            throw new BenchmarkMissingException("No such benchmark [" + benchmarkId + "]");
+        }
 
-            try {
-                state.resumeAllCompetitors();
-            } catch (Throwable t) {
-                logger.error("benchmark [{}]: failed to resume", t, benchmarkId);
-            }
+        try {
+            state.resumeAllCompetitors();
+        } catch (Throwable t) {
+            logger.error("benchmark [{}]: failed to resume", t, benchmarkId);
         }
     }
 
@@ -118,49 +107,41 @@ public class BenchmarkExecutor {
             throw new BenchmarkMissingException("No such benchmark [" + benchmarkId + "]");
         }
 
-        response.response(state.response);
+        response.response(state.response());
         return response;
     }
 
     public List<BenchmarkStatusNodeActionResponse> status() {
 
         final List<BenchmarkStatusNodeActionResponse> responses = new ArrayList<>();
-        synchronized (lock) {
-            final UnmodifiableIterator<String> iter = active.keysIt();
-            while (iter.hasNext()) {
-                responses.add(status(iter.next()));
-            }
+        final UnmodifiableIterator<String> iter = active.keysIt();
+        while (iter.hasNext()) {
+            responses.add(status(iter.next()));
         }
 
         return responses;
     }
 
     public void clear(String benchmarkId) {
-        synchronized (lock) {
-            if (active.containsKey(benchmarkId)) {
-                active = ImmutableOpenMap.builder(active).fRemove(benchmarkId).build();
-            }
-        }
+        active = ImmutableOpenMap.builder(active).fRemove(benchmarkId).build();
     }
 
     public BenchmarkStatusNodeActionResponse create(BenchmarkStartRequest request) {
 
-        synchronized (lock) {
-            if (active.containsKey(request.benchmarkId())) {
-                throw new BenchmarkIdConflictException(
-                        "benchmark [" + request.benchmarkId() + "]: already executing on node [" + nodeName() + "]");
-            }
-
-            final BenchmarkStartResponse bsr = new BenchmarkStartResponse(request.benchmarkId(), new HashMap<String, CompetitionResult>());
-            bsr.state(BenchmarkStartResponse.State.RUNNING);
-            bsr.verbose(request.verbose());
-
-            active = ImmutableOpenMap.builder(active).fPut(request.benchmarkId(), new BenchmarkState(request, bsr)).build();
-
-            final BenchmarkStatusNodeActionResponse response = new BenchmarkStatusNodeActionResponse(request.benchmarkId(), nodeId());
-            response.response(bsr);
-            return response;
+        if (active.containsKey(request.benchmarkId())) {
+            throw new BenchmarkIdConflictException(
+                    "benchmark [" + request.benchmarkId() + "]: already executing on node [" + nodeName() + "]");
         }
+
+        final BenchmarkStartResponse bsr = new BenchmarkStartResponse(request.benchmarkId(), new HashMap<String, CompetitionResult>());
+        bsr.state(BenchmarkStartResponse.State.RUNNING);
+        bsr.verbose(request.verbose());
+
+        active = ImmutableOpenMap.builder(active).fPut(request.benchmarkId(), new BenchmarkState(request, bsr)).build();
+
+        final BenchmarkStatusNodeActionResponse response = new BenchmarkStatusNodeActionResponse(request.benchmarkId(), nodeId());
+        response.response(bsr);
+        return response;
     }
 
     public BenchmarkStatusNodeActionResponse start(BenchmarkStartRequest request) throws ElasticsearchException {
@@ -170,7 +151,7 @@ public class BenchmarkExecutor {
             throw new BenchmarkMissingException("No such benchmark [" + request.benchmarkId() + "]");
         }
 
-        final BenchmarkStartResponse benchmarkStartResponse = state.response;
+        final BenchmarkStartResponse benchmarkStartResponse = state.response();
 
         try {
             for (BenchmarkCompetitor competitor : request.competitors()) {
@@ -232,9 +213,7 @@ public class BenchmarkExecutor {
             benchmarkStartResponse.state(BenchmarkStartResponse.State.FAILED);
             benchmarkStartResponse.errors(ex.getMessage());
         } finally {
-            synchronized (lock) {
-                state.stopAllCompetitors();
-            }
+            state.stopAllCompetitors();
         }
 
         final BenchmarkStatusNodeActionResponse response = new BenchmarkStatusNodeActionResponse(request.benchmarkId(), nodeId());

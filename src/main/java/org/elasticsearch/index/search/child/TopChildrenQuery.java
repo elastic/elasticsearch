@@ -208,7 +208,9 @@ public class TopChildrenQuery extends Query {
                     // we found a match, add it and break
                     IntObjectOpenHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());
                     if (readerParentDocs == null) {
-                        readerParentDocs = new IntObjectOpenHashMap<>(indexReader.maxDoc());
+                        //The number of docs in the reader and in the query both upper bound the size of parentDocsPerReader
+                        int mapSize =  Math.min(indexReader.maxDoc(), context.from() + context.size());
+                        readerParentDocs = new IntObjectOpenHashMap<>(mapSize);
                         parentDocsPerReader.put(indexReader.getCoreCacheKey(), readerParentDocs);
                     }
                     ParentDoc parentDoc = readerParentDocs.get(parentDocId);

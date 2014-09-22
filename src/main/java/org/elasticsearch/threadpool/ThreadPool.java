@@ -23,6 +23,7 @@ import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.MoreExecutors;
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -150,6 +151,10 @@ public class ThreadPool extends AbstractComponent {
         return estimatedTimeThread.estimatedTimeInMillis();
     }
 
+    public Counter estimatedTimeInMillisCounter() {
+        return estimatedTimeThread.counter;
+    }
+
     public ThreadPoolInfo info() {
         List<Info> infos = new ArrayList<>();
         for (ExecutorHolder holder : executors.values()) {
@@ -264,6 +269,7 @@ public class ThreadPool extends AbstractComponent {
         while (!retiredExecutors.isEmpty()) {
             result &= ((ThreadPoolExecutor) retiredExecutors.remove().executor()).awaitTermination(timeout, unit);
         }
+        estimatedTimeThread.join(unit.toMillis(timeout));
         return result;
     }
 
@@ -506,15 +512,15 @@ public class ThreadPool extends AbstractComponent {
     static class EstimatedTimeThread extends Thread {
 
         final long interval;
-
+        final TimeCounter counter;
         volatile boolean running = true;
-
         volatile long estimatedTimeInMillis;
 
         EstimatedTimeThread(String name, long interval) {
             super(name);
             this.interval = interval;
             this.estimatedTimeInMillis = System.currentTimeMillis();
+            this.counter = new TimeCounter();
             setDaemon(true);
         }
 
@@ -532,6 +538,19 @@ public class ThreadPool extends AbstractComponent {
                     running = false;
                     return;
                 }
+            }
+        }
+
+        private class TimeCounter extends Counter {
+
+            @Override
+            public long addAndGet(long delta) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long get() {
+                return estimatedTimeInMillis;
             }
         }
     }

@@ -146,10 +146,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
         engine.close();
         store.close();
-
-        if (threadPool != null) {
-            threadPool.shutdownNow();
-        }
+        terminate(threadPool);
     }
 
     private Document testDocumentWithTextField() {

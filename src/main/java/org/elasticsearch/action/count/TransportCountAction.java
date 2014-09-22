@@ -170,7 +170,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
                         .filteringAliases(request.filteringAliases())
                         .nowInMillis(request.nowInMillis()),
                 shardTarget, indexShard.acquireSearcher("count"), indexService, indexShard,
-                scriptService, pageCacheRecycler, bigArrays);
+                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter());
         SearchContext.setCurrent(context);
 
         try {

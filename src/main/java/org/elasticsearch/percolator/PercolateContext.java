@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -685,6 +686,11 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public SearchContext useSlowScroll(boolean useSlowScroll) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Counter timeEstimateCounter() {
         throw new UnsupportedOperationException();
     }
 }

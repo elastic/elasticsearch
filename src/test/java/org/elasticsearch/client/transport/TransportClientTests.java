@@ -94,8 +94,9 @@ public class TransportClientTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatTransportClientSettingCannotBeChanged() {
-        TransportClient client = new TransportClient(settingsBuilder().put(Client.CLIENT_TYPE_SETTING, "anything"));
-        Settings settings = client.injector.getInstance(Settings.class);
-        assertThat(settings.get(Client.CLIENT_TYPE_SETTING), is("transport"));
+        try (TransportClient client = new TransportClient(settingsBuilder().put(Client.CLIENT_TYPE_SETTING, "anything"))) {
+            Settings settings = client.injector.getInstance(Settings.class);
+            assertThat(settings.get(Client.CLIENT_TYPE_SETTING), is("transport"));
+        }
     }
 }

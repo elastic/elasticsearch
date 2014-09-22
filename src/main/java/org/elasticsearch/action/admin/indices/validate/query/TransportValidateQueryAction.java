@@ -178,7 +178,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
                 new ShardSearchRequest(request).types(request.types()).nowInMillis(request.nowInMillis())
                         .filteringAliases(request.filteringAliases()),
                 null, indexShard.acquireSearcher("validate_query"), indexService, indexShard,
-                scriptService, pageCacheRecycler, bigArrays
+                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter()
         );
         SearchContext.setCurrent(searchContext);
         try {

@@ -25,6 +25,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
@@ -353,6 +354,8 @@ public abstract class SearchContext implements Releasable {
     public abstract boolean useSlowScroll();
 
     public abstract SearchContext useSlowScroll(boolean useSlowScroll);
+
+    public abstract Counter timeEstimateCounter();
 
     /**
      * The life time of an object that is used during search execution.

@@ -40,6 +40,7 @@ import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.*;
 
 import java.io.Closeable;
@@ -54,6 +55,7 @@ import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -64,7 +66,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
  * Base testcase for randomized unit testing with Elasticsearch
  */
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
-@ThreadLeakScope(Scope.NONE)
+@ThreadLeakScope(Scope.SUITE)
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // timeout the suite after 20min and fail the test.
 @Listeners(LoggingListener.class)
 public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
@@ -523,4 +525,25 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         return System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
     }
 
+
+    public static boolean terminate(ExecutorService... services) throws InterruptedException {
+        boolean terminated = true;
+        for (ExecutorService service : services) {
+            if (service != null) {
+                service.shutdown();
+                service.shutdownNow();
+                terminated &= service.awaitTermination(10, TimeUnit.SECONDS);
+            }
+        }
+        return terminated;
+    }
+
+    public static boolean terminate(ThreadPool service) throws InterruptedException {
+        if (service != null) {
+            service.shutdown();
+            service.shutdownNow();
+            return service.awaitTermination(10, TimeUnit.SECONDS);
+        }
+        return true;
+    }
 }

@@ -35,6 +35,7 @@ import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -157,6 +158,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         for (int i=0;i<docCount;i++) {
             assertThat(createdCounts.get(i), lessThanOrEqualTo(1));
         }
+        terminate(threadPool);
     }
 
     @Test

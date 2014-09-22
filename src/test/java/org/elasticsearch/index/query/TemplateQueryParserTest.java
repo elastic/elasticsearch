@@ -46,7 +46,9 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -95,6 +97,12 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
         IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
         context = new QueryParseContext(index, queryParserService);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        super.tearDown();
+        terminate(injector.getInstance(ThreadPool.class));
     }
 
     @Test

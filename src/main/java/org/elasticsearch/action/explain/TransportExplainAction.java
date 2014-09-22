@@ -119,7 +119,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
                         .nowInMillis(request.nowInMillis),
                 null, result.searcher(), indexService, indexShard,
                 scriptService, pageCacheRecycler,
-                bigArrays
+                bigArrays, threadPool.estimatedTimeInMillisCounter()
         );
         SearchContext.setCurrent(context);
 

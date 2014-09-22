@@ -132,7 +132,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (timeoutSet) {
             // TODO: change to use our own counter that uses the scheduler in ThreadPool
             // throws TimeLimitingCollector.TimeExceededException when timeout has reached
-            collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeoutInMillis());
+            collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeoutInMillis());
         }
         if (terminateAfterSet) {
             // throws Lucene.EarlyTerminationException when given count is reached

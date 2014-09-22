@@ -230,10 +230,10 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(stats == null ? null : stats.getIndices().getFilterCache().getMemorySize());
             table.addCell(stats == null ? null : stats.getIndices().getFilterCache().getEvictions());
 
-            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getMemorySize());
-            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getEvictions());
-            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getHitCount());
-            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getMissCount());
+            table.addCell(stats == null ? null : stats.getIndices().getQueryCache() == null ? null : stats.getIndices().getQueryCache().getMemorySize());
+            table.addCell(stats == null ? null : stats.getIndices().getQueryCache() == null ? null : stats.getIndices().getQueryCache().getEvictions());
+            table.addCell(stats == null ? null : stats.getIndices().getQueryCache() == null ? null : stats.getIndices().getQueryCache().getHitCount());
+            table.addCell(stats == null ? null : stats.getIndices().getQueryCache() == null ? null : stats.getIndices().getQueryCache().getMissCount());
 
             table.addCell(stats == null ? null : stats.getIndices().getFlush().getTotal());
             table.addCell(stats == null ? null : stats.getIndices().getFlush().getTotalTime());
@@ -287,9 +287,9 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(stats == null ? null : stats.getIndices().getSegments().getVersionMapMemory());
             table.addCell(stats == null ? null : stats.getIndices().getSegments().getFixedBitSetMemory());
 
-            table.addCell(stats == null ? null : stats.getIndices().getSuggest().getCurrent());
-            table.addCell(stats == null ? null : stats.getIndices().getSuggest().getTime());
-            table.addCell(stats == null ? null : stats.getIndices().getSuggest().getCount());
+            table.addCell(stats == null ? null : stats.getIndices().getSuggest() == null ? null : stats.getIndices().getSuggest().getCurrent());
+            table.addCell(stats == null ? null : stats.getIndices().getSuggest() == null ? null : stats.getIndices().getSuggest().getTime());
+            table.addCell(stats == null ? null : stats.getIndices().getSuggest() == null ? null : stats.getIndices().getSuggest().getCount());
 
             table.endRow();
         }

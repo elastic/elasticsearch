@@ -509,6 +509,8 @@ http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNICODE_CA
 http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNICODE_CHARACTER_CLASS[`UNICODE_CHARACTER_CLASS`] and
 http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNIX_LINES[`UNIX_LINES`]
 
+
+coming[1.5.0] 
 For matching based on exact values the `include` and `exclude` parameters can simply take an array of
 strings that represent the terms as they are found in the index:
 

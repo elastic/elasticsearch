@@ -393,7 +393,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     joinThreadControl.markThreadAsDone(currentThread);
-                    nodesFD.start(); // start the nodes FD
+                    if (newState.nodes().localNodeMaster()) {
+                        nodesFD.start(); // start the nodes FD
+                    }
                     sendInitialStateEventIfNeeded();
                     long count = clusterJoinsCounter.incrementAndGet();
                     logger.trace("cluster joins counter set to [{}] (elected as master)", count);

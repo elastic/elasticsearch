@@ -215,7 +215,8 @@ public class TopChildrenQuery extends Query {
 
                     Recycler.V<IntObjectOpenHashMap<ParentDoc>> readerParentDocs = parentDocsPerReader.v().get(indexReader.getCoreCacheKey());
                     if (readerParentDocs == null) {
-                        readerParentDocs = cacheRecycler.intObjectMap(indexReader.maxDoc());
+                        int mapSize =  Math.min(indexReader.maxDoc(), context.from() + context.size());
+                        readerParentDocs = cacheRecycler.intObjectMap(mapSize);
                         parentDocsPerReader.v().put(indexReader.getCoreCacheKey(), readerParentDocs);
                     }
 

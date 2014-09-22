@@ -61,6 +61,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  */
 public class InternalClusterService extends AbstractLifecycleComponent<ClusterService> implements ClusterService {
 
+    public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     private final ThreadPool threadPool;
 
     private final DiscoveryService discoveryService;
@@ -131,7 +132,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     protected void doStart() throws ElasticsearchException {
         add(localNodeMasterListeners);
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
-        this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(daemonThreadFactory(settings, "clusterService#updateTask"));
+        this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(daemonThreadFactory(settings, UPDATE_THREAD_NAME));
         this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ReconnectToNodes());
         discoveryService.addLifecycleListener(new LifecycleListener() {
             @Override

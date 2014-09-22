@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -67,6 +68,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -292,13 +294,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         return clusterName.value() + "/" + localNode.id();
     }
 
-    private boolean localNodeMaster() {
-        return localNode.equals(master());
-    }
-    private DiscoveryNode master() {
-        return nodes().masterNode();
-    }
-
     /** start of {@link org.elasticsearch.discovery.zen.ping.PingContextProvider } implementation */
     @Override
     public DiscoveryNodes nodes() {
@@ -362,26 +357,18 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     private void innerJoinCluster() {
-        boolean retry = true;
-        while (retry) {
+        while (Thread.currentThread().equals(currentJoinThread.get())) {
             if (lifecycle.stoppedOrClosed()) {
                 return;
             }
 
-            // make sure there is still no master
-            if (!Thread.currentThread().equals(currentJoinThread.get())) {
-                logger.trace("thread is no longer in currentJoinThread. Stopping.");
-                return;
-            }
-
-            retry = false;
             DiscoveryNode masterNode = findMaster();
             if (masterNode == null) {
                 logger.trace("no masterNode returned");
-                retry = true;
                 continue;
             }
             if (localNode.equals(masterNode)) {
+                final CountDownLatch clusterStateUpdated = new CountDownLatch(1);
                 clusterService.submitStateUpdateTask("zen-disco-join (elected_as_master)", Priority.IMMEDIATE, new ProcessedClusterStateNonMasterUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
@@ -409,6 +396,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     @Override
                     public void onFailure(String source, Throwable t) {
                         logger.error("unexpected failure during [{}]", t, source);
+                        clusterStateUpdated.countDown();
                     }
 
                     @Override
@@ -416,25 +404,31 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         sendInitialStateEventIfNeeded();
                         long count = clusterJoinsCounter.incrementAndGet();
                         logger.trace("cluster joins counter set to [{}] (elected as master)", count);
+                        clusterStateUpdated.countDown();
                     }
                 });
+                try {
+                    clusterStateUpdated.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             } else {
                 // send join request
-                retry = !joinElectedMaster(masterNode);
-                if (retry) {
+                if (!joinElectedMaster(masterNode)) {
                     continue;
                 }
 
                 if (master() == null) {
                     logger.debug("no master node is set, despite of join request completing. retrying pings");
-                    retry = true;
                     continue;
                 }
 
-                long count = clusterJoinsCounter.incrementAndGet();
-                logger.trace("cluster joins counter set to [{}] (joined master)", count);
+                // we're good. can stop
+                currentJoinThread.compareAndSet(Thread.currentThread(), null);
             }
         }
+
+        logger.trace("thread is no longer in currentJoinThread. Stopping.");
     }
 
     /**
@@ -805,6 +799,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
                             // its a fresh update from the master as we transition from a start of not having a master to having one
                             logger.debug("got first state from fresh master [{}]", updatedState.nodes().masterNodeId());
+                            long count = clusterJoinsCounter.incrementAndGet();
+                            logger.trace("updated cluster join cluster to [{}]", count);
+
                             return updatedState;
                         }
 
@@ -1043,8 +1040,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    // *** called from within an cluster state update task ***/
     private ClusterState rejoin(ClusterState clusterState, String reason) {
+
+        // *** called from within an cluster state update task *** //
+        assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME);
+
         logger.warn(reason + ", current nodes: {}", clusterState.nodes());
         nodesFD.stop();
         masterFD.stop(reason);
@@ -1063,6 +1063,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 .blocks(clusterBlocks)
                 .nodes(discoveryNodes)
                 .build();
+    }
+
+    private boolean localNodeMaster() {
+        return localNode.equals(master());
+    }
+
+    private DiscoveryNode master() {
+        return nodes().masterNode();
     }
 
     private ClusterState handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {

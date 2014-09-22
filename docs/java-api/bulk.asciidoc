@@ -36,3 +36,65 @@ if (bulkResponse.hasFailures()) {
     // process failures by iterating through each bulk response item
 }
 --------------------------------------------------
+
+== Using Bulk Processor
+
+`BulkProcessor` class offers a nice way to automatically execute bulk given a number of requests or a given period.
+
+To use it, first create a `BulkProcessor` instance:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.action.bulk.BulkProcessor;
+
+BulkProcessor bulkProcessor = BulkProcessor.builder(
+        client,                                     // You need an elasticsearch client
+        new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {
+                // This method is called just before bulk is executed
+                // You can for example see the numberOfActions with request.numberOfActions()
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                // This method is called after bulk execution
+                // You can for example check if there was some failing requests
+                // with response.hasFailures()
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                // This method is called when the bulk failed and raised a Throwable
+            }
+        })
+        .setBulkActions(
+            10000                                   // We want to execute the bulk every 10 000 requests
+        )
+        .setBulkSize(
+            new ByteSizeValue(1, ByteSizeUnit.GB)   // We want to flush the bulk every 1gb
+        )
+        .setFlushInterval(
+            TimeValue.timeValueSeconds(5)           // Or every 5 seconds whatever the number of requests
+        )
+        .setConcurrentRequests(1)                   // Set the number of concurrent requests
+        .build();
+--------------------------------------------------
+
+Then you can simply add your requests to the `BulkProcessor`:
+
+[source,java]
+--------------------------------------------------
+bulkProcessor.add(new IndexRequest("twitter", "tweet", "1").source(/* your doc here */));
+bulkProcessor.add(new DeleteRequest("twitter", "tweet", "2"));
+--------------------------------------------------
+
+By default, `BulkProcessor`:
+
+* sets bulkActions to `1000`
+* sets bulkSize to `5mb`
+* does not set flushInterval
+* sets concurrentRequests to 1
+
+A value of 0 for `concurrentRequests` means that only a single request will be allowed to be executed.
+A value of 1 means 1 concurrent request is allowed to be executed while accumulating new bulk requests.

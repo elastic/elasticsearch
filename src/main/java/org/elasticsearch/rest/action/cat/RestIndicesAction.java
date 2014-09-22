@@ -283,6 +283,8 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("suggest.total", "sibling:pri;alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops");
         table.addCell("pri.suggest.total", "default:false;text-align:right;desc:number of suggest ops");
 
+        table.addCell("memory.total", "sibling:pri;alias:tm,memoryTotal;default:false;text-align:right;desc:total used memory");
+        table.addCell("pri.memory.total", "default:false;text-align:right;desc:total user memory");
 
         table.endHeaders();
         return table;
@@ -482,6 +484,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSuggest().getCount());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSuggest().getCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getTotalMemory());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getTotalMemory());
 
             table.endRow();
         }

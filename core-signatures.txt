@@ -111,3 +111,7 @@ com.ning.compress.lzf.LZFOutputStream#<init>(java.io.OutputStream)
 com.ning.compress.lzf.LZFOutputStream#<init>(java.io.OutputStream, com.ning.compress.BufferRecycler)
 com.ning.compress.lzf.LZFUncompressor#<init>(com.ning.compress.DataHandler)
 com.ning.compress.lzf.LZFUncompressor#<init>(com.ning.compress.DataHandler, com.ning.compress.BufferRecycler)
+
+@defaultMessage Spawns a new thread which is solely under lucenes control use ThreadPool#estimatedTimeInMillisCounter instead
+org.apache.lucene.search.TimeLimitingCollector#getGlobalTimerThread()
+org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()

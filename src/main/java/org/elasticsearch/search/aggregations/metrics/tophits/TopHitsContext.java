@@ -24,6 +24,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -630,6 +631,11 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public SearchContext useSlowScroll(boolean useSlowScroll) {
+        throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public Counter timeEstimateCounter() {
         throw new UnsupportedOperationException("Not supported");
     }
 }

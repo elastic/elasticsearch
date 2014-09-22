@@ -224,7 +224,7 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
         assertThat(((ThreadPoolExecutor) oldExecutor).isShutdown(), equalTo(true));
         assertThat(((ThreadPoolExecutor) oldExecutor).isTerminating(), equalTo(true));
         assertThat(((ThreadPoolExecutor) oldExecutor).isTerminated(), equalTo(false));
-        threadPool.shutdownNow();
+        terminate(threadPool);
         latch.await();
     }
 

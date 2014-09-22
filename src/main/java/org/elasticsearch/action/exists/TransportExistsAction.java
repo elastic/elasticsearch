@@ -175,7 +175,7 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
                         .filteringAliases(request.filteringAliases())
                         .nowInMillis(request.nowInMillis()),
                 shardTarget, indexShard.acquireSearcher("exists"), indexService, indexShard,
-                scriptService, cacheRecycler, pageCacheRecycler, bigArrays);
+                scriptService, cacheRecycler, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter());
         SearchContext.setCurrent(context);
 
         try {

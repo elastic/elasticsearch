@@ -273,7 +273,7 @@ public final class InternalTestCluster extends TestCluster {
             builder.put("logger.prefix", System.getProperty("es.logger.level"));
         }
         defaultSettings = builder.build();
-        executor = EsExecutors.newCached(1, TimeUnit.MINUTES, EsExecutors.daemonThreadFactory("test_" + clusterName));
+        executor = EsExecutors.newCached(0, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test_" + clusterName));
         this.hasFilterCache = random.nextBoolean();
     }
 

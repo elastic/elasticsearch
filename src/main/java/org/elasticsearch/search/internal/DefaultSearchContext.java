@@ -25,6 +25,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
@@ -86,6 +87,7 @@ public class DefaultSearchContext extends SearchContext {
     private final ShardSearchRequest request;
 
     private final SearchShardTarget shardTarget;
+    private final Counter timeEstimateCounter;
 
     private SearchType searchType;
 
@@ -186,7 +188,7 @@ public class DefaultSearchContext extends SearchContext {
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
                          ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler,
-                         BigArrays bigArrays) {
+                         BigArrays bigArrays, Counter timeEstimateCounter) {
         this.id = id;
         this.request = request;
         this.searchType = request.searchType();
@@ -207,6 +209,7 @@ public class DefaultSearchContext extends SearchContext {
 
         // initialize the filtering alias based on the provided filters
         aliasFilter = indexService.aliasesService().aliasFilter(request.filteringAliases());
+        this.timeEstimateCounter = timeEstimateCounter;
     }
 
     @Override
@@ -729,5 +732,10 @@ public class DefaultSearchContext extends SearchContext {
     public DefaultSearchContext useSlowScroll(boolean useSlowScroll) {
         this.useSlowScroll = useSlowScroll;
         return this;
+    }
+
+    @Override
+    public Counter timeEstimateCounter() {
+        return timeEstimateCounter;
     }
 }

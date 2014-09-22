@@ -50,8 +50,8 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTests {
     }
 
     @After
-    public void cleanup() {
-        threadPool.shutdownNow();
+    public void cleanup() throws InterruptedException {
+        terminate(threadPool);
     }
 
     @Override

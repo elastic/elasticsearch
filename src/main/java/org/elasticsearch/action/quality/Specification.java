@@ -21,7 +21,11 @@ package org.elasticsearch.action.quality;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.MoreObjects.ToStringHelper;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Defines a QA specification: All end user supplied query intents will be mapped to the search request specified in this search request
@@ -31,19 +35,19 @@ import org.elasticsearch.common.bytes.BytesReference;
  * */
 public class Specification {
 
-    private int specId;
-    private String[] targetIndex;
-    private String searchRequestTemplate;
-    private BytesReference filter;
+    private int specId = 0;
+    private List<String> targetIndex = new ArrayList<String>();
+    private String searchRequestTemplate = "";
+    private BytesReference filter = new BytesArray("");
     
     /** Returns the index to send a query to. */
-    public String[] getTargetIndices() {
+    public List<String> getTargetIndices() {
         return targetIndex;
     }
 
 
     /** Sets the index to send a query to. */
-    public void setTargetIndices(String... targetIndex) {
+    public void setTargetIndices(List<String> targetIndex) {
         this.targetIndex = targetIndex;
     }
 
@@ -67,7 +71,9 @@ public class Specification {
 
     /** Sets the filter to apply to requests sent under this spec. */
     public void setFilter(BytesReference filter) {
-        this.filter = filter;
+        if (filter != null) {
+            this.filter = filter;
+        }
     }
 
 

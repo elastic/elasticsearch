@@ -19,8 +19,9 @@
 
 package org.elasticsearch.action.quality;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.carrotsearch.randomizedtesting.annotations.Seed;
-import com.carrotsearch.randomizedtesting.annotations.Seeds;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.quality.PrecisionAtN.Rating;
 import org.elasticsearch.action.quality.QualityResponse.QualityResult;
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 
+@Seed("4D104273985C6D62")
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
 
@@ -96,10 +98,10 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
 
         assertEquals((double) 4 / 5, (new PrecisionAtN(5)).evaluate(intent, hits).getQualityLevel(), 0.00001);
     }
-
+    
     @Test
-    //@Repeat(iterations = 10)
-    @Seeds({@Seed("A584E5546C406DF2:B1492369439B5F8")})
+    @Repeat(iterations = 1)
+    @Seed("56387767345D4ADA")
     public void testPrecisionAction() {
         Collection<Intent> intents = new ArrayList<Intent>();
         Intent intentAmsterdam = new Intent();
@@ -118,7 +120,7 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         Specification spec = new Specification();
         spec.setSpecId(0);
         spec.setFilter(null);
-        spec.setTargetIndices("test");
+        spec.setTargetIndices(Lists.newArrayList("test"));
         spec.setSearchRequestTemplate("{\"match\": {\"text\" : \"{{var}}\" } }");
         specs.add(spec);
 
@@ -130,7 +132,7 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         task.setSpecifications(specs);
         task.setConfig(config);
         
-        QualityQueryBuilder builder = (new QualityQueryBuilder(client()).setTask(task));
+        QualityRequestBuilder builder = (new QualityRequestBuilder(client()).setTask(task));
         QualityResponse response = client().execute(QualityAction.INSTANCE, builder.request()).actionGet();
         QualityResult result = response.getPrecision().iterator().next();
         for (Entry<Integer, Collection<String>> entry : result.getUnknownDocs().entrySet()) {

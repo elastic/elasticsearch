@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -77,7 +78,7 @@ public class QualityRequest extends ActionRequest<QualityRequest> {
 
             Specification spec = new Specification();
             Object result = in.readGenericValue();
-            spec.setTargetIndices((String[]) result);
+            spec.setTargetIndices((List<String>) result);
             spec.setSearchRequestTemplate(in.readString());
             spec.setFilter(in.readBytesReference());
             spec.setSpecId(in.readInt());

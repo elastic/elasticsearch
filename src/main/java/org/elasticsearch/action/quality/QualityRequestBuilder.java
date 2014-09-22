@@ -23,17 +23,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.Client;
 
-public class QualityQueryBuilder extends ActionRequestBuilder<QualityRequest, QualityResponse, QualityQueryBuilder, Client> {
+public class QualityRequestBuilder extends ActionRequestBuilder<QualityRequest, QualityResponse, QualityRequestBuilder, Client> {
     
-    protected QualityQueryBuilder(Client client) {
-        super(client, new QualityRequest());
-    }
-
-    @Override
-    protected void doExecute(ActionListener<QualityResponse> listener) {
-    }
-
-    public QualityQueryBuilder setTask(QualityTask precisionTask) {
+    public QualityRequestBuilder setTask(QualityTask precisionTask) {
         request.setTask(precisionTask);
         return this;
     }
@@ -41,4 +33,15 @@ public class QualityQueryBuilder extends ActionRequestBuilder<QualityRequest, Qu
     public QualityRequest request() {
         return request;
     }
+
+    protected QualityRequestBuilder(Client client) {
+        super(client, new QualityRequest());
+    }
+
+    @Override
+    protected void doExecute(ActionListener<QualityResponse> listener) {
+        System.err.println("gotcha - qabuilder doexecute");
+        client.qa(request, listener);
+    }
+
 }

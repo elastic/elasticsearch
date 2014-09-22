@@ -25,7 +25,7 @@ import org.elasticsearch.client.Client;
 /** 
  * Action used to start precision at qa evaluations. 
  **/
-public class QualityAction extends ClientAction<QualityRequest, QualityResponse, QualityRequestBulider> {
+public class QualityAction extends ClientAction<QualityRequest, QualityResponse, QualityRequestBuilder> {
 
     public static final QualityAction INSTANCE = new QualityAction();
     public static final String NAME = "indices:data/read/quality";
@@ -35,8 +35,8 @@ public class QualityAction extends ClientAction<QualityRequest, QualityResponse,
     }
 
     @Override
-    public QualityRequestBulider newRequestBuilder(Client client) {
-        return new QualityRequestBulider(client);
+    public QualityRequestBuilder newRequestBuilder(Client client) {
+        return new QualityRequestBuilder(client);
     }
 
     @Override

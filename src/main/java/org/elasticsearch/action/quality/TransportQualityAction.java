@@ -36,6 +36,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -64,6 +65,7 @@ public class TransportQualityAction extends TransportAction<QualityRequest, Qual
 
     @Override
     protected void doExecute(QualityRequest request, ActionListener<QualityResponse> listener) {
+        System.err.println("gotcha - transportqualitycontext");
         QualityResponse response = new QualityResponse();
         QualityTask qualityTask = request.getTask();
         RankedListQualityMetric metric = qualityTask.getQualityContext().getMetric();
@@ -82,7 +84,7 @@ public class TransportQualityAction extends TransportAction<QualityRequest, Qual
                 + "\"} }";
                 
                 SearchRequest templated = new SearchRequest();
-                templated.indices(spec.getTargetIndices());
+                templated.indices(Arrays.copyOf(spec.getTargetIndices().toArray(), spec.getTargetIndices().size(), String[].class));
                 BytesReference bytesRef = new BytesArray(template);
                 templated.templateSource(bytesRef, false);
                 templated.templateType(ScriptService.ScriptType.INLINE);

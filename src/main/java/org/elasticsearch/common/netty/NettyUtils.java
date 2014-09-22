@@ -66,7 +66,7 @@ public class NettyUtils {
      * <p/>
      * Note, on the read size of netty, it uses a single direct buffer that is defined in both the transport
      * and http configuration (based on the direct memory available), and the upstream handlers (SizeHeaderFrameDecoder,
-     * or more specifically the FrameDecoder base class) makes sure to use a cumolation buffer and not copy it
+     * or more specifically the FrameDecoder base class) makes sure to use a cumulation buffer and not copy it
      * over all the time.
      * <p/>
      * TODO: potentially, a more complete solution would be to write a netty channel handler that is the last

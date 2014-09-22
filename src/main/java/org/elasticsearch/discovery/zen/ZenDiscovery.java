@@ -725,7 +725,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", newClusterState.nodes().masterNode());
                 newStateProcessed.onNewClusterStateFailed(new ElasticsearchIllegalStateException("received state from a node that is not part of the cluster"));
             } else {
-                if (currentJoinThread != null) {
+                if (currentJoinThread.get() != null) {
                     logger.trace("got a new state from master node while joining the cluster, this is a valid state during the last phase of the join process");
                 }
 

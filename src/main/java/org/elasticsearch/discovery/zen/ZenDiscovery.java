@@ -68,7 +68,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -133,7 +132,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<>();
 
-    private AtomicReference<Thread> currentJoinThread = new AtomicReference<>();
+    private final JoinThreadControl joinThreadControl;
 
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
@@ -200,6 +199,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.pingService.setPingContextProvider(this);
         this.membership = new MembershipAction(settings, clusterService, transportService, this, new MembershipListener());
 
+        this.joinThreadControl = new JoinThreadControl(threadPool);
+
         transportService.registerHandler(DISCOVERY_REJOIN_ACTION_NAME, new RejoinClusterRequestHandler());
     }
 
@@ -224,7 +225,19 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         pingService.start();
 
         // do the join on a different thread, the DiscoveryService waits for 30s anyhow till it is discovered
-        asyncJoinCluster();
+        clusterService.submitStateUpdateTask("initial_join", new ClusterStateNonMasterUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                joinThreadControl.startNewThreadIfNotRunning();
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, @org.elasticsearch.common.Nullable Throwable t) {
+                logger.warn("failed to start initial join process", t);
+            }
+        });
+
     }
 
     @Override
@@ -255,14 +268,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
             }
         }
-        Thread joinThread = currentJoinThread.get();
-        if (joinThread != null) {
-            try {
-                joinThread.interrupt();
-            } catch (Exception e) {
-                // ignore
-            }
-        }
+        joinThreadControl.shutdown();
     }
 
     @Override
@@ -327,108 +333,104 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         publishClusterState.publish(clusterState, ackListener);
     }
 
-    private void asyncJoinCluster() {
-        if (currentJoinThread.get() != null) {
-            // we are already joining, ignore...
-            logger.trace("a join thread already running");
-            return;
-        }
-        threadPool.generic().execute(new Runnable() {
-            @Override
-            public void run() {
-                if (currentJoinThread.compareAndSet(null,Thread.currentThread())) {
-                    try {
-                        innerJoinCluster();
-                    } finally {
-                        currentJoinThread.compareAndSet(Thread.currentThread(), null);
-                    }
-                }
-            }
-        });
-    }
-
-
     /**
      * returns true if there is a currently a background thread active for (re)joining the cluster
      * used for testing.
      */
     public boolean joiningCluster() {
-        return currentJoinThread.get() != null;
+        return joinThreadControl.joinThreadActive();
     }
 
+    /**
+     * main function of a join thread. This function is guaranteed to join the cluster
+     * or spawn a new join thread upon failure.
+     */
     private void innerJoinCluster() {
-        while (Thread.currentThread().equals(currentJoinThread.get())) {
-            if (lifecycle.stoppedOrClosed()) {
-                return;
-            }
-
-            DiscoveryNode masterNode = findMaster();
-            if (masterNode == null) {
-                logger.trace("no masterNode returned");
-                continue;
-            }
-            if (localNode.equals(masterNode)) {
-                final CountDownLatch clusterStateUpdated = new CountDownLatch(1);
-                clusterService.submitStateUpdateTask("zen-disco-join (elected_as_master)", Priority.IMMEDIATE, new ProcessedClusterStateNonMasterUpdateTask() {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        // Take into account the previous known nodes, if they happen not to be available
-                        // then fault detection will remove these nodes.
-                        DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder(currentState.nodes())
-                                .localNodeId(localNode.id())
-                                .masterNodeId(localNode.id())
-                                        // put our local node
-                                .put(localNode);
-                        // update the fact that we are the master...
-                        ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
-                        currentState = ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();
-
-                        nodesFD.start(); // start the nodes FD
-
-                        // make sure a new join thread can start, if a node fails and we fail to meet m_m_n
-                        currentJoinThread.set(null);
-
-                        // eagerly run reroute to remove dead nodes from routing table
-                        RoutingAllocation.Result result = allocationService.reroute(currentState);
-                        return ClusterState.builder(currentState).routingResult(result).build();
-                    }
-
-                    @Override
-                    public void onFailure(String source, Throwable t) {
-                        logger.error("unexpected failure during [{}]", t, source);
-                        clusterStateUpdated.countDown();
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        sendInitialStateEventIfNeeded();
-                        long count = clusterJoinsCounter.incrementAndGet();
-                        logger.trace("cluster joins counter set to [{}] (elected as master)", count);
-                        clusterStateUpdated.countDown();
-                    }
-                });
-                try {
-                    clusterStateUpdated.await();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            } else {
-                // send join request
-                if (!joinElectedMaster(masterNode)) {
-                    continue;
-                }
-
-                if (master() == null) {
-                    logger.debug("no master node is set, despite of join request completing. retrying pings");
-                    continue;
-                }
-
-                // we're good. can stop
-                currentJoinThread.compareAndSet(Thread.currentThread(), null);
-            }
+        DiscoveryNode masterNode = null;
+        final Thread currentThread = Thread.currentThread();
+        while (masterNode == null && joinThreadControl.joinThreadActive(currentThread)) {
+            masterNode = findMaster();
         }
 
-        logger.trace("thread is no longer in currentJoinThread. Stopping.");
+        if (!joinThreadControl.joinThreadActive(currentThread)) {
+            logger.trace("thread is no longer in currentJoinThread. Stopping.");
+            return;
+        }
+
+        if (localNode.equals(masterNode)) {
+            clusterService.submitStateUpdateTask("zen-disco-join (elected_as_master)", Priority.IMMEDIATE, new ProcessedClusterStateNonMasterUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    // Take into account the previous known nodes, if they happen not to be available
+                    // then fault detection will remove these nodes.
+
+                    if (currentState.nodes().masterNode() != null) {
+                        // TODO can we tie break here? we don't have a cluster state version to decide on.
+                        logger.trace("join thread elected local node as master, but there is already a master in place: {}", currentState.nodes().masterNode());
+                        return currentState;
+                    }
+
+                    DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder(currentState.nodes())
+                            .localNodeId(localNode.id())
+                            .masterNodeId(localNode.id())
+                                    // put our local node
+                            .put(localNode);
+                    // update the fact that we are the master...
+                    ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
+                    currentState = ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();
+
+                    // eagerly run reroute to remove dead nodes from routing table
+                    RoutingAllocation.Result result = allocationService.reroute(currentState);
+                    return ClusterState.builder(currentState).routingResult(result).build();
+                }
+
+                @Override
+                public void onFailure(String source, Throwable t) {
+                    logger.error("unexpected failure during [{}]", t, source);
+                    joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    joinThreadControl.markThreadAsDone(currentThread);
+                    nodesFD.start(); // start the nodes FD
+                    sendInitialStateEventIfNeeded();
+                    long count = clusterJoinsCounter.incrementAndGet();
+                    logger.trace("cluster joins counter set to [{}] (elected as master)", count);
+
+                }
+            });
+        } else {
+            // send join request
+            final boolean success = joinElectedMaster(masterNode);
+
+            // finalize join through the cluster state update thread
+            clusterService.submitStateUpdateTask("finalize_join", new ClusterStateNonMasterUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    if (!success) {
+                        // failed to join. Try again...
+                        joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
+                        return currentState;
+                    }
+
+                    if (currentState.getNodes().masterNode() == null) {
+                        logger.debug("no master node is set, despite of join request completing. retrying pings");
+                        joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
+                        return currentState;
+                    }
+
+                    joinThreadControl.markThreadAsDone(currentThread);
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(String source, @org.elasticsearch.common.Nullable Throwable t) {
+                    logger.error("unexpected error while trying to finalize cluster join", t);
+                    joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
+                }
+            });
+        }
     }
 
     /**
@@ -719,9 +721,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", newClusterState.nodes().masterNode());
                 newStateProcessed.onNewClusterStateFailed(new ElasticsearchIllegalStateException("received state from a node that is not part of the cluster"));
             } else {
-                if (currentJoinThread.get() != null) {
-                    logger.trace("got a new state from master node while joining the cluster, this is a valid state during the last phase of the join process");
-                }
 
                 final ProcessClusterState processClusterState = new ProcessClusterState(newClusterState, newStateProcessed);
                 processNewClusterStates.add(processClusterState);
@@ -776,9 +775,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         }
 
                         ClusterState updatedState = stateToProcess.clusterState;
-
-                        // stop any background join process, if running - we have an active master
-                        currentJoinThread.set(null);
 
                         // if the new state has a smaller version, and it has the same master node, then no need to process it
                         if (updatedState.version() < currentState.version() && Objects.equal(updatedState.nodes().masterNodeId(), currentState.nodes().masterNodeId())) {
@@ -902,7 +898,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 public void onNoLongerMaster(String source) {
                     // we are rejected, so drain all pending task (execute never run)
                     processJoinRequests.drainTo(drainedJoinRequests);
-                    Exception e  = new ElasticsearchIllegalStateException("Node [" + localNode + "] not master for join request from [" + node + "]");
+                    Exception e = new ElasticsearchIllegalStateException("Node [" + localNode + "] not master for join request from [" + node + "]");
                     innerOnFailure(e);
                 }
 
@@ -937,6 +933,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     private DiscoveryNode findMaster() {
+        logger.trace("starting to ping");
         ZenPing.PingResponse[] fullPingResponses = pingService.pingAndWait(pingTimeout);
         if (fullPingResponses == null) {
             logger.trace("No full ping responses");
@@ -1057,7 +1054,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         // clean the nodes, we are now not connected to anybody, since we try and reform the cluster
         DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder(clusterState.nodes()).masterNodeId(null).build();
 
-        asyncJoinCluster();
+        joinThreadControl.startNewThreadIfNotRunning();
 
         return ClusterState.builder(clusterState)
                 .blocks(clusterBlocks)
@@ -1075,6 +1072,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private ClusterState handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {
         assert localClusterState.nodes().localNodeMaster() : "handleAnotherMaster called but current node is not a master";
+        assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
+
         if (otherClusterStateVersion > localClusterState.version()) {
             return rejoin(localClusterState, "zen-disco-discovered another master with a new cluster_state [" + otherMaster + "][" + reason + "]");
         } else {
@@ -1272,5 +1271,84 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 ZenDiscovery.this.rejoinOnMasterGone = rejoinOnMasterGone;
             }
         }
+    }
+
+
+    /**
+     * All control of the join thread should happen under the cluster state update task thread.
+     * This is important to make sure that we never miss a re-join command or wrong fully stop
+     * the wrong join thread
+     */
+    private class JoinThreadControl {
+
+        private final ThreadPool threadPool;
+        private final AtomicReference<Thread> currentJoinThread = new AtomicReference<>();
+
+        public JoinThreadControl(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+        }
+
+        public boolean joinThreadActive() {
+            Thread currentThread = currentJoinThread.get();
+            return currentThread != null && currentThread.isAlive();
+        }
+
+        public boolean joinThreadActive(Thread joinThread) {
+            return joinThread.equals(currentJoinThread.get());
+        }
+
+        public void startNewThreadIfNotRunning() {
+            assertClusterStateThread();
+            if (joinThreadActive()) {
+                return;
+            }
+            threadPool.generic().execute(new Runnable() {
+                @Override
+                public void run() {
+                    Thread currentThread = Thread.currentThread();
+                    if (!currentJoinThread.compareAndSet(null, currentThread)) {
+                        return;
+                    }
+                    while (joinThreadActive(currentThread)) {
+                        try {
+                            innerJoinCluster();
+                            return;
+                        } catch (Throwable t) {
+                            logger.error("unexpected error while joining cluster, trying again", t);
+                        }
+
+                    }
+                }
+            });
+        }
+
+        public void markThreadAsDoneAndStartNew(Thread joinThread) {
+            assertClusterStateThread();
+            if (!markThreadAsDone(joinThread)) {
+                return;
+            }
+            startNewThreadIfNotRunning();
+        }
+
+        public boolean markThreadAsDone(Thread joinThread) {
+            assertClusterStateThread();
+            return currentJoinThread.compareAndSet(joinThread, null);
+        }
+
+        public void shutdown() {
+            Thread joinThread = currentJoinThread.getAndSet(null);
+            if (joinThread != null) {
+                try {
+                    joinThread.interrupt();
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+        }
+
+        private void assertClusterStateThread() {
+            assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
+        }
+
     }
 }

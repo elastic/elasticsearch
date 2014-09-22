@@ -24,14 +24,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.multicast.MulticastZenPing;
@@ -41,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -160,7 +157,7 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
 
         private final AtomicInteger counter;
 
-        private ConcurrentMap<DiscoveryNode, PingResponse> responses = ConcurrentCollections.newConcurrentMap();
+        private PingCollection responses = new PingCollection();
 
         private CompoundPingListener(PingListener listener, ImmutableList<? extends ZenPing> zenPings) {
             this.listener = listener;
@@ -170,12 +167,10 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
         @Override
         public void onPing(PingResponse[] pings) {
             if (pings != null) {
-                for (PingResponse pingResponse : pings) {
-                    responses.put(pingResponse.node(), pingResponse);
-                }
+                responses.addPings(pings);
             }
             if (counter.decrementAndGet() == 0) {
-                listener.onPing(responses.values().toArray(new PingResponse[responses.size()]));
+                listener.onPing(responses.toArray());
             }
         }
     }

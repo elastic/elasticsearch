@@ -42,6 +42,11 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestGetIndexedScriptAction extends BaseRestHandler {
 
+    private final static String LANG_FIELD = "lang";
+    private final static String ID_FIELD = "_id";
+    private final static String VERSION_FIELD = "_version";
+    private final static String SCRIPT_FIELD = "script";
+
     @Inject
     public RestGetIndexedScriptAction(Settings settings, RestController controller, Client client) {
         this(settings, controller, true, client);
@@ -54,13 +59,14 @@ public class RestGetIndexedScriptAction extends BaseRestHandler {
         }
     }
 
-    protected String getScriptLang(RestRequest request) {
-        return request.param("lang");
+    protected String getScriptFieldName() {
+        return SCRIPT_FIELD;
     }
 
-    protected String getScriptFieldName() {
-        return "script";
+    protected String getScriptLang(RestRequest request) {
+        return request.param(LANG_FIELD);
     }
+
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
@@ -78,6 +84,9 @@ public class RestGetIndexedScriptAction extends BaseRestHandler {
                         String script = response.getScript();
                         builder.startObject();
                         builder.field(getScriptFieldName(), script);
+                        builder.field(VERSION_FIELD, response.getVersion());
+                        builder.field(LANG_FIELD, response.getScriptLang());
+                        builder.field(ID_FIELD, response.getId());
                         builder.endObject();
                         return new BytesRestResponse(OK, builder);
                     } catch( IOException|ClassCastException e ){

@@ -59,7 +59,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest {
+public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest.Replaceable {
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -173,6 +173,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * Sets the indices the search will be executed on.
      */
+    @Override
     public SearchRequest indices(String... indices) {
         if (indices == null) {
             throw new ElasticsearchIllegalArgumentException("indices must not be null");
@@ -582,7 +583,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             }
         }
 
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             queryCache = in.readOptionalBoolean();
         }
     }
@@ -627,7 +628,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             }
         }
 
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeOptionalBoolean(queryCache);
         }
     }

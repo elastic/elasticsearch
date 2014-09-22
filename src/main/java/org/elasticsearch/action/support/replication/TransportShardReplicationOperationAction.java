@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
@@ -162,14 +163,26 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     /**
      * Should an exception be ignored when the operation is performed on the replica.
      */
-    boolean ignoreReplicaException(Throwable e) {
+    protected boolean ignoreReplicaException(Throwable e) {
         if (TransportActions.isShardNotAvailableException(e)) {
             return true;
         }
+        // on version conflict or document missing, it means
+        // that a new change has crept into the replica, and it's fine
+        if (isConflictException(e)) {
+            return true;
+        }
+        return false;
+    }
+
+    protected boolean isConflictException(Throwable e) {
         Throwable cause = ExceptionsHelper.unwrapCause(e);
         // on version conflict or document missing, it means
         // that a new change has crept into the replica, and it's fine
         if (cause instanceof VersionConflictEngineException) {
+            return true;
+        }
+        if (cause instanceof DocumentAlreadyExistsException) {
             return true;
         }
         return false;
@@ -283,14 +296,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             int shard = -1;
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 shardId = ShardId.readShardId(in);
             } else {
                 shard = in.readVInt();
             }
             request = newReplicaRequestInstance();
             request.readFrom(in);
-            if (in.getVersion().before(Version.V_1_4_0_Beta)) {
+            if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
                 assert shard >= 0;
                 //older nodes will send the concrete index as part of the request
                 shardId = new ShardId(request.index(), shard);
@@ -300,7 +313,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 shardId.writeTo(out);
             } else {
                 out.writeVInt(shardId.id());
@@ -536,6 +549,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 PrimaryResponse<Response, ReplicaRequest> response = shardOperationOnPrimary(clusterState, new PrimaryOperationRequest(primaryShardId, internalRequest.concreteIndex(), internalRequest.request()));
                 performReplicas(response);
             } catch (Throwable e) {
+                internalRequest.request.setCanHaveDuplicates();
                 // shard has not been allocated yet, retry it here
                 if (retryPrimaryException(e)) {
                     primaryOperationStarted.set(false);
@@ -719,7 +733,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     try {
                         threadPool.executor(executor).execute(new AbstractRunnable() {
                             @Override
-                            public void run() {
+                            protected void doRun() {
                                 try {
                                     shardOperationOnReplica(shardRequest);
                                 } catch (Throwable e) {
@@ -735,6 +749,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             public boolean isForceExecution() {
                                 return true;
                             }
+
+                            @Override
+                            public void onFailure(Throwable t) {}
                         });
                     } catch (Throwable e) {
                         failReplicaIfNeeded(shard.index(), shard.id(), e);

@@ -16,34 +16,51 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
 
 /**
- * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
- * one or more indices. Allows to retrieve which indices the action relates to.
- * In case of internal requests  originated during the distributed execution of an external request,
- * they will still return the indices that the original request related to.
+ * Generic interface to group ActionRequest, which work on single document level
+ *
+ * Forces this class return index/type/id getters
  */
-public interface IndicesRequest {
+public interface DocumentRequest<T> {
 
     /**
-     * Returns the array of indices that the action relates to
+     * Get the index that this request operates on
+     * @return the index
      */
-    String[] indices();
+    String index();
 
     /**
-     * Returns the indices options used to resolve indices. They tell for instance whether a single index is
-     * accepted, whether an empty array will be converted to _all, and how wildcards will be expanded if needed.
+     * Get the type that this request operates on
+     * @return the type
+     */
+    String type();
+
+    /**
+     * Get the id of the document for this request
+     * @return the id
+     */
+    String id();
+
+    /**
+     * Get the options for this request
+     * @return the indices options
      */
     IndicesOptions indicesOptions();
 
-    static interface Replaceable extends IndicesRequest {
-        /*
-         * Sets the array of indices that the action relates to
-         */
-        IndicesRequest indices(String[] indices);
-    }
+    /**
+     * Set the routing for this request
+     * @param routing
+     * @return the Request
+     */
+    T routing(String routing);
+
+    /**
+     * Get the routing for this request
+     * @return the Routing
+     */
+    String routing();
 }

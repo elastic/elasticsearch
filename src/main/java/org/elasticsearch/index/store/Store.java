@@ -27,6 +27,7 @@ import org.apache.lucene.codecs.lucene46.Lucene46SegmentInfoFormat;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
@@ -35,9 +36,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.codec.CodecService;
@@ -45,7 +48,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.distributor.Distributor;
-import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
 import java.io.*;
 import java.nio.file.NoSuchFileException;
@@ -57,8 +59,8 @@ import java.util.zip.Checksum;
 
 /**
  * A Store provides plain access to files written by an elasticsearch index shard. Each shard
- * has a dedicated store that is uses to access lucenes Directory which represents the lowest level
- * of file abstraction in lucene used to read and write Lucene indices to.
+ * has a dedicated store that is uses to access Lucene's Directory which represents the lowest level
+ * of file abstraction in Lucene used to read and write Lucene indices.
  * This class also provides access to metadata information like checksums for committed files. A committed
  * file is a file that belongs to a segment written by a Lucene commit. Files that have not been committed
  * ie. created during a merge or a shard refresh / NRT reopen are not considered in the MetadataSnapshot.
@@ -88,7 +90,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private final CodecService codecService;
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
-    private final boolean sync;
     private final DistributorDirectory distributorDirectory;
 
     @Inject
@@ -96,7 +97,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         super(shardId, indexSettings);
         this.codecService = codecService;
         this.directoryService = directoryService;
-        this.sync = componentSettings.getAsBoolean("sync", true);
         this.distributorDirectory = new DistributorDirectory(distributor);
         this.directory = new StoreDirectory(distributorDirectory);
     }
@@ -384,9 +384,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     /**
-     * The idea of the store directory is to cache file level meta data, as well as md5 of it
+     * This exists so {@link BloomFilteringPostingsFormat} can load its boolean setting; can we find a more straightforward way?
      */
-    public class StoreDirectory extends FilterDirectory implements ForceSyncDirectory {
+    public class StoreDirectory extends FilterDirectory {
 
         StoreDirectory(Directory delegateDirectory) throws IOException {
             super(delegateDirectory);
@@ -429,20 +429,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             assert false : "Nobody should close this directory except of the Store itself";
         }
 
-        @Override
-        public void sync(Collection<String> names) throws IOException {
-            if (sync) {
-                super.sync(names);
-            }
-        }
-
         private void innerClose() throws IOException {
             super.close();
-        }
-
-        @Override
-        public void forceSync(String name) throws IOException {
-            sync(ImmutableList.of(name));
         }
 
         @Override
@@ -561,15 +549,15 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         private static void checksumFromLuceneFile(Directory directory, String file, ImmutableMap.Builder<String, StoreFileMetaData> builder,  ESLogger logger, Version version, boolean readFileAsHash) throws IOException {
             final String checksum;
-            final BytesRef fileHash = new BytesRef();
-            try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
+            final BytesRefBuilder fileHash = new BytesRefBuilder();
+            try (final IndexInput in = directory.openInput(file, IOContext.READONCE)) {
                 try {
                     if (in.length() < CodecUtil.footerLength()) {
                         // truncated files trigger IAE if we seek negative... these files are really corrupted though
                         throw new CorruptIndexException("Can't retrieve checksum from file: " + file + " file length must be >= " + CodecUtil.footerLength() + " but was: " + in.length());
                     }
                     if (readFileAsHash) {
-                       hashFile(fileHash, in);
+                       hashFile(fileHash, new InputStreamIndexInput(in, in.length()), in.length());
                     }
                     checksum = digestToString(CodecUtil.retrieveChecksum(in));
 
@@ -577,30 +565,20 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     logger.debug("Can retrieve checksum from file [{}]", ex, file);
                     throw ex;
                 }
-                builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), checksum, version, fileHash));
+                builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), checksum, version, fileHash.get()));
             }
         }
 
         /**
          * Computes a strong hash value for small files. Note that this method should only be used for files < 1MB
          */
-        public static void hashFile(BytesRef fileHash, IndexInput in) throws IOException {
-            final int len = (int)Math.min(1024 * 1024, in.length()); // for safety we limit this to 1MB
-            fileHash.offset = 0;
+        public static void hashFile(BytesRefBuilder fileHash, InputStream in, long size) throws IOException {
+            final int len = (int)Math.min(1024 * 1024, size); // for safety we limit this to 1MB
             fileHash.grow(len);
-            fileHash.length = len;
-            in.readBytes(fileHash.bytes, 0, len);
-        }
-
-        /**
-         * Computes a strong hash value for small files. Note that this method should only be used for files < 1MB
-         */
-        public static void hashFile(BytesRef fileHash, BytesRef source) throws IOException {
-            final int len = Math.min(1024 * 1024, source.length); // for safety we limit this to 1MB
-            fileHash.offset = 0;
-            fileHash.grow(len);
-            fileHash.length = len;
-            System.arraycopy(source.bytes, source.offset, fileHash.bytes, 0, len);
+            fileHash.setLength(len);
+            final int readBytes = Streams.readFully(in, fileHash.bytes(), 0, len);
+            assert readBytes == len : Integer.toString(readBytes) + " != " + Integer.toString(len);
+            assert fileHash.length() == len : Integer.toString(fileHash.length()) + " != " + Integer.toString(len);
         }
 
         @Override

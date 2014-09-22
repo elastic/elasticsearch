@@ -22,6 +22,7 @@ package org.elasticsearch.document;
 import com.google.common.base.Charsets;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -651,8 +652,31 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         assertThat(bulkItemResponse.getItems()[5].getOpType(), is("delete"));
     }
 
+
     private static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
+    }
+
+    @Test // issue 6410
+    public void testThatMissingIndexDoesNotAbortFullBulkRequest() throws Exception{
+        createIndex("bulkindex1", "bulkindex2");
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source("text", "hallo1"))
+                   .add(new IndexRequest("bulkindex2", "index2_type", "1").source("text", "hallo2"))
+                   .add(new IndexRequest("bulkindex2", "index2_type").source("text", "hallo2"))
+                   .add(new UpdateRequest("bulkindex2", "index2_type", "2").doc("foo", "bar"))
+                   .add(new DeleteRequest("bulkindex2", "index2_type", "3"))
+                   .refresh(true);
+
+        client().bulk(bulkRequest).get();
+        SearchResponse searchResponse = client().prepareSearch("bulkindex*").get();
+        assertHitCount(searchResponse, 3);
+
+        assertAcked(client().admin().indices().prepareClose("bulkindex2"));
+
+        BulkResponse bulkResponse = client().bulk(bulkRequest).get();
+        assertThat(bulkResponse.hasFailures(), is(true));
+        assertThat(bulkResponse.getItems().length, is(5));
     }
 }
 

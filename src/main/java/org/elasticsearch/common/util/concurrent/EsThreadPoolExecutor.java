@@ -20,11 +20,9 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.action.ActionRunnable;
 
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
@@ -75,4 +73,18 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         public void onTerminated();
     }
 
+    @Override
+    public void execute(Runnable command) {
+        try {
+            super.execute(command);
+        } catch (EsRejectedExecutionException ex) {
+            if (command instanceof AbstractRunnable) {
+                // If we are an abstract runnable we can handle the rejection
+                // directly and don't need to rethrow it.
+                ((AbstractRunnable)command).onRejection(ex);
+            } else {
+                throw ex;
+            }
+        }
+    }
 }

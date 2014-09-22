@@ -24,6 +24,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,6 +48,11 @@ public class TransportAbortBenchmarkAction extends TransportMasterNodeOperationA
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(AbortBenchmarkRequest request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
     }
 
     @Override

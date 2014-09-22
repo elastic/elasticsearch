@@ -63,6 +63,7 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
@@ -213,6 +214,15 @@ public class DefaultSearchContext extends SearchContext {
      * Should be called before executing the main query and after all other parameters have been set.
      */
     public void preProcess() {
+        if (!(from() == -1 && size() == -1)) {
+            // from and size have been set.
+            int numHits = from() + size();
+            if (numHits < 0) {
+                String msg = "Result window is too large, from + size must be less than or equal to: [" + Integer.MAX_VALUE + "] but was [" + (((long) from()) + ((long) size())) + "]";
+                throw new QueryPhaseExecutionException(this, msg);
+            }
+        }
+
         if (query() == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -58,6 +59,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
     protected Client buildClient(Settings headersSettings, GenericAction[] testedActions) {
         TransportClient client = new TransportClient(ImmutableSettings.builder()
                 .put("client.transport.sniff", false)
+                .put("node.name", "transport_client_" + this.getTestName())
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalTransportService.class.getName())
                 .put(HEADER_SETTINGS)
                 .build());
@@ -71,21 +73,26 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTests {
         TransportClient client = new TransportClient(ImmutableSettings.builder()
                 .put("client.transport.sniff", true)
                 .put("cluster.name", "cluster1")
+                .put("node.name", "transport_client_" + this.getTestName() + "_1")
                 .put("client.transport.nodes_sampler_interval", "1s")
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, InternalTransportService.class.getName())
                 .put(HEADER_SETTINGS)
                 .build());
+        try {
+            client.addTransportAddress(address);
 
-        client.addTransportAddress(address);
+            InternalTransportService service = (InternalTransportService) client.injector.getInstance(TransportService.class);
 
-        InternalTransportService service = (InternalTransportService) client.injector.getInstance(TransportService.class);
+            if (!service.clusterStateLatch.await(5, TimeUnit.SECONDS)) {
+                fail("takes way too long to get the cluster state");
+            }
 
-        if (!service.clusterStateLatch.await(5, TimeUnit.SECONDS)) {
-            fail("takes way too long to get the cluster state");
+            assertThat(client.connectedNodes().size(), is(1));
+            assertThat(client.connectedNodes().get(0).getAddress(), is((TransportAddress) address));
+        } finally {
+            client.close();
         }
 
-        assertThat(client.connectedNodes().size(), is(1));
-        assertThat(client.connectedNodes().get(0).getAddress(), is((TransportAddress) address));
     }
 
     public static class InternalTransportService extends TransportService {

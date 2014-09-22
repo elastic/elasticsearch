@@ -28,6 +28,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -52,6 +53,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -138,21 +140,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             createIndex(request, listener, mdLock);
             return;
         }
-
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
+        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new ActionRunnable(listener) {
             @Override
-            public void run() {
-                try {
-                    if (!mdLock.tryAcquire(request.masterNodeTimeout().nanos(), TimeUnit.NANOSECONDS)) {
-                        listener.onFailure(new ProcessClusterEventTimeoutException(request.masterNodeTimeout(), "acquire index lock"));
-                        return;
-                    }
-                } catch (InterruptedException e) {
-                    Thread.interrupted();
-                    listener.onFailure(e);
+            public void doRun() throws InterruptedException {
+                if (!mdLock.tryAcquire(request.masterNodeTimeout().nanos(), TimeUnit.NANOSECONDS)) {
+                    listener.onFailure(new ProcessClusterEventTimeoutException(request.masterNodeTimeout(), "acquire index lock"));
                     return;
                 }
-
                 createIndex(request, listener, mdLock);
             }
         });

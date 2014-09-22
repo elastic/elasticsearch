@@ -93,6 +93,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -608,7 +609,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
             throw e;
         } finally {
-            if (!success || suiteFailureMarker.hadFailures()) {
+            if (!success || CurrentTestFailedMarker.testFailed()) {
                 // if we failed that means that something broke horribly so we should
                 // clear all clusters and if the current cluster is the global we shut that one
                 // down as well to prevent subsequent tests from failing due to the same problem.
@@ -616,7 +617,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 // tests get a new / clean cluster
                 clearClusters();
                 if (currentCluster == GLOBAL_CLUSTER) {
-                    GLOBAL_CLUSTER.close();
+                    if (GLOBAL_CLUSTER != null) {
+                        GLOBAL_CLUSTER.close();
+                    }
                     GLOBAL_CLUSTER = null;
                     initializeGlobalCluster(); // re-init that cluster
                 }
@@ -914,8 +917,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * are now allocated and started.
      */
     public ClusterHealthStatus  ensureGreen(String... indices) {
+        return ensureGreen(TimeValue.timeValueSeconds(30), indices);
+    }
+
+    /**
+     * Ensures the cluster has a green state via the cluster health API. This method will also wait for relocations.
+     * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
+     * are now allocated and started.
+     *
+     * @param timeout time out value to set on {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest}
+     */
+    public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
         ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest(indices).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
+                .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
@@ -1243,7 +1257,25 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * @param builders       the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
-        Random random = getRandom();
+        indexRandom(forceRefresh, dummyDocuments, true, builders);
+    }
+
+    /**
+     * Indexes the given {@link IndexRequestBuilder} instances randomly. It shuffles the given builders and either
+     * indexes they in a blocking or async fashion. This is very useful to catch problems that relate to internal document
+     * ids or index segment creations. Some features might have bug when a given document is the first or the last in a
+     * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
+     * layout.
+     *
+     * @param forceRefresh   if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
+     * @param dummyDocuments if <tt>true</tt> some empty dummy documents may be randomly inserted into the document list and deleted once
+     *                       all documents are indexed. This is useful to produce deleted documents on the server side.
+     * @param maybeFlush if <tt>true</tt> this method may randomly execute full flushes after index operations.
+     * @param builders       the documents to index.
+     */
+    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
+
+            Random random = getRandom();
         Set<String> indicesSet = new HashSet<>();
         for (IndexRequestBuilder builder : builders) {
             indicesSet.add(builder.request().index());
@@ -1272,13 +1304,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), true, false);
                 for (IndexRequestBuilder indexRequestBuilder : builders) {
                     indexRequestBuilder.execute(new PayloadLatchedActionListener<IndexResponse, IndexRequestBuilder>(indexRequestBuilder, newLatch(inFlightAsyncOperations), errors));
-                    postIndexAsyncActions(indices, inFlightAsyncOperations);
+                    postIndexAsyncActions(indices, inFlightAsyncOperations, maybeFlush);
                 }
             } else {
                 logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), false, false);
                 for (IndexRequestBuilder indexRequestBuilder : builders) {
                     indexRequestBuilder.execute().actionGet();
-                    postIndexAsyncActions(indices, inFlightAsyncOperations);
+                    postIndexAsyncActions(indices, inFlightAsyncOperations, maybeFlush);
                 }
             }
         } else {
@@ -1339,16 +1371,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     /**
      * Maybe refresh, optimize, or flush then always make sure there aren't too many in flight async operations.
      */
-    private void postIndexAsyncActions(String[] indices, List<CountDownLatch> inFlightAsyncOperations) throws InterruptedException {
+    private void postIndexAsyncActions(String[] indices, List<CountDownLatch> inFlightAsyncOperations, boolean maybeFlush) throws InterruptedException {
         if (rarely()) {
             if (rarely()) {
                 client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
                         new LatchedActionListener<RefreshResponse>(newLatch(inFlightAsyncOperations)));
-            } else if (rarely()) {
+            } else if (maybeFlush && rarely()) {
                 client().admin().indices().prepareFlush(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute(
                         new LatchedActionListener<FlushResponse>(newLatch(inFlightAsyncOperations)));
             } else if (rarely()) {
-                client().admin().indices().prepareOptimize(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).setMaxNumSegments(between(1, 10)).setFlush(randomBoolean()).execute(
+                client().admin().indices().prepareOptimize(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).setMaxNumSegments(between(1, 10)).setFlush(maybeFlush && randomBoolean()).execute(
                         new LatchedActionListener<OptimizeResponse>(newLatch(inFlightAsyncOperations)));
             }
         }
@@ -1560,7 +1592,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         SettingsSource settingsSource = new SettingsSource() {
             @Override
             public Settings node(int nodeOrdinal) {
-                return nodeSettings(nodeOrdinal);
+                return ImmutableSettings.builder().put(InternalNode.HTTP_ENABLED, false).
+                        put(nodeSettings(nodeOrdinal)).build();
             }
 
             @Override
@@ -1592,7 +1625,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             default:
                 throw new ElasticsearchException("Scope not supported: " + scope);
         }
-
         return new InternalTestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes,
                 clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), currentClusterSeed), settingsSource, numClientNodes,
                 enableRandomBenchNodes, CHILD_JVM_ID, nodePrefix);

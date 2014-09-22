@@ -69,7 +69,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             }
         }
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
-            if (entry.getKey().equals("pretty") || entry.getKey().equals("timeout") || entry.getKey().equals("master_timeout")) {
+            if (entry.getKey().equals("pretty") || entry.getKey().equals("timeout") || entry.getKey().equals("master_timeout") || entry.getKey().equals("index")) {
                 continue;
             }
             updateSettings.put(entry.getKey(), entry.getValue());

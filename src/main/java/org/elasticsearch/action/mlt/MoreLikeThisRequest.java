@@ -136,13 +136,19 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
                 return MoreLikeThisRequest.this.indicesOptions();
             }
         });
-        requests.add(new IndicesRequest() {
+        requests.add(new IndicesRequest.Replaceable() {
             @Override
             public String[] indices() {
                 if (searchIndices != null) {
                     return searchIndices;
                 }
                 return new String[]{index};
+            }
+
+            @Override
+            public IndicesRequest indices(String[] indices) {
+                searchIndices = indices;
+                return this;
             }
 
             @Override
@@ -600,7 +606,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         }
 
         searchType = SearchType.fromId(in.readByte());
-        if (in.getVersion().before(Version.V_1_4_0_Beta)) {
+        if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
             //searchQueryHint was unused and removed in 1.4
             if (in.readBoolean()) {
                 in.readString();
@@ -676,7 +682,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         }
 
         out.writeByte(searchType.id());
-        if (out.getVersion().before(Version.V_1_4_0_Beta)) {
+        if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
             //searchQueryHint was unused and removed in 1.4
             out.writeBoolean(false);
         }

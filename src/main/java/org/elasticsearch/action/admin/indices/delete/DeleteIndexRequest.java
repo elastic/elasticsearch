@@ -37,7 +37,7 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 /**
  * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
  */
-public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRequest> implements IndicesRequest {
+public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
     // Delete index should work by default on both open and closed indices.
@@ -84,6 +84,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
         return validationException;
     }
 
+    @Override
     public DeleteIndexRequest indices(String... indices) {
         this.indices = indices;
         return this;

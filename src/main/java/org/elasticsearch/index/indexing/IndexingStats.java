@@ -127,7 +127,7 @@ public class IndexingStats implements Streamable, ToXContent {
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
 
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 noopUpdateCount = in.readVLong();
             }
         }
@@ -142,7 +142,7 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeVLong(deleteTimeInMillis);
             out.writeVLong(deleteCurrent);
 
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
                 out.writeVLong(noopUpdateCount);
             }
         }

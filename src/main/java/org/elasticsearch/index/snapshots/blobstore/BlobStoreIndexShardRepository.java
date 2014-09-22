@@ -26,6 +26,7 @@ import com.google.common.io.ByteStreams;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.blobstore.*;
@@ -485,11 +486,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         // snapshotStatus.startTime() is assigned on the same machine, so it's safe to use with VLong
                         System.currentTimeMillis() - snapshotStatus.startTime(), indexNumberOfFiles, indexTotalFilesSize);
                 //TODO: The time stored in snapshot doesn't include cleanup time.
-                try {
-                    logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
-                    try (OutputStream output = blobContainer.createOutput(commitPointName)) {
-                        writeSnapshot(snapshot, output);
-                    }
+                logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
+                try (OutputStream output = blobContainer.createOutput(commitPointName)) {
+                    writeSnapshot(snapshot, output);
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
@@ -519,6 +518,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         private void snapshotFile(final BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
             final String file = fileInfo.physicalName();
+            final byte[] buffer = new byte[BUFFER_SIZE];
             try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())) {
                 for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                     final InputStreamIndexInput inputStreamIndexInput = new InputStreamIndexInput(indexInput, fileInfo.partBytes());
@@ -526,7 +526,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     inputStream = new AbortableInputStream(inputStream, fileInfo.physicalName());
                     try (OutputStream output = blobContainer.createOutput(fileInfo.partName(i))) {
                         int len;
-                        final byte[] buffer = new byte[BUFFER_SIZE];
                         while ((len = inputStream.read(buffer)) > 0) {
                             output.write(buffer, 0, len);
                         }
@@ -621,11 +620,13 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 // to calculate it.
                 // we might have multiple parts even though the file is small... make sure we read all of it.
                 try (final InputStream stream = new PartSliceStream(blobContainer, fileInfo)) {
-                    final byte[] bytes = ByteStreams.toByteArray(stream);
-                    assert bytes != null;
-                    assert bytes.length == fileInfo.length() : bytes.length + " != " + fileInfo.length();
-                    final BytesRef spare = new BytesRef(bytes);
-                    Store.MetadataSnapshot.hashFile(fileInfo.metadata().hash(), spare);
+                    BytesRefBuilder builder = new BytesRefBuilder();
+                    Store.MetadataSnapshot.hashFile(builder, stream, fileInfo.length());
+                    BytesRef hash = fileInfo.metadata().hash(); // reset the file infos metadata hash
+                    assert hash.length == 0;
+                    hash.bytes = builder.bytes();
+                    hash.offset = 0;
+                    hash.length = builder.length();
                 }
             }
         }

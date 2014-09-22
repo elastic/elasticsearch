@@ -26,6 +26,9 @@ import org.elasticsearch.action.support.master.TransportMasterNodeOperationActio
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +53,19 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     protected String executor() {
         // we go async right away....
         return ThreadPool.Names.SAME;
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(UpdateSettingsRequest request, ClusterState state) {
+        // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
+        ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        if (globalBlock != null) {
+            return globalBlock;
+        }
+        if (request.settings().getAsMap().size() == 1 && (request.settings().get(IndexMetaData.SETTING_BLOCKS_METADATA) != null || request.settings().get(IndexMetaData.SETTING_READ_ONLY) != null )) {
+            return null;
+        }
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override

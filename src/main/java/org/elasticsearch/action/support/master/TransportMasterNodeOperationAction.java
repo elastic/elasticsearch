@@ -70,9 +70,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
         return false;
     }
 
-    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return null;
-    }
+    protected abstract ClusterBlockException checkBlock(Request request, ClusterState state);
 
     protected void processBeforeDelegationToMaster(Request request, ClusterState state) {
 

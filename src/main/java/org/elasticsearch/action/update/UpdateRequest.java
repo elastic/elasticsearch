@@ -22,6 +22,7 @@ package org.elasticsearch.action.update;
 import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
@@ -47,7 +48,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> {
+public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> implements DocumentRequest<UpdateRequest> {
 
     private String type;
     private String id;
@@ -672,7 +673,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         docAsUpsert = in.readBoolean();
         version = Versions.readVersion(in);
         versionType = VersionType.fromValue(in.readByte());
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             detectNoop = in.readBoolean();
             scriptedUpsert = in.readBoolean();
         }
@@ -725,7 +726,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeBoolean(docAsUpsert);
         Versions.writeVersion(version, out);
         out.writeByte(versionType.getValue());
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeBoolean(detectNoop);
             out.writeBoolean(scriptedUpsert);
         }

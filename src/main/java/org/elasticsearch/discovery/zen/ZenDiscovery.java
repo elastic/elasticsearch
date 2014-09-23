@@ -237,7 +237,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         initialStateSent.set(false);
         DiscoveryNodes nodes = nodes();
         if (sendLeaveRequest) {
-            if (nodes().masterNode() == null) {
+            if (nodes.masterNode() == null) {
                 // if we don't know who the master is, nothing to do here
             } else if (!nodes.localNodeMaster()) {
                 try {
@@ -504,7 +504,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     logger.error("unexpected failure during [{}]", t, source);
                 }
             });
-        } else {
+        } else if (node.equals(nodes().masterNode())) {
             handleMasterGone(node, "shut_down");
         }
     }

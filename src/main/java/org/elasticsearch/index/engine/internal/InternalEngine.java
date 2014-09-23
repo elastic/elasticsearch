@@ -275,6 +275,15 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 mergeScheduler.addListener(throttle);
             } catch (IOException e) {
                 maybeFailEngine(e, "start");
+                if (this.indexWriter != null) {
+                    try {
+                        IndexWriter pending = indexWriter;
+                        indexWriter = null;
+                        pending.rollback();
+                    } catch (IOException e1) {
+                       e.addSuppressed(e1);
+                    }
+                }
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             }
 

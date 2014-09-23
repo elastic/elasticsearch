@@ -48,7 +48,7 @@
     <repositories>
         <repository>
             <id>Lucene snapshots</id>
-            <url>https://s3-us-west-2.amazonaws.com/bits.elasticsearch.org/lucene/</url>
+            <url>https://download.elasticsearch.org/lucenesnapshots/</url>
         </repository>
         <repository>
             <id>Codehaus Snapshots</id>

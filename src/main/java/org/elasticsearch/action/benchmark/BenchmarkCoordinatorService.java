@@ -19,6 +19,7 @@
 package org.elasticsearch.action.benchmark;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.UnmodifiableIterator;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -104,6 +105,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService {
 
         if (isMasterNode() && event.nodesDelta().removed()) {
             updateNodeLiveness(event.nodesDelta());
+            processOrphanedBenchmarks();
         }
 
         final BenchmarkMetaData meta = event.state().metaData().custom(BenchmarkMetaData.TYPE);
@@ -473,6 +475,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService {
         final String benchmarkId;
         final BenchmarkStartRequest request;
         final ImmutableOpenMap<String, Liveness> liveness;
+        final List<String> errorMessages = new ArrayList<>();
         BenchmarkStartResponse response;
 
         AtomicBoolean running  = new AtomicBoolean(false);
@@ -554,12 +557,7 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService {
                 @Override
                 public void onResponse(Object o) {
                     benchmarks.remove(benchmarkId);
-                    listener.onResponse(response);
-                    if (response == null) {
-                        listener.onFailure(new ElasticsearchIllegalStateException("benchmark [" + benchmarkId + "]: missing response"));
-                    } else {
-                        listener.onResponse(response);
-                    }
+                    sendResponse();
                 }
 
                 @Override
@@ -588,7 +586,6 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService {
         private void internalFailed(final Throwable cause) {
 
             benchmarks.remove(benchmarkId);
-
             if (response == null) {
                 response = new BenchmarkStartResponse(benchmarkId);
             }
@@ -598,9 +595,14 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService {
                 response.errors(cause.getMessage());
             }
 
+            sendResponse();
+        }
+
+        private void sendResponse() {
             if (response == null) {
                 listener.onFailure(new ElasticsearchIllegalStateException("benchmark [" + benchmarkId + "]: missing response"));
             } else {
+                response.errors(errorMessages);
                 listener.onResponse(response);
             }
         }
@@ -630,6 +632,10 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService {
         }
     }
 
+    /**
+     * Record nodes that dropped out of the cluster
+     * @param delta     Delta of discovery nodes from last cluster state update
+     */
     private void updateNodeLiveness(final DiscoveryNodes.Delta delta) {
 
         for (final DiscoveryNode node : delta.removedNodes()) {
@@ -639,9 +645,33 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService {
                     if (liveness != null) {
                         if (liveness.set(true, false)) {
                             logger.warn("benchmark [{}]: marked node [{}] as not live", entry.getKey(), node.id());
+                            entry.getValue().errorMessages.add("node: [" + node.id() + "] dropped out of cluster");
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Find benchmarks for which all executor nodes have dropped from cluster state
+     * and forcefully fail them.
+     */
+    private void processOrphanedBenchmarks() {
+
+        for (Map.Entry<String, State> entry : benchmarks.entrySet()) {
+            boolean hasLiveNodes = false;
+            UnmodifiableIterator<String> iter = entry.getValue().liveness.keysIt();
+            while (iter.hasNext()) {
+                if (entry.getValue().isNodeAlive(iter.next())) {
+                    hasLiveNodes = true;
+                }
+            }
+
+            if (!hasLiveNodes) {
+                logger.warn("benchmark [{}]: has no live nodes; manually killing it", entry.getKey());
+                entry.getValue().failed(new ElasticsearchException(
+                        "benchmark [" + entry.getKey() + "]: all executor nodes dropped out of cluster"));
             }
         }
     }

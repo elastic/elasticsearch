@@ -100,7 +100,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
         super.tearDown();
         serviceA.close();
         serviceB.close();
-        threadPool.shutdown();
+        terminate(threadPool);
     }
 
     protected MockTransportService build(Settings settings, Version version) {

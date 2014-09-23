@@ -60,7 +60,7 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testSimplePings() {
+    public void testSimplePings() throws InterruptedException {
         Settings settings = ImmutableSettings.EMPTY;
         settings = buildRandomMulticast(settings);
 
@@ -128,7 +128,7 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
             zenPingB.close();
             transportServiceA.close();
             transportServiceB.close();
-            threadPool.shutdown();
+            terminate(threadPool);
         }
     }
 
@@ -178,7 +178,7 @@ public class MulticastZenPingTests extends ElasticsearchTestCase {
             Loggers.getLogger(MulticastZenPing.class).setLevel("INFO");
             if (multicastSocket != null) multicastSocket.close();
             zenPingA.close();
-            threadPool.shutdown();
+            terminate(threadPool);
         }
     }
 }

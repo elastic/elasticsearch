@@ -1048,7 +1048,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         // clean the nodes, we are now not connected to anybody, since we try and reform the cluster
         DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder(clusterState.nodes()).masterNodeId(null).build();
 
-        // nocommit: do we want to force a new thread if we actively removed the master? this is to give a full pinging cycle
+        // TODO: do we want to force a new thread if we actively removed the master? this is to give a full pinging cycle
         // before a decision is made.
         joinThreadControl.startNewThreadIfNotRunning();
 

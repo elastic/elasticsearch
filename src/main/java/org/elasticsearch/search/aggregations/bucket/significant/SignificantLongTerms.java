@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -96,6 +97,11 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             this.term = term;
         }
 
+        public Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations, double score) {
+            this(subsetDf, subsetSize, supersetDf, supersetSize, term, aggregations, null);
+            this.score = score;
+        }
+
         @Override
         public Object getKey() {
             return term;
@@ -126,7 +132,9 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             subsetDf = in.readVLong();
             supersetDf = in.readVLong();
             term = in.readLong();
+            score = in.readDouble();
             aggregations = InternalAggregations.readAggregations(in);
+
         }
 
         @Override
@@ -134,6 +142,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             out.writeVLong(subsetDf);
             out.writeVLong(supersetDf);
             out.writeLong(term);
+            out.writeDouble(getSignificanceScore());
             aggregations.writeTo(out);
         }
 
@@ -190,8 +199,8 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         for (int i = 0; i < size; i++) {
             Bucket bucket = new Bucket(subsetSize, supersetSize, formatter);
             bucket.readFrom(in);
-            bucket.updateScore(significanceHeuristic);
             buckets.add(bucket);
+
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -207,6 +216,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         significanceHeuristic.writeTo(out);
         out.writeVInt(buckets.size());
         for (InternalSignificantTerms.Bucket bucket : buckets) {
+
             bucket.writeTo(out);
         }
     }

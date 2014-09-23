@@ -391,6 +391,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             final boolean success = joinElectedMaster(masterNode);
 
             // finalize join through the cluster state update thread
+            final DiscoveryNode finalMasterNode = masterNode;
             clusterService.submitStateUpdateTask("finalize_join", new ClusterStateNonMasterUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -404,6 +405,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         logger.debug("no master node is set, despite of join request completing. retrying pings.");
                         joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
                         return currentState;
+                    }
+
+                    if (!currentState.getNodes().masterNode().equals(finalMasterNode)) {
+                        return joinThreadControl.stopRunningThreadAndRejoin(currentState, "master_switched_while_finalizing_join");
                     }
 
                     joinThreadControl.markThreadAsDone(currentThread);
@@ -1043,6 +1048,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         // clean the nodes, we are now not connected to anybody, since we try and reform the cluster
         DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder(clusterState.nodes()).masterNodeId(null).build();
 
+        // nocommit: do we want to force a new thread if we actively removed the master? this is to give a full pinging cycle
+        // before a decision is made.
         joinThreadControl.startNewThreadIfNotRunning();
 
         return ClusterState.builder(clusterState)
@@ -1279,9 +1286,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return currentThread != null && currentThread.isAlive();
         }
 
-        /** returns ture if the supplied thread is the currently active joinThread */
+        /** returns true if the supplied thread is the currently active joinThread */
         public boolean joinThreadActive(Thread joinThread) {
             return joinThread.equals(currentJoinThread.get());
+        }
+
+        /** cleans any running joining thread and calls {@link #rejoin} */
+        public ClusterState stopRunningThreadAndRejoin(ClusterState clusterState, String reason) {
+            assertClusterStateThread();
+            currentJoinThread.set(null);
+            return rejoin(clusterState, reason);
         }
 
         /** starts a new joining thread if there is no currently active one */
@@ -1304,8 +1318,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         } catch (Throwable t) {
                             logger.error("unexpected error while joining cluster, trying again", t);
                         }
-
                     }
+
+                    // cleaning the current thread from currentJoinThread is done by explicit calls.
                 }
             });
         }

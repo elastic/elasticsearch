@@ -223,9 +223,9 @@ public class RecoverySource extends AbstractComponent {
 
                                         indexInput.readBytes(buf, 0, toRead, false);
                                         BytesArray content = new BytesArray(buf, 0, toRead);
-                                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position, content),
-                                                TransportRequestOptions.options().withCompress(shouldCompressRequest).withType(TransportRequestOptions.Type.RECOVERY).withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                                         readCount += toRead;
+                                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position, content, readCount == len),
+                                                TransportRequestOptions.options().withCompress(shouldCompressRequest).withType(TransportRequestOptions.Type.RECOVERY).withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                                     }
                                 } catch (Throwable e) {
                                     final CorruptIndexException corruptIndexException;

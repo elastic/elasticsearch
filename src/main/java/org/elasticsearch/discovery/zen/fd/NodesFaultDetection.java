@@ -81,16 +81,16 @@ public class NodesFaultDetection extends FaultDetection {
         listeners.remove(listener);
     }
 
-    public void updateNodes(DiscoveryNodes nodes, long clusterStateVersion) {
+    public void updateNodes(ClusterState clusterState) {
         DiscoveryNodes prevNodes = latestNodes;
-        this.latestNodes = nodes;
-        this.clusterStateVersion = clusterStateVersion;
+        this.latestNodes = clusterState.nodes();
+        this.clusterStateVersion = clusterState.version();
         if (!running) {
             return;
         }
-        DiscoveryNodes.Delta delta = nodes.delta(prevNodes);
+        DiscoveryNodes.Delta delta = this.latestNodes.delta(prevNodes);
         for (DiscoveryNode newNode : delta.addedNodes()) {
-            if (newNode.id().equals(nodes.localNodeId())) {
+            if (newNode.id().equals(this.latestNodes.localNodeId())) {
                 // no need to monitor the local node
                 continue;
             }
@@ -107,7 +107,7 @@ public class NodesFaultDetection extends FaultDetection {
 
     public NodesFaultDetection start(ClusterState clusterState) {
         running = true;
-        updateNodes(clusterState.nodes(), clusterState.version());
+        updateNodes(clusterState);
         return this;
     }
 

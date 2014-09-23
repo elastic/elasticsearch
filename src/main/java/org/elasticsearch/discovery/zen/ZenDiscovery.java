@@ -208,7 +208,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Override
     protected void doStart() throws ElasticsearchException {
 
-        nodesFD.updateNodes(nodes(), ClusterState.UNKNOWN_VERSION);
+        // we update the nodes to know the local node, but not start it.
+        nodesFD.updateNodes(clusterService.state());
         pingService.start();
 
         // start the join thread from a cluster state update. See {@link JoinThreadControl} for details.
@@ -312,7 +313,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         if (!clusterState.getNodes().localNodeMaster()) {
             throw new ElasticsearchIllegalStateException("Shouldn't publish state when not master");
         }
-        nodesFD.updateNodes(clusterState.nodes(), clusterState.version());
+        nodesFD.updateNodes(clusterState);
         publishClusterState.publish(clusterState, ackListener);
     }
 

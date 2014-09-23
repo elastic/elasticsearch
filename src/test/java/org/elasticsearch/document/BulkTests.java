@@ -660,6 +660,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
     @Test // issue 6410
     public void testThatMissingIndexDoesNotAbortFullBulkRequest() throws Exception{
         createIndex("bulkindex1", "bulkindex2");
+        ensureYellow();
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source("text", "hallo1"))
                    .add(new IndexRequest("bulkindex2", "index2_type", "1").source("text", "hallo2"))

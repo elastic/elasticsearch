@@ -126,6 +126,11 @@ public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorReq
         return this;
     }
 
+    public TermVectorRequestBuilder setRealtime(Boolean realtime) {
+        request.realtime(realtime);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<TermVectorResponse> listener) {
         client.termVector(request, listener);

@@ -62,6 +62,8 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     // TODO: change to String[]
     private Set<String> selectedFields;
 
+    Boolean realtime;
+
     private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
             Flag.FieldStatistics);
 
@@ -94,6 +96,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         if (other.selectedFields != null) {
             this.selectedFields = new HashSet<>(other.selectedFields);
         }
+        this.realtime = other.realtime();
     }
 
     public TermVectorRequest(MultiGetRequest.Item item) {
@@ -149,9 +152,18 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
      * Sets an artificial document from which term vectors are requested for.
      */
     public TermVectorRequest doc(XContentBuilder documentBuilder) {
+        return this.doc(documentBuilder.bytes(), true);
+    }
+
+    /**
+     * Sets an artificial document from which term vectors are requested for.
+     */
+    public TermVectorRequest doc(BytesReference doc, boolean generateRandomId) {
         // assign a random id to this artificial document, for routing
-        this.id(String.valueOf(randomInt.getAndAdd(1)));
-        this.doc = documentBuilder.bytes();
+        if (generateRandomId) {
+            this.id(String.valueOf(randomInt.getAndAdd(1)));
+        }
+        this.doc = doc;
         return this;
     }
 
@@ -292,6 +304,15 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         return this;
     }
 
+    public boolean realtime() {
+        return this.realtime == null ? true : this.realtime;
+    }
+
+    public TermVectorRequest realtime(Boolean realtime) {
+        this.realtime = realtime;
+        return this;
+    }
+
     private void setFlag(Flag flag, boolean set) {
         if (set && !flagsEnum.contains(flag)) {
             flagsEnum.add(flag);
@@ -352,6 +373,9 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                 selectedFields.add(in.readString());
             }
         }
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            this.realtime = in.readBoolean();
+        }
     }
 
     @Override
@@ -384,6 +408,9 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
             }
         } else {
             out.writeVInt(0);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeBoolean(realtime());
         }
     }
 

@@ -30,9 +30,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
+import org.elasticsearch.search.aggregations.bucket.script.NativeSignificanceScoreScriptNoParams;
+import org.elasticsearch.search.aggregations.bucket.script.NativeSignificanceScoreScriptWithParams;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
@@ -49,8 +53,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -73,7 +75,7 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  *
  */
-@ClusterScope(scope = Scope.SUITE)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegrationTest {
 
     static final String INDEX_NAME = "testidx";
@@ -82,10 +84,11 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
     static final String CLASS_FIELD = "class";
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", CustomSignificanceHeuristicPlugin.class.getName())
+                .put("path.conf", this.getResource("config").getPath())
                 .build();
     }
 
@@ -178,6 +181,10 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
 
         public void onModule(TransportSignificantTermsHeuristicModule significanceModule) {
             significanceModule.registerStream(SimpleHeuristic.STREAM);
+        }
+        public void onModule(ScriptModule module) {
+            module.registerScript(NativeSignificanceScoreScriptNoParams.NATIVE_SIGNIFICANCE_SCORE_SCRIPT_NO_PARAMS, NativeSignificanceScoreScriptNoParams.Factory.class);
+            module.registerScript(NativeSignificanceScoreScriptWithParams.NATIVE_SIGNIFICANCE_SCORE_SCRIPT_WITH_PARAMS, NativeSignificanceScoreScriptWithParams.Factory.class);
         }
     }
 
@@ -471,5 +478,118 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                     .setSource("class", parts[0], "text", parts[1]));
         }
         indexRandom(true, false, indexRequestBuilders);
+    }
+
+    @Test
+    public void testScriptScore() throws ExecutionException, InterruptedException, IOException {
+        indexRandomFrequencies01(randomBoolean() ? "string" : "long");
+        ScriptHeuristic.ScriptHeuristicBuilder scriptHeuristicBuilder = getScriptSignificanceHeuristicBuilder();
+        ensureYellow();
+        SearchResponse response = client().prepareSearch(INDEX_NAME)
+                .addAggregation(new TermsBuilder("class").field(CLASS_FIELD).subAggregation(new SignificantTermsBuilder("mySignificantTerms")
+                        .field(TEXT_FIELD)
+                        .executionHint(randomExecutionHint())
+                        .significanceHeuristic(scriptHeuristicBuilder)
+                        .minDocCount(1).shardSize(2).size(2)))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("class")).getBuckets()) {
+            for (SignificantTerms.Bucket bucket : ((SignificantTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets()) {
+                assertThat(bucket.getSignificanceScore(), is((double) bucket.getSubsetDf() + bucket.getSubsetSize() + bucket.getSupersetDf() + bucket.getSupersetSize()));
+            }
+        }
+    }
+
+    private ScriptHeuristic.ScriptHeuristicBuilder getScriptSignificanceHeuristicBuilder() throws IOException {
+        Map<String, Object> params = null;
+        String script = null;
+        String lang = null;
+        ScriptService.ScriptType scriptType = null;
+        if (randomBoolean()) {
+            params = new HashMap<>();
+            params.put("param", randomIntBetween(1, 100));
+        }
+        int randomScriptKind = randomIntBetween(0, 3);
+        if (randomBoolean()) {
+            lang = "groovy";
+        }
+        switch (randomScriptKind) {
+            case 0: {
+                if (params == null) {
+                    script = "return _subset_freq + _subset_size + _superset_freq + _superset_size";
+                } else {
+                    script = "return param*(_subset_freq + _subset_size + _superset_freq + _superset_size)/param";
+                }
+                if (randomBoolean()) {
+                    scriptType = ScriptService.ScriptType.INLINE;
+                }
+                break;
+            }
+            case 1: {
+                if (params == null) {
+                    script = "return _subset_freq + _subset_size + _superset_freq + _superset_size";
+                } else {
+                    script = "return param*(_subset_freq + _subset_size + _superset_freq + _superset_size)/param";
+                }
+                client().prepareIndex().setIndex(ScriptService.SCRIPT_INDEX).setType(ScriptService.DEFAULT_LANG).setId("my_script")
+                        .setSource(XContentFactory.jsonBuilder().startObject()
+                                .field("script", script)
+                                .endObject()).get();
+                refresh();
+                script = "my_script";
+                scriptType = ScriptService.ScriptType.INDEXED;
+                break;
+            }
+            case 2: {
+                if (params == null) {
+                    script = "significance_script_no_params";
+                } else {
+                    script = "significance_script_with_params";
+                }
+                scriptType = ScriptService.ScriptType.FILE;
+                break;
+            }
+            case 3: {
+                if (params == null) {
+                    script = "native_significance_score_script_no_params";
+                } else {
+                    script = "native_significance_score_script_with_params";
+                }
+                lang = "native";
+                if (randomBoolean()) {
+                    scriptType = ScriptService.ScriptType.INLINE;
+                }
+                break;
+            }
+        }
+        ScriptHeuristic.ScriptHeuristicBuilder builder = new ScriptHeuristic.ScriptHeuristicBuilder().setScript(script).setLang(lang).setParams(params);
+        if (scriptType != null) {
+            if (randomBoolean()) {
+                builder.setType(scriptType);
+            } else {
+                builder.setType(scriptType.getTypeName());
+            }
+        }
+        return builder;
+    }
+
+    private void indexRandomFrequencies01(String type) throws ExecutionException, InterruptedException {
+        String mappings = "{\"" + DOC_TYPE + "\": {\"properties\":{\"" + TEXT_FIELD + "\": {\"type\":\"" + type + "\"}}}}";
+        assertAcked(prepareCreate(INDEX_NAME).addMapping(DOC_TYPE, mappings));
+        String[] gb = {"0", "1"};
+        List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
+        for (int i = 0; i < randomInt(20); i++) {
+            int randNum = randomInt(2);
+            String[] text = new String[1];
+            if (randNum == 2) {
+                text = gb;
+            } else {
+                text[0] = gb[randNum];
+            }
+            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE)
+                    .setSource(TEXT_FIELD, text, CLASS_FIELD, randomBoolean() ? "one" : "zero"));
+        }
+        indexRandom(true, indexRequestBuilderList);
     }
 }

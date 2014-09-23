@@ -139,13 +139,33 @@ public class ScriptService extends AbstractComponent {
 
     public static enum ScriptType {
 
-        INLINE,
-        INDEXED,
-        FILE;
+        INLINE("inline"),
+        INDEXED("indexed"),
+        FILE("file");
 
         private static final int INLINE_VAL = 0;
         private static final int INDEXED_VAL = 1;
         private static final int FILE_VAL = 2;
+        private final String typeName;
+
+        ScriptType(String name) {
+            this.typeName = name;
+        }
+
+        public String getTypeName() {
+            return typeName;
+        }
+
+        public static ScriptType fromString(String type) throws ElasticsearchIllegalArgumentException {
+            if (INLINE.getTypeName().equalsIgnoreCase(type)) {
+                return INLINE;
+            } else if (INDEXED.getTypeName().equalsIgnoreCase(type)) {
+                return INDEXED;
+            } else if (FILE.getTypeName().equalsIgnoreCase(type)) {
+                return FILE;
+            }
+            throw new ElasticsearchIllegalArgumentException("string type [" + type + "] not valid, can be one of [inline|indexed|file]");
+        }
 
         public static ScriptType readFrom(StreamInput in) throws IOException {
             int scriptTypeVal = in.readVInt();

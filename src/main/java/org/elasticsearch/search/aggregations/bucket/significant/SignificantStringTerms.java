@@ -94,6 +94,11 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             this.termBytes = term;
         }
 
+        public Bucket(BytesRef term, long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations, double score) {
+            this(term, subsetDf, subsetSize, supersetDf, supersetSize, aggregations);
+            this.score = score;
+        }
+
         @Override
         public Number getKeyAsNumber() {
             // this method is needed for scripted numeric aggregations
@@ -125,6 +130,9 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             termBytes = in.readBytesRef();
             subsetDf = in.readVLong();
             supersetDf = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+                score = in.readDouble();
+            }
             aggregations = InternalAggregations.readAggregations(in);
         }
 
@@ -133,6 +141,9 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             out.writeBytesRef(termBytes);
             out.writeVLong(subsetDf);
             out.writeVLong(supersetDf);
+            if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+                out.writeDouble(getSignificanceScore());
+            }
             aggregations.writeTo(out);
         }
 
@@ -179,7 +190,9 @@ public class SignificantStringTerms extends InternalSignificantTerms {
         for (int i = 0; i < size; i++) {
             Bucket bucket = new Bucket(subsetSize, supersetSize);
             bucket.readFrom(in);
-            bucket.updateScore(significanceHeuristic);
+            if (in.getVersion().before(Version.V_1_5_0)) {
+                bucket.updateScore(significanceHeuristic);
+            }
             buckets.add(bucket);
         }
         this.buckets = buckets;

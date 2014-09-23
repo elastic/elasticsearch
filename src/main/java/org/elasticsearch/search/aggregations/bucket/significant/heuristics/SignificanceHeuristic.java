@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
 
@@ -47,5 +48,9 @@ public abstract class SignificanceHeuristic {
         if (supersetFreq > supersetSize) {
             throw new ElasticsearchIllegalArgumentException("supersetFreq > supersetSize, in JLHScore.score(..)");
         }
+    }
+
+    public void initialize(InternalAggregation.ReduceContext reduceContext) {
+
     }
 }

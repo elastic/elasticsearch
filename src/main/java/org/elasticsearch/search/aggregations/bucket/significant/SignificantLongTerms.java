@@ -96,6 +96,11 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             this.term = term;
         }
 
+        public Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations, double score) {
+            this(subsetDf, subsetSize, supersetDf, supersetSize, term, aggregations, null);
+            this.score = score;
+        }
+
         @Override
         public Object getKey() {
             return term;
@@ -126,7 +131,11 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             subsetDf = in.readVLong();
             supersetDf = in.readVLong();
             term = in.readLong();
+            if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+                score = in.readDouble();
+            }
             aggregations = InternalAggregations.readAggregations(in);
+
         }
 
         @Override
@@ -134,6 +143,9 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             out.writeVLong(subsetDf);
             out.writeVLong(supersetDf);
             out.writeLong(term);
+            if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+                out.writeDouble(getSignificanceScore());
+            }
             aggregations.writeTo(out);
         }
 
@@ -190,8 +202,11 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         for (int i = 0; i < size; i++) {
             Bucket bucket = new Bucket(subsetSize, supersetSize, formatter);
             bucket.readFrom(in);
-            bucket.updateScore(significanceHeuristic);
+            if (in.getVersion().before(Version.V_1_5_0)) {
+                bucket.updateScore(significanceHeuristic);
+            }
             buckets.add(bucket);
+
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -207,6 +222,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         significanceHeuristic.writeTo(out);
         out.writeVInt(buckets.size());
         for (InternalSignificantTerms.Bucket bucket : buckets) {
+
             bucket.writeTo(out);
         }
     }

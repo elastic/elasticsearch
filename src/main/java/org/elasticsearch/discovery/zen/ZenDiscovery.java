@@ -211,10 +211,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         nodesFD.updateNodes(nodes(), ClusterState.UNKNOWN_VERSION);
         pingService.start();
 
-        // do the join on a different thread, the DiscoveryService waits for 30s anyhow till it is discovered
+        // start the join thread from a cluster state update. See {@link JoinThreadControl} for details.
         clusterService.submitStateUpdateTask("initial_join", new ClusterStateNonMasterUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                // do the join on a different thread, the DiscoveryService waits for 30s anyhow till it is discovered
                 joinThreadControl.startNewThreadIfNotRunning();
                 return currentState;
             }
@@ -255,7 +256,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
             }
         }
-        joinThreadControl.shutdown();
+        joinThreadControl.stop();
     }
 
     @Override
@@ -324,8 +325,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     /**
-     * main function of a join thread. This function is guaranteed to join the cluster
-     * or spawn a new join thread upon failure.
+     * the main function of a join thread. This function is guaranteed to join the cluster
+     * or spawn a new join thread upon failure to do so.
      */
     private void innerJoinCluster() {
         DiscoveryNode masterNode = null;
@@ -347,7 +348,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     // then fault detection will remove these nodes.
 
                     if (currentState.nodes().masterNode() != null) {
-                        // TODO can we tie break here? we don't have a cluster state version to decide on.
+                        // TODO can we tie break here? we don't have a remote master cluster state version to decide on
                         logger.trace("join thread elected local node as master, but there is already a master in place: {}", currentState.nodes().masterNode());
                         return currentState;
                     }
@@ -370,9 +371,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    joinThreadControl.markThreadAsDone(currentThread);
                     if (newState.nodes().localNodeMaster()) {
+                        // we only starts nodesFD if we are master.
+                        joinThreadControl.markThreadAsDone(currentThread);
                         nodesFD.start(); // start the nodes FD
+                    } else {
+                        // if we're not a master it means another node published a cluster state while we were pinging
+                        // make sure we go through another pinging round and actively join it
+                        joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
                     }
                     sendInitialStateEventIfNeeded();
                     long count = clusterJoinsCounter.incrementAndGet();
@@ -395,7 +401,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     }
 
                     if (currentState.getNodes().masterNode() == null) {
-                        logger.debug("no master node is set, despite of join request completing. retrying pings");
+                        logger.debug("no master node is set, despite of join request completing. retrying pings.");
                         joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
                         return currentState;
                     }
@@ -1049,10 +1055,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         return nodes().localNodeMaster();
     }
 
-    private DiscoveryNode master() {
-        return nodes().masterNode();
-    }
-
     private ClusterState handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {
         assert localClusterState.nodes().localNodeMaster() : "handleAnotherMaster called but current node is not a master";
         assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
@@ -1259,8 +1261,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     /**
      * All control of the join thread should happen under the cluster state update task thread.
-     * This is important to make sure that we never miss a re-join command or wrong fully stop
-     * the wrong join thread
+     * This is important to make sure that the background joining process is always in sync with any cluster state updates
+     * like master loss, failure to join, received cluster state while joining etc.
      */
     private class JoinThreadControl {
 
@@ -1271,15 +1273,18 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             this.threadPool = threadPool;
         }
 
+        /** returns true if there is currently an active join thread */
         public boolean joinThreadActive() {
             Thread currentThread = currentJoinThread.get();
             return currentThread != null && currentThread.isAlive();
         }
 
+        /** returns ture if the supplied thread is the currently active joinThread */
         public boolean joinThreadActive(Thread joinThread) {
             return joinThread.equals(currentJoinThread.get());
         }
 
+        /** starts a new joining thread if there is no currently active one */
         public void startNewThreadIfNotRunning() {
             assertClusterStateThread();
             if (joinThreadActive()) {
@@ -1305,6 +1310,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             });
         }
 
+        /**
+         * marks the given joinThread as completed and makes sure another thread is running (starting one if needed)
+         * If the given thread is not the currently running join thread, the command is ignored.
+         */
         public void markThreadAsDoneAndStartNew(Thread joinThread) {
             assertClusterStateThread();
             if (!markThreadAsDone(joinThread)) {
@@ -1313,12 +1322,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             startNewThreadIfNotRunning();
         }
 
+        /** marks the given joinThread as completed. Returns false if the supplied thread is not the currently active join thread */
         public boolean markThreadAsDone(Thread joinThread) {
             assertClusterStateThread();
             return currentJoinThread.compareAndSet(joinThread, null);
         }
 
-        public void shutdown() {
+        public void stop() {
             Thread joinThread = currentJoinThread.getAndSet(null);
             if (joinThread != null) {
                 try {

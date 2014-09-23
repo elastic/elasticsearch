@@ -594,7 +594,7 @@ public class RecoveryTarget extends AbstractComponent {
                         if (file != null) {
                             file.updateRecovered(request.length());
                         }
-                        if (indexOutput.getFilePointer() == request.length()) {
+                        if (indexOutput.getFilePointer() >= request.length() || request.lastChunk()) {
                             Store.verify(indexOutput);
                             // we are done
                             indexOutput.close();

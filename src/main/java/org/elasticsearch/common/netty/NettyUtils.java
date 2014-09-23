@@ -35,7 +35,7 @@ public class NettyUtils {
      * <p/>
      * When using the socket or file channel API to write or read using heap ByteBuffer, the sun.nio
      * package will convert it to a direct buffer before doing the actual operation. The direct buffer is
-     * cached on an array of buffers under the nio.ch.Util$BufferCache un a thread local.
+     * cached on an array of buffers under the nio.ch.Util$BufferCache on a thread local.
      * <p/>
      * In netty specifically, if we send a single ChannelBuffer that is bigger than
      * SocketSendBufferPool#DEFAULT_PREALLOCATION_SIZE (64kb), it will just convert the ChannelBuffer
@@ -96,6 +96,10 @@ public class NettyUtils {
 
         ThreadRenamingRunnable.setThreadNameDeterminer(ES_THREAD_NAME_DETERMINER);
 
+        /**
+         * This is here just to give us an option to rollback the change, if its stable, we should remove
+         * the option to even set it.
+         */
         DEFAULT_GATHERING = Booleans.parseBoolean(System.getProperty("es.netty.gathering"), true);
         Loggers.getLogger(NettyUtils.class).debug("using gathering [{}]", DEFAULT_GATHERING);
     }

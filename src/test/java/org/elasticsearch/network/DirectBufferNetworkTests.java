@@ -20,6 +20,7 @@
 package org.elasticsearch.network;
 
 import org.apache.http.impl.client.HttpClients;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -53,33 +54,35 @@ public class DirectBufferNetworkTests extends ElasticsearchIntegrationTest {
     public void verifySaneDirectBufferAllocations() throws Exception {
         createIndex("test");
 
-        int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("1.1mb").bytesAsInt(), ByteSizeValue.parseBytesSizeValue("5mb").bytesAsInt());
+        int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("1.1mb").bytesAsInt(), ByteSizeValue.parseBytesSizeValue("1.5mb").bytesAsInt());
+        byte[] data = new byte[estimatedBytesSize];
+        getRandom().nextBytes(data);
+
         ByteArrayOutputStream docOut = new ByteArrayOutputStream();
-        XContentBuilder doc = XContentFactory.jsonBuilder(docOut).startObject().startObject("doc").startArray("values");
-        while (true) {
-            doc.value(Strings.randomBase64UUID());
-            doc.flush();
-            if (docOut.size() > estimatedBytesSize) {
-                break;
-            }
-        }
-        doc.endArray().endObject().endObject();
+        // we use smile to automatically use the binary mapping
+        XContentBuilder doc = XContentFactory.smileBuilder(docOut).startObject().startObject("doc").field("value", data).endObject();
         doc.close();
         byte[] docBytes = docOut.toByteArray();
 
-        int numDocs = randomIntBetween(10, 20);
+        int numDocs = randomIntBetween(2, 5);
+        logger.info("indexing [{}] docs, each with size [{}]", numDocs, estimatedBytesSize);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
             builders[i] = client().prepareIndex("test", "type").setSource(docBytes);
         }
         indexRandom(true, builders);
+        logger.info("done indexing");
 
+        logger.info("executing random client search for all docs");
         assertHitCount(client().prepareSearch("test").setFrom(0).setSize(numDocs).get(), numDocs);
+        logger.info("executing transport client search for all docs");
         assertHitCount(internalCluster().transportClient().prepareSearch("test").setFrom(0).setSize(numDocs).get(), numDocs);
 
+        logger.info("executing HTTP search for all docs");
         // simulate large HTTP call as well
         httpClient().method("GET").path("/test/_search").addParam("size", Integer.toString(numDocs)).execute();
 
+        logger.info("validating large direct buffer not allocated");
         validateNoLargeDirectBufferAllocated();
     }
 

@@ -34,7 +34,7 @@ import java.util.List;
  * channel buffer is composite, it will use the correct gathering flag. See more
  * at {@link NettyUtils#DEFAULT_GATHERING}.
  */
-public class XHttpResponseEncoder extends HttpResponseEncoder {
+public class ESHttpResponseEncoder extends HttpResponseEncoder {
 
     @Override
     protected Object encode(ChannelHandlerContext ctx, Channel channel, Object msg) throws Exception {

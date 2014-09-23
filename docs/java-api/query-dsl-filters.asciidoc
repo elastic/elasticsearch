@@ -512,8 +512,7 @@ FilterBuilder filter = termsFilter(
         "kimchy",           <2>
         "elasticsearch"     <2>
     )
-    .execution("plain");     // Optional, can be also "bool", "and" or "or"
-                            // or "bool_nocache", "and_nocache" or "or_nocache"
+    .execution("plain");    <3>
 --------------------------------------------------
 <1> field
 <2> terms

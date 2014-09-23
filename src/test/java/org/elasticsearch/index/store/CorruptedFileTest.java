@@ -328,7 +328,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         // we have to flush at least once here since we don't corrupt the translog
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
-        final boolean truncate = randomBoolean();
+        final boolean truncate = false; // we can't truncate in 1.3 see https://github.com/elasticsearch/elasticsearch/pull/7830 fixed in 1.4 and above
         for (NodeStats dataNode : dataNodeStats) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
             mockTransportService.addDelegate(internalCluster().getInstance(Discovery.class, unluckyNode.getNode().name()).localNode(), new MockTransportService.DelegateTransport(mockTransportService.original()) {

@@ -106,7 +106,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         @Override
         public void onResponse(final Response response) {
             try {
-                threadPool.generic().execute(new Runnable() {
+                threadPool.executor(ThreadPool.Names.LISTENER).execute(new Runnable() {
                     @Override
                     public void run() {
                         try {
@@ -131,15 +131,15 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         @Override
         public void onFailure(final Throwable e) {
             try {
-                threadPool.generic().execute(new Runnable() {
+                threadPool.executor(ThreadPool.Names.LISTENER).execute(new Runnable() {
                     @Override
                     public void run() {
                         listener.onFailure(e);
                     }
                 });
             } catch (EsRejectedExecutionException ex) {
-                logger.debug("Can not run threaded action, exectuion rejected for listener [{}] running on current thread", listener);
-                /* we don't care if that takes long since we are shutting down. But if we not respond somebody could wait
+                logger.debug("Can not run threaded action, execution rejected for listener [{}] running on current thread", listener);
+                /* we don't care if that takes long since we are shutting down (or queue capacity). But if we not respond somebody could wait
                  * for the response on the listener side which could be a remote machine so make sure we push it out there.*/
                 listener.onFailure(e);
             }

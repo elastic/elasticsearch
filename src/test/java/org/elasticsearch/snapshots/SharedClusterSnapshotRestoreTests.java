@@ -22,7 +22,6 @@ package org.elasticsearch.snapshots;
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ListenableActionFuture;
@@ -1069,8 +1068,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(1000, 10000))
-                        .put("max_restore_bytes_per_sec", throttleRestore ? "2.5k" : "0")
-                        .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "2.5k" : "0")));
+                        .put("max_restore_bytes_per_sec", throttleRestore ? "0.5k" : "0")
+                        .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "0.5k" : "0")));
 
         createIndex("test-idx");
         ensureGreen();

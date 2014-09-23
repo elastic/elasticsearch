@@ -200,7 +200,7 @@ public class RangeAggregator extends BucketsAggregator {
             Range range = ranges[i];
             final long bucketOrd = subBucketOrdinal(owningBucketOrdinal, i);
             org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket =
-                    rangeFactory.createBucket(range.key, range.from, range.to, bucketDocCount(bucketOrd),bucketAggregations(bucketOrd), formatter);
+                    rangeFactory.createBucket(range.key, range.from, range.to, bucketDocCount(bucketOrd),bucketAggregations(bucketOrd), keyed, formatter);
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
@@ -214,7 +214,7 @@ public class RangeAggregator extends BucketsAggregator {
         for (int i = 0; i < ranges.length; i++) {
             Range range = ranges[i];
             org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket =
-                    rangeFactory.createBucket(range.key, range.from, range.to, 0, subAggs, formatter);
+                    rangeFactory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, formatter);
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
@@ -273,7 +273,7 @@ public class RangeAggregator extends BucketsAggregator {
             InternalAggregations subAggs = buildEmptySubAggregations();
             List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.size());
             for (RangeAggregator.Range range : ranges) {
-                buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, formatter));
+                buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, formatter));
             }
             return factory.create(name, buckets, formatter, keyed);
         }

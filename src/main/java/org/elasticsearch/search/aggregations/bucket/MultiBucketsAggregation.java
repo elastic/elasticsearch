@@ -19,8 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Comparators;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.HasAggregations;
@@ -39,7 +41,7 @@ public interface MultiBucketsAggregation extends Aggregation {
      * A bucket represents a criteria to which all documents that fall in it adhere to. It is also uniquely identified
      * by a key, and can potentially hold sub-aggregations computed over all documents in it.
      */
-    public interface Bucket extends HasAggregations {
+    public interface Bucket extends HasAggregations, ToXContent, Streamable {
 
         /**
          * @return  The key associated with the bucket as a string

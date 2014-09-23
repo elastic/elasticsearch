@@ -27,6 +27,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -34,7 +35,6 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatterStream
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -53,16 +53,34 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         }
     };
 
+    private final static BucketStreams.Stream BUCKET_STREAM = new BucketStreams.Stream() {
+        @Override
+        public Bucket readResult(StreamInput in, boolean keyed, @Nullable ValueFormatter formatter) throws IOException {
+            Bucket buckets = new Bucket(0, 0, formatter);  //NOCOMMIT pass subsetSize and superSetSize using a context object
+            buckets.readFrom(in);
+            return buckets;
+        }
+    };
+
     public static void registerStreams() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
+        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
     static class Bucket extends InternalSignificantTerms.Bucket {
 
         long term;
+        private transient final ValueFormatter formatter;
 
-        public Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations) {
+        public Bucket(long subsetSize, long supersetSize, @Nullable ValueFormatter formatter) {
+            super(subsetSize, supersetSize);
+            this.formatter = formatter;
+            // for serialization
+        }
+
+        public Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
             super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations);
+            this.formatter = formatter;
             this.term = term;
         }
 
@@ -88,9 +106,39 @@ public class SignificantLongTerms extends InternalSignificantTerms {
 
         @Override
         Bucket newBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
-            return new Bucket(subsetDf, subsetSize, supersetDf, supersetSize, term, aggregations);
+            return new Bucket(subsetDf, subsetSize, supersetDf, supersetSize, term, aggregations, formatter);
         }
 
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            subsetDf = in.readVLong();
+            supersetDf = in.readVLong();
+            term = in.readLong();
+            aggregations = InternalAggregations.readAggregations(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(subsetDf);
+            out.writeVLong(supersetDf);
+            out.writeLong(term);
+            aggregations.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(CommonFields.KEY, term);
+            if (formatter != null) {
+                builder.field(CommonFields.KEY_AS_STRING, formatter.format(term));
+            }
+            builder.field(CommonFields.DOC_COUNT, getDocCount());
+            builder.field("score", score);
+            builder.field("bg_count", supersetDf);
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
+            return builder;
+        }
     }
 
     private ValueFormatter formatter;
@@ -129,12 +177,10 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         int size = in.readVInt();
         List<InternalSignificantTerms.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            long subsetDf = in.readVLong();
-            long supersetDf = in.readVLong();
-            long term = in.readLong();
-            Bucket readBucket = new Bucket(subsetDf, subsetSize, supersetDf,supersetSize, term, InternalAggregations.readAggregations(in));
-            readBucket.updateScore(significanceHeuristic);
-            buckets.add(readBucket);
+            Bucket bucket = new Bucket(subsetSize, supersetSize, formatter);
+            bucket.readFrom(in);
+            bucket.updateScore(significanceHeuristic);
+            buckets.add(bucket);
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -153,10 +199,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         }
         out.writeVInt(buckets.size());
         for (InternalSignificantTerms.Bucket bucket : buckets) {
-            out.writeVLong(((Bucket) bucket).subsetDf);
-            out.writeVLong(((Bucket) bucket).supersetDf);
-            out.writeLong(((Bucket) bucket).term);
-            ((InternalAggregations) bucket.getAggregations()).writeTo(out);
+            bucket.writeTo(out);
         }
     }
 
@@ -165,16 +208,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         builder.field("doc_count", subsetSize);
         builder.startArray(CommonFields.BUCKETS);
         for (InternalSignificantTerms.Bucket bucket : buckets) {
-            builder.startObject();
-            builder.field(CommonFields.KEY, ((Bucket) bucket).term);
-            if (formatter != null) {
-                builder.field(CommonFields.KEY_AS_STRING, formatter.format(((Bucket) bucket).term));
-            }
-            builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
-            builder.field("score", bucket.score);
-            builder.field("bg_count", bucket.supersetDf);
-            ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);
-            builder.endObject();
+            bucket.toXContent(builder, params);
         }
         builder.endArray();
         return builder;

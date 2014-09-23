@@ -28,10 +28,14 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMapping;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -201,7 +205,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         long globalOrd;
 
         OrdBucket(long globalOrd, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError) {
-            super(docCount, aggregations, showDocCountError, docCountError);
+            super(docCount, aggregations, showDocCountError, docCountError, null);
             this.globalOrd = globalOrd;
         }
 
@@ -232,6 +236,21 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         public Number getKeyAsNumber() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             throw new UnsupportedOperationException();
         }
     }

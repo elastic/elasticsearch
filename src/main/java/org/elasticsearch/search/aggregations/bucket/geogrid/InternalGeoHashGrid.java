@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,6 +32,8 @@ import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.*;
@@ -53,8 +56,19 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         }
     };
 
+
+    public static final BucketStreams.Stream BUCKET_STREAM = new BucketStreams.Stream() {
+        @Override
+        public Bucket readResult(StreamInput in, boolean keyed, @Nullable ValueFormatter formatter) throws IOException {
+            Bucket bucket = new Bucket();
+            bucket.readFrom(in);
+            return bucket;
+        }
+    };
+
     public static void registerStreams() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
+        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
 
@@ -63,6 +77,10 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         protected long geohashAsLong;
         protected long docCount;
         protected InternalAggregations aggregations;
+
+        public Bucket() {
+            // For Serialization only
+        }
 
         public Bucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
             this.docCount = docCount;
@@ -120,6 +138,29 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
             return geohashAsLong;
         }
 
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            geohashAsLong = in.readLong();
+            docCount = in.readVLong();
+            aggregations = InternalAggregations.readAggregations(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(geohashAsLong);
+            out.writeVLong(docCount);
+            aggregations.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(CommonFields.KEY, getKeyAsText());
+            builder.field(CommonFields.DOC_COUNT, docCount);
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
+            return builder;
+        }
     }
 
     private int requiredSize;
@@ -208,7 +249,9 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         int size = in.readVInt();
         List<Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            buckets.add(new Bucket(in.readLong(), in.readVLong(), InternalAggregations.readAggregations(in)));
+            Bucket bucket = new Bucket();
+            bucket.readFrom(in);
+            buckets.add(bucket);
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -220,9 +263,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         writeSize(requiredSize, out);
         out.writeVInt(buckets.size());
         for (Bucket bucket : buckets) {
-            out.writeLong(bucket.geohashAsLong);
-            out.writeVLong(bucket.getDocCount());
-            ((InternalAggregations) bucket.getAggregations()).writeTo(out);
+            bucket.writeTo(out);
         }
     }
 
@@ -230,11 +271,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS);
         for (Bucket bucket : buckets) {
-            builder.startObject();
-            builder.field(CommonFields.KEY, bucket.getKeyAsText());
-            builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
-            ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);
-            builder.endObject();
+            bucket.toXContent(builder, params);
         }
         builder.endArray();
         return builder;

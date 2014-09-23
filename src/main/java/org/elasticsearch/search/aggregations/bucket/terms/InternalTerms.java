@@ -22,12 +22,14 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.util.*;
 
@@ -46,12 +48,18 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         protected long docCountError;
         protected InternalAggregations aggregations;
         protected boolean showDocCountError;
+        transient final ValueFormatter formatter;
 
+        protected Bucket(@Nullable ValueFormatter formatter, boolean showDocCountError) {
+            // for serialization
+            this.showDocCountError = showDocCountError;
+            this.formatter = formatter;
+        }
 
-        protected Bucket(long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError) {
+        protected Bucket(long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError, @Nullable ValueFormatter formatter) {
+            this(formatter, showDocCountError);
             this.docCount = docCount;
             this.aggregations = aggregations;
-            this.showDocCountError = showDocCountError;
             this.docCountError = docCountError;
         }
 

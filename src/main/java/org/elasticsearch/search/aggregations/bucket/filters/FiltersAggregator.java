@@ -91,7 +91,7 @@ public class FiltersAggregator extends BucketsAggregator {
         for (int i = 0; i < filters.length; i++) {
             KeyedFilter filter = filters[i];
             long bucketOrd = bucketOrd(owningBucketOrdinal, i);
-            InternalFilters.Bucket bucket = new InternalFilters.Bucket(filter.key, bucketDocCount(bucketOrd), bucketAggregations(bucketOrd));
+            InternalFilters.Bucket bucket = new InternalFilters.Bucket(filter.key, bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
         return new InternalFilters(name, buckets, keyed);
@@ -102,7 +102,7 @@ public class FiltersAggregator extends BucketsAggregator {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalFilters.Bucket> buckets = Lists.newArrayListWithCapacity(filters.length);
         for (int i = 0; i < filters.length; i++) {
-            InternalFilters.Bucket bucket = new InternalFilters.Bucket(filters[i].key, 0, subAggs);
+            InternalFilters.Bucket bucket = new InternalFilters.Bucket(filters[i].key, 0, subAggs, keyed);
             buckets.add(bucket);
         }
         return new InternalFilters(name, buckets, keyed);

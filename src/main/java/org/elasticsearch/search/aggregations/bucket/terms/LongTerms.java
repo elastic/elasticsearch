@@ -24,9 +24,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -50,17 +52,30 @@ public class LongTerms extends InternalTerms {
         }
     };
 
+    private final static BucketStreams.Stream BUCKET_STREAM = new BucketStreams.Stream() {
+        @Override
+        public Bucket readResult(StreamInput in, boolean keyed, @Nullable ValueFormatter formatter) throws IOException {
+            Bucket buckets = new Bucket(formatter, false); // NOCOMMIT should we support arbitrary settings buy using a map in the parameters?
+            buckets.readFrom(in);
+            return buckets;
+        }
+    };
+
     public static void registerStreams() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
+        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
-
 
     static class Bucket extends InternalTerms.Bucket {
 
         long term;
 
-        public Bucket(long term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError) {
-            super(docCount, aggregations, showDocCountError, docCountError);
+        public Bucket(@Nullable ValueFormatter formatter, boolean showDocCountError) {
+            super(formatter, showDocCountError);
+        }
+
+        public Bucket(long term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError, @Nullable ValueFormatter formatter) {
+            super(docCount, aggregations, showDocCountError, docCountError, formatter);
             this.term = term;
         }
 
@@ -91,7 +106,44 @@ public class LongTerms extends InternalTerms {
 
         @Override
         Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
-            return new Bucket(term, docCount, aggs, showDocCountError, docCountError);
+            return new Bucket(term, docCount, aggs, showDocCountError, docCountError, formatter);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            term = in.readLong();
+            docCount = in.readVLong();
+            docCountError = -1;
+            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && showDocCountError) {
+                docCountError = in.readLong();
+            }
+            aggregations = InternalAggregations.readAggregations(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(term);
+            out.writeVLong(getDocCount());
+            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && showDocCountError) {
+                out.writeLong(docCountError);
+            }
+            aggregations.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(CommonFields.KEY, term);
+            if (formatter != null && formatter != ValueFormatter.RAW) {
+                builder.field(CommonFields.KEY_AS_STRING, formatter.format(term));
+            }
+            builder.field(CommonFields.DOC_COUNT, getDocCount());
+            if (showDocCountError) {
+                builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, getDocCountError());
+            }
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
+            return builder;
         }
     }
 
@@ -136,14 +188,9 @@ public class LongTerms extends InternalTerms {
         int size = in.readVInt();
         List<InternalTerms.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            long term = in.readLong();
-            long docCount = in.readVLong();
-            long bucketDocCountError = -1;
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && showTermDocCountError) {
-                bucketDocCountError = in.readLong();
-        }
-            InternalAggregations aggregations = InternalAggregations.readAggregations(in);
-            buckets.add(new Bucket(term, docCount, aggregations, showTermDocCountError, bucketDocCountError));
+            Bucket bucket = new Bucket(formatter, showTermDocCountError);
+            bucket.readFrom(in);
+            buckets.add(bucket);
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -165,12 +212,7 @@ public class LongTerms extends InternalTerms {
         out.writeVLong(minDocCount);
         out.writeVInt(buckets.size());
         for (InternalTerms.Bucket bucket : buckets) {
-            out.writeLong(((Bucket) bucket).term);
-            out.writeVLong(bucket.getDocCount());
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1) && showTermDocCountError) {
-                out.writeLong(bucket.docCountError);
-            }
-            ((InternalAggregations) bucket.getAggregations()).writeTo(out);
+            bucket.writeTo(out);
         }
     }
 
@@ -179,17 +221,7 @@ public class LongTerms extends InternalTerms {
         builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
         builder.startArray(CommonFields.BUCKETS);
         for (InternalTerms.Bucket bucket : buckets) {
-            builder.startObject();
-            builder.field(CommonFields.KEY, ((Bucket) bucket).term);
-            if (formatter != null && formatter != ValueFormatter.RAW) {
-                builder.field(CommonFields.KEY_AS_STRING, formatter.format(((Bucket) bucket).term));
-            }
-            builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
-            if (showTermDocCountError) {
-                builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, bucket.getDocCountError());
-            }
-            ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);
-            builder.endObject();
+            bucket.toXContent(builder, params);
         }
         builder.endArray();
         return builder;

@@ -50,6 +50,11 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         protected InternalAggregations aggregations;
         double score;
 
+        protected Bucket(long subsetSize, long supersetSize) {
+            // for serialization
+            super(subsetSize, supersetSize);
+        }
+
         protected Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
             super(subsetDf, subsetSize, supersetDf, supersetSize);
             this.aggregations = aggregations;

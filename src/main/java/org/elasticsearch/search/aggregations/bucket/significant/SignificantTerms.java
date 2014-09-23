@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -36,12 +35,16 @@ public interface SignificantTerms extends MultiBucketsAggregation, Iterable<Sign
         long supersetDf;
         long supersetSize;
 
-        Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize) {
-            super();
-            this.subsetDf = subsetDf;
+        protected Bucket(long subsetSize, long supersetSize) {
+            // for serialization
             this.subsetSize = subsetSize;
-            this.supersetDf = supersetDf;
             this.supersetSize = supersetSize;
+        }
+
+        Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize) {
+            this(subsetSize, supersetSize);
+            this.subsetDf = subsetDf;
+            this.supersetDf = supersetDf;
         }
 
         public abstract Number getKeyAsNumber();

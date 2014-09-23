@@ -66,6 +66,11 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             this.term = term;
         }
 
+        public Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations, double score) {
+            this(subsetDf, subsetSize, supersetDf, supersetSize, term, aggregations);
+            this.score = score;
+        }
+
         @Override
         public Text getKeyAsText() {
             return new StringText(String.valueOf(term));
@@ -132,8 +137,14 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             long subsetDf = in.readVLong();
             long supersetDf = in.readVLong();
             long term = in.readLong();
-            Bucket readBucket = new Bucket(subsetDf, subsetSize, supersetDf,supersetSize, term, InternalAggregations.readAggregations(in));
-            readBucket.updateScore(significanceHeuristic);
+            double score = 0.0;
+            if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+                score = in.readDouble();
+            }
+            Bucket readBucket = new Bucket(subsetDf, subsetSize, supersetDf,supersetSize, term, InternalAggregations.readAggregations(in), score);
+            if (in.getVersion().before(Version.V_1_5_0)) {
+                readBucket.updateScore(significanceHeuristic);
+            }
             buckets.add(readBucket);
         }
         this.buckets = buckets;
@@ -156,6 +167,9 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             out.writeVLong(((Bucket) bucket).subsetDf);
             out.writeVLong(((Bucket) bucket).supersetDf);
             out.writeLong(((Bucket) bucket).term);
+            if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+                out.writeDouble(bucket.getSignificanceScore());
+            }
             ((InternalAggregations) bucket.getAggregations()).writeTo(out);
         }
     }

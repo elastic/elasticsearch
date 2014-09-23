@@ -67,6 +67,11 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             this.termBytes = term;
         }
 
+        public Bucket(BytesRef term, long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations, double score) {
+            this(term, subsetDf, subsetSize, supersetDf, supersetSize, aggregations);
+            this.score = score;
+        }
+
         @Override
         public Text getKeyAsText() {
             return new BytesText(new BytesArray(termBytes));
@@ -126,9 +131,15 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             BytesRef term = in.readBytesRef();
             long subsetDf = in.readVLong();
             long supersetDf = in.readVLong();
-            Bucket readBucket = new Bucket(term, subsetDf, subsetSize, supersetDf, supersetSize, InternalAggregations.readAggregations(in));
-            readBucket.updateScore(significanceHeuristic);
-            buckets.add(readBucket);
+            double score = 0.0;
+            if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+                score = in.readDouble();
+            }
+            Bucket bucket = new Bucket(term, subsetDf, subsetSize, supersetDf, supersetSize, InternalAggregations.readAggregations(in), score);
+            if (in.getVersion().before(Version.V_1_5_0)) {
+                bucket.updateScore(significanceHeuristic);
+            }
+            buckets.add(bucket);
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -149,6 +160,9 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             out.writeBytesRef(((Bucket) bucket).termBytes);
             out.writeVLong(((Bucket) bucket).subsetDf);
             out.writeVLong(((Bucket) bucket).supersetDf);
+            if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+                out.writeDouble(bucket.getSignificanceScore());
+            }
             ((InternalAggregations) bucket.getAggregations()).writeTo(out);
         }
     }

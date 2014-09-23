@@ -20,8 +20,6 @@
 package org.elasticsearch.common.network;
 
 import com.google.common.collect.Maps;
-import org.apache.lucene.util.IOUtils;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -74,17 +72,30 @@ public abstract class MulticastChannel implements Closeable {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             Config config = (Config) o;
 
-            if (bufferSize != config.bufferSize) return false;
-            if (port != config.port) return false;
-            if (ttl != config.ttl) return false;
-            if (group != null ? !group.equals(config.group) : config.group != null) return false;
-            if (multicastInterface != null ? !multicastInterface.equals(config.multicastInterface) : config.multicastInterface != null)
+            if (bufferSize != config.bufferSize) {
                 return false;
+            }
+            if (port != config.port) {
+                return false;
+            }
+            if (ttl != config.ttl) {
+                return false;
+            }
+            if (group != null ? !group.equals(config.group) : config.group != null) {
+                return false;
+            }
+            if (multicastInterface != null ? !multicastInterface.equals(config.multicastInterface) : config.multicastInterface != null) {
+                return false;
+            }
 
             return true;
         }
@@ -154,6 +165,7 @@ public abstract class MulticastChannel implements Closeable {
     protected abstract void close(Listener listener);
 
     public static final String SHARED_CHANNEL_NAME = "#shared#";
+
     /**
      * A shared channel that keeps a static map of Config -> Shared channels, and closes shared
      * channel once their reference count has reached 0. It also handles de-registering relevant
@@ -327,6 +339,11 @@ public abstract class MulticastChannel implements Closeable {
                     // ignore
                 }
                 multicastSocket = null;
+            }
+            try {
+                receiverThread.join(10000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
 

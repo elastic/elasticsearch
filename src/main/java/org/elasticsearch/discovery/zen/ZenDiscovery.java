@@ -45,7 +45,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
@@ -64,7 +63,6 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -93,7 +91,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     public static final String DISCOVERY_REJOIN_ACTION_NAME = "internal:discovery/zen/rejoin";
 
-    private final ThreadPool threadPool;
     private final TransportService transportService;
     private final ClusterService clusterService;
     private AllocationService allocationService;
@@ -105,8 +102,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final NodesFaultDetection nodesFD;
     private final PublishClusterStateAction publishClusterState;
     private final MembershipAction membership;
-    private final Version version;
-
 
     private final TimeValue pingTimeout;
     private final TimeValue joinTimeout;
@@ -128,8 +123,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final boolean masterElectionFilterDataNodes;
 
 
-    private DiscoveryNode localNode;
-
     private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<>();
 
     private final JoinThreadControl joinThreadControl;
@@ -149,17 +142,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                         TransportService transportService, ClusterService clusterService, NodeSettingsService nodeSettingsService,
-                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService, ElectMasterService electMasterService, Version version,
+                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService, ElectMasterService electMasterService,
                         DiscoverySettings discoverySettings) {
         super(settings);
         this.clusterName = clusterName;
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.discoveryNodeService = discoveryNodeService;
         this.discoverySettings = discoverySettings;
         this.pingService = pingService;
-        this.version = version;
         this.electMaster = electMasterService;
 
         // keep using componentSettings for BWC, in case this class gets extended.
@@ -216,10 +207,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        Map<String, String> nodeAttributes = discoveryNodeService.buildAttributes();
-        // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
-        final String nodeId = DiscoveryService.generateNodeId(settings);
-        localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes, version);
 
         nodesFD.updateNodes(nodes(), ClusterState.UNKNOWN_VERSION);
         pingService.start();
@@ -246,24 +233,24 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         masterFD.stop("zen disco stop");
         nodesFD.stop();
         initialStateSent.set(false);
-        DiscoveryNode master = master();
+        DiscoveryNodes nodes = nodes();
         if (sendLeaveRequest) {
-            if (master != null && !master.equals(localNode)) {
+            if (nodes.masterNode() != null && !nodes.localNodeMaster()) {
                 try {
-                    membership.sendLeaveRequestBlocking(master, localNode, TimeValue.timeValueSeconds(1));
+                    membership.sendLeaveRequestBlocking(nodes.masterNode(), nodes.localNode(), TimeValue.timeValueSeconds(1));
                 } catch (Exception e) {
-                    logger.debug("failed to send leave request to master [{}]", e, master);
+                    logger.debug("failed to send leave request to master [{}]", e, nodes.masterNode());
                 }
             } else {
-                DiscoveryNode[] possibleMasters = electMaster.nextPossibleMasters(nodes().nodes().values(), 5);
+                DiscoveryNode[] possibleMasters = electMaster.nextPossibleMasters(nodes.nodes().values(), 5);
                 for (DiscoveryNode possibleMaster : possibleMasters) {
-                    if (localNode.equals(possibleMaster)) {
+                    if (nodes.localNode().equals(possibleMaster)) {
                         continue;
                     }
                     try {
-                        membership.sendLeaveRequest(localNode, possibleMaster);
+                        membership.sendLeaveRequest(nodes.localNode(), possibleMaster);
                     } catch (Exception e) {
-                        logger.debug("failed to send leave request from master [{}] to possible master [{}]", e, master, possibleMaster);
+                        logger.debug("failed to send leave request from master [{}] to possible master [{}]", e, nodes.masterNode(), possibleMaster);
                     }
                 }
             }
@@ -282,7 +269,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     @Override
     public DiscoveryNode localNode() {
-        return localNode;
+        return clusterService.localNode();
     }
 
     @Override
@@ -297,18 +284,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     @Override
     public String nodeDescription() {
-        return clusterName.value() + "/" + localNode.id();
+        return clusterName.value() + "/" + clusterService.localNode().id();
     }
 
     /** start of {@link org.elasticsearch.discovery.zen.ping.PingContextProvider } implementation */
     @Override
     public DiscoveryNodes nodes() {
-        DiscoveryNodes currentNodes = clusterService.state().nodes();
-        if (currentNodes != null && currentNodes != DiscoveryNodes.EMPTY_NODES) {
-            return currentNodes;
-        }
-        // have not decided yet, just send the local node
-        return DiscoveryNodes.builder().put(localNode).localNodeId(localNode.id()).build();
+        return clusterService.state().nodes();
     }
 
     @Override
@@ -357,7 +339,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return;
         }
 
-        if (localNode.equals(masterNode)) {
+        if (clusterService.localNode().equals(masterNode)) {
             clusterService.submitStateUpdateTask("zen-disco-join (elected_as_master)", Priority.IMMEDIATE, new ProcessedClusterStateNonMasterUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -370,11 +352,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         return currentState;
                     }
 
-                    DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder(currentState.nodes())
-                            .localNodeId(localNode.id())
-                            .masterNodeId(localNode.id())
-                                    // put our local node
-                            .put(localNode);
+                    DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder(currentState.nodes()).masterNodeId(currentState.nodes().localNode().id());
                     // update the fact that we are the master...
                     ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
                     currentState = ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();
@@ -452,7 +430,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         while (true) {
             try {
                 logger.trace("joining master {}", masterNode);
-                membership.sendJoinRequestBlocking(masterNode, localNode, joinTimeout);
+                membership.sendJoinRequestBlocking(masterNode, clusterService.localNode(), joinTimeout);
                 return true;
             } catch (Throwable t) {
                 Throwable unwrap = ExceptionsHelper.unwrapCause(t);
@@ -644,6 +622,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
 
                 final DiscoveryNode electedMaster = electMaster.electMaster(discoveryNodes); // elect master
+                final DiscoveryNode localNode = currentState.nodes().localNode();
                 if (localNode.equals(electedMaster)) {
                     masterFD.stop("got elected as new master since master left (reason = " + reason + ")");
                     nodesFD.start();
@@ -900,7 +879,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 public void onNoLongerMaster(String source) {
                     // we are rejected, so drain all pending task (execute never run)
                     processJoinRequests.drainTo(drainedJoinRequests);
-                    Exception e = new ElasticsearchIllegalStateException("Node [" + localNode + "] not master for join request from [" + node + "]");
+                    Exception e = new ElasticsearchIllegalStateException("Node [" + clusterService.localNode() + "] not master for join request from [" + node + "]");
                     innerOnFailure(e);
                 }
 
@@ -977,6 +956,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             }
             logger.debug(sb.toString());
         }
+
+        final DiscoveryNode localNode = clusterService.localNode();
         List<DiscoveryNode> pingMasters = newArrayList();
         for (ZenPing.PingResponse pingResponse : pingResponses) {
             if (pingResponse.master() != null) {
@@ -1065,7 +1046,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     private boolean localNodeMaster() {
-        return localNode.equals(master());
+        return nodes().localNodeMaster();
     }
 
     private DiscoveryNode master() {
@@ -1181,11 +1162,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         @Override
         public void notListedOnMaster() {
             // got disconnected from the master, send a join request
-            DiscoveryNode masterNode = master();
+            DiscoveryNodes nodes = nodes();
             try {
-                membership.sendJoinRequest(masterNode, localNode);
+                membership.sendJoinRequest(nodes.masterNode(), nodes.localNode());
             } catch (Exception e) {
-                logger.warn("failed to send join request on disconnection from master [{}]", masterNode);
+                logger.warn("failed to send join request on disconnection from master [{}]", nodes.masterNode());
             }
         }
     }

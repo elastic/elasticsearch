@@ -105,11 +105,9 @@ public class NodesFaultDetection extends FaultDetection {
         }
     }
 
-    public NodesFaultDetection start() {
-        if (running) {
-            return this;
-        }
+    public NodesFaultDetection start(ClusterState clusterState) {
         running = true;
+        updateNodes(clusterState.nodes(), clusterState.version());
         return this;
     }
 

@@ -372,9 +372,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     if (newState.nodes().localNodeMaster()) {
-                        // we only starts nodesFD if we are master.
+                        // we only starts nodesFD if we are master (it may be that we received a cluster state while pinging)
                         joinThreadControl.markThreadAsDone(currentThread);
-                        nodesFD.start(); // start the nodes FD
+                        nodesFD.start(newState); // start the nodes FD
                     } else {
                         // if we're not a master it means another node published a cluster state while we were pinging
                         // make sure we go through another pinging round and actively join it
@@ -636,9 +636,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 final DiscoveryNode localNode = currentState.nodes().localNode();
                 if (localNode.equals(electedMaster)) {
                     masterFD.stop("got elected as new master since master left (reason = " + reason + ")");
-                    nodesFD.start();
                     discoveryNodes = DiscoveryNodes.builder(discoveryNodes).masterNodeId(localNode.id()).build();
-                    return ClusterState.builder(currentState).nodes(discoveryNodes).build();
+                    ClusterState newState = ClusterState.builder(currentState).nodes(discoveryNodes).build();
+                    nodesFD.start(newState);
+                    return newState;
+
                 } else {
                     nodesFD.stop();
                     if (electedMaster != null) {

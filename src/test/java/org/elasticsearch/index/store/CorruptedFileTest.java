@@ -61,6 +61,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
@@ -118,6 +119,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                 .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, failOnCorruption)
+                .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .del / segments.N files
                 .put("indices.recovery.concurrent_streams", 10)
         ));
         if (failOnCorruption == false) { // test the dynamic setting
@@ -226,6 +228,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                 .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)
+                .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .del / segments.N files
                 .put("indices.recovery.concurrent_streams", 10)
         ));
         ensureGreen();
@@ -397,6 +400,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
                 .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)
+                .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .del / segments.N files
                 .put("indices.recovery.concurrent_streams", 10)
         ));
         ensureGreen();

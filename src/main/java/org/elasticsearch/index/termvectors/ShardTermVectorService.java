@@ -74,6 +74,16 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         IndexReader topLevelReader = searcher.reader();
         final TermVectorResponse termVectorResponse = new TermVectorResponse(concreteIndex, request.type(), request.id());
 
+        final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
+        Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), uidTerm));
+        boolean docFromTranslog = get.source() != null;
+
+        /* fetched from translog is treated as an artificial document */
+        if (docFromTranslog) {
+            request.doc(get.source().source, false);
+            termVectorResponse.setDocVersion(get.version());
+        }
+
         /* handle potential wildcards in fields */
         if (request.selectedFields() != null) {
             handleFieldWildcards(request);
@@ -81,27 +91,25 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
 
         try {
             Fields topLevelFields = MultiFields.getFields(topLevelReader);
+            Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {
-                Fields termVectorsByField = generateTermVectorsFromDoc(request);
+                Fields termVectorsByField = generateTermVectorsFromDoc(request, !docFromTranslog);
                 // if no document indexed in shard, take the queried document itself for stats
                 if (topLevelFields == null) {
                     topLevelFields = termVectorsByField;
                 }
                 termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields);
                 termVectorResponse.setExists(true);
-                termVectorResponse.setArtificial(true);
-                return termVectorResponse;
+                termVectorResponse.setArtificial(!docFromTranslog);
             }
             /* or from an existing document */
-            final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
-            Versions.DocIdAndVersion docIdAndVersion = Versions.loadDocIdAndVersion(topLevelReader, uidTerm);
-            if (docIdAndVersion != null) {
+            else if (docIdAndVersion != null) {
                 // fields with stored term vectors
                 Fields termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
                 // fields without term vectors
                 if (request.selectedFields() != null) {
-                    termVectorsByField = addGeneratedTermVectors(termVectorsByField, request, uidTerm, false);
+                    termVectorsByField = addGeneratedTermVectors(get, termVectorsByField, request);
                 }
                 termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields);
                 termVectorResponse.setDocVersion(docIdAndVersion.version);
@@ -113,6 +121,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             throw new ElasticsearchException("failed to execute term vector request", ex);
         } finally {
             searcher.close();
+            get.release();
         }
         return termVectorResponse;
     }
@@ -137,7 +146,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return true;
     }
 
-    private Fields addGeneratedTermVectors(Fields termVectorsByField, TermVectorRequest request, Term uidTerm, boolean realTime) throws IOException {
+    private Fields addGeneratedTermVectors(Engine.GetResult get, Fields termVectorsByField, TermVectorRequest request) throws IOException {
         /* only keep valid fields */
         Set<String> validFields = new HashSet<>();
         for (String field : request.selectedFields()) {
@@ -157,18 +166,9 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         }
 
         /* generate term vectors from fetched document fields */
-        Engine.GetResult get = indexShard.get(new Engine.Get(realTime, uidTerm));
-        Fields generatedTermVectors;
-        try {
-            if (!get.exists()) {
-                return termVectorsByField;
-            }
-            GetResult getResult = indexShard.getService().get(
-                    get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null, false);
-            generatedTermVectors = generateTermVectors(getResult.getFields().values(), request.offsets());
-        } finally {
-            get.release();
-        }
+        GetResult getResult = indexShard.getService().get(
+                get, request.id(), request.type(), validFields.toArray(Strings.EMPTY_ARRAY), null, false);
+        Fields generatedTermVectors = generateTermVectors(getResult.getFields().values(), request.offsets());
 
         /* merge with existing Fields */
         if (termVectorsByField == null) {
@@ -195,7 +195,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return MultiFields.getFields(index.createSearcher().getIndexReader());
     }
 
-    private Fields generateTermVectorsFromDoc(TermVectorRequest request) throws IOException {
+    private Fields generateTermVectorsFromDoc(TermVectorRequest request, boolean doAllFields) throws IOException {
         // parse the document, at the moment we do update the mapping, just like percolate
         ParsedDocument parsedDocument = parseDocument(indexShard.shardId().getIndex(), request.type(), request.doc());
 
@@ -212,6 +212,9 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
                 seenFields.add(field.name());
             }
             if (!isValidField(fieldMapper)) {
+                continue;
+            }
+            if (request.selectedFields() == null && !doAllFields && !fieldMapper.fieldType().storeTermVectors()) {
                 continue;
             }
             if (request.selectedFields() != null && !request.selectedFields().contains(field.name())) {

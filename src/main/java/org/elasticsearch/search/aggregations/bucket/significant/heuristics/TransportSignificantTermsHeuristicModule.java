@@ -33,8 +33,6 @@ public class TransportSignificantTermsHeuristicModule extends AbstractModule {
     public TransportSignificantTermsHeuristicModule() {
         registerStream(JLHScore.STREAM);
         registerStream(MutualInformation.STREAM);
-        registerStream(GND.STREAM);
-        registerStream(ChiSquare.STREAM);
     }
 
     public void registerStream(SignificanceHeuristicStreams.Stream stream) {

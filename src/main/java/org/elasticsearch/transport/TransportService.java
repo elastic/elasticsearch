@@ -41,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -50,6 +51,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
  */
 public class TransportService extends AbstractLifecycleComponent<TransportService> {
 
+    private final AtomicBoolean started = new AtomicBoolean(false);
     protected final Transport transport;
     protected final ThreadPool threadPool;
 
@@ -92,10 +94,14 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
         }
+        boolean setStarted = started.compareAndSet(false, true);
+        assert setStarted : "service was already started";
     }
 
     @Override
     protected void doStop() throws ElasticsearchException {
+        final boolean setStopped = started.compareAndSet(true, false);
+        assert setStopped : "service has already been stopped";
         try {
             transport.stop();
         } finally {
@@ -191,11 +197,16 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         final long requestId = newRequestId();
         TimeoutHandler timeoutHandler = null;
         try {
+            clientHandlers.put(requestId, new RequestHolder<>(handler, node, action, timeoutHandler));
+            if (started.get() == false) {
+                // if we are not started the exception handling will remove the RequestHolder again and calls the handler to notify the caller.
+                // it will only notify if the toStop code hasn't done the work yet.
+                throw new TransportException("TransportService is closed stopped can't send request");
+            }
             if (options.timeout() != null) {
                 timeoutHandler = new TimeoutHandler(requestId);
                 timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.GENERIC, timeoutHandler);
             }
-            clientHandlers.put(requestId, new RequestHolder<>(handler, node, action, timeoutHandler));
             transport.sendRequest(node, requestId, action, request, options);
         } catch (final Throwable e) {
             // usually happen either because we failed to connect to the node

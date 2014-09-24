@@ -196,13 +196,11 @@ public class RecoverySource extends AbstractComponent {
                         pool.execute(new Runnable() {
                             @Override
                             public void run() {
-                                IndexInput indexInput = null;
                                 store.incRef();
                                 final StoreFileMetaData md = recoverySourceMetadata.get(name);
-                                try {
+                                try (final IndexInput indexInput = store.directory().openInput(name, IOContext.READONCE)) {
                                     final int BUFFER_SIZE = (int) recoverySettings.fileChunkSize().bytes();
-                                    byte[] buf = new byte[BUFFER_SIZE];
-                                    indexInput = store.directory().openInput(name, IOContext.READONCE);
+                                    final byte[] buf = new byte[BUFFER_SIZE];
                                     boolean shouldCompressRequest = recoverySettings.compress();
                                     if (CompressorFactory.isCompressed(indexInput)) {
                                         shouldCompressRequest = false;
@@ -249,7 +247,6 @@ public class RecoverySource extends AbstractComponent {
                                         exceptions.add(0, e); // last exceptions first
                                     }
                                 } finally {
-                                    IOUtils.closeWhileHandlingException(indexInput);
                                     try {
                                         store.decRef();
                                     } finally {

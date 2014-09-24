@@ -159,7 +159,11 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         }
 
         public void onModule(SignificantTermsHeuristicModule significanceModule) {
-            significanceModule.registerHeuristic(SimpleHeuristic.SimpleHeuristicParser.class, SimpleHeuristic.STREAM);
+            significanceModule.registerParser(SimpleHeuristic.SimpleHeuristicParser.class);
+        }
+
+        public void onModule(TransportSignificantTermsHeuristicModule significanceModule) {
+            significanceModule.registerStream(SimpleHeuristic.STREAM);
         }
     }
 

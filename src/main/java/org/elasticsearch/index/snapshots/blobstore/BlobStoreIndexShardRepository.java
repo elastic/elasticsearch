@@ -439,7 +439,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     boolean snapshotRequired = false;
                     BlobStoreIndexShardSnapshot.FileInfo fileInfo = snapshots.findPhysicalIndexFile(fileName);
                     try {
-                        // in 1.4.0 we added additional hashes for .si / segments_N files
+                        // in 1.3.3 we added additional hashes for .si / segments_N files
                         // to ensure we don't double the space in the repo since old snapshots
                         // don't have this hash we try to read that hash from the blob store
                         // in a bwc compatible way.
@@ -703,7 +703,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 final Map<String, FileInfo> fileInfos = new HashMap<>();
                 for (final FileInfo fileInfo : snapshot.indexFiles()) {
                     try {
-                        // in 1.4.0 we added additional hashes for .si / segments_N files
+                        // in 1.3.3 we added additional hashes for .si / segments_N files
                         // to ensure we don't double the space in the repo since old snapshots
                         // don't have this hash we try to read that hash from the blob store
                         // in a bwc compatible way.

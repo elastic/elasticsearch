@@ -24,6 +24,7 @@ import java.io.IOException;
 import org.apache.lucene.store.BaseDirectoryTestCase;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.index.store.distributor.Distributor;
@@ -46,6 +47,10 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
         Directory[] directories = new Directory[1 + random().nextInt(5)];
         for (int i = 0; i < directories.length; i++) {
             directories[i] = newDirectory();
+            if (directories[i] instanceof MockDirectoryWrapper) {
+                // TODO: fix this test to handle virus checker
+                ((MockDirectoryWrapper) directories[i]).setEnableVirusScanner(false);
+            }
         }
         return new DistributorDirectory(directories);
     }

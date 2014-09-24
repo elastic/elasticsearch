@@ -138,7 +138,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(buildNodesForA(true)).build();
         NodesFaultDetection nodesFD = new NodesFaultDetection(settings.build(), threadPool, serviceA, clusterState.getClusterName());
         nodesFD.setLocalNode(clusterState.nodes().localNode());
-        nodesFD.start(clusterState);
+        nodesFD.updateNodesAndPing(clusterState);
         final String[] failureReason = new String[1];
         final DiscoveryNode[] failureNode = new DiscoveryNode[1];
         final CountDownLatch notified = new CountDownLatch(1);

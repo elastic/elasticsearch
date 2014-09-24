@@ -67,6 +67,8 @@ PLUGINS = [('bigdesk', 'lukas-vlcek/bigdesk'),
            ('head', 'mobz/elasticsearch-head')]
 
 LOG = env.get('ES_RELEASE_LOG', '/tmp/elasticsearch_release.log')
+if os.path.exists(LOG):
+  raise RuntimeError('please remove old release log %s first' % LOG)
 
 def log(msg):
   log_plain('\n%s' % msg)
@@ -583,7 +585,7 @@ if __name__ == '__main__':
   print('  Running with maven command: [%s] ' % (MVN))
   if build:
     release_version = find_release_version(src_branch)
-    # nocommit
+    # do not commit!
     #ensure_no_open_tickets(release_version)
     if not dry_run:
       smoke_test_version = release_version

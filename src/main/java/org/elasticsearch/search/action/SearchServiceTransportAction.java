@@ -57,6 +57,7 @@ import java.util.concurrent.Callable;
  */
 public class SearchServiceTransportAction extends AbstractComponent {
 
+    public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = "indices:data/read/search[free_context/scroll]";
     public static final String FREE_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context]";
     public static final String CLEAR_SCROLL_CONTEXTS_ACTION_NAME = "indices:data/read/search[clear_scroll_contexts]";
     public static final String DFS_ACTION_NAME = "indices:data/read/search[phase/dfs]";
@@ -121,6 +122,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         this.clusterService = clusterService;
         this.searchService = searchService;
 
+        transportService.registerHandler(FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextTransportHandler());
         transportService.registerHandler(FREE_CONTEXT_ACTION_NAME, new SearchFreeContextTransportHandler());
         transportService.registerHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, new ClearScrollContextsTransportHandler());
         transportService.registerHandler(DFS_ACTION_NAME, new SearchDfsTransportHandler());
@@ -148,7 +150,14 @@ public class SearchServiceTransportAction extends AbstractComponent {
             final boolean freed = searchService.freeContext(contextId);
             actionListener.onResponse(freed);
         } else {
-            transportService.sendRequest(node, FREE_CONTEXT_ACTION_NAME, new SearchFreeContextRequest(request, contextId), new FreeContextResponseHandler(actionListener));
+            if (node.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+                //use the separate action for scroll when possible
+                transportService.sendRequest(node, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(request, contextId), new FreeContextResponseHandler(actionListener));
+            } else {
+                //fallback to the previous action name if the new one is not supported by the node we are talking to.
+                //Do use the same request since it has the same binary format as the previous SearchFreeContextRequest (without the OriginalIndices addition).
+                transportService.sendRequest(node, FREE_CONTEXT_ACTION_NAME, new ScrollFreeContextRequest(request, contextId), new FreeContextResponseHandler(actionListener));
+            }
         }
     }
 
@@ -550,24 +559,19 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    static class SearchFreeContextRequest extends TransportRequest implements IndicesRequest {
-
+    static class ScrollFreeContextRequest extends TransportRequest {
         private long id;
-        private OriginalIndices originalIndices;
 
-        SearchFreeContextRequest() {
+        ScrollFreeContextRequest() {
         }
 
-        SearchFreeContextRequest(SearchRequest request, long id) {
-            super(request);
-            this.id = id;
-            this.originalIndices = new OriginalIndices(request);
+        ScrollFreeContextRequest(ClearScrollRequest request, long id) {
+            this((TransportRequest) request, id);
         }
 
-        SearchFreeContextRequest(TransportRequest request, long id) {
+        private ScrollFreeContextRequest(TransportRequest request, long id) {
             super(request);
             this.id = id;
-            this.originalIndices = OriginalIndices.EMPTY;
         }
 
         public long id() {
@@ -575,27 +579,55 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
 
         @Override
-        public String[] indices() {
-            return originalIndices.indices();
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return originalIndices.indicesOptions();
-        }
-
-        @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             id = in.readLong();
-            originalIndices = OriginalIndices.readOptionalOriginalIndices(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeLong(id);
-            OriginalIndices.writeOptionalOriginalIndices(originalIndices, out);
+        }
+    }
+
+    static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
+        private OriginalIndices originalIndices;
+
+        SearchFreeContextRequest() {
+        }
+
+        SearchFreeContextRequest(SearchRequest request, long id) {
+            super(request, id);
+            this.originalIndices = new OriginalIndices(request);
+        }
+
+        @Override
+        public String[] indices() {
+            if (originalIndices == null) {
+                return null;
+            }
+            return originalIndices.indices();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            if (originalIndices == null) {
+                return null;
+            }
+            return originalIndices.indicesOptions();
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            originalIndices = OriginalIndices.readOriginalIndices(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            OriginalIndices.writeOriginalIndices(originalIndices, out);
         }
     }
 
@@ -633,15 +665,12 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    class SearchFreeContextTransportHandler extends BaseTransportRequestHandler<SearchFreeContextRequest> {
+    private abstract class BaseFreeContextTransportHandler<FreeContextRequest extends ScrollFreeContextRequest> extends BaseTransportRequestHandler<FreeContextRequest> {
+        @Override
+        public abstract FreeContextRequest newInstance();
 
         @Override
-        public SearchFreeContextRequest newInstance() {
-            return new SearchFreeContextRequest();
-        }
-
-        @Override
-        public void messageReceived(SearchFreeContextRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(FreeContextRequest request, TransportChannel channel) throws Exception {
             boolean freed = searchService.freeContext(request.id());
             channel.sendResponse(new SearchFreeContextResponse(freed));
         }
@@ -651,6 +680,20 @@ public class SearchServiceTransportAction extends AbstractComponent {
             // freeing the context is cheap,
             // no need for fork it to another thread
             return ThreadPool.Names.SAME;
+        }
+    }
+
+    class ScrollFreeContextTransportHandler extends BaseFreeContextTransportHandler<ScrollFreeContextRequest> {
+        @Override
+        public ScrollFreeContextRequest newInstance() {
+            return new ScrollFreeContextRequest();
+        }
+    }
+
+    class SearchFreeContextTransportHandler extends BaseFreeContextTransportHandler<SearchFreeContextRequest> {
+        @Override
+        public SearchFreeContextRequest newInstance() {
+            return new SearchFreeContextRequest();
         }
     }
 

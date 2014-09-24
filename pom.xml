@@ -31,7 +31,8 @@
     </parent>
 
     <properties>
-        <lucene.version>4.10.0</lucene.version>
+        <lucene.version>4.10.1</lucene.version>
+        <lucene.maven.version>4.10.1-snapshot-1627159</lucene.maven.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -45,6 +46,10 @@
     </properties>
 
     <repositories>
+        <repository>
+            <id>Lucene snapshots</id>
+            <url>https://download.elasticsearch.org/lucenesnapshots/</url>
+        </repository>
         <repository>
             <id>Codehaus Snapshots</id>
             <url>http://repository.codehaus.org/</url>
@@ -67,7 +72,7 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-test-framework</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -80,19 +85,19 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-core</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-analyzers-common</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-queries</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>
@@ -104,19 +109,19 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-memory</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-highlighter</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-queryparser</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>
@@ -128,26 +133,26 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-suggest</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-join</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <!-- Lucene spatial, make sure when upgrading to work with latest version of jts/spatial4j dependencies -->
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-spatial</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-expressions</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>

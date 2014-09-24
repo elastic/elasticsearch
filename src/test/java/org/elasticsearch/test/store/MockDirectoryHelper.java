@@ -85,6 +85,8 @@ public class MockDirectoryHelper {
         w.setThrottling(throttle);
         w.setCheckIndexOnClose(false); // we do this on the index level
         w.setPreventDoubleWrite(preventDoubleWrite);
+        // TODO: make this test robust to virus scanner
+        w.setEnableVirusScanner(false);
         w.setNoDeleteOpenFile(noDeleteOpenFile);
         wrappers.add(w);
         return w;

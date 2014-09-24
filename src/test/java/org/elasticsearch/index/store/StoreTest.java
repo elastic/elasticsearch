@@ -514,8 +514,6 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                 dirs[i]  = newDirectory(random);
                 if (dirs[i] instanceof MockDirectoryWrapper) {
                     ((MockDirectoryWrapper)dirs[i]).setPreventDoubleWrite(preventDoubleWrite);
-                    // TODO: fix this test to handle virus checker
-                    ((MockDirectoryWrapper)dirs[i]).setEnableVirusScanner(false);
                 }
             }
             this.random = random;

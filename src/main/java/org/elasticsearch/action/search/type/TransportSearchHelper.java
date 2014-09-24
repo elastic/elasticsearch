@@ -36,7 +36,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,11 +46,8 @@ import java.util.Map;
  */
 public abstract class TransportSearchHelper {
 
-    public static ShardSearchRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request, String[] filteringAliases, long nowInMillis, boolean useSlowScroll) {
-        ShardSearchRequest shardRequest = new ShardSearchRequest(request, shardRouting, numberOfShards, useSlowScroll);
-        shardRequest.filteringAliases(filteringAliases);
-        shardRequest.nowInMillis(nowInMillis);
-        return shardRequest;
+    public static ShardSearchTransportRequest internalSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchRequest request, String[] filteringAliases, long nowInMillis, boolean useSlowScroll) {
+        return new ShardSearchTransportRequest(request, shardRouting, numberOfShards, useSlowScroll, filteringAliases, nowInMillis);
     }
 
     public static InternalScrollSearchRequest internalScrollSearchRequest(long id, SearchScrollRequest request) {

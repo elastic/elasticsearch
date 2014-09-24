@@ -415,13 +415,9 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     private static Key buildKey(ShardSearchRequest request, SearchContext context) throws Exception {
         // TODO: for now, this will create different keys for different JSON order
         // TODO: tricky to get around this, need to parse and order all, which can be expensive
-        BytesStreamOutput out = new BytesStreamOutput();
-        request.writeTo(out, true);
-        // copy it over, most requests are small, we might as well copy to make sure we are not sliced...
-        // we could potentially keep it without copying, but then pay the price of extra unused bytes up to a page
         return new Key(context.indexShard(),
                 ((DirectoryReader) context.searcher().getIndexReader()).getVersion(),
-                out.bytes().copyBytesArray());
+                request.cacheKey());
     }
 
     /**

@@ -453,7 +453,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         }
 
         // call this before we close the store, so we can release resources for it
-        indicesLifecycle.afterIndexShardClosed(sId);
+        indicesLifecycle.afterIndexShardClosed(sId, indexShard);
         // if we delete or have no gateway or the store is not persistent, clean the store...
         Store store = shardInjector.getInstance(Store.class);
         // and close it

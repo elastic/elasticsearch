@@ -21,6 +21,7 @@ package org.elasticsearch.test.store;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.StoreRateLimiting;
@@ -67,10 +68,9 @@ public class MockFSDirectoryService extends FsDirectoryService {
         if (checkIndexOnClose) {
             final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
                 @Override
-                public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
-                    // TODO: IndexWriter is still open on this index, so it's dangerous to run CheckIndex?
+                public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
                     if (shardId.equals(sid) && indexShard != null) {
-                        checkIndex(((InternalIndexShard) indexShard).store());
+                        checkIndex(((InternalIndexShard) indexShard).store(), sid);
                     }
                     service.indicesLifecycle().removeListener(this);
                 }
@@ -89,13 +89,17 @@ public class MockFSDirectoryService extends FsDirectoryService {
         throw new UnsupportedOperationException();
     }
 
-
-    public void checkIndex(Store store) throws IndexShardException {
+    public void checkIndex(Store store, ShardId shardId) throws IndexShardException {
         try {
-            if (!Lucene.indexExists(store.directory())) {
+            Directory dir = store.directory();
+            if (!Lucene.indexExists(dir)) {
                 return;
             }
-            CheckIndex checkIndex = new CheckIndex(store.directory());
+            if (IndexWriter.isLocked(dir)) {
+                AbstractRandomizedTest.checkIndexFailed = true;
+                throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
+            }
+            CheckIndex checkIndex = new CheckIndex(dir);
             BytesStreamOutput os = new BytesStreamOutput();
             PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
             checkIndex.setInfoStream(out);

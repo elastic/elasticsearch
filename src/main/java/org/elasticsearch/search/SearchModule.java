@@ -27,7 +27,6 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.aggregations.AggregationModule;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificantTermsHeuristicModule;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -50,7 +49,7 @@ public class SearchModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new TransportSearchModule(), new HighlightModule(), new SuggestModule(), new FunctionScoreModule(), new AggregationModule(), new SignificantTermsHeuristicModule());
+        return ImmutableList.of(new TransportSearchModule(), new HighlightModule(), new SuggestModule(), new FunctionScoreModule(), new AggregationModule());
     }
 
     @Override

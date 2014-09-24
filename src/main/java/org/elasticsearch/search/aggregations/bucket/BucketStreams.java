@@ -20,11 +20,9 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 
@@ -36,7 +34,7 @@ public class BucketStreams {
      * A stream that knows how to read a bucket from the input.
      */
     public static interface Stream {
-        MultiBucketsAggregation.Bucket readResult(StreamInput in, boolean keyed, @Nullable ValueFormatter formatter) throws IOException;
+        MultiBucketsAggregation.Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException;
     }
 
     /**

@@ -24,10 +24,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
@@ -54,8 +54,8 @@ public class LongTerms extends InternalTerms {
 
     private final static BucketStreams.Stream BUCKET_STREAM = new BucketStreams.Stream() {
         @Override
-        public Bucket readResult(StreamInput in, boolean keyed, @Nullable ValueFormatter formatter) throws IOException {
-            Bucket buckets = new Bucket(formatter, false); // NOCOMMIT should we support arbitrary settings buy using a map in the parameters?
+        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
+            Bucket buckets = new Bucket(context.formatter(), (boolean) context.attributes().get("showDocCountError"));
             buckets.readFrom(in);
             return buckets;
         }

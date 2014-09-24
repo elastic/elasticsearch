@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
@@ -62,8 +63,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     private final static BucketStreams.Stream BUCKET_STREAM = new BucketStreams.Stream() {
         @Override
-        public Bucket readResult(StreamInput in, boolean keyed, @Nullable ValueFormatter formatter) throws IOException {
-            Bucket histogram = new Bucket(keyed, formatter);
+        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
+            Bucket histogram = new Bucket(context.keyed(), context.formatter());
             histogram.readFrom(in);
             return histogram;
         }

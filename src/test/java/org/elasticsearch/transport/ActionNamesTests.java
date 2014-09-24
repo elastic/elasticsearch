@@ -27,6 +27,7 @@ import org.elasticsearch.action.bench.BenchmarkAction;
 import org.elasticsearch.action.bench.BenchmarkService;
 import org.elasticsearch.action.bench.BenchmarkStatusAction;
 import org.elasticsearch.action.exists.ExistsAction;
+import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -139,5 +140,6 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
         post_1_4_actions.add(ExistsAction.NAME);
         post_1_4_actions.add(ExistsAction.NAME + "[s]");
         post_1_4_actions.add(GetIndexAction.NAME);
+        post_1_4_actions.add(SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME);
     }
 }

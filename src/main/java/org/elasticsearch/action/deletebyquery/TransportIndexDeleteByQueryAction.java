@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.deletebyquery;
 
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -36,7 +36,7 @@ import java.util.List;
 /**
  * Internal transport action that broadcasts a delete by query request to all of the shards that belong to an index.
  */
-public class TransportIndexDeleteByQueryAction extends TransportIndexReplicationOperationAction<IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
+public class TransportIndexDeleteByQueryAction extends TransportIndexReplicationOperationAction<IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
     private static final String ACTION_NAME = DeleteByQueryAction.NAME + "[index]";
 
@@ -47,13 +47,8 @@ public class TransportIndexDeleteByQueryAction extends TransportIndexReplication
     }
 
     @Override
-    protected IndexDeleteByQueryResponse newResponseInstance(IndexDeleteByQueryRequest request, List<ShardDeleteByQueryResponse> shardDeleteByQueryResponses, int failuresCount, List<ShardOperationFailedException> shardFailures) {
-        return new IndexDeleteByQueryResponse(request.index(), shardDeleteByQueryResponses.size(), failuresCount, shardFailures);
-    }
-
-    @Override
-    protected boolean accumulateExceptions() {
-        return true;
+    protected IndexDeleteByQueryResponse newResponseInstance(IndexDeleteByQueryRequest request, List<ShardDeleteByQueryResponse> shardDeleteByQueryResponses, ActionWriteResponse.ShardInfo shardInfo) {
+        return new IndexDeleteByQueryResponse(request.index(), shardInfo);
     }
 
     @Override

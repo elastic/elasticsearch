@@ -187,8 +187,9 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
 
         logger.info("Delete by query");
         DeleteByQueryResponse queryResponse = client().prepareDeleteByQuery().setIndices("test").setQuery(termQuery("name", "test2")).execute().actionGet();
-        assertThat(queryResponse.getIndex(getConcreteIndexName()).getSuccessfulShards(), equalTo(numShards.numPrimaries));
-        assertThat(queryResponse.getIndex(getConcreteIndexName()).getFailedShards(), equalTo(0));
+        assertThat(queryResponse.getIndex(getConcreteIndexName()).getShardInfo().getTotal(), equalTo(numShards.totalNumShards));
+        assertThat(queryResponse.getIndex(getConcreteIndexName()).getShardInfo().getSuccessful(), equalTo(numShards.totalNumShards));
+        assertThat(queryResponse.getIndex(getConcreteIndexName()).getShardInfo().getFailures().length, equalTo(0));
         client().admin().indices().refresh(refreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] and [type1/2], should be empty");

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * Delete response executed on a specific shard.
  */
-public class ShardDeleteResponse extends ActionResponse {
+public class ShardDeleteResponse extends ActionWriteResponse {
 
     private long version;
     private boolean found;

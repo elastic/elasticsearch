@@ -36,7 +36,9 @@ import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -702,6 +704,49 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             assertThat(multiGetItemResponse.getResponse().getId(), equalTo(multiGetRequestBuilder.request().getItems().get(i).id()));
         }
 
+    }
+
+    @Test
+    public void testScroll() throws ExecutionException, InterruptedException {
+        createIndex("test");
+        ensureYellow("test");
+
+        int numDocs = iterations(10, 100);
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            indexRequestBuilders[i] = client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + Integer.toString(i));
+        }
+        indexRandom(true, indexRequestBuilders);
+
+        int size = randomIntBetween(1, 10);
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setScroll("1m").setSize(size);
+        boolean scan = randomBoolean();
+        if (scan) {
+            searchRequestBuilder.setSearchType(SearchType.SCAN);
+        }
+
+        SearchResponse searchResponse = searchRequestBuilder.get();
+        assertThat(searchResponse.getScrollId(), notNullValue());
+        assertHitCount(searchResponse, numDocs);
+        int hits = 0;
+        if (scan) {
+            assertThat(searchResponse.getHits().getHits().length, equalTo(0));
+        } else {
+            assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
+            hits += searchResponse.getHits().getHits().length;
+        }
+
+        try {
+            do {
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll("1m").get();
+                assertThat(searchResponse.getScrollId(), notNullValue());
+                assertHitCount(searchResponse, numDocs);
+                hits += searchResponse.getHits().getHits().length;
+            } while (searchResponse.getHits().getHits().length > 0);
+            assertThat(hits, equalTo(numDocs));
+        } finally {
+            clearScroll(searchResponse.getScrollId());
+        }
     }
 
     private static String indexOrAlias() {

@@ -22,7 +22,6 @@ package org.elasticsearch.action.bulk;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -60,11 +59,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -319,6 +314,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {
                     for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                        // we may have no response if item failed
+                        if (bulkItemResponse.getResponse() != null) {
+                            bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                        }
                         responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                     }
                     if (counter.decrementAndGet() == 0) {

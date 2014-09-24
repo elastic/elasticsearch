@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.mapping.delete;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -147,11 +148,9 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                     public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
                         if (logger.isTraceEnabled()) {
                             for (IndexDeleteByQueryResponse indexResponse : deleteByQueryResponse) {
-                                logger.trace("Delete by query[{}] completed with total[{}], successful[{}] and failed[{}]", indexResponse.getIndex(), indexResponse.getTotalShards(), indexResponse.getSuccessfulShards(), indexResponse.getFailedShards());
-                                if (indexResponse.getFailedShards() > 0) {
-                                    for (ShardOperationFailedException failure : indexResponse.getFailures()) {
-                                        logger.trace("[{}/{}] Delete by query shard failure reason: {}", failure.index(), failure.shardId(), failure.reason());
-                                    }
+                                logger.trace("Delete by query for index [{}] completed with total[{}], successful[{}] and failed[{}]", indexResponse.getIndex(), indexResponse.getShardInfo().getTotal(), indexResponse.getShardInfo().getSuccessful(), indexResponse.getShardInfo().getFailed());
+                                for (ActionWriteResponse.ShardInfo.Failure failure : indexResponse.getShardInfo().getFailures()) {
+                                    logger.trace("[{}/{}/{}/{}] Delete by query shard failure reason: {}", failure.index(), failure.shardId(), failure.primary(), failure.nodeId(), failure.reason());
                                 }
                             }
                         }

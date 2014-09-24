@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.delete;
 
+import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -35,7 +36,6 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
@@ -74,14 +74,15 @@ public class RestDeleteAction extends BaseRestHandler {
         client.delete(deleteRequest, new RestBuilderListener<DeleteResponse>(channel) {
             @Override
             public RestResponse buildResponse(DeleteResponse result, XContentBuilder builder) throws Exception {
-                builder.startObject()
-                        .field(Fields.FOUND, result.isFound())
+                ActionWriteResponse.ShardInfo shardInfo = result.getShardInfo();
+                builder.startObject().field(Fields.FOUND, result.isFound())
                         .field(Fields._INDEX, result.getIndex())
                         .field(Fields._TYPE, result.getType())
                         .field(Fields._ID, result.getId())
                         .field(Fields._VERSION, result.getVersion())
+                        .value(shardInfo)
                         .endObject();
-                RestStatus status = OK;
+                RestStatus status = shardInfo.status();
                 if (!result.isFound()) {
                     status = NOT_FOUND;
                 }

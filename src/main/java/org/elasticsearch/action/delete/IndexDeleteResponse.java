@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -28,17 +28,13 @@ import java.io.IOException;
 /**
  * Delete by query response executed on a specific index.
  */
-public class IndexDeleteResponse extends ActionResponse {
+public class IndexDeleteResponse extends ActionWriteResponse {
 
     private String index;
-    private int successfulShards;
-    private int failedShards;
     private ShardDeleteResponse[] deleteResponses;
 
-    IndexDeleteResponse(String index, int failedShards, ShardDeleteResponse[] deleteResponses) {
+    IndexDeleteResponse(String index, ShardDeleteResponse[] deleteResponses) {
         this.index = index;
-        this.successfulShards = deleteResponses.length;
-        this.failedShards = failedShards;
         this.deleteResponses = deleteResponses;
     }
 
@@ -47,27 +43,6 @@ public class IndexDeleteResponse extends ActionResponse {
      */
     public String getIndex() {
         return this.index;
-    }
-
-    /**
-     * The total number of shards the delete by query was executed on.
-     */
-    public int getTotalShards() {
-        return failedShards + successfulShards;
-    }
-
-    /**
-     * The successful number of shards the delete by query was executed on.
-     */
-    public int getSuccessfulShards() {
-        return successfulShards;
-    }
-
-    /**
-     * The failed number of shards the delete by query was executed on.
-     */
-    public int getFailedShards() {
-        return failedShards;
     }
 
     public ShardDeleteResponse[] getResponses() {

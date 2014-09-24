@@ -43,7 +43,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
-import java.text.ParseException;
 
 import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
 
@@ -71,7 +70,7 @@ public class Lucene {
         }
         try {
             return Version.parse(version);
-        } catch (ParseException e) {
+        } catch (IllegalArgumentException e) {
             logger.warn("no version match {}, default to {}", version, defaultVersion, e);
             return defaultVersion;
         }
@@ -563,7 +562,7 @@ public class Lucene {
             if (Strings.hasLength(toParse)) {
                 try {
                     return Version.parseLeniently(toParse);
-                } catch (ParseException e) {
+                } catch (IllegalArgumentException e) {
                     // pass to default
                 }
             }

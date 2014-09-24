@@ -237,7 +237,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 if (logger.isDebugEnabled()) {
                     if (t != null) {
                         if (!TransportActions.isShardNotAvailableException(t)) {
-                            logger.debug("{}: failed to execute [{}]", t, shard != null ? shard.shortSummary() : shardIt.shardId(), request);
+                            logger.debug("{}: failed to executed [{}]", t, shard != null ? shard.shortSummary() : shardIt.shardId(), request);
                         }
                     }
                 }

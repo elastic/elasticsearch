@@ -22,32 +22,29 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 
 import java.util.List;
 
 
-public class SignificantTermsHeuristicModule extends AbstractModule {
+public class TransportSignificantTermsHeuristicModule extends AbstractModule {
 
-    private List<Class<? extends SignificanceHeuristicParser>> parsers = Lists.newArrayList();
+    private List<SignificanceHeuristicStreams.Stream> streams = Lists.newArrayList();
 
-    public SignificantTermsHeuristicModule() {
-        registerParser(JLHScore.JLHScoreParser.class);
-        registerParser(MutualInformation.MutualInformationParser.class);
-        registerParser(GND.GNDParser.class);
-        registerParser(ChiSquare.ChiSquareParser.class);
+    public TransportSignificantTermsHeuristicModule() {
+        registerStream(JLHScore.STREAM);
+        registerStream(MutualInformation.STREAM);
+        registerStream(GND.STREAM);
+        registerStream(ChiSquare.STREAM);
     }
 
-    public void registerParser(Class<? extends SignificanceHeuristicParser> parser) {
-        parsers.add(parser);
+    public void registerStream(SignificanceHeuristicStreams.Stream stream) {
+        streams.add(stream);
     }
 
     @Override
     protected void configure() {
-        Multibinder<SignificanceHeuristicParser> parserMapBinder = Multibinder.newSetBinder(binder(), SignificanceHeuristicParser.class);
-        for (Class<? extends SignificanceHeuristicParser> clazz : parsers) {
-            parserMapBinder.addBinding().to(clazz);
+        for (SignificanceHeuristicStreams.Stream stream : streams) {
+            SignificanceHeuristicStreams.registerStream(stream, stream.getName());
         }
-        bind(SignificanceHeuristicParserMapper.class);
     }
 }

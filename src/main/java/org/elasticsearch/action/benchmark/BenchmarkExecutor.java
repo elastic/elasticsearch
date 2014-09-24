@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.benchmark;
 
-import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.util.PriorityQueue;
 
 import org.elasticsearch.ElasticsearchException;
@@ -33,7 +32,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
@@ -49,110 +47,14 @@ public class BenchmarkExecutor {
 
     private final Client client;
     protected final ClusterService clusterService;
-    private volatile ImmutableOpenMap<String, BenchmarkState> active = ImmutableOpenMap.of();
 
     public BenchmarkExecutor(Client client, ClusterService clusterService) {
         this.client = client;
         this.clusterService = clusterService;
     }
 
-    public void abort(String benchmarkId) {
-
-        final BenchmarkState state = active.get(benchmarkId);
-        if (state == null) {
-            throw new BenchmarkMissingException("No such benchmark [" + benchmarkId + "]");
-        }
-
-        try {
-            state.abortAllCompetitors();
-        } catch (Throwable t) {
-            logger.error("benchmark [{}]: failed to abort", t, benchmarkId);
-        }
-    }
-
-    public void pause(String benchmarkId) {
-
-        final BenchmarkState state = active.get(benchmarkId);
-        if (state == null) {
-            throw new BenchmarkMissingException("No such benchmark [" + benchmarkId + "]");
-        }
-
-        try {
-            state.pauseAllCompetitors();
-        } catch (Throwable t) {
-            logger.error("benchmark [{}]: failed to pause", t, benchmarkId);
-        }
-    }
-
-    public void resume(String benchmarkId) {
-
-        final BenchmarkState state = active.get(benchmarkId);
-        if (state == null) {
-            throw new BenchmarkMissingException("No such benchmark [" + benchmarkId + "]");
-        }
-
-        try {
-            state.resumeAllCompetitors();
-        } catch (Throwable t) {
-            logger.error("benchmark [{}]: failed to resume", t, benchmarkId);
-        }
-    }
-
-    public BenchmarkStatusNodeActionResponse status(String benchmarkId) {
-
-        final BenchmarkStatusNodeActionResponse response = new BenchmarkStatusNodeActionResponse(benchmarkId, nodeId());
-
-        final BenchmarkState state = active.get(benchmarkId);
-        if (state == null) {
-            throw new BenchmarkMissingException("No such benchmark [" + benchmarkId + "]");
-        }
-
-        response.response(state.response());
-        return response;
-    }
-
-    public List<BenchmarkStatusNodeActionResponse> status() {
-
-        final List<BenchmarkStatusNodeActionResponse> responses = new ArrayList<>();
-        final UnmodifiableIterator<String> iter = active.keysIt();
-        while (iter.hasNext()) {
-            responses.add(status(iter.next()));
-        }
-
-        return responses;
-    }
-
-    public void clear(String benchmarkId) {
-        active = ImmutableOpenMap.builder(active).fRemove(benchmarkId).build();
-    }
-
-    public BenchmarkStatusNodeActionResponse create(BenchmarkStartRequest request) {
-
-        if (active.containsKey(request.benchmarkId())) {
-            throw new BenchmarkIdConflictException(
-                    "benchmark [" + request.benchmarkId() + "]: already executing on node [" + nodeName() + "]");
-        }
-
-        final BenchmarkStartResponse bsr = new BenchmarkStartResponse(request.benchmarkId(), new HashMap<String, CompetitionResult>());
-        bsr.state(BenchmarkStartResponse.State.RUNNING);
-        bsr.verbose(request.verbose());
-
-        active = ImmutableOpenMap.builder(active).fPut(request.benchmarkId(), new BenchmarkState(request, bsr)).build();
-
-        final BenchmarkStatusNodeActionResponse response = new BenchmarkStatusNodeActionResponse(request.benchmarkId(), nodeId());
-        response.response(bsr);
-        return response;
-    }
-
-    public BenchmarkStatusNodeActionResponse start(BenchmarkStartRequest request) throws ElasticsearchException {
-
-        final BenchmarkState state = active.get(request.benchmarkId());
-        if (state == null) {
-            throw new BenchmarkMissingException("No such benchmark [" + request.benchmarkId() + "]");
-        }
-
-        final BenchmarkStartResponse benchmarkStartResponse = state.response();
-
+    public BenchmarkStatusNodeActionResponse start(BenchmarkStartRequest request, BenchmarkStartResponse benchmarkStartResponse,
+                                                   BenchmarkExecutorService.BenchmarkSemaphores benchmarkSemaphores) throws ElasticsearchException {
         try {
             for (BenchmarkCompetitor competitor : request.competitors()) {
 
@@ -175,7 +77,7 @@ public class BenchmarkExecutor {
                 // Perform warmup if requested
                 if (settings.warmup()) {
                     final long start = System.nanoTime();
-                    final List<String> errors = warmup(searchRequests, state.competitorSemaphore(competitor.name()));
+                    final List<String> errors = warmup(searchRequests, benchmarkSemaphores.competitorSemaphore(competitor.name()));
                     competitionNodeResult.warmUpTime(TimeUnit.MILLISECONDS.convert(System.nanoTime() - start, TimeUnit.NANOSECONDS));
                     if (!errors.isEmpty()) {
                         throw new BenchmarkExecutionException("Failed to execute warmup phase", errors);
@@ -191,7 +93,7 @@ public class BenchmarkExecutor {
                     // Run the iteration
                     CompetitionIteration ci =
                             iterate(request.benchmarkId(),competitor, searchRequests, timeBuckets,
-                                    docBuckets, state.competitorSemaphore(competitor.name()));
+                                    docBuckets, benchmarkSemaphores.competitorSemaphore(competitor.name()));
                     ci.percentiles(request.percentiles());
                     competitionIterations.add(ci);
                     competitionNodeResult.incrementCompletedIterations();
@@ -213,7 +115,7 @@ public class BenchmarkExecutor {
             benchmarkStartResponse.state(BenchmarkStartResponse.State.FAILED);
             benchmarkStartResponse.errors(ex.getMessage());
         } finally {
-            state.stopAllCompetitors();
+            benchmarkSemaphores.stopAllCompetitors();
         }
 
         final BenchmarkStatusNodeActionResponse response = new BenchmarkStatusNodeActionResponse(request.benchmarkId(), nodeId());

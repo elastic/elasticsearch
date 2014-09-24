@@ -19,22 +19,26 @@
 
 package org.elasticsearch.action.benchmark;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.benchmark.competition.CompetitionResult;
 import org.elasticsearch.action.benchmark.start.*;
 import org.elasticsearch.action.benchmark.status.*;
 import org.elasticsearch.cluster.metadata.BenchmarkMetaData;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.*;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -46,7 +50,10 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class BenchmarkExecutorService extends AbstractBenchmarkService {
 
     protected final BenchmarkExecutor executor;
-    protected final Map<String, InternalExecutorState> benchmarks = new ConcurrentHashMap<>();
+    protected final Map<String, State> states = new ConcurrentHashMap<>();
+
+    private static final long TIMEOUT = 60;
+    private static final TimeUnit TIMEUNIT = TimeUnit.SECONDS;
 
     @Inject
     public BenchmarkExecutorService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
@@ -79,38 +86,47 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
                 continue;
             }
 
-            final InternalExecutorState ies = benchmarks.get(entry.benchmarkId());
+            if (states.get(entry.benchmarkId()) == null) {
+                if (entry.state() == BenchmarkMetaData.State.INITIALIZING &&
+                    entry.nodeStateMap().get(nodeId()) == BenchmarkMetaData.Entry.NodeState.INITIALIZING) {
+                    states.put(entry.benchmarkId(), new State(entry.benchmarkId()));
+                } else {
+                    logger.error("benchmark [{}]: missing internal state", entry.benchmarkId());
+                    continue;
+                }
+            }
+
+            final State state = states.get(entry.benchmarkId());
 
             switch (entry.state()) {
                 case INITIALIZING:
-                    if (ies != null || entry.nodeStateMap().get(nodeId()) != BenchmarkMetaData.Entry.NodeState.INITIALIZING) {
+                    if (entry.nodeStateMap().get(nodeId()) != BenchmarkMetaData.Entry.NodeState.INITIALIZING) {
                         break;  // Benchmark has already been initialized on this node
                     }
 
-                    benchmarks.put(entry.benchmarkId(), new InternalExecutorState(entry.benchmarkId()));
+                    if (state.initialize()) {
+                        // Fetch benchmark definition from master
+                        logger.debug("benchmark [{}]: fetching definition", entry.benchmarkId());
+                        final BenchmarkDefinitionResponseHandler handler = new BenchmarkDefinitionResponseHandler(entry.benchmarkId());
 
-                    // Fetch benchmark definition from master
-                    logger.debug("benchmark [{}]: fetching definition", entry.benchmarkId());
-                    final BenchmarkDefinitionResponseHandler handler = new BenchmarkDefinitionResponseHandler(entry.benchmarkId());
-
-                    threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            transportService.sendRequest(
-                                    master(),
-                                    BenchmarkCoordinatorService.BenchmarkDefinitionRequestHandler.ACTION,
-                                    new BenchmarkDefinitionTransportRequest(entry.benchmarkId(), nodeId()),
-                                    handler);
-                        }
-                    });
+                        threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                transportService.sendRequest(
+                                        master(),
+                                        BenchmarkCoordinatorService.BenchmarkDefinitionRequestHandler.ACTION,
+                                        new BenchmarkDefinitionTransportRequest(entry.benchmarkId(), nodeId()),
+                                        handler);
+                            }
+                        });
+                    }
                     break;
                 case RUNNING:
-                    if (ies == null || entry.nodeStateMap().get(nodeId()) != BenchmarkMetaData.Entry.NodeState.RUNNING) {
+                    if (entry.nodeStateMap().get(nodeId()) != BenchmarkMetaData.Entry.NodeState.RUNNING) {
                         break;
                     }
 
-                    if (ies.canStartExecution()) {
-
+                    if (state.start()) {
                         final ActionListener<BenchmarkStartResponse> listener = new ActionListener<BenchmarkStartResponse>() {
                             @Override
                             public void onResponse(BenchmarkStartResponse response) {
@@ -131,10 +147,11 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
                             @Override
                             public void run() {
                                 try {
-                                    final BenchmarkStatusNodeActionResponse response = executor.start(ies.request);
-                                    ies.response = response.response();
-                                    ies.stopExecution();
-                                    listener.onResponse(ies.response);
+                                    final BenchmarkStatusNodeActionResponse response =
+                                            executor.start(state.request, state.response, state.benchmarkSemaphores);
+                                    state.response = response.response();
+                                    state.complete = true;
+                                    listener.onResponse(state.response);
                                 } catch (Throwable t) {
                                     listener.onFailure(t);
                                 }
@@ -143,16 +160,15 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
                     }
                     break;
                 case RESUMING:
-                    if (ies == null || entry.nodeStateMap().get(nodeId()) != BenchmarkMetaData.Entry.NodeState.PAUSED) {
+                    if (entry.nodeStateMap().get(nodeId()) != BenchmarkMetaData.Entry.NodeState.PAUSED) {
                         break;
                     }
 
-                    if (ies.canResumeExecution()) {
+                    if (state.resume()) {
                         try {
                             logger.debug("benchmark [{}]: resuming execution", entry.benchmarkId());
-                            synchronized (ies.executorLock) {
-                                executor.resume(entry.benchmarkId());
-                            }
+                            state.benchmarkSemaphores.resumeAllCompetitors();
+                            state.response.state(BenchmarkStartResponse.State.RUNNING);
                             updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.RUNNING);
                         } catch (Throwable t) {
                             logger.error("benchmark [{}]: failed to resume", t, entry.benchmarkId());
@@ -161,36 +177,35 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
                     }
                     break;
                 case PAUSED:
-                    if (ies == null || (entry.nodeStateMap().get(nodeId()) != BenchmarkMetaData.Entry.NodeState.RUNNING &&
-                                        entry.nodeStateMap().get(nodeId()) != BenchmarkMetaData.Entry.NodeState.READY)) {
+                    if (entry.nodeStateMap().get(nodeId()) != BenchmarkMetaData.Entry.NodeState.RUNNING &&
+                        entry.nodeStateMap().get(nodeId()) != BenchmarkMetaData.Entry.NodeState.READY) {
                         break;
                     }
 
-                    try {
-                        logger.debug("benchmark [{}]: pausing execution", entry.benchmarkId());
-                        synchronized (ies.executorLock) {
-                            executor.pause(entry.benchmarkId());
+                    if (state.pause()) {
+                        try {
+                            logger.debug("benchmark [{}]: pausing execution", entry.benchmarkId());
+                            state.benchmarkSemaphores.pauseAllCompetitors();
+                            state.response.state(BenchmarkStartResponse.State.PAUSED);
+                            updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.PAUSED);
+                        } catch (Throwable t) {
+                            logger.error("benchmark [{}]: failed to pause", t, entry.benchmarkId());
+                            updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.FAILED);
                         }
-                        ies.pauseExecution();
-                        updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.PAUSED);
-                    } catch (Throwable t) {
-                        logger.error("benchmark [{}]: failed to pause", t, entry.benchmarkId());
-                        updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.FAILED);
                     }
                     break;
                 case ABORTED:
-                    if (ies == null || (entry.nodeStateMap().get(nodeId()) == BenchmarkMetaData.Entry.NodeState.COMPLETED &&
-                                        entry.nodeStateMap().get(nodeId()) == BenchmarkMetaData.Entry.NodeState.ABORTED &&
-                                        entry.nodeStateMap().get(nodeId()) == BenchmarkMetaData.Entry.NodeState.FAILED)) {
+                    if (entry.nodeStateMap().get(nodeId()) == BenchmarkMetaData.Entry.NodeState.COMPLETED &&
+                        entry.nodeStateMap().get(nodeId()) == BenchmarkMetaData.Entry.NodeState.ABORTED &&
+                        entry.nodeStateMap().get(nodeId()) == BenchmarkMetaData.Entry.NodeState.FAILED) {
                         break;
                     }
 
-                    if (ies.canAbortExecution()) {
+                    if (state.abort()) {
                         try {
-                            synchronized (ies.executorLock) {
-                                executor.abort(entry.benchmarkId());
-                            }
-                            logger.debug("benchmark [{}]: aborted", entry.benchmarkId());
+                            logger.debug("benchmark [{}]: aborting execution", entry.benchmarkId());
+                            state.benchmarkSemaphores.abortAllCompetitors();
+                            state.response.state(BenchmarkStartResponse.State.ABORTED);
                             updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.ABORTED);
                         } catch (Throwable t) {
                             logger.error("benchmark [{}]: failed to abort", t, entry.benchmarkId());
@@ -199,15 +214,8 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
                     }
                     break;
                 case COMPLETED:
-                    if (ies == null) {
-                        break;
-                    }
-
-                    synchronized (ies.executorLock) {
-                        executor.clear(entry.benchmarkId());
-                    }
-                    benchmarks.remove(entry.benchmarkId());
-                    logger.debug("benchmark [{}]: cleared", entry.benchmarkId());
+                    states.remove(entry.benchmarkId());
+                    logger.debug("benchmark [{}]: completed", entry.benchmarkId());
                     break;
                 default:
                     throw new ElasticsearchIllegalStateException("benchmark [" + entry.benchmarkId() + "]: illegal state [" + entry.state() + "]");
@@ -239,25 +247,24 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
             logger.debug("benchmark [{}]: received definition", response.benchmarkId);
 
             // Update our internal bookkeeping
-            final InternalExecutorState ies = benchmarks.get(response.benchmarkId);
-            if (ies == null) {
+            final State state = states.get(response.benchmarkId);
+            if (state == null) {
                 throw new ElasticsearchIllegalStateException("benchmark [" + response.benchmarkId + "]: missing internal state");
             }
-            ies.request = response.benchmarkStartRequest;
 
+            state.request = response.benchmarkStartRequest;
             BenchmarkMetaData.Entry.NodeState newNodeState = BenchmarkMetaData.Entry.NodeState.READY;
+            state.benchmarkSemaphores = new BenchmarkSemaphores(state.request.competitors());
 
             try {
-                // Initialize the benchmark state inside the executor
-                synchronized (ies.executorLock) {
-                    executor.create(response.benchmarkStartRequest);
-                }
+                // Initialize the benchmark response payload
+                final BenchmarkStartResponse bsr = new BenchmarkStartResponse(state.benchmarkId, new HashMap<String, CompetitionResult>());
+                bsr.state(BenchmarkStartResponse.State.RUNNING);
+                bsr.verbose(state.request.verbose());
+                state.response = bsr;
             } catch (Throwable t) {
                 logger.error("benchmark [{}]: failed to create", t, response.benchmarkId);
-                benchmarks.remove(benchmarkId);
-                synchronized (ies.executorLock) {
-                    executor.clear(benchmarkId);
-                }
+                states.remove(benchmarkId);
                 newNodeState = BenchmarkMetaData.Entry.NodeState.FAILED;
             }
 
@@ -271,13 +278,7 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
         @Override
         public void handleException(TransportException e) {
             logger.error("benchmark [{}]: failed to receive definition - cannot execute", e, benchmarkId);
-            benchmarks.remove(benchmarkId);
-            final InternalExecutorState ies = benchmarks.get(benchmarkId);
-            if (ies != null) {
-                synchronized (ies.executorLock) {
-                    executor.clear(benchmarkId);
-                }
-            }
+            states.remove(benchmarkId);
         }
 
         @Override
@@ -308,13 +309,7 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
         @Override
         public void handleException(TransportException e) {
             logger.error("benchmark [{}]: failed to receive state change acknowledgement - cannot execute", e, benchmarkId);
-            benchmarks.remove(benchmarkId);
-            final InternalExecutorState ies = benchmarks.get(benchmarkId);
-            if (ies != null) {
-                synchronized (ies.executorLock) {
-                    executor.clear(benchmarkId);
-                }
-            }
+            states.remove(benchmarkId);
         }
 
         @Override
@@ -338,18 +333,18 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
         @Override
         public void messageReceived(final BenchmarkStatusTransportRequest request, final TransportChannel channel) throws Exception {
 
-            final InternalExecutorState ies = benchmarks.get(request.benchmarkId);
-
-            if (ies == null) {
+            final State state = states.get(request.benchmarkId);
+            if (state == null) {
                 channel.sendResponse(new ElasticsearchIllegalStateException("benchmark [" + request.benchmarkId + "]: missing internal state"));
                 return;
             }
 
             try {
-                if (ies.isComplete()) {
-                    channel.sendResponse(new BenchmarkStatusNodeActionResponse(ies.benchmarkId, nodeId(), ies.response));
+                if (state.complete()) {
+                    channel.sendResponse(new BenchmarkStatusNodeActionResponse(state.benchmarkId, nodeId(), state.response));
                 } else {
-                    final BenchmarkStatusNodeActionResponse status = executor.status(request.benchmarkId);
+                    final BenchmarkStatusNodeActionResponse status = new BenchmarkStatusNodeActionResponse(state.benchmarkId, nodeId());
+                    status.response(state.response);
                     if (!status.hasErrors()) {
                         channel.sendResponse(status);
                     } else {
@@ -391,71 +386,100 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
         });
     }
 
-    protected static final class InternalExecutorState {
+    public static class BenchmarkSemaphores {
+
+        private final ImmutableOpenMap<String, StoppableSemaphore> semaphores;
+
+        BenchmarkSemaphores(List<BenchmarkCompetitor> competitors) {
+            ImmutableOpenMap.Builder<String, StoppableSemaphore> builder = ImmutableOpenMap.builder();
+            for (BenchmarkCompetitor competitor : competitors) {
+                builder.put(competitor.name(), new StoppableSemaphore(competitor.settings().concurrency()));
+            }
+            semaphores = builder.build();
+        }
+
+        void stopAllCompetitors() {
+            for (ObjectObjectCursor<String, StoppableSemaphore> entry : semaphores) {
+                entry.value.stop();
+            }
+        }
+
+        void abortAllCompetitors() {
+            for (ObjectObjectCursor<String, StoppableSemaphore> entry : semaphores) {
+                entry.value.stop();
+            }
+        }
+
+        void pauseAllCompetitors() throws InterruptedException {
+            for (ObjectObjectCursor<String, StoppableSemaphore> entry : semaphores) {
+                entry.value.tryAcquireAll(TIMEOUT, TIMEUNIT);
+            }
+        }
+
+        void resumeAllCompetitors() {
+            for (ObjectObjectCursor<String, StoppableSemaphore> entry : semaphores) {
+                entry.value.releaseAll();
+            }
+        }
+
+        StoppableSemaphore competitorSemaphore(String name) {
+            return semaphores.get(name);
+        }
+    }
+
+    protected static final class State {
 
         private final String benchmarkId;
         private BenchmarkStartRequest request;
         private BenchmarkStartResponse response;
+        private BenchmarkSemaphores benchmarkSemaphores;
 
-        private volatile boolean running;
-        private volatile boolean paused;
-        private volatile boolean complete;
+        private volatile boolean initialized = false;
+        private volatile boolean started = false;
+        private volatile boolean paused = false;
+        private volatile boolean complete = false;
 
-        private final Object lock = new Object();
-        private final Object executorLock = new Object();
-
-        InternalExecutorState(String benchmarkId) {
+        State(final String benchmarkId) {
             this.benchmarkId = benchmarkId;
         }
 
-        boolean canStartExecution() {
-            synchronized (lock) {
-                if (!running && !complete) {
-                    running = true;
-                    return true;
-                }
+        public boolean initialize() {
+            if (!initialized) {
+                initialized = true;
+                return true;
             }
             return false;
         }
 
-        void stopExecution() {
-            synchronized (lock) {
-                if (running) {
-                    running = false;
-                    complete = true;
-                }
-            }
-        }
-
-        void pauseExecution() {
-            synchronized (lock) {
-                if (running && !paused && !complete) {
-                    paused = true;
-                }
-            }
-        }
-
-        boolean canResumeExecution() {
-            synchronized (lock) {
-                if (paused && running && !complete) {
-                    paused = false;
-                    return true;
-                }
+        public boolean start() {
+            if (initialized && !started) {
+                started = true;
+                return true;
             }
             return false;
         }
 
-        boolean canAbortExecution() {
-            synchronized (lock) {
-                if (running) {
-                    running = false;
-                    return true;
-                }
+        public boolean pause() {
+            if (initialized && started && !paused) {
+                paused = true;
+                return true;
             }
             return false;
         }
 
-        boolean isComplete() {
+        public boolean resume() {
+            if (initialized && started && paused) {
+                paused = false;
+                return true;
+            }
+            return false;
+        }
+
+        public boolean abort() {
+            return initialized;
+        }
+
+        public boolean complete() {
             return complete;
         }
     }

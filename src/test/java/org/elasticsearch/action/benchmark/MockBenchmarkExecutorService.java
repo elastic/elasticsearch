@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.benchmark.competition.CompetitionIteration;
 import org.elasticsearch.action.benchmark.start.BenchmarkStartRequest;
+import org.elasticsearch.action.benchmark.start.BenchmarkStartResponse;
 import org.elasticsearch.action.benchmark.status.BenchmarkStatusNodeActionResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
@@ -110,7 +111,8 @@ public final class MockBenchmarkExecutorService extends BenchmarkExecutorService
         }
 
         @Override
-        public BenchmarkStatusNodeActionResponse start(BenchmarkStartRequest request)
+        public BenchmarkStatusNodeActionResponse start(BenchmarkStartRequest request, BenchmarkStartResponse benchmarkStartResponse,
+                                                       BenchmarkExecutorService.BenchmarkSemaphores benchmarkSemaphores)
             throws ElasticsearchException {
 
             if (control != null) {
@@ -122,7 +124,7 @@ public final class MockBenchmarkExecutorService extends BenchmarkExecutorService
                 }
             }
 
-            return super.start(request);
+            return super.start(request, benchmarkStartResponse, benchmarkSemaphores);
         }
 
         protected CompetitionIteration iterate(final String benchmarkId, final BenchmarkCompetitor competitor,

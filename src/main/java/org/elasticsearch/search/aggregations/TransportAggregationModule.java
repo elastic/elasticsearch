@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
@@ -34,6 +37,7 @@ import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.TransportSignificantTermsHeuristicModule;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -54,7 +58,7 @@ import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCou
 /**
  * A module that registers all the transport streams for the addAggregation
  */
-public class TransportAggregationModule extends AbstractModule {
+public class TransportAggregationModule extends AbstractModule implements SpawnModules {
 
     @Override
     protected void configure() {
@@ -93,5 +97,10 @@ public class TransportAggregationModule extends AbstractModule {
         InternalReverseNested.registerStream();
         InternalTopHits.registerStreams();
         InternalGeoBounds.registerStream();
+    }
+
+    @Override
+    public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(new TransportSignificantTermsHeuristicModule());
     }
 }

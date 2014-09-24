@@ -208,8 +208,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Override
     protected void doStart() throws ElasticsearchException {
 
-        // we update the nodes to know the local node, but not start it.
-        nodesFD.updateNodes(clusterService.state());
+        nodesFD.setLocalNode(clusterService.localNode());
         pingService.start();
 
         // start the join thread from a cluster state update. See {@link JoinThreadControl} for details.

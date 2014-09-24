@@ -34,7 +34,7 @@ import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.elasticsearch.action.search.type.TransportSearchHelper.buildScrollId;
@@ -67,7 +67,7 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
         }
 
         @Override
-        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<QueryFetchSearchResult> listener) {
+        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request, SearchServiceListener<QueryFetchSearchResult> listener) {
             searchService.sendExecuteFetch(node, request, listener);
         }
 

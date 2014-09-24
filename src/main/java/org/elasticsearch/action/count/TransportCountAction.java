@@ -47,7 +47,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -170,9 +170,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         SearchContext context = new DefaultSearchContext(0,
-                new ShardSearchRequest(request).types(request.types())
-                        .filteringAliases(request.filteringAliases())
-                        .nowInMillis(request.nowInMillis()),
+                new ShardSearchLocalRequest(request.types(), request.nowInMillis(), request.filteringAliases()),
                 shardTarget, indexShard.acquireSearcher("count"), indexService, indexShard,
                 scriptService, cacheRecycler, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter());
         SearchContext.setCurrent(context);

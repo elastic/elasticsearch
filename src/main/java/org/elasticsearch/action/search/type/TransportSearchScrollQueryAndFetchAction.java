@@ -149,7 +149,6 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
                     }
-                } else {
                 }
             }
         }

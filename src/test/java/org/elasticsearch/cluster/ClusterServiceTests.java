@@ -603,7 +603,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 1)
-                .put("discovery.zen.ping_timeout", "200ms")
+                .put("discovery.zen.ping_timeout", "400ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .put("plugin.types", TestPlugin.class.getName())
                 .build();

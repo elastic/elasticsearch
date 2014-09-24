@@ -230,7 +230,7 @@ public final class DistributorDirectory extends BaseDirectory {
         Directory directory = getDirectory(from);
         if (nameDirMapping.putIfAbsent(to, directory) != null) {
             throw new IOException("Can't rename file from " + from
-                    + " to: " + to + "target file already exists");
+                    + " to: " + to + ": target file already exists");
         }
         boolean success = false;
         try {

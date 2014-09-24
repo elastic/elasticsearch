@@ -80,6 +80,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.TransportSearchModule;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificantTermsHeuristicModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportModule;
@@ -183,6 +184,7 @@ public class TransportClient extends AbstractClient {
         modules.add(new ActionModule(true));
         modules.add(new ClientTransportModule());
         modules.add(new CircuitBreakerModule(this.settings));
+        modules.add(new SignificantTermsHeuristicModule());
 
         injector = modules.createInjector();
 

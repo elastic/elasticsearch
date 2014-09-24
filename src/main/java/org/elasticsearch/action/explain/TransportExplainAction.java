@@ -45,7 +45,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -117,10 +117,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         }
 
         SearchContext context = new DefaultSearchContext(
-                0,
-                new ShardSearchRequest(request).types(new String[]{request.type()})
-                        .filteringAliases(request.filteringAlias())
-                        .nowInMillis(request.nowInMillis),
+                0, new ShardSearchLocalRequest(new String[]{request.type()}, request.nowInMillis, request.filteringAlias()),
                 null, result.searcher(), indexService, indexShard,
                 scriptService, cacheRecycler, pageCacheRecycler,
                 bigArrays, threadPool.estimatedTimeInMillisCounter()

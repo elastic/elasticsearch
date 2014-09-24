@@ -220,6 +220,33 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         assertMaster(masterNode, nodes);
     }
 
+
+    /** Verify that nodes fault detection works after master (re) election */
+    @Test
+    @TestLogging(value = "cluster.service:TRACE,indices.recovery:TRACE")
+    public void testNodesFDAfterMasterReelection() throws Exception {
+        startCluster(3);
+
+        logger.info("stopping current master");
+        internalCluster().stopCurrentMasterNode();
+
+        ensureStableCluster(2);
+
+        String master = internalCluster().getMasterName();
+        String nonMaster = null;
+        for (String node : internalCluster().getNodeNames()) {
+            if (!node.equals(master)) {
+                nonMaster = node;
+            }
+        }
+
+        logger.info("--> isolating [{}]", nonMaster);
+        addRandomIsolation(nonMaster).startDisrupting();
+
+        logger.info("--> waiting for master to remove it");
+        ensureStableCluster(1, master);
+    }
+
     /**
      * Verify that the proper block is applied when nodes loose their master
      */

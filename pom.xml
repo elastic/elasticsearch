@@ -17,6 +17,10 @@
     <!-- needed for some test features for now, remove with 1.3 release -->
     <repositories>
         <repository>
+            <id>Lucene snapshots</id>
+            <url>https://download.elasticsearch.org/lucenesnapshots/</url>
+        </repository>
+        <repository>
             <id>oss.sonatype.org-snapshot</id>
             <url>http://oss.sonatype.org/content/repositories/snapshots</url>
             <releases>
@@ -30,7 +34,8 @@
     </repositories>
 
     <properties>
-        <lucene.version>4.10.0</lucene.version>
+        <lucene.version>4.10.1</lucene.version>
+        <lucene.maven.version>4.10.1-snapshot-1627368</lucene.maven.version>
         <elasticsearch.version>1.4.0.Beta-SNAPSHOT</elasticsearch.version>
 
         <tests.jvms>auto</tests.jvms>
@@ -50,7 +55,7 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-test-framework</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>

@@ -124,7 +124,7 @@ public class StoreFileMetaData implements Streamable {
             String versionString = in.readOptionalString();
             writtenBy = Lucene.parseVersionLenient(versionString, null);
         }
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0_Beta1)) {
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_3_3)) {
             hash = in.readBytesRef();
         } else {
             hash = new BytesRef();
@@ -139,7 +139,7 @@ public class StoreFileMetaData implements Streamable {
         if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_3_0)) {
             out.writeOptionalString(writtenBy == null ? null : writtenBy.toString());
         }
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0_Beta1)) {
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_3_3)) {
             out.writeBytesRef(hash);
         }
     }

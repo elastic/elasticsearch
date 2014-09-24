@@ -135,9 +135,10 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
         // make sure we don't ping
         settings.put(FaultDetection.SETTING_CONNECT_ON_NETWORK_DISCONNECT, shouldRetry)
                 .put(FaultDetection.SETTING_PING_INTERVAL, "5m");
-        ClusterName clusterName = new ClusterName("test");
-        NodesFaultDetection nodesFD = new NodesFaultDetection(settings.build(), threadPool, serviceA, clusterName);
-        nodesFD.start(ClusterState.builder(clusterName).nodes(buildNodesForA(true)).build());
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(buildNodesForA(true)).build();
+        NodesFaultDetection nodesFD = new NodesFaultDetection(settings.build(), threadPool, serviceA, clusterState.getClusterName());
+        nodesFD.setLocalNode(clusterState.nodes().localNode());
+        nodesFD.start(clusterState);
         final String[] failureReason = new String[1];
         final DiscoveryNode[] failureNode = new DiscoveryNode[1];
         final CountDownLatch notified = new CountDownLatch(1);

@@ -106,6 +106,7 @@ import org.elasticsearch.rest.action.suggest.RestSuggestAction;
 import org.elasticsearch.rest.action.template.RestDeleteSearchTemplateAction;
 import org.elasticsearch.rest.action.template.RestGetSearchTemplateAction;
 import org.elasticsearch.rest.action.template.RestPutSearchTemplateAction;
+import org.elasticsearch.rest.action.template.RestRenderSearchTemplate;
 import org.elasticsearch.rest.action.termvector.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
@@ -226,6 +227,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestGetSearchTemplateAction.class).asEagerSingleton();
         bind(RestPutSearchTemplateAction.class).asEagerSingleton();
         bind(RestDeleteSearchTemplateAction.class).asEagerSingleton();
+        bind(RestRenderSearchTemplate.class).asEagerSingleton();
 
         // Scripts API
         bind(RestGetIndexedScriptAction.class).asEagerSingleton();

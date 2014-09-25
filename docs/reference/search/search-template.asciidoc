@@ -288,3 +288,24 @@ GET /_search/template
 }
 ------------------------------------------
 <1> Name of the the query template stored in the .scripts index.
+[added 1.5.0]
+===== Render template
+
+You can get the rendered version of a template by calling 
+[source,js]
+GET /_render/template
+------------------------------------------
+GET /_render/template
+{
+    "template": {
+        <1>
+    },
+    "params": {
+        <2>
+    }
+}
+------------------------------------------
+<1> The template as defined by the _search/template enpoint
+<2> The params for this template
+
+This will return a rendered version of this template.

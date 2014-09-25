@@ -1,0 +1,18 @@
+---
+"Render Template":
+
+  - do:
+      render_template:
+        body: { "template": { "query": { "{{foo}}": {}}, "size": "{{my_size}}" }, "params": { "foo": "match_all", "my_size": 10} }
+  - match: { "template": { "query": { "match_all": {} }, "size": "10"} }
+
+  - do:
+      put_template:
+        id: "1"
+        body: { "template": { "query": { "{{foo}}": {}}, "size": "{{my_size}}" } }
+  - match: { _id: "1" }
+
+  - do:
+      render_template:
+        body: { "template": { "id" : 1 }, "params": { "foo": "match_all", "my_size": 10} }
+  - match: { "template": { "query": { "match_all": {} }, "size": "10"} }

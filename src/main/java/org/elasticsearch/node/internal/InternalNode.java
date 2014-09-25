@@ -368,6 +368,7 @@ public final class InternalNode implements Node {
         injector.getInstance(ScriptService.class).close();
 
         stopWatch.stop().start("thread_pool");
+        // TODO this should really use ThreadPool.terminate()
         injector.getInstance(ThreadPool.class).shutdown();
         try {
             injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);

@@ -49,7 +49,7 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testCachedExecutorType() {
+    public void testCachedExecutorType() throws InterruptedException {
         ThreadPool threadPool = new ThreadPool(
                 ImmutableSettings.settingsBuilder()
                         .put("threadpool.search.type", "cached")
@@ -101,12 +101,11 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
         // Make sure executor didn't change
         assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("cached"));
         assertThat(threadPool.executor(Names.SEARCH), sameInstance(oldExecutor));
-
-        threadPool.shutdown();
+        terminate(threadPool);
     }
 
     @Test
-    public void testFixedExecutorType() {
+    public void testFixedExecutorType() throws InterruptedException {
         ThreadPool threadPool = new ThreadPool(settingsBuilder()
                 .put("threadpool.search.type", "fixed")
                 .put("name","testCachedExecutorType").build(), null);
@@ -161,12 +160,12 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
                 .put("threadpool.search.queue", "500")
                 .build());
 
-        threadPool.shutdown();
+        terminate(threadPool);
     }
 
 
     @Test
-    public void testScalingExecutorType() {
+    public void testScalingExecutorType() throws InterruptedException {
         ThreadPool threadPool = new ThreadPool(settingsBuilder()
                 .put("threadpool.search.type", "scaling")
                 .put("threadpool.search.size", 10)
@@ -197,7 +196,7 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
         assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(10L));
         assertThat(threadPool.executor(Names.SEARCH), sameInstance(oldExecutor));
 
-        threadPool.shutdown();
+        terminate(threadPool);
     }
 
     @Test(timeout = 10000)
@@ -224,8 +223,9 @@ public class UpdateThreadPoolSettingsTests extends ElasticsearchTestCase {
         assertThat(((ThreadPoolExecutor) oldExecutor).isShutdown(), equalTo(true));
         assertThat(((ThreadPoolExecutor) oldExecutor).isTerminating(), equalTo(true));
         assertThat(((ThreadPoolExecutor) oldExecutor).isTerminated(), equalTo(false));
-        terminate(threadPool);
+        threadPool.shutdownNow(); // interrupt the thread
         latch.await();
+        terminate(threadPool);
     }
 
 }

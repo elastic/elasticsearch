@@ -279,16 +279,8 @@ public class TransportClient extends AbstractClient {
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             injector.getInstance(plugin).close();
         }
-
-        injector.getInstance(ThreadPool.class).shutdown();
         try {
-            injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-            Thread.currentThread().interrupt();
-        }
-        try {
-            injector.getInstance(ThreadPool.class).shutdownNow();
+            ThreadPool.terminate(injector.getInstance(ThreadPool.class), 10, TimeUnit.SECONDS);
         } catch (Exception e) {
             // ignore
         }

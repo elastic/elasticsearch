@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class UnicastZenPingTests extends ElasticsearchTestCase {
 
     @Test
-    public void testSimplePings() {
+    public void testSimplePings() throws InterruptedException {
         Settings settings = ImmutableSettings.EMPTY;
         int startPort = 11000 + randomIntBetween(0, 1000);
         int endPort = startPort + 10;
@@ -132,7 +132,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
             zenPingB.close();
             transportServiceA.close();
             transportServiceB.close();
-            threadPool.shutdown();
+            terminate(threadPool);
         }
     }
 }

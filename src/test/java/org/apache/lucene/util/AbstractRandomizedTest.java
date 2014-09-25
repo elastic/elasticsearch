@@ -371,12 +371,16 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     // Suite and test case setup/ cleanup.
     // -----------------------------------------------------------------
 
+    /** MockFSDirectoryService sets this: */
+    public static boolean checkIndexFailed;
+
     /**
      * For subclasses to override. Overrides must call {@code super.setUp()}.
      */
     @Before
     public void setUp() throws Exception {
         parentChainCallRule.setupCalled = true;
+        checkIndexFailed = false;
     }
 
     /**
@@ -385,6 +389,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     @After
     public void tearDown() throws Exception {
         parentChainCallRule.teardownCalled = true;
+        assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
     }
 
 

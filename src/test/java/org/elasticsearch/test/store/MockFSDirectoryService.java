@@ -21,9 +21,11 @@ package org.elasticsearch.test.store;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.StoreRateLimiting;
+import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -60,15 +62,15 @@ public class MockFSDirectoryService extends FsDirectoryService {
         final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         helper = new MockDirectoryHelper(shardId, indexSettings, logger, random, seed);
-        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, random.nextDouble() < 0.1);
+        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true);
 
         delegateService = helper.randomDirectorService(indexStore);
         if (checkIndexOnClose) {
             final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
                 @Override
-                public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
+                public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
                     if (shardId.equals(sid) && indexShard != null) {
-                        checkIndex(((InternalIndexShard) indexShard).store());
+                        checkIndex(((InternalIndexShard) indexShard).store(), sid);
                     }
                     service.indicesLifecycle().removeListener(this);
                 }
@@ -87,19 +89,24 @@ public class MockFSDirectoryService extends FsDirectoryService {
         throw new UnsupportedOperationException();
     }
 
-
-    public  void checkIndex(Store store) throws IndexShardException {
+    public void checkIndex(Store store, ShardId shardId) throws IndexShardException {
         try {
-            if (!Lucene.indexExists(store.directory())) {
+            Directory dir = store.directory();
+            if (!Lucene.indexExists(dir)) {
                 return;
             }
-            CheckIndex checkIndex = new CheckIndex(store.directory());
+            if (IndexWriter.isLocked(dir)) {
+                AbstractRandomizedTest.checkIndexFailed = true;
+                throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
+            }
+            CheckIndex checkIndex = new CheckIndex(dir);
             BytesStreamOutput os = new BytesStreamOutput();
             PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
             checkIndex.setInfoStream(out);
             out.flush();
             CheckIndex.Status status = checkIndex.checkIndex();
             if (!status.clean) {
+                AbstractRandomizedTest.checkIndexFailed = true;
                 logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
                 throw new IndexShardException(shardId, "index check failure");
             } else {

@@ -53,7 +53,7 @@ the `term` suggester, but have a different `text`.
   "my-suggest-2" : {
     "text" : "the rottredam meetpu",
     "term" : {
-      "field" : "title",
+      "field" : "title"
     }
   }
 }

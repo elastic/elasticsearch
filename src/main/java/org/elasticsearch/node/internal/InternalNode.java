@@ -306,7 +306,7 @@ public final class InternalNode implements Node {
         return this;
     }
 
-    public void close() {
+    public synchronized void close() {
         if (lifecycle.started()) {
             stop();
         }

@@ -19,6 +19,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -54,16 +56,22 @@ public class ScrollIdSigningTests extends ShieldIntegrationTest {
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .setSize(randomIntBetween(1, 10)).get();
 
+        assertHitCount(response, docs.length);
+        int hits = response.getHits().hits().length;
+
         try {
             assertSigned(response.getScrollId());
             while (true) {
                 response = client().prepareSearchScroll(response.getScrollId())
                         .setScroll(TimeValue.timeValueMinutes(2)).get();
                 assertSigned(response.getScrollId());
+                assertHitCount(response, docs.length);
+                hits += response.getHits().hits().length;
                 if (response.getHits().getHits().length == 0) {
                     break;
                 }
             }
+            assertThat(hits, equalTo(docs.length));
         } finally {
             clearScroll(response.getScrollId());
         }

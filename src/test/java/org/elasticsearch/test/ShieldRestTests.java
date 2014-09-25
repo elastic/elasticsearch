@@ -8,12 +8,13 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.google.common.base.Charsets;
-import com.google.common.io.Files;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.shield.key.InternalKeyService;
 import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.test.rest.ElasticsearchRestTests;
@@ -55,6 +56,13 @@ public class ShieldRestTests extends ElasticsearchRestTests {
             "    '.*': ALL\n";
 
     static {
+        final byte[] key;
+        try {
+            key = InternalKeyService.generateKey();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
         InternalTestCluster.DEFAULT_SETTINGS_SOURCE = new SettingsSource() {
 
             @Override
@@ -70,7 +78,10 @@ public class ShieldRestTests extends ElasticsearchRestTests {
 
                 File folder = createFolder();
 
+                String keyFile = writeFile(folder, "system_key", key);
+
                 ImmutableSettings.Builder builder = ImmutableSettings.builder()
+                        .put(InternalKeyService.FILE_SETTING, keyFile)
                         .put("request.headers.Authorization", basicAuthHeaderValue(DEFAULT_USER_NAME, DEFAULT_PASSWORD.toCharArray()))
                         .put("discovery.zen.ping.multicast.enabled", false)
                         .put("discovery.type", "zen")
@@ -157,9 +168,13 @@ public class ShieldRestTests extends ElasticsearchRestTests {
     }
 
     static String createFile(File folder, String name, String content) {
+        return writeFile(folder, name, content.getBytes(Charsets.UTF_8));
+    }
+
+    static String writeFile(File folder, String name, byte[] content) {
         Path file = folder.toPath().resolve(name);
         try {
-            Files.write(content.getBytes(Charsets.UTF_8), file.toFile());
+            Streams.copy(content, file.toFile());
         } catch (IOException e) {
             throw new ElasticsearchException("Error writing file in test", e);
         }

@@ -140,5 +140,6 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
         actionsVersions.put(UnicastZenPing.ACTION_NAME_GTE_1_4, Version.V_1_4_0_Beta1);
 
         actionsVersions.put(SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME, Version.V_1_4_0_Beta1);
+        actionsVersions.put(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME, Version.V_1_4_0_Beta1);
     }
 }

@@ -143,5 +143,6 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
         post_1_4_actions.add(GetIndexAction.NAME);
         post_1_4_actions.add(UnicastZenPing.ACTION_NAME_GTE_1_4);
         post_1_4_actions.add(SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME);
+        post_1_4_actions.add(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME);
     }
 }

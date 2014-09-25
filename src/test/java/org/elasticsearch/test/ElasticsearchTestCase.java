@@ -530,20 +530,13 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         boolean terminated = true;
         for (ExecutorService service : services) {
             if (service != null) {
-                service.shutdown();
-                service.shutdownNow();
-                terminated &= service.awaitTermination(10, TimeUnit.SECONDS);
+                terminated &= ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
             }
         }
         return terminated;
     }
 
     public static boolean terminate(ThreadPool service) throws InterruptedException {
-        if (service != null) {
-            service.shutdown();
-            service.shutdownNow();
-            return service.awaitTermination(10, TimeUnit.SECONDS);
-        }
-        return true;
+        return ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
     }
 }

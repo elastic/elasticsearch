@@ -115,7 +115,7 @@ public class TemplateQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if (parameterMap.containsKey(currentFieldName)) {
                 type = parameterMap.get(currentFieldName);
-                if (token == XContentParser.Token.START_OBJECT && !parser.hasTextCharacters()) {
+                if (token == XContentParser.Token.START_OBJECT) {
                     XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
                     builder.copyCurrentStructure(parser);
                     templateNameOrTemplateContent = builder.string();

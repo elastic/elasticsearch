@@ -526,10 +526,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow
     public void testRandomIDsAndVersions() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
-                    ImmutableSettings.settingsBuilder()
-                    // Always run CheckIndex in the end:
-                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, true).build()));
+        createIndex("test");
         ensureGreen();
 
         // TODO: sometimes use _bulk API

@@ -38,10 +38,7 @@ public class FlushTest extends ElasticsearchIntegrationTest {
 
     @Test
     public void testWaitIfOngoing() throws InterruptedException {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
-                    ImmutableSettings.settingsBuilder()
-                    // Always run CheckIndex in the end:
-                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, true).build()));
+        createIndex("test");
         ensureGreen("test");
         final int numIters = scaledRandomIntBetween(10, 30);
         for (int i = 0; i < numIters; i++) {

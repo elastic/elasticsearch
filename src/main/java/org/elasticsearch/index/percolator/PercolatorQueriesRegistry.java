@@ -206,7 +206,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             context.setAllowUnmappedFields(allowUnmappedFields);
             return queryParserService.parseInnerQuery(context);
         } catch (IOException e) {
-            throw new QueryParsingException(queryParserService.index(), "Failed to parse", e);
+            throw new QueryParsingException(queryParserService.index(), "Failed to parse", parser.getTokenLocation(), e);
         } finally {
             if (type != null) {
                 QueryParseContext.setTypes(previousTypes);

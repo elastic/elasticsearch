@@ -94,7 +94,7 @@ public class GeoShapeQueryParser implements QueryParser {
                         } else if ("relation".equals(currentFieldName)) {
                             shapeRelation = ShapeRelation.getRelationByName(parser.text());
                             if (shapeRelation == null) {
-                                throw new QueryParsingException(parseContext.index(), "Unknown shape operation [" + parser.text() + " ]");
+                                throw new QueryParsingException(parseContext.index(), "Unknown shape operation [" + parser.text() + " ]", parser.getTokenLocation());
                             }
                         } else if ("indexed_shape".equals(currentFieldName) || "indexedShape".equals(currentFieldName)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -113,13 +113,13 @@ public class GeoShapeQueryParser implements QueryParser {
                                 }
                             }
                             if (id == null) {
-                                throw new QueryParsingException(parseContext.index(), "ID for indexed shape not provided");
+                                throw new QueryParsingException(parseContext.index(), "ID for indexed shape not provided", parser.getTokenLocation());
                             } else if (type == null) {
-                                throw new QueryParsingException(parseContext.index(), "Type for indexed shape not provided");
+                                throw new QueryParsingException(parseContext.index(), "Type for indexed shape not provided", parser.getTokenLocation());
                             }
                             shape = fetchService.fetch(id, type, index, shapePath);
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "[geo_shape] query does not support [" + currentFieldName + "]");
+                            throw new QueryParsingException(parseContext.index(), "[geo_shape] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                         }
                     }
                 }
@@ -129,26 +129,26 @@ public class GeoShapeQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[geo_shape] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[geo_shape] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
 
         if (shape == null) {
-            throw new QueryParsingException(parseContext.index(), "No Shape defined");
+            throw new QueryParsingException(parseContext.index(), "No Shape defined", parser.getTokenLocation());
         } else if (shapeRelation == null) {
-            throw new QueryParsingException(parseContext.index(), "No Shape Relation defined");
+            throw new QueryParsingException(parseContext.index(), "No Shape Relation defined", parser.getTokenLocation());
         }
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers == null || !smartNameFieldMappers.hasMapper()) {
-            throw new QueryParsingException(parseContext.index(), "Failed to find geo_shape field [" + fieldName + "]");
+            throw new QueryParsingException(parseContext.index(), "Failed to find geo_shape field [" + fieldName + "]", parser.getTokenLocation());
         }
 
         FieldMapper fieldMapper = smartNameFieldMappers.mapper();
         // TODO: This isn't the nicest way to check this
         if (!(fieldMapper instanceof GeoShapeFieldMapper)) {
-            throw new QueryParsingException(parseContext.index(), "Field [" + fieldName + "] is not a geo_shape");
+            throw new QueryParsingException(parseContext.index(), "Field [" + fieldName + "] is not a geo_shape", parser.getTokenLocation());
         }
 
         GeoShapeFieldMapper shapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;

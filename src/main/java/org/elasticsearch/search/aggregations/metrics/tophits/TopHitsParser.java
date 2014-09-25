@@ -93,7 +93,7 @@ public class TopHitsParser implements Aggregator.Parser {
                             topHitsContext.explain(parser.booleanValue());
                             break;
                         default:
-                            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].", parser.getTokenLocation());
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     switch (currentFieldName) {
@@ -105,7 +105,7 @@ public class TopHitsParser implements Aggregator.Parser {
                             scriptFieldsParseElement.parse(parser, topHitsContext);
                             break;
                         default:
-                            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].", parser.getTokenLocation());
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     switch (currentFieldName) {
@@ -114,10 +114,10 @@ public class TopHitsParser implements Aggregator.Parser {
                             fieldDataFieldsParseElement.parse(parser, topHitsContext);
                             break;
                         default:
-                            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].", parser.getTokenLocation());
                     }
                 } else {
-                    throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+                    throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].", parser.getTokenLocation());
                 }
             }
         } catch (Exception e) {

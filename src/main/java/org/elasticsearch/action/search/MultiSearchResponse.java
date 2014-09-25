@@ -44,14 +44,16 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     public static class Item implements Streamable {
         private SearchResponse response;
         private String failureMessage;
+        private ToXContent structuredExplanation;
 
         Item() {
 
         }
 
-        public Item(SearchResponse response, String failureMessage) {
+        public Item(SearchResponse response, String failureMessage, ToXContent addedErrorData) {
             this.response = response;
             this.failureMessage = failureMessage;
+            this.structuredExplanation = addedErrorData;
         }
 
         /**
@@ -103,6 +105,14 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
                 out.writeString(failureMessage);
             }
         }
+
+        public void writeAnyExplanation(XContentBuilder builder, Params params) throws IOException {
+            if (structuredExplanation != null) {
+                builder.startObject("explanation");
+                structuredExplanation.toXContent(builder, params);
+                builder.endObject();
+            }
+        }
     }
 
     private Item[] items;
@@ -151,6 +161,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
             if (item.isFailure()) {
                 builder.startObject();
                 builder.field(Fields.ERROR, item.getFailureMessage());
+                item.writeAnyExplanation(builder, params);
                 builder.endObject();
             } else {
                 builder.startObject();

@@ -20,8 +20,10 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -120,9 +122,11 @@ public class BytesRestResponse extends RestResponse {
     }
 
     private static XContentBuilder convert(RestChannel channel, RestStatus status, Throwable t) throws IOException {
-        XContentBuilder builder = channel.newBuilder().startObject()
-                .field("error", detailedMessage(t))
+        XContentBuilder builder = channel.newBuilder().startObject()        
                 .field("status", status.getStatus());
+        ExceptionsHelper.writeStructuredErrorExplanation(t, builder, ToXContent.EMPTY_PARAMS);
+        builder.field("error", detailedMessage(t));
+
         if (t != null && channel.request().paramAsBoolean("error_trace", false)) {
             builder.startObject("error_trace");
             boolean first = true;
@@ -149,6 +153,7 @@ public class BytesRestResponse extends RestResponse {
     }
 
     private static void buildThrowable(Throwable t, XContentBuilder builder) throws IOException {
+
         builder.field("message", t.getMessage());
         for (StackTraceElement stElement : t.getStackTrace()) {
             builder.startObject("at")

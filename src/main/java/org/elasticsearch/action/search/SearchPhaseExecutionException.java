@@ -20,27 +20,47 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
 
 /**
  *
  */
-public class SearchPhaseExecutionException extends ElasticsearchException {
+public class SearchPhaseExecutionException extends ElasticsearchException implements ToXContent {
 
     private final String phaseName;
 
     private ShardSearchFailure[] shardFailures;
+    private ToXContent firstStucturedExplanation;
 
     public SearchPhaseExecutionException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
         super(buildMessage(phaseName, msg, shardFailures));
         this.phaseName = phaseName;
         this.shardFailures = shardFailures;
+        findFirstParseError();
+        
     }
 
     public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
         super(buildMessage(phaseName, msg, shardFailures), cause);
         this.phaseName = phaseName;
         this.shardFailures = shardFailures;
+        findFirstParseError();
+    }
+
+    private void findFirstParseError() {
+        if (shardFailures != null) {
+            //record only the first parse failure identified by the failed shards (most shards should concur on reasons for failure)
+            for (ShardSearchFailure shardFailure : shardFailures) {
+                if (shardFailure.hasXContent()) {
+                    firstStucturedExplanation = shardFailure;
+                    break;
+                }
+            }
+        }
     }
 
     @Override
@@ -83,4 +103,16 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         }
         return sb.toString();
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (firstStucturedExplanation != null) {
+            firstStucturedExplanation.toXContent(builder, params);
+        }
+        return builder;
+    }
+
+    public boolean hasXContent() {
+        return firstStucturedExplanation != null;
+    } 
 }

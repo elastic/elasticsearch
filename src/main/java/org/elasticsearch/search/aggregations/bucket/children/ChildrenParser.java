@@ -56,30 +56,32 @@ public class ChildrenParser implements Aggregator.Parser {
                 if ("type".equals(currentFieldName)) {
                     childType = parser.text();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].", 
+                            parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].", 
+                        parser.getTokenLocation());
             }
         }
 
         if (childType == null) {
-            throw new SearchParseException(context, "Missing [child_type] field for children aggregation [" + aggregationName + "]");
+            throw new SearchParseException(context, "Missing [child_type] field for children aggregation [" + aggregationName + "]", parser.getTokenLocation());
         }
 
         DocumentMapper childDocMapper = context.mapperService().documentMapper(childType);
         if (childDocMapper == null) {
-            throw new SearchParseException(context, "[children] No mapping for for type [" + childType + "]");
+            throw new SearchParseException(context, "[children] No mapping for for type [" + childType + "]", parser.getTokenLocation());
         }
         ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
         if (!parentFieldMapper.active()) {
-            throw new SearchParseException(context, "[children] _parent field not configured");
+            throw new SearchParseException(context, "[children] _parent field not configured", parser.getTokenLocation());
         }
 
         String parentType = parentFieldMapper.type();
         DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new SearchParseException(context, "[children]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
+            throw new SearchParseException(context, "[children]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]", parser.getTokenLocation());
         }
 
         Filter parentFilter = context.filterCache().cache(parentDocMapper.typeFilter());

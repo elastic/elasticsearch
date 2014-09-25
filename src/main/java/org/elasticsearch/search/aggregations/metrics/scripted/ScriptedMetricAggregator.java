@@ -33,7 +33,10 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 
 public class ScriptedMetricAggregator extends MetricsAggregator {
@@ -179,7 +182,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
                 clone = original;
             } else {
                 throw new SearchParseException(context, "Can only clone primitives, String, ArrayList, and HashMap. Found: "
-                        + original.getClass().getCanonicalName());
+                        + original.getClass().getCanonicalName(), null);
             }
             return clone;
         }

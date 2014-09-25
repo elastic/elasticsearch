@@ -35,11 +35,12 @@ public final class QueryParserUtils {
     public static void ensureNotDeleteByQuery(String name, QueryParseContext parseContext) {
         SearchContext context = SearchContext.current();
         if (context == null) {
-            throw new QueryParsingException(parseContext.index(), "[" + name + "] query and filter requires a search context");
+            throw new QueryParsingException(parseContext.index(), "[" + name + "] query and filter requires a search context", null);
         }
 
         if (TransportShardDeleteByQueryAction.DELETE_BY_QUERY_API.equals(context.source())) {
-            throw new QueryParsingException(parseContext.index(), "[" + name + "] query and filter unsupported in delete_by_query api");
+            throw new QueryParsingException(parseContext.index(), "[" + name + "] query and filter unsupported in delete_by_query api",
+                    null);
         }
     }
 

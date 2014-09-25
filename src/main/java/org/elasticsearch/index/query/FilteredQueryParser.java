@@ -142,7 +142,8 @@ public class FilteredQueryParser implements QueryParser {
                     filterFound = true;
                     filter = parseContext.parseInnerFilter();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[filtered] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[filtered] query does not support [" + currentFieldName + "]", 
+                            parser.getTokenLocation());
                 }
             } else if (token.isValue()) {
                 if ("strategy".equals(currentFieldName)) {
@@ -164,7 +165,7 @@ public class FilteredQueryParser implements QueryParser {
                     } else if ("leap_frog_filter_first".equals(value) || "leapFrogFilterFirst".equals(value)) {
                         filterStrategy = FilteredQuery.LEAP_FROG_FILTER_FIRST_STRATEGY;
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[filtered] strategy value not supported [" + value + "]");
+                        throw new QueryParsingException(parseContext.index(), "[filtered] strategy value not supported [" + value + "]", parser.getTokenLocation());
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
@@ -175,7 +176,7 @@ public class FilteredQueryParser implements QueryParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[filtered] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[filtered] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }

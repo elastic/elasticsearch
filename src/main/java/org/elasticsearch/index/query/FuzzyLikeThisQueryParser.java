@@ -100,7 +100,7 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[flt] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[flt] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("fields".equals(currentFieldName)) {
@@ -109,13 +109,13 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
                         fields.add(parseContext.indexName(parser.text()));
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[flt] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[flt] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
 
         if (likeText == null) {
-            throw new QueryParsingException(parseContext.index(), "fuzzy_like_this requires 'like_text' to be specified");
+            throw new QueryParsingException(parseContext.index(), "fuzzy_like_this requires 'like_text' to be specified", parser.getTokenLocation());
         }
 
         if (analyzer == null) {
@@ -126,7 +126,7 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
         if (fields == null) {
             fields = Lists.newArrayList(parseContext.defaultField());
         } else if (fields.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "fuzzy_like_this requires 'fields' to be non-empty");
+            throw new QueryParsingException(parseContext.index(), "fuzzy_like_this requires 'fields' to be non-empty", parser.getTokenLocation());
         }
         for (Iterator<String> it = fields.iterator(); it.hasNext(); ) {
             final String fieldName = it.next();

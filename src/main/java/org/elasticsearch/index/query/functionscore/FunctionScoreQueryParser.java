@@ -190,7 +190,7 @@ public class FunctionScoreQueryParser implements QueryParser {
             Float functionWeight = null;
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new QueryParsingException(parseContext.index(), NAME + ": malformed query, expected a "
-                        + XContentParser.Token.START_OBJECT + " while parsing functions but got a " + token);
+                        + XContentParser.Token.START_OBJECT + " while parsing functions but got a " + token, parser.getTokenLocation());
             } else {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -240,7 +240,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         } else if ("first".equals(scoreMode)) {
             return FiltersFunctionScoreQuery.ScoreMode.First;
         } else {
-            throw new QueryParsingException(parseContext.index(), NAME + " illegal score_mode [" + scoreMode + "]");
+            throw new QueryParsingException(parseContext.index(), NAME + " illegal score_mode [" + scoreMode + "]", parser.getTokenLocation());
         }
     }
 
@@ -248,7 +248,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         String boostMode = parser.text();
         CombineFunction cf = combineFunctionsMap.get(boostMode);
         if (cf == null) {
-            throw new QueryParsingException(parseContext.index(), NAME + " illegal boost_mode [" + boostMode + "]");
+            throw new QueryParsingException(parseContext.index(), NAME + " illegal boost_mode [" + boostMode + "]", parser.getTokenLocation());
         }
         return cf;
     }

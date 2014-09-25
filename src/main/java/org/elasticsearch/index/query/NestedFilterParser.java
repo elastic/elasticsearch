@@ -84,7 +84,7 @@ public class NestedFilterParser implements FilterParser {
                         filterFound = true;
                         filter = parseContext.parseInnerFilter();
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[nested] filter does not support [" + currentFieldName + "]");
+                        throw new QueryParsingException(parseContext.index(), "[nested] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
                     }
                 } else if (token.isValue()) {
                     if ("path".equals(currentFieldName)) {
@@ -98,15 +98,15 @@ public class NestedFilterParser implements FilterParser {
                     } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                         cacheKey = new CacheKeyFilter.Key(parser.text());
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[nested] filter does not support [" + currentFieldName + "]");
+                        throw new QueryParsingException(parseContext.index(), "[nested] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
                     }
                 }
             }
             if (!queryFound && !filterFound) {
-                throw new QueryParsingException(parseContext.index(), "[nested] requires either 'query' or 'filter' field");
+                throw new QueryParsingException(parseContext.index(), "[nested] requires either 'query' or 'filter' field", parser.getTokenLocation());
             }
             if (path == null) {
-                throw new QueryParsingException(parseContext.index(), "[nested] requires 'path' field");
+                throw new QueryParsingException(parseContext.index(), "[nested] requires 'path' field", parser.getTokenLocation());
             }
 
             if (query == null && filter == null) {
@@ -121,14 +121,14 @@ public class NestedFilterParser implements FilterParser {
 
             MapperService.SmartNameObjectMapper mapper = parseContext.smartObjectMapper(path);
             if (mapper == null) {
-                throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]");
+                throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]", parser.getTokenLocation());
             }
             ObjectMapper objectMapper = mapper.mapper();
             if (objectMapper == null) {
-                throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]");
+                throw new QueryParsingException(parseContext.index(), "[nested] failed to find nested object under path [" + path + "]", parser.getTokenLocation());
             }
             if (!objectMapper.nested().isNested()) {
-                throw new QueryParsingException(parseContext.index(), "[nested] nested object under path [" + path + "] is not of nested type");
+                throw new QueryParsingException(parseContext.index(), "[nested] nested object under path [" + path + "] is not of nested type", parser.getTokenLocation());
             }
 
             BitDocIdSetFilter childFilter = parseContext.bitsetFilter(objectMapper.nestedTypeFilter());

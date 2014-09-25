@@ -19,24 +19,53 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.SearchContext;
 
-/**
- *
- */
-public class SearchParseException extends SearchContextException {
+import java.io.IOException;
 
-    public SearchParseException(SearchContext context, String msg) {
-        super(context, "Parse Failure [" + msg + "]");
+/**
+ * We only offer constructors that takes XContentLocation parameter to encourage
+ * developers of parsers to pass detailed information back with all exceptions.
+ */
+public class SearchParseException extends SearchContextException implements ToXContent{
+
+    private ToXContent xContentExplanation;
+
+    public SearchParseException(SearchContext context, String msg, @Nullable XContentLocation location) {
+        this(context, msg, null, location);
     }
 
-    public SearchParseException(SearchContext context, String msg, Throwable cause) {
+
+    public SearchParseException(SearchContext context, String msg, Throwable cause, @Nullable XContentLocation location) {
         super(context, "Parse Failure [" + msg + "]", cause);
+        if (location != null) {
+            xContentExplanation = new ParseErrorDetails(msg, location.getLineNumber(), location.getColumnNumber());
+        } else {
+            if (cause instanceof ToXContent) {
+                xContentExplanation = (ToXContent) cause;
+            }
+        }
     }
 
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;
     }
+
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (xContentExplanation != null) {
+            xContentExplanation.toXContent(builder, params);
+            return builder;
+        }
+        return builder;
+    }
+
+    
 }

@@ -63,11 +63,11 @@ public class SpanFirstQueryParser implements QueryParser {
                 if ("match".equals(currentFieldName)) {
                     Query query = parseContext.parseInnerQuery();
                     if (!(query instanceof SpanQuery)) {
-                        throw new QueryParsingException(parseContext.index(), "spanFirst [match] must be of type span query");
+                        throw new QueryParsingException(parseContext.index(), "spanFirst [match] must be of type span query", parser.getTokenLocation());
                     }
                     match = (SpanQuery) query;
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[span_first] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[span_first] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
@@ -77,15 +77,15 @@ public class SpanFirstQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[span_first] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[span_first] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
         if (match == null) {
-            throw new QueryParsingException(parseContext.index(), "spanFirst must have [match] span query clause");
+            throw new QueryParsingException(parseContext.index(), "spanFirst must have [match] span query clause", parser.getTokenLocation());
         }
         if (end == -1) {
-            throw new QueryParsingException(parseContext.index(), "spanFirst must have [end] set for it");
+            throw new QueryParsingException(parseContext.index(), "spanFirst must have [end] set for it", parser.getTokenLocation());
         }
 
         SpanFirstQuery query = new SpanFirstQuery(match, end);

@@ -53,13 +53,13 @@ public class LimitFilterParser implements FilterParser {
                 if ("value".equals(currentFieldName)) {
                     limit = parser.intValue();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[limit] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[limit] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
 
         if (limit == -1) {
-            throw new QueryParsingException(parseContext.index(), "No value specified for limit filter");
+            throw new QueryParsingException(parseContext.index(), "No value specified for limit filter", parser.getTokenLocation());
         }
 
         return new LimitFilter(limit);

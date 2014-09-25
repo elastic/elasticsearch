@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -81,7 +82,7 @@ public class HasParentQueryParser implements QueryParser {
                     iq = new XContentStructure.InnerQuery(parseContext, parentType == null ? null : new String[] {parentType});
                     queryFound = true;
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_parent] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[has_parent] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "parent_type".equals(currentFieldName) || "parentType".equals(currentFieldName)) {
@@ -105,15 +106,15 @@ public class HasParentQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_parent] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[has_parent] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] query requires 'query' field");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] query requires 'query' field", parser.getTokenLocation());
         }
         if (parentType == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] query requires 'parent_type' field");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] query requires 'parent_type' field", parser.getTokenLocation());
         }
 
         Query innerQuery = iq.asQuery(parentType);
@@ -138,7 +139,7 @@ public class HasParentQueryParser implements QueryParser {
     static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryParseContext parseContext) {
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] query configured 'parent_type' [" + parentType + "] is not a valid type");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] query configured 'parent_type' [" + parentType + "] is not a valid type", null);
         }
 
         Set<String> parentTypes = new HashSet<>(5);
@@ -156,7 +157,7 @@ public class HasParentQueryParser implements QueryParser {
             }
         }
         if (parentChildIndexFieldData == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] no _parent field configured");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] no _parent field configured", (XContentLocation) null);
         }
 
         Filter parentFilter = null;

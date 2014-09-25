@@ -21,10 +21,17 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
@@ -36,13 +43,15 @@ import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
 /**
  * Represents a failure to search on a specific shard.
  */
-public class ShardSearchFailure implements ShardOperationFailedException {
+public class ShardSearchFailure implements ShardOperationFailedException, ToXContent {
 
     public static final ShardSearchFailure[] EMPTY_ARRAY = new ShardSearchFailure[0];
 
     private SearchShardTarget shardTarget;
     private String reason;
     private RestStatus status;
+
+    ToXContent stucturedExplanation;
 
     private ShardSearchFailure() {
 
@@ -51,7 +60,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     public ShardSearchFailure(Throwable t) {
         this(t, null);
     }
-
+    
     public ShardSearchFailure(Throwable t, @Nullable SearchShardTarget shardTarget) {
         Throwable actual = ExceptionsHelper.unwrapCause(t);
         if (actual != null && actual instanceof SearchException) {
@@ -59,6 +68,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         } else if (shardTarget != null) {
             this.shardTarget = shardTarget;
         }
+        this.stucturedExplanation = ExceptionsHelper.getAnyXContentExplanation(actual);
         if (actual != null && actual instanceof ElasticsearchException) {
             status = ((ElasticsearchException) actual).status();
         } else {
@@ -136,6 +146,29 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         }
         reason = in.readString();
         status = RestStatus.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            if (in.readBoolean()) {
+                stucturedExplanation = new UserErrorReport(in.readBytesReference());
+            }
+        }
+    }
+
+    // This class is used to hold XContent-serialized error messages that
+    // originated from exceptions and is only required when ShardSearchFailure 
+    // objects are streamed in order to report bulk failures 
+    private static final class UserErrorReport implements ToXContent {
+        private BytesReference reportSource;
+
+        public UserErrorReport(BytesReference bytesReference) {
+            this.reportSource = bytesReference;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            XContentHelper.writeDirect(reportSource, builder, params);
+            return builder;
+        }
+
     }
 
     @Override
@@ -148,5 +181,34 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         }
         out.writeString(reason);
         RestStatus.writeTo(out, status);
+
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            // Write any report that relates to a user error
+            out.writeBoolean(stucturedExplanation != null);
+            if (stucturedExplanation != null) {
+                BytesStreamOutput bStream = new BytesStreamOutput();
+                XContentBuilder builder = XContentFactory.jsonBuilder(bStream);
+                builder.startObject();
+                stucturedExplanation.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+                builder.close();
+                BytesReference br = bStream.bytes();
+                out.writeBytesReference(br);
+            }
+        }
+
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (stucturedExplanation != null) {
+            stucturedExplanation.toXContent(builder, params);
+        }
+        return builder;
+    }
+
+    public boolean hasXContent() {
+        return stucturedExplanation != null;
+    }    
+    
 }

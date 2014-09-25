@@ -76,13 +76,14 @@ public class TermsQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if  (fieldName != null) {
-                    throw new QueryParsingException(parseContext.index(), "[terms] query does not support multiple fields");
+                    throw new QueryParsingException(parseContext.index(), "[terms] query does not support multiple fields",
+                            parser.getTokenLocation());
                 }
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     Object value = parser.objectBytes();
                     if (value == null) {
-                        throw new QueryParsingException(parseContext.index(), "No value specified for terms query");
+                        throw new QueryParsingException(parseContext.index(), "No value specified for terms query", parser.getTokenLocation());
                     }
                     values.add(value);
                 }
@@ -98,15 +99,15 @@ public class TermsQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             } else {
-                throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]");
+                throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
             }
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext.index(), "No field specified for terms query");
+            throw new QueryParsingException(parseContext.index(), "No field specified for terms query", parser.getTokenLocation());
         }
 
         FieldMapper mapper = null;

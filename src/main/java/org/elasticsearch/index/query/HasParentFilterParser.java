@@ -76,7 +76,7 @@ public class HasParentFilterParser implements FilterParser {
                     innerFilter = new XContentStructure.InnerFilter(parseContext, parentType == null ? null : new String[] {parentType});
                     filterFound = true;
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "parent_type".equals(currentFieldName) || "parentType".equals(currentFieldName)) {
@@ -88,15 +88,15 @@ public class HasParentFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     // noop to be backwards compatible
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
         if (!queryFound && !filterFound) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'query' or 'filter' field");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'query' or 'filter' field", parser.getTokenLocation());
         }
         if (parentType == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'parent_type' field");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'parent_type' field", parser.getTokenLocation());
         }
 
         Query innerQuery;

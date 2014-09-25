@@ -55,7 +55,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
         // Early validation
         NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parent);
         if (closestNestedAggregator == null) {
-            throw new SearchParseException(context.searchContext(), "Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation");
+            throw new SearchParseException(context.searchContext(), "Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation", null);
         }
         if (nestedPath == null) {
             parentFilter = SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);

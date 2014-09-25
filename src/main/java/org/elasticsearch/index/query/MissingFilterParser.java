@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -80,13 +81,13 @@ public class MissingFilterParser implements FilterParser {
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[missing] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[missing] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
 
         if (fieldPattern == null) {
-            throw new QueryParsingException(parseContext.index(), "missing must be provided with a [field]");
+            throw new QueryParsingException(parseContext.index(), "missing must be provided with a [field]", parser.getTokenLocation());
         }
 
         return newFilter(parseContext, fieldPattern, existence, nullValue, filterName);
@@ -94,7 +95,7 @@ public class MissingFilterParser implements FilterParser {
 
     public static Filter newFilter(QueryParseContext parseContext, String fieldPattern, boolean existence, boolean nullValue, String filterName) {
         if (!existence && !nullValue) {
-            throw new QueryParsingException(parseContext.index(), "missing must have either existence, or null_value, or both set to true");
+            throw new QueryParsingException(parseContext.index(), "missing must have either existence, or null_value, or both set to true", (XContentLocation) null);
         }
 
         final FieldMappers fieldNamesMapper = parseContext.mapperService().indexName(FieldNamesFieldMapper.NAME);

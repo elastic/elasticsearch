@@ -25,6 +25,9 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -37,6 +40,7 @@ import java.util.List;
  */
 public final class ExceptionsHelper {
 
+    public static final String DEFAULT_XCONTENT_DETAIL_FIELD = "error_detail";
     private static final ESLogger logger = Loggers.getLogger(ExceptionsHelper.class);
 
     public static RuntimeException convertToRuntime(Throwable t) {
@@ -210,4 +214,52 @@ public final class ExceptionsHelper {
         }
         return true;
     }
+
+    /**
+     * If available, writes the structured explanation of an error
+     * 
+     * @param t
+     *            The exception
+     * @param builder
+     *            The XContentBuilder where any content will be written
+     * @param params
+     *            any parameters (currently not used)
+     * @param fieldName
+     *            null or the name of the field used to wrap the XContent
+     * @throws IOException
+     * @returns true if an explanation was written, false if no data was
+     *          available
+     */
+    public static boolean writeStructuredErrorExplanation(Throwable t, XContentBuilder builder, Params params, String fieldName)
+            throws IOException {
+        ToXContent explanation = getAnyXContentExplanation(t);
+        if (explanation != null) {
+            if (fieldName != null) {
+                builder.startObject(fieldName);
+            }
+            explanation.toXContent(builder, params);
+            if (fieldName != null) {
+                builder.endObject();
+            }
+            return true;
+        }
+        return false;
+    }
+    
+    public static boolean writeStructuredErrorExplanation(Throwable t, XContentBuilder builder, Params params) throws IOException {
+        return writeStructuredErrorExplanation(t, builder, params, DEFAULT_XCONTENT_DETAIL_FIELD);
+    }
+
+
+    /**
+     * Check if an exception is capable of offering a structured explanation in responses
+     * @param t An exception
+     * @return null or t as a {@link ToXContent} if it implements toXContent and has data
+     */
+    public static ToXContent getAnyXContentExplanation(Throwable t) {
+        if (t != null && t instanceof ToXContent) {
+            return (ToXContent) t;
+        }
+        return null;
+    }    
 }

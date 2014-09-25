@@ -65,7 +65,7 @@ public class MatchQueryParser implements QueryParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "[match] query malformed, no field");
+            throw new QueryParsingException(parseContext.index(), "[match] query malformed, no field", parser.getTokenLocation());
         }
         String fieldName = parser.currentName();
 
@@ -93,12 +93,12 @@ public class MatchQueryParser implements QueryParser {
                         } else if ("phrase_prefix".equals(tStr) || "phrasePrefix".equals(currentFieldName)) {
                             type = MatchQuery.Type.PHRASE_PREFIX;
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "[match] query does not support type " + tStr);
+                            throw new QueryParsingException(parseContext.index(), "[match] query does not support type " + tStr, parser.getTokenLocation());
                         }
                     } else if ("analyzer".equals(currentFieldName)) {
                         String analyzer = parser.text();
                         if (parseContext.analysisService().analyzer(analyzer) == null) {
-                            throw new QueryParsingException(parseContext.index(), "[match] analyzer [" + parser.text() + "] not found");
+                            throw new QueryParsingException(parseContext.index(), "[match] analyzer [" + parser.text() + "] not found", parser.getTokenLocation());
                         }
                         matchQuery.setAnalyzer(analyzer);
                     } else if ("boost".equals(currentFieldName)) {
@@ -118,7 +118,7 @@ public class MatchQueryParser implements QueryParser {
                         } else if ("and".equalsIgnoreCase(op)) {
                             matchQuery.setOccur(BooleanClause.Occur.MUST);
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "text query requires operator to be either 'and' or 'or', not [" + op + "]");
+                            throw new QueryParsingException(parseContext.index(), "text query requires operator to be either 'and' or 'or', not [" + op + "]", parser.getTokenLocation());
                         }
                     } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
                         minimumShouldMatch = parser.textOrNull();
@@ -139,12 +139,12 @@ public class MatchQueryParser implements QueryParser {
                         } else if ("all".equalsIgnoreCase(zeroTermsDocs)) {
                             matchQuery.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.ALL);
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
+                            throw new QueryParsingException(parseContext.index(), "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]", parser.getTokenLocation());
                         }
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[match] query does not support [" + currentFieldName + "]");
+                        throw new QueryParsingException(parseContext.index(), "[match] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                     }
                 }
             }
@@ -154,12 +154,12 @@ public class MatchQueryParser implements QueryParser {
             // move to the next token
             token = parser.nextToken();
             if (token != XContentParser.Token.END_OBJECT) {
-                throw new QueryParsingException(parseContext.index(), "[match] query parsed in simplified form, with direct field name, but included more options than just the field name, possibly use its 'options' form, with 'query' element?");
+                throw new QueryParsingException(parseContext.index(), "[match] query parsed in simplified form, with direct field name, but included more options than just the field name, possibly use its 'options' form, with 'query' element?", parser.getTokenLocation());
             }
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext.index(), "No text specified for text query");
+            throw new QueryParsingException(parseContext.index(), "No text specified for text query", parser.getTokenLocation());
         }
 
         Query query = matchQuery.parse(type, fieldName, value);

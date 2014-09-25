@@ -97,14 +97,14 @@ public class AndFilterParser implements FilterParser {
                     } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                         cacheKey = new CacheKeyFilter.Key(parser.text());
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[and] filter does not support [" + currentFieldName + "]");
+                        throw new QueryParsingException(parseContext.index(), "[and] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
                     }
                 }
             }
         }
 
         if (!filtersFound) {
-            throw new QueryParsingException(parseContext.index(), "[and] filter requires 'filters' to be set on it'");
+            throw new QueryParsingException(parseContext.index(), "[and] filter requires 'filters' to be set on it'", parser.getTokenLocation());
         }
 
         if (filters.isEmpty()) {

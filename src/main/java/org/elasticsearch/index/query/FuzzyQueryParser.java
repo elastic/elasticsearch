@@ -59,7 +59,7 @@ public class FuzzyQueryParser implements QueryParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "[fuzzy] query malformed, no field");
+            throw new QueryParsingException(parseContext.index(), "[fuzzy] query malformed, no field", parser.getTokenLocation());
         }
         String fieldName = parser.currentName();
 
@@ -97,7 +97,7 @@ public class FuzzyQueryParser implements QueryParser {
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[fuzzy] query does not support [" + currentFieldName + "]");
+                        throw new QueryParsingException(parseContext.index(), "[fuzzy] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                     }
                 }
             }
@@ -109,7 +109,7 @@ public class FuzzyQueryParser implements QueryParser {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext.index(), "No value specified for fuzzy query");
+            throw new QueryParsingException(parseContext.index(), "No value specified for fuzzy query", parser.getTokenLocation());
         }
 
         Query query = null;

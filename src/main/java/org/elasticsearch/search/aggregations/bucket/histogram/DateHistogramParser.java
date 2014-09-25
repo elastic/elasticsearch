@@ -112,7 +112,7 @@ public class DateHistogramParser implements Aggregator.Parser {
                 } else if ("interval".equals(currentFieldName)) {
                     interval = parser.text();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
@@ -120,7 +120,7 @@ public class DateHistogramParser implements Aggregator.Parser {
                 } else if ("pre_zone_adjust_large_interval".equals(currentFieldName) || "preZoneAdjustLargeInterval".equals(currentFieldName)) {
                     preZoneAdjustLargeInterval = parser.booleanValue();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
@@ -132,7 +132,7 @@ public class DateHistogramParser implements Aggregator.Parser {
                 } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
                     postZone = DateTimeZone.forOffsetHours(parser.intValue());
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].", parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("order".equals(currentFieldName)) {
@@ -157,7 +157,8 @@ public class DateHistogramParser implements Aggregator.Parser {
                             } else if ("max".equals(currentFieldName)) {
                                 extendedBounds.maxAsStr = parser.text();
                             } else {
-                                throw new SearchParseException(context, "Unknown extended_bounds key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
+                                throw new SearchParseException(context, "Unknown extended_bounds key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].", 
+                                        parser.getTokenLocation());
                             }
                         } else if (token == XContentParser.Token.VALUE_NUMBER) {
                             if ("min".equals(currentFieldName)) {
@@ -165,23 +166,26 @@ public class DateHistogramParser implements Aggregator.Parser {
                             } else if ("max".equals(currentFieldName)) {
                                 extendedBounds.max = parser.longValue();
                             } else {
-                                throw new SearchParseException(context, "Unknown extended_bounds key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
+                                throw new SearchParseException(context, "Unknown extended_bounds key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].", 
+                                        parser.getTokenLocation());
                             }
                         } else {
-                            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].", 
+                                    parser.getTokenLocation());
                         }
                     }
 
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].", 
+                            parser.getTokenLocation());
                 }
             } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].", parser.getTokenLocation());
             }
         }
 
         if (interval == null) {
-            throw new SearchParseException(context, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
+            throw new SearchParseException(context, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]", parser.getTokenLocation());
         }
 
         TimeZoneRounding.Builder tzRoundingBuilder;

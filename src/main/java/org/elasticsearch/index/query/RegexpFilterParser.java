@@ -80,7 +80,7 @@ public class RegexpFilterParser implements FilterParser {
                         } else if ("flags_value".equals(currentFieldName)) {
                             flagsValue = parser.intValue();
                         } else {
-                            throw new QueryParsingException(parseContext.index(), "[regexp] filter does not support [" + currentFieldName + "]");
+                            throw new QueryParsingException(parseContext.index(), "[regexp] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
                         }
                     }
                 }
@@ -104,7 +104,7 @@ public class RegexpFilterParser implements FilterParser {
         }
 
         if (value == null) {
-            throw new QueryParsingException(parseContext.index(), "No value specified for regexp filter");
+            throw new QueryParsingException(parseContext.index(), "No value specified for regexp filter", parser.getTokenLocation());
         }
 
         Filter filter = null;

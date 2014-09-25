@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
@@ -38,6 +35,9 @@ import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
+
+import java.io.IOException;
+import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -82,7 +82,7 @@ public class ScriptFilterParser implements FilterParser {
                 if ("params".equals(currentFieldName)) {
                     params = parser.map();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             } else if (token.isValue()) {
                 if ("_name".equals(currentFieldName)) {
@@ -92,7 +92,7 @@ public class ScriptFilterParser implements FilterParser {
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
                 } else if (!scriptParameterParser.token(currentFieldName, token, parser)){
-                    throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
@@ -105,7 +105,7 @@ public class ScriptFilterParser implements FilterParser {
         scriptLang = scriptParameterParser.lang();
 
         if (script == null) {
-            throw new QueryParsingException(parseContext.index(), "script must be provided with a [script] filter");
+            throw new QueryParsingException(parseContext.index(), "script must be provided with a [script] filter", parser.getTokenLocation());
         }
         if (params == null) {
             params = newHashMap();

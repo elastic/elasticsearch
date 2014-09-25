@@ -66,12 +66,12 @@ public class SpanOrQueryParser implements QueryParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         Query query = parseContext.parseInnerQuery();
                         if (!(query instanceof SpanQuery)) {
-                            throw new QueryParsingException(parseContext.index(), "spanOr [clauses] must be of type span query");
+                            throw new QueryParsingException(parseContext.index(), "spanOr [clauses] must be of type span query", parser.getTokenLocation());
                         }
                         clauses.add((SpanQuery) query);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[span_or] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[span_or] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
@@ -79,12 +79,12 @@ public class SpanOrQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[span_or] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[span_or] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
         if (clauses.isEmpty()) {
-            throw new QueryParsingException(parseContext.index(), "spanOr must include [clauses]");
+            throw new QueryParsingException(parseContext.index(), "spanOr must include [clauses]", parser.getTokenLocation());
         }
 
         SpanOrQuery query = new SpanOrQuery(clauses.toArray(new SpanQuery[clauses.size()]));

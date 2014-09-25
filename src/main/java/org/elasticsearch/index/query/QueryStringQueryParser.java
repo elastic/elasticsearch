@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.BooleanQuery;
@@ -125,7 +126,7 @@ public class QueryStringQueryParser implements QueryParser {
                         }
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[query_string] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[query_string] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -139,18 +140,18 @@ public class QueryStringQueryParser implements QueryParser {
                     } else if ("and".equalsIgnoreCase(op)) {
                         qpSettings.defaultOperator(org.apache.lucene.queryparser.classic.QueryParser.Operator.AND);
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "Query default operator [" + op + "] is not allowed");
+                        throw new QueryParsingException(parseContext.index(), "Query default operator [" + op + "] is not allowed", parser.getTokenLocation());
                     }
                 } else if ("analyzer".equals(currentFieldName)) {
                     NamedAnalyzer analyzer = parseContext.analysisService().analyzer(parser.text());
                     if (analyzer == null) {
-                        throw new QueryParsingException(parseContext.index(), "[query_string] analyzer [" + parser.text() + "] not found");
+                        throw new QueryParsingException(parseContext.index(), "[query_string] analyzer [" + parser.text() + "] not found", parser.getTokenLocation());
                     }
                     qpSettings.forcedAnalyzer(analyzer);
                 } else if ("quote_analyzer".equals(currentFieldName) || "quoteAnalyzer".equals(currentFieldName)) {
                     NamedAnalyzer analyzer = parseContext.analysisService().analyzer(parser.text());
                     if (analyzer == null) {
-                        throw new QueryParsingException(parseContext.index(), "[query_string] quote_analyzer [" + parser.text() + "] not found");
+                        throw new QueryParsingException(parseContext.index(), "[query_string] quote_analyzer [" + parser.text() + "] not found", parser.getTokenLocation());
                     }
                     qpSettings.forcedQuoteAnalyzer(analyzer);
                 } else if ("allow_leading_wildcard".equals(currentFieldName) || "allowLeadingWildcard".equals(currentFieldName)) {
@@ -196,17 +197,18 @@ public class QueryStringQueryParser implements QueryParser {
                     try {
                         qpSettings.timeZone(DateMathParser.parseZone(parser.text()));
                     } catch (IllegalArgumentException e) {
-                        throw new QueryParsingException(parseContext.index(), "[query_string] time_zone [" + parser.text() + "] is unknown");
+                        throw new QueryParsingException(parseContext.index(),
+                                "[query_string] time_zone [" + parser.text() + "] is unknown", parser.getTokenLocation());
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[query_string] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[query_string] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
         if (qpSettings.queryString() == null) {
-            throw new QueryParsingException(parseContext.index(), "query_string must be provided with a [query]");
+            throw new QueryParsingException(parseContext.index(), "query_string must be provided with a [query]", parser.getTokenLocation());
         }
         qpSettings.defaultAnalyzer(parseContext.mapperService().searchAnalyzer());
         qpSettings.defaultQuoteAnalyzer(parseContext.mapperService().searchQuoteAnalyzer());
@@ -244,7 +246,8 @@ public class QueryStringQueryParser implements QueryParser {
             }
             return query;
         } catch (org.apache.lucene.queryparser.classic.ParseException e) {
-            throw new QueryParsingException(parseContext.index(), "Failed to parse query [" + qpSettings.queryString() + "]", e);
+            throw new QueryParsingException(parseContext.index(), "Failed to parse query [" + qpSettings.queryString() + "]", 
+                    parser.getTokenLocation(), e);
         }
     }
 }

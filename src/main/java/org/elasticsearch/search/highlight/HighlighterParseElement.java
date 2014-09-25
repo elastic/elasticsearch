@@ -71,7 +71,7 @@ public class HighlighterParseElement implements SearchParseElement {
         try {
             context.highlight(parse(parser, context.queryParserService()));
         } catch (ElasticsearchIllegalArgumentException ex) {
-            throw new SearchParseException(context, "Error while trying to parse Highlighter element in request");
+            throw new SearchParseException(context, "Error while trying to parse Highlighter element in request", parser.getTokenLocation());
         }
     }
 

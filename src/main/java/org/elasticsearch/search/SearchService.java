@@ -668,7 +668,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     parser.nextToken();
                     SearchParseElement element = elementParsers.get(fieldName);
                     if (element == null) {
-                        throw new SearchParseException(context, "No parser for element [" + fieldName + "]");
+                        throw new SearchParseException(context, "No parser for element [" + fieldName + "]", parser.getTokenLocation());
                     }
                     element.parse(parser, context);
                 } else {
@@ -686,7 +686,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             } catch (Throwable e1) {
                 // ignore
             }
-            throw new SearchParseException(context, "Failed to parse source [" + sSource + "]", e);
+            // arguably not useful to take structured sSource value and wrap in a text message here - just makes any parsing harder.
+            // I guess we have to preserve it for those clients that have written err msg parsers already to deal with this format.
+            throw new SearchParseException(context, "Failed to parse source [" + sSource + "]", e, null);
         } finally {
             if (parser != null) {
                 parser.close();

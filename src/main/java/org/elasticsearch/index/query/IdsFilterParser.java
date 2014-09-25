@@ -67,7 +67,7 @@ public class IdsFilterParser implements FilterParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         BytesRef value = parser.utf8BytesOrNull();
                         if (value == null) {
-                            throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
+                            throw new QueryParsingException(parseContext.index(), "No value specified for term filter", parser.getTokenLocation());
                         }
                         ids.add(value);
                     }
@@ -76,12 +76,12 @@ public class IdsFilterParser implements FilterParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
-                            throw new QueryParsingException(parseContext.index(), "No type specified for term filter");
+                            throw new QueryParsingException(parseContext.index(), "No type specified for term filter", parser.getTokenLocation());
                         }
                         types.add(value);
                     }
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[ids] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[ids] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "_type".equals(currentFieldName)) {
@@ -89,13 +89,13 @@ public class IdsFilterParser implements FilterParser {
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[ids] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[ids] filter does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
 
         if (!idsProvided) {
-            throw new QueryParsingException(parseContext.index(), "[ids] filter requires providing a values element");
+            throw new QueryParsingException(parseContext.index(), "[ids] filter requires providing a values element", parser.getTokenLocation());
         }
 
         if (ids.isEmpty()) {

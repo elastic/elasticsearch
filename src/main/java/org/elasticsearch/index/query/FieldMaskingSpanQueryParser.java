@@ -64,11 +64,11 @@ public class FieldMaskingSpanQueryParser implements QueryParser {
                 if ("query".equals(currentFieldName)) {
                     Query query = parseContext.parseInnerQuery();
                     if (!(query instanceof SpanQuery)) {
-                        throw new QueryParsingException(parseContext.index(), "[field_masking_span] query] must be of type span query");
+                        throw new QueryParsingException(parseContext.index(), "[field_masking_span] query] must be of type span query", parser.getTokenLocation());
                     }
                     inner = (SpanQuery) query;
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[field_masking_span] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[field_masking_span] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             } else {
                 if ("boost".equals(currentFieldName)) {
@@ -78,15 +78,15 @@ public class FieldMaskingSpanQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[field_masking_span] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[field_masking_span] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
         if (inner == null) {
-            throw new QueryParsingException(parseContext.index(), "field_masking_span must have [query] span query clause");
+            throw new QueryParsingException(parseContext.index(), "field_masking_span must have [query] span query clause", parser.getTokenLocation());
         }
         if (field == null) {
-            throw new QueryParsingException(parseContext.index(), "field_masking_span must have [field] set for it");
+            throw new QueryParsingException(parseContext.index(), "field_masking_span must have [field] set for it", parser.getTokenLocation());
         }
 
         FieldMapper mapper = parseContext.fieldMapper(field);

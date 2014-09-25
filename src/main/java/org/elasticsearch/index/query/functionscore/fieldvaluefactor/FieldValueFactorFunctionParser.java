@@ -68,13 +68,13 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
                 } else if ("modifier".equals(currentFieldName)) {
                     modifier = FieldValueFactorFunction.Modifier.valueOf(parser.text().toUpperCase(Locale.ROOT));
                 } else {
-                    throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
 
         if (field == null) {
-            throw new QueryParsingException(parseContext.index(), "[" + NAMES[0] + "] required field 'field' missing");
+            throw new QueryParsingException(parseContext.index(), "[" + NAMES[0] + "] required field 'field' missing", parser.getTokenLocation());
         }
 
         SearchContext searchContext = SearchContext.current();

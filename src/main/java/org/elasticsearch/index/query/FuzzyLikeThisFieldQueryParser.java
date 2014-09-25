@@ -78,14 +78,14 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "[flt_field] query malformed, no field");
+            throw new QueryParsingException(parseContext.index(), "[flt_field] query malformed, no field", parser.getTokenLocation());
         }
         String fieldName = parser.currentName();
 
         // now, we move after the field name, which starts the object
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new QueryParsingException(parseContext.index(), "[flt_field] query malformed, no start_object");
+            throw new QueryParsingException(parseContext.index(), "[flt_field] query malformed, no start_object", parser.getTokenLocation());
         }
 
 
@@ -113,13 +113,13 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[flt_field] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[flt_field] query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
 
         if (likeText == null) {
-            throw new QueryParsingException(parseContext.index(), "fuzzy_like_This_field requires 'like_text' to be specified");
+            throw new QueryParsingException(parseContext.index(), "fuzzy_like_This_field requires 'like_text' to be specified", parser.getTokenLocation());
         }
 
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
@@ -150,7 +150,7 @@ public class FuzzyLikeThisFieldQueryParser implements QueryParser {
         // move to the next end object, to close the field name
         token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new QueryParsingException(parseContext.index(), "[flt_field] query malformed, no end_object");
+            throw new QueryParsingException(parseContext.index(), "[flt_field] query malformed, no end_object", parser.getTokenLocation());
         }
         assert token == XContentParser.Token.END_OBJECT;
 

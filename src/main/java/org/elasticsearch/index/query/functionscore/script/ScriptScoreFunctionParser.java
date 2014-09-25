@@ -68,11 +68,11 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
                 if ("params".equals(currentFieldName)) {
                     vars = parser.map();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             } else if (token.isValue()) {
                 if (!scriptParameterParser.token(currentFieldName, token, parser)) {
-                    throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]", parser.getTokenLocation());
                 }
             }
         }
@@ -85,7 +85,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
         scriptLang = scriptParameterParser.lang();
 
         if (script == null) {
-            throw new QueryParsingException(parseContext.index(), NAMES[0] + " requires 'script' field");
+            throw new QueryParsingException(parseContext.index(), NAMES[0] + " requires 'script' field", parser.getTokenLocation());
         }
 
         SearchScript searchScript;
@@ -93,7 +93,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
             searchScript = parseContext.scriptService().search(parseContext.lookup(), scriptLang, script, scriptType, vars);
             return new ScriptScoreFunction(script, vars, searchScript);
         } catch (Exception e) {
-            throw new QueryParsingException(parseContext.index(), NAMES[0] + " the script could not be loaded", e);
+            throw new QueryParsingException(parseContext.index(), NAMES[0] + " the script could not be loaded", parser.getTokenLocation(), e);
         }
     }
 }

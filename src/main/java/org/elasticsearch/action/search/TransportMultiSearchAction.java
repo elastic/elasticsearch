@@ -62,7 +62,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    responses.set(index, new MultiSearchResponse.Item(searchResponse, null));
+                    responses.set(index, new MultiSearchResponse.Item(searchResponse, null, null));
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
                     }
@@ -70,7 +70,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
                 @Override
                 public void onFailure(Throwable e) {
-                    responses.set(index, new MultiSearchResponse.Item(null, ExceptionsHelper.detailedMessage(e)));
+                    responses.set(index, new MultiSearchResponse.Item(null, ExceptionsHelper.detailedMessage(e), 
+                            ExceptionsHelper.getAnyXContentExplanation(e)));
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
                     }

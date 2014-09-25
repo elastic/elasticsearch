@@ -79,7 +79,7 @@ added[1.3.0,Previously defaulted to 10 times the ping timeout].
 
 When the master node stops or has encountered a problem, the cluster nodes
 start pinging again and will elect a new master. This pinging round also
-serves as protection against (partial) network failures where node may unjustly
+serves as a protection against (partial) network failures where node may unjustly
 think that the master has failed. In this case the node will simply hear from
 other nodes about the currently active master.
 
@@ -89,8 +89,8 @@ Nodes can be excluded from becoming a master by setting `node.master` to
 automatically set to `false`).
 
 The `discovery.zen.minimum_master_nodes` allows to control the minimum
-number of master eligible nodes a node should "see" in order to win master election.
-Its recommended to set it to a higher value than 1 when running more than 2 nodes in the cluster.
+number of master eligible nodes a node should "see" in order to win a master election.
+Its recommended to set it to a quorum of your master eligible nodes.
 
 [float]
 [[fault-detection]]
@@ -176,7 +176,7 @@ setting existed before but wasn't dynamic].
 coming[1.4.0.Beta1]
 
 For a node to be fully operational, it must have an active master. The `discovery.zen.no_master_block` settings controls
-what operations should be rejected when there is no active master.]
+what operations should be rejected when there is no active master.
 
 The `discovery.zen.no_master_block` setting has two valid options:
 * `all` - All operations on the node. I.e., both read & writes will be rejected.

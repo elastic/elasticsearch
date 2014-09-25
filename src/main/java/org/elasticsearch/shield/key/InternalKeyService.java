@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -96,7 +95,7 @@ public class InternalKeyService extends AbstractComponent implements KeyService 
         }
         Mac mac = createMac(key);
         byte[] sig = mac.doFinal(text.getBytes(Charsets.UTF_8));
-        String sigStr = Base64.encodeBase64String(sig);
+        String sigStr = Base64.encodeBase64URLSafeString(sig);
         return "$$" + sigStr.length() + "$$" + sigStr + text;
     }
 
@@ -121,7 +120,9 @@ public class InternalKeyService extends AbstractComponent implements KeyService 
             String text = signedText.substring(i + 2 + length);
             Mac mac = createMac(key);
             byte[] sig = mac.doFinal(text.getBytes(Charsets.UTF_8));
-            if (!Base64.encodeBase64String(sig).equals(sigStr)) {
+
+
+            if (!Base64.encodeBase64URLSafeString(sig).equals(sigStr)) {
                 throw new SignatureException("tampered signed text");
             }
             return text;

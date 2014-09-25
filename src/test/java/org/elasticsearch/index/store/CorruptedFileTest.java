@@ -317,6 +317,8 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                 .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)
+                // This does corrupt files on the replica, so we can't check:
+                .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
                 .put("index.routing.allocation.include._name", primariesNode.getNode().name())
                 .put("indices.recovery.concurrent_streams", 10)
         ));

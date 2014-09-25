@@ -148,3 +148,9 @@ at least 2 active shards within the relevant partition (`quorum`) for
 the operation to succeed. In a N shards with 1 replica scenario, there
 will need to be a single shard active (in this case, `one` and `quorum`
 is the same).
+
+[float]
+[[limitations]]
+=== Limitations
+
+The delete by query does not support the following queries and filters: `has_child`, `has_parent` and `top_children`.

@@ -86,14 +86,12 @@ public class BenchmarkExecutor {
 
                 for (int i = 0; i < settings.iterations(); i++) {
 
-                    final int numMeasurements = settings.multiplier() * searchRequests.size();
-                    final long[] timeBuckets  = new long[numMeasurements];
-                    final long[] docBuckets   = new long[numMeasurements];
+                    final Measurements measurements = new Measurements(settings.multiplier() * searchRequests.size());
 
                     // Run the iteration
-                    CompetitionIteration ci =
-                            iterate(request.benchmarkId(),competitor, searchRequests, timeBuckets,
-                                    docBuckets, benchmarkSemaphores.competitorSemaphore(competitor.name()));
+                    final CompetitionIteration ci =
+                            iterate(competitor, searchRequests, measurements, benchmarkSemaphores.competitorSemaphore(competitor.name()));
+
                     ci.percentiles(request.percentiles());
                     competitionIterations.add(ci);
                     competitionNodeResult.incrementCompletedIterations();
@@ -136,51 +134,46 @@ public class BenchmarkExecutor {
         return errorMessages;
     }
 
-    protected CompetitionIteration iterate(final String benchmarkId, final BenchmarkCompetitor competitor,
+    protected CompetitionIteration iterate(final BenchmarkCompetitor competitor,
                                            final List<SearchRequest> searchRequests,
-                                           final long[] timeBuckets, final long[] docBuckets,
+                                           final Measurements measurements,
                                            final StoppableSemaphore semaphore) throws InterruptedException {
 
-        assert timeBuckets.length == competitor.settings().multiplier() * searchRequests.size();
-        assert docBuckets.length == competitor.settings().multiplier() * searchRequests.size();
-
-        Arrays.fill(timeBuckets, -1);   // wipe CPU cache     ;)
-        Arrays.fill(docBuckets, -1);    // wipe CPU cache     ;)
+        assert measurements.timeBuckets().length == competitor.settings().multiplier() * searchRequests.size();
+        assert measurements.docBuckets().length == competitor.settings().multiplier() * searchRequests.size();
 
         int id = 0;
-        final CountDownLatch totalCount = new CountDownLatch(timeBuckets.length);
+        final CountDownLatch totalCount = new CountDownLatch(measurements.size());
         final CopyOnWriteArrayList<String> errorMessages = new CopyOnWriteArrayList<>();
         final long start = System.nanoTime();
 
         for (int i = 0; i < competitor.settings().multiplier(); i++) {
             for (SearchRequest searchRequest : searchRequests) {
                 StatisticCollectionActionListener statsListener =
-                        new StatisticCollectionActionListener(semaphore, timeBuckets, docBuckets, id++, totalCount, errorMessages);
+                        new StatisticCollectionActionListener(semaphore, measurements, id++, totalCount, errorMessages);
                 semaphore.acquire();
                 client.search(searchRequest, statsListener);
             }
         }
 
         totalCount.await();
-        assert id == timeBuckets.length;
+        assert id == measurements.timeBuckets().length;
         final long totalTime = TimeUnit.MILLISECONDS.convert(System.nanoTime() - start, TimeUnit.NANOSECONDS);
 
         if (!errorMessages.isEmpty()) {
             throw new BenchmarkExecutionException("Too many execution failures", errorMessages);
         }
 
-        CompetitionIterationData iterationData = new CompetitionIterationData(timeBuckets);
-        long sumDocs = new CompetitionIterationData(docBuckets).sum();
+        final CompetitionIterationData iterationData = new CompetitionIterationData(measurements.timeBuckets());
+        final long sumDocs = new CompetitionIterationData(measurements.docBuckets()).sum();
 
         // Don't track slowest request if there is only one request as that is redundant
         CompetitionIteration.SlowRequest[] topN = null;
         if ((competitor.settings().numSlowest() > 0) && (searchRequests.size() > 1)) {
-            topN = getTopN(timeBuckets, searchRequests, competitor.settings().multiplier(), competitor.settings().numSlowest());
+            topN = getTopN(measurements.timeBuckets(), searchRequests, competitor.settings().multiplier(), competitor.settings().numSlowest());
         }
 
-        CompetitionIteration round =
-                new CompetitionIteration(topN, totalTime, timeBuckets.length, sumDocs, iterationData);
-        return round;
+        return new CompetitionIteration(topN, totalTime, measurements.timeBuckets().length, sumDocs, iterationData);
     }
 
     private CompetitionIteration.SlowRequest[] getTopN(long[] buckets, List<SearchRequest> requests, int multiplier, int topN) {
@@ -208,7 +201,6 @@ public class BenchmarkExecutor {
             } else if (topNQueue.top().avgTime < avg) {
                 topNQueue.top().update(i, max, avg);
                 topNQueue.updateTop();
-
             }
         }
 
@@ -240,6 +232,36 @@ public class BenchmarkExecutor {
             this.index = index;
             this.maxTime = maxTime;
             this.avgTime = avgTime;
+        }
+    }
+
+    protected static class Measurements {
+
+        private final long[] timeBuckets;
+        private final long[] docBuckets;
+
+        public Measurements(final int size) {
+            timeBuckets = new long[size];
+            docBuckets = new long[size];
+            Arrays.fill(timeBuckets, -1);   // wipe CPU cache     ;)
+            Arrays.fill(docBuckets, -1);    // wipe CPU cache     ;)
+        }
+
+        public long[] timeBuckets() {
+            return timeBuckets;
+        }
+
+        public long[] docBuckets() {
+            return docBuckets;
+        }
+
+        public int size() {
+            return timeBuckets.length;
+        }
+
+        public void invalidate(final int bucketId) {
+            timeBuckets[bucketId] = -1;
+            docBuckets[bucketId] = -1;
         }
     }
 
@@ -282,33 +304,30 @@ public class BenchmarkExecutor {
 
     private static class StatisticCollectionActionListener extends BoundsManagingActionListener<SearchResponse> {
 
-        private final long[] timeBuckets;
         private final int bucketId;
-        private final long[] docBuckets;
+        private final Measurements measurements;
 
-        public StatisticCollectionActionListener(StoppableSemaphore semaphore, long[] timeBuckets, long[] docs,
+        public StatisticCollectionActionListener(StoppableSemaphore semaphore, Measurements measurements,
                                                  int bucketId, CountDownLatch totalCount,
                                                  CopyOnWriteArrayList<String> errorMessages) {
             super(semaphore, totalCount, errorMessages);
             this.bucketId = bucketId;
-            this.timeBuckets = timeBuckets;
-            this.docBuckets = docs;
+            this.measurements = measurements;
         }
 
         @Override
         public void onResponse(SearchResponse searchResponse) {
             super.onResponse(searchResponse);
-            timeBuckets[bucketId] = searchResponse.getTookInMillis();
+            measurements.timeBuckets()[bucketId] = searchResponse.getTookInMillis();
             if (searchResponse.getHits() != null) {
-                docBuckets[bucketId] = searchResponse.getHits().getTotalHits();
+                measurements.docBuckets()[bucketId] = searchResponse.getHits().getTotalHits();
             }
         }
 
         @Override
         public void onFailure(Throwable e) {
             try {
-                timeBuckets[bucketId] = -1;
-                docBuckets[bucketId] = -1;
+                measurements.invalidate(bucketId);
             } finally {
                 super.onFailure(e);
             }

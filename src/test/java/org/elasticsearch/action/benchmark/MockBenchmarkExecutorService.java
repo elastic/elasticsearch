@@ -20,7 +20,6 @@
 package org.elasticsearch.action.benchmark;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.benchmark.competition.CompetitionIteration;
 import org.elasticsearch.action.benchmark.start.BenchmarkStartRequest;
 import org.elasticsearch.action.benchmark.start.BenchmarkStartResponse;
@@ -36,9 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 
@@ -127,9 +124,10 @@ public final class MockBenchmarkExecutorService extends BenchmarkExecutorService
             return super.start(request, benchmarkStartResponse, benchmarkSemaphores);
         }
 
-        protected CompetitionIteration iterate(final String benchmarkId, final BenchmarkCompetitor competitor,
-                                               final List<SearchRequest> searchRequests, final long[] timeBuckets, final long[] docBuckets,
-                                               final StoppableSemaphore semaphore) 
+        protected CompetitionIteration iterate(final BenchmarkCompetitor competitor,
+                                               final List<SearchRequest> searchRequests,
+                                               final Measurements measurements,
+                                               final StoppableSemaphore semaphore)
             throws InterruptedException {
 
             CompetitionIteration ci = null;
@@ -140,7 +138,7 @@ public final class MockBenchmarkExecutorService extends BenchmarkExecutorService
                             control.controlSemaphore, clusterService.localNode().name());
                     control.controlSemaphore.acquire();
                 }
-                ci = super.iterate(benchmarkId, competitor, searchRequests, timeBuckets, docBuckets, semaphore);
+                ci = super.iterate(competitor, searchRequests, measurements, semaphore);
             }
             finally {
                 if (control != null && control.competition.equals(competitor.name())) {

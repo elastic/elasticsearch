@@ -243,10 +243,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
 
         public void close() {
             closed = true;
-            if (executor != null) {
-                executor.shutdownNow();
-                executor = null;
-            }
+            ThreadPool.terminate(executor, 0, TimeUnit.SECONDS);
+            executor = null;
         }
     }
 

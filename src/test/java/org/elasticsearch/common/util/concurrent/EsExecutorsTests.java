@@ -153,7 +153,7 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
         assertThat(executed2.get(), equalTo(true));
         assertThat(executed3.get(), equalTo(false));
 
-        executor.shutdownNow();
+        terminate(executor);
     }
 
     @Test
@@ -189,7 +189,7 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
         assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
         barrier.await();
-        pool.shutdown();
+        terminate(pool);
     }
 
     @Test
@@ -232,6 +232,6 @@ public class EsExecutorsTests extends ElasticsearchTestCase {
                 assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));
             }
         });
-        pool.shutdown();
+        terminate(pool);
     }
 }

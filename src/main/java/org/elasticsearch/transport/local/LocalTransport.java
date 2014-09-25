@@ -117,13 +117,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        workers.shutdown();
-        try {
-            workers.awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        workers.shutdownNow();
+        ThreadPool.terminate(workers, 10, TimeUnit.SECONDS);
     }
 
     @Override

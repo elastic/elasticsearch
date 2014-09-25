@@ -396,7 +396,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testOpenIndexNoAcknowledgement() {
-        // TODO: this test failes CheckIndex test for some reason ... seems like the index is being deleted while we run CheckIndex??
+        // TODO: this test fails CheckIndex test for some reason ... seems like the index is being deleted while we run CheckIndex??
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(
                     ImmutableSettings.settingsBuilder()
                     // Never run CheckIndex in the end:

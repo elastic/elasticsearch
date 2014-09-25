@@ -1220,12 +1220,23 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         indexRandom(forceRefresh, Arrays.asList(builders));
     }
 
+    /**
+     * Convenience method that forwards to {@link #indexRandom(boolean, boolean, List)}.
+     */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, IndexRequestBuilder... builders) throws InterruptedException, ExecutionException {
         indexRandom(forceRefresh, dummyDocuments, Arrays.asList(builders));
     }
 
+    /**
+     * Convenience method that forwards to {@link #indexRandom(boolean, boolean, boolean, List)}.
+     */
+    public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, IndexRequestBuilder... builders) throws InterruptedException, ExecutionException {
+        indexRandom(forceRefresh, dummyDocuments, maybeFlush, Arrays.asList(builders));
+    }
 
     private static final String RANDOM_BOGUS_TYPE = "RANDOM_BOGUS_TYPE______";
+    private static final String RANDOM_BOGUS_INDEX = "random_bogus_index_____"; //  needs to be lowercase...
+
 
     /**
      * Indexes the given {@link IndexRequestBuilder} instances randomly. It shuffles the given builders and either
@@ -1274,14 +1285,22 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * @param builders       the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
-
-            Random random = getRandom();
         Set<String> indicesSet = new HashSet<>();
         for (IndexRequestBuilder builder : builders) {
             indicesSet.add(builder.request().index());
         }
+        if (dummyDocuments && randomBoolean()) {
+            // sometimes we add some extra index that causes different shard assignments etc.
+            // and maybe triggers primary relocation to add an extra level of randomness to the tests
+            indicesSet.add(RANDOM_BOGUS_INDEX); // we randomly create docs for it below
+            if (randomBoolean()) {
+                if (client().admin().indices().prepareExists(RANDOM_BOGUS_INDEX).get().isExists() == false) {
+                    createIndex(RANDOM_BOGUS_INDEX);
+                }
+            }
+        }
         Set<Tuple<String, String>> bogusIds = new HashSet<>();
-        if (random.nextBoolean() && !builders.isEmpty() && dummyDocuments) {
+        if (randomBoolean() && !builders.isEmpty() && dummyDocuments) {
             builders = new ArrayList<>(builders);
             final String[] indices = indicesSet.toArray(new String[0]);
             // inject some bogus docs
@@ -1289,13 +1308,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             final int unicodeLen = between(1, 10);
             for (int i = 0; i < numBogusDocs; i++) {
                 String id = randomRealisticUnicodeOfLength(unicodeLen);
-                String index = RandomPicks.randomFrom(random, indices);
-                bogusIds.add(new Tuple<String, String>(index, id));
+                String index = RandomPicks.randomFrom(getRandom(), indices);
+                bogusIds.add(new Tuple<>(index, id));
                 builders.add(client().prepareIndex(index, RANDOM_BOGUS_TYPE, id).setSource("{}"));
             }
         }
         final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
-        Collections.shuffle(builders, random);
+        Collections.shuffle(builders, getRandom());
         final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Throwable>> errors = new CopyOnWriteArrayList<>();
         List<CountDownLatch> inFlightAsyncOperations = new ArrayList<>();
         // If you are indexing just a few documents then frequently do it one at a time.  If many then frequently in bulk.
@@ -1346,6 +1365,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         if (forceRefresh) {
             assertNoFailures(client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
+        }
+
+        if (indicesSet.contains(RANDOM_BOGUS_INDEX)) {
+            // remove that index again...
+            assertAcked(client().admin().indices().prepareDelete(RANDOM_BOGUS_INDEX).setIndicesOptions(IndicesOptions.lenientExpandOpen()));
         }
 
     }

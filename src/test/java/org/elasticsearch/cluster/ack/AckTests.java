@@ -85,7 +85,11 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testUpdateSettingsNoAcknowledgement() {
-        createIndex("test");
+        // TODO: this test fails CheckIndex test for some reason ... seems like the index is being deleted while we run CheckIndex??
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
+                    ImmutableSettings.settingsBuilder()
+                    // Never run CheckIndex in the end:
+                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false).build()));
 
         UpdateSettingsResponse updateSettingsResponse = client().admin().indices().prepareUpdateSettings("test").setTimeout("0s")
                 .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999)).get();

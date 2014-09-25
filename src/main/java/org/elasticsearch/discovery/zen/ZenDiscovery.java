@@ -395,7 +395,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             // finalize join through the cluster state update thread
             final DiscoveryNode finalMasterNode = masterNode;
-            clusterService.submitStateUpdateTask("finalize_join", new ClusterStateNonMasterUpdateTask() {
+            clusterService.submitStateUpdateTask("finalize_join (" + masterNode + ")", new ClusterStateNonMasterUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     if (!success) {
@@ -405,6 +405,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     }
 
                     if (currentState.getNodes().masterNode() == null) {
+                        // Post 1.3.0, the master should publish a new cluster state before acking our join request. we now should have
+                        // a valid master.
                         logger.debug("no master node is set, despite of join request completing. retrying pings.");
                         joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
                         return currentState;
@@ -414,12 +416,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         return joinThreadControl.stopRunningThreadAndRejoin(currentState, "master_switched_while_finalizing_join");
                     }
 
+                    // Note: we do not have to start master fault detection here because it's set at {@link #handleNewClusterStateFromMaster }
+                    // when the first cluster state arrives.
                     joinThreadControl.markThreadAsDone(currentThread);
                     return currentState;
                 }
 
                 @Override
-                public void onFailure(String source, @org.elasticsearch.common.Nullable Throwable t) {
+                public void onFailure(String source, @Nullable Throwable t) {
                     logger.error("unexpected error while trying to finalize cluster join", t);
                     joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
                 }

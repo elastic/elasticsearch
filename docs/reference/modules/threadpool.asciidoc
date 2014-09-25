@@ -120,7 +120,20 @@ threadpool:
 The number of processors is automatically detected, and the thread pool
 settings are automatically set based on it. Sometimes, the number of processors
 are wrongly detected, in such cases, the number of processors can be
-explicitly set using the `processors` setting.
+explicitly set using the `processors` setting.  The example below sets
+the number of processors to 4, which means that the default search thread pool size
+is 4 x 3 = 12.
+
+[source,js]
+--------------------------------------------------
+processors: 4
+--------------------------------------------------
+
+This setting is important when running multiple node instances on a single 
+bare-metal machine.  Each node will detect that it has the full number of 
+processors.  But in reality, they are sharing processors on the single machine.  
+In other words, it is advised to lower the `processors` setting accordingly.  For example,
+on a 24 core machine and running 3 nodes, set processors to 8.
 
 In order to check the number of processors detected, use the nodes info
 API with the `os` flag.

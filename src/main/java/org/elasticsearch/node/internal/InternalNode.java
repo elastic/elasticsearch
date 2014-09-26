@@ -235,12 +235,12 @@ public final class InternalNode implements Node {
         injector.getInstance(IndicesTTLService.class).start();
         injector.getInstance(RiversManager.class).start();
         injector.getInstance(SnapshotsService.class).start();
+        injector.getInstance(TransportService.class).start();
         injector.getInstance(ClusterService.class).start();
         injector.getInstance(RoutingService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(MonitorService.class).start();
         injector.getInstance(RestController.class).start();
-        injector.getInstance(TransportService.class).start();
         DiscoveryService discoService = injector.getInstance(DiscoveryService.class).start();
         discoService.waitForInitialState();
 
@@ -306,7 +306,10 @@ public final class InternalNode implements Node {
         return this;
     }
 
-    public void close() {
+    // During concurrent close() calls we want to make sure that all of them return after the node has completed it's shutdown cycle.
+    // If not, the hook that is added in Bootstrap#setup() will be useless: close() might not be executed, in case another (for example api) call
+    // to close() has already set some lifecycles to stopped. In this case the process will be terminated even if the first call to close() has not finished yet.
+    public synchronized void close() {
         if (lifecycle.started()) {
             stop();
         }

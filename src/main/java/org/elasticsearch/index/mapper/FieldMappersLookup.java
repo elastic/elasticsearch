@@ -189,10 +189,10 @@ public class FieldMappersLookup implements Iterable<FieldMapper> {
     }
 
     /**
-     * Returns a set of the index names of a simple match regex like pattern against full name, name and index name.
+     * Returns a list of the index names of a simple match regex like pattern against full name, name and index name.
      */
-    public Set<String> simpleMatchToIndexNames(String pattern) {
-        Set<String> fields = Sets.newHashSet();
+    public List<String> simpleMatchToIndexNames(String pattern) {
+        List<String> fields = Lists.newArrayList();
         for (FieldMapper fieldMapper : mappers) {
             if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
                 fields.add(fieldMapper.names().indexName());
@@ -206,10 +206,10 @@ public class FieldMappersLookup implements Iterable<FieldMapper> {
     }
 
     /**
-     * Returns a set of the full names of a simple match regex like pattern against full name, name and index name.
+     * Returns a list of the full names of a simple match regex like pattern against full name, name and index name.
      */
-    public Set<String> simpleMatchToFullName(String pattern) {
-        Set<String> fields = Sets.newHashSet();
+    public List<String> simpleMatchToFullName(String pattern) {
+        List<String> fields = Lists.newArrayList();
         for (FieldMapper fieldMapper : mappers) {
             if (Regex.simpleMatch(pattern, fieldMapper.names().fullName())) {
                 fields.add(fieldMapper.names().fullName());

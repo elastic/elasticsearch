@@ -49,8 +49,6 @@ public class DocLookup implements Map {
 
     private AtomicReaderContext reader;
 
-    private Scorer scorer;
-
     private int docId = -1;
 
     DocLookup(MapperService mapperService, IndexFieldDataService fieldDataService, @Nullable String[] types) {
@@ -76,20 +74,8 @@ public class DocLookup implements Map {
         localCacheFieldData.clear();
     }
 
-    public void setScorer(Scorer scorer) {
-        this.scorer = scorer;
-    }
-
     public void setNextDocId(int docId) {
         this.docId = docId;
-    }
-
-    public float score() throws IOException {
-        return scorer.score();
-    }
-
-    public float getScore() throws IOException {
-        return scorer.score();
     }
 
     @Override

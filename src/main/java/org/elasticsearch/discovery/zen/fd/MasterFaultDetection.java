@@ -47,9 +47,11 @@ public class MasterFaultDetection extends FaultDetection {
 
     public static interface Listener {
 
+        /** called when pinging the master failed, like a timeout, transport disconnects etc */
         void onMasterFailure(DiscoveryNode masterNode, String reason);
 
-        void onDisconnectedFromMaster();
+        /** called when the current nodes is not part of the disco nodes on the master */
+        void notListedOnMaster();
     }
 
     private final DiscoveryNodesProvider nodesProvider;
@@ -184,12 +186,12 @@ public class MasterFaultDetection extends FaultDetection {
         }
     }
 
-    private void notifyDisconnectedFromMaster() {
+    private void notifyNotListedOnMaster() {
         threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
                 for (Listener listener : listeners) {
-                    listener.onDisconnectedFromMaster();
+                    listener.notListedOnMaster();
                 }
             }
         });
@@ -247,9 +249,9 @@ public class MasterFaultDetection extends FaultDetection {
                             MasterFaultDetection.this.retryCount = 0;
                             // check if the master node did not get switched on us..., if it did, we simply return with no reschedule
                             if (masterToPing.equals(MasterFaultDetection.this.masterNode())) {
-                                if (!response.connectedToMaster) {
+                                if (!response.listedOnMaster) {
                                     logger.trace("[master] [{}] does not have us registered with it...", masterToPing);
-                                    notifyDisconnectedFromMaster();
+                                    notifyNotListedOnMaster();
                                 }
                                 // we don't stop on disconnection from master, we keep pinging it
                                 threadPool.schedule(pingInterval, ThreadPool.Names.SAME, MasterPinger.this);
@@ -412,25 +414,25 @@ public class MasterFaultDetection extends FaultDetection {
 
     private static class MasterPingResponseResponse extends TransportResponse {
 
-        private boolean connectedToMaster;
+        private boolean listedOnMaster;
 
         private MasterPingResponseResponse() {
         }
 
-        private MasterPingResponseResponse(boolean connectedToMaster) {
-            this.connectedToMaster = connectedToMaster;
+        private MasterPingResponseResponse(boolean listedOnMaster) {
+            this.listedOnMaster = listedOnMaster;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            connectedToMaster = in.readBoolean();
+            listedOnMaster = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(connectedToMaster);
+            out.writeBoolean(listedOnMaster);
         }
     }
 }

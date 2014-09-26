@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -28,13 +29,13 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -48,10 +49,7 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.*;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -61,6 +59,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  */
 public class InternalClusterService extends AbstractLifecycleComponent<ClusterService> implements ClusterService {
 
+    public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     private final ThreadPool threadPool;
 
     private final DiscoveryService discoveryService;
@@ -70,6 +69,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private final TransportService transportService;
 
     private final NodeSettingsService nodeSettingsService;
+    private final DiscoveryNodeService discoveryNodeService;
+    private final Version version;
 
     private final TimeValue reconnectInterval;
 
@@ -90,13 +91,17 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Inject
     public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService,
-                                  NodeSettingsService nodeSettingsService, ThreadPool threadPool, ClusterName clusterName) {
+                                  NodeSettingsService nodeSettingsService, ThreadPool threadPool, ClusterName clusterName, DiscoveryNodeService discoveryNodeService, Version version) {
         super(settings);
         this.operationRouting = operationRouting;
         this.transportService = transportService;
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
         this.nodeSettingsService = nodeSettingsService;
+        this.discoveryNodeService = discoveryNodeService;
+        this.version = version;
+
+        // will be replaced on doStart.
         this.clusterState = ClusterState.builder(clusterName).build();
 
         this.nodeSettingsService.setClusterService(this);
@@ -131,26 +136,15 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     protected void doStart() throws ElasticsearchException {
         add(localNodeMasterListeners);
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
-        this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(daemonThreadFactory(settings, "clusterService#updateTask"));
+        this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(daemonThreadFactory(settings, UPDATE_THREAD_NAME));
         this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ReconnectToNodes());
-        discoveryService.addLifecycleListener(new LifecycleListener() {
-            @Override
-            public void afterStart() {
-                submitStateUpdateTask("update local node", Priority.IMMEDIATE, new ClusterStateNonMasterUpdateTask() {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        return ClusterState.builder(currentState)
-                                .nodes(DiscoveryNodes.builder(currentState.nodes()).put(localNode()).localNodeId(localNode().id()))
-                                .build();
-                    }
+        Map<String, String> nodeAttributes = discoveryNodeService.buildAttributes();
+        // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
+        final String nodeId = DiscoveryService.generateNodeId(settings);
+        DiscoveryNode localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes, version);
+        DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder().put(localNode).localNodeId(localNode.id());
+        this.clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).blocks(initialBlocks).build();
 
-                    @Override
-                    public void onFailure(String source, Throwable t) {
-                        logger.warn("failed to update local node", t);
-                    }
-                });
-            }
-        });
     }
 
     @Override
@@ -175,7 +169,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Override
     public DiscoveryNode localNode() {
-        return discoveryService.localNode();
+        return clusterState.getNodes().localNode();
     }
 
     @Override
@@ -456,7 +450,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 //manual ack only from the master at the end of the publish
                 if (newClusterState.nodes().localNodeMaster()) {
                     try {
-                        ackListener.onNodeAck(localNode(), null);
+                        ackListener.onNodeAck(newClusterState.nodes().localNode(), null);
                     } catch (Throwable t) {
                         logger.debug("error while processing ack for master node [{}]", t, newClusterState.nodes().localNode());
                     }

@@ -612,7 +612,7 @@ public class MapperService extends AbstractIndexComponent  {
      * Returns all the fields that match the given pattern, with an optional narrowing
      * based on a list of types.
      */
-    public Set<String> simpleMatchToIndexNames(String pattern, @Nullable String[] types) {
+    public List<String> simpleMatchToIndexNames(String pattern, @Nullable String[] types) {
         if (types == null || types.length == 0) {
             return simpleMatchToIndexNames(pattern);
         }
@@ -620,9 +620,9 @@ public class MapperService extends AbstractIndexComponent  {
             return simpleMatchToIndexNames(pattern);
         }
         if (!Regex.isSimpleMatchPattern(pattern)) {
-            return ImmutableSet.of(pattern);
+            return ImmutableList.of(pattern);
         }
-        Set<String> fields = Sets.newHashSet();
+        List<String> fields = Lists.newArrayList();
         for (String type : types) {
             DocumentMapper possibleDocMapper = mappers.get(type);
             if (possibleDocMapper != null) {
@@ -638,16 +638,16 @@ public class MapperService extends AbstractIndexComponent  {
      * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
      * then the fields will be returned with a type prefix.
      */
-    public Set<String> simpleMatchToIndexNames(String pattern) {
+    public List<String> simpleMatchToIndexNames(String pattern) {
         if (!Regex.isSimpleMatchPattern(pattern)) {
-            return ImmutableSet.of(pattern);
+            return ImmutableList.of(pattern);
         }
         int dotIndex = pattern.indexOf('.');
         if (dotIndex != -1) {
             String possibleType = pattern.substring(0, dotIndex);
             DocumentMapper possibleDocMapper = mappers.get(possibleType);
             if (possibleDocMapper != null) {
-                Set<String> typedFields = Sets.newHashSet();
+                List<String> typedFields = Lists.newArrayList();
                 for (String indexName : possibleDocMapper.mappers().simpleMatchToIndexNames(pattern)) {
                     typedFields.add(possibleType + "." + indexName);
                 }

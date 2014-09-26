@@ -43,6 +43,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.*;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -186,6 +187,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         private final SearchLookup lookup;
         private final Map<String, Object> variables;
         private final ESLogger logger;
+        private Scorer scorer;
 
         public GroovyScript(Script script, ESLogger logger) {
             this(script, null, logger);
@@ -196,17 +198,12 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             this.lookup = lookup;
             this.logger = logger;
             this.variables = script.getBinding().getVariables();
-            if (lookup != null) {
-                // Add the _score variable, which will access score from lookup.doc()
-                this.variables.put("_score", new ScoreAccessor(lookup.doc()));
-            }
         }
 
         @Override
         public void setScorer(Scorer scorer) {
-            if (lookup != null) {
-                lookup.setScorer(scorer);
-            }
+            this.scorer = scorer;
+            this.variables.put("_score", new ScoreAccessor(scorer));
         }
 
         @Override

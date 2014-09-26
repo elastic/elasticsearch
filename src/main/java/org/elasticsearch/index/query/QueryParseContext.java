@@ -327,7 +327,7 @@ public class QueryParseContext {
         return smartMapper.names().indexName();
     }
 
-    public Set<String> simpleMatchToIndexNames(String pattern) {
+    public List<String> simpleMatchToIndexNames(String pattern) {
         return indexQueryParser.mapperService.simpleMatchToIndexNames(pattern, getTypes());
     }
 

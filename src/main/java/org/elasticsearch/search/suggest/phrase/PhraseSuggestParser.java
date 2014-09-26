@@ -132,7 +132,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             fieldName = parser.currentName();
                         } else if ("query".equals(fieldName) || "filter".equals(fieldName)) {
                             String templateNameOrTemplateContent;
-                            if (token == XContentParser.Token.START_OBJECT && !parser.hasTextCharacters()) {
+                            if (token == XContentParser.Token.START_OBJECT) {
                                 XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
                                 builder.copyCurrentStructure(parser);
                                 templateNameOrTemplateContent = builder.string();

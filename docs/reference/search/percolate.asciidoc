@@ -1,8 +1,6 @@
 [[search-percolate]]
 == Percolator
 
-added[1.0.0.Beta1]
-
 Traditionally you design documents based on your data and store them into an index and then define queries via the search api
 in order to retrieve these documents. The percolator works in the opposite direction, first you store queries into an
 index and then via the percolate api you define documents in order to retrieve these queries.
@@ -20,7 +18,6 @@ in the percolate api.
 
 Field referred to in a percolator query must *already* exist in the mapping
 assocated with the index used for percolation.
-coming[1.4.0,Applies to indices created in 1.4.0 or later]
 There are two ways to make sure that a field mapping exist:
 
 * Add or update a mapping via the <<indices-create-index,create index>> or

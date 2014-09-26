@@ -111,8 +111,6 @@ curl -XPUT localhost:9200/test -d '{
 [[create-index-aliases]]
 === Aliases
 
-added[1.1.0]
-
 The create index API allows also to provide a set of <<indices-aliases,aliases>>:
 
 [source,js]
@@ -132,8 +130,6 @@ curl -XPUT localhost:9200/test -d '{
 
 [float]
 === Creation Date
-
-coming[1.4.0]
 
 When an index is created, a timestamp is stored in the index metadata for the creation date.  By 
 default this it is automatically generated but it can also be specified using the 

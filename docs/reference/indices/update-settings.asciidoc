@@ -111,8 +111,6 @@ settings API:
 `index.routing.allocation.disable_replica_allocation`::
     Disable replica allocation. Defaults to `false`. Deprecated in favour for `index.routing.allocation.enable`.
 
-added[1.0.0.RC1]
-
 `index.routing.allocation.enable`::
     Enables shard allocation for a specific index. It can be set to:
     * `all` (default) - Allows shard allocation for all shards.

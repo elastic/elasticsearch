@@ -1,8 +1,6 @@
 [[index-modules-shard-query-cache]]
 == Shard query cache
 
-coming[1.4.0]
-
 When a search request is run against an index or against many indices, each
 involved shard executes the search locally and returns its local results to
 the _coordinating node_, which combines these shard-level results into a

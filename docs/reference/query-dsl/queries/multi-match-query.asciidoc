@@ -45,20 +45,9 @@ Individual fields can be boosted with the caret (`^`) notation:
 --------------------------------------------------
 <1> The `subject` field is three times as important as the `message` field.
 
-[float]
-=== `use_dis_max`
-
-deprecated[1.1.0,Use `type:best_fields` or `type:most_fields` instead. See <<multi-match-types>>]
-
-By default, the `multi_match` query generates a `match` clause per field, then wraps them
-in a `dis_max` query.  By setting `use_dis_max` to `false`, they will be wrapped in a
-`bool` query instead.
-
 [[multi-match-types]]
 [float]
 === Types of `multi_match` query:
-
-added[1.1.0]
 
 The way the `multi_match` query is executed internally depends on the `type`
 parameter, which can be set to:

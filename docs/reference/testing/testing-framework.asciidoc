@@ -1,8 +1,6 @@
 [[testing-framework]]
 == Java Testing Framework
 
-added[1.0.0.RC1]
-
 [[testing-intro]]
 
 Testing is a crucial part of your application, and as information retrieval itself is already a complex topic, there should not be any additional complexity in setting up a testing infrastructure, which uses elasticsearch. This is the main reason why we decided to release an additional file to the release, which allows you to use the same testing infrastructure we do in the elasticsearch core. The testing framework allows you to setup clusters with multiple nodes in order to check if your code covers everything needed to run in a cluster. The framework prevents you from writing complex code yourself to start, stop or manage several test nodes in a cluster. In addition there is another very important feature called randomized testing, which you are getting for free as it is part of the elasticsearch infrastructure.

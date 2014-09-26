@@ -165,8 +165,6 @@ bin/plugin --install mobz/elasticsearch-head
 [float]
 ==== Lucene version dependent plugins
 
-added[1.2.0]
-
 For some plugins, such as analysis plugins, a specific major Lucene version is
 required to run. In that case, the plugin provides in its `es-plugin.properties`
 file the Lucene version for which the plugin was built for.

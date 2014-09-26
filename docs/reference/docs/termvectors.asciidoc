@@ -1,11 +1,9 @@
 [[docs-termvectors]]
 == Term Vectors
 
-added[1.0.0.Beta1]
-
 Returns information and statistics on terms in the fields of a particular
 document. The document could be stored in the index or artificially provided
-by the user coming[1.4.0]. Note that for documents stored in the index, this
+by the user Note that for documents stored in the index, this
 is a near realtime API as the term vectors are not available until the next
 refresh.
 
@@ -24,7 +22,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?fields=text,...'
 
 or by adding the requested fields in the request body (see
 example below). Fields can also be specified with wildcards
-in similar way to the <<query-dsl-multi-match-query,multi match query>> coming[1.4.0].
+in similar way to the <<query-dsl-multi-match-query,multi match query>>
 
 [float]
 === Return values
@@ -44,8 +42,6 @@ statistics are returned for all fields but no term statistics.
 If the requested information wasn't stored in the index, it will be
 computed on the fly if possible. Additionally, term vectors could be computed
 for documents not even existing in the index, but instead provided by the user.
-
-coming[1.4.0,The ability to computed term vectors on the fly as well as support for artificial documents is only available from 1.4.0 onwards (see below example 2 and 3 respectively)]
 
 [WARNING]
 ======
@@ -232,7 +228,7 @@ Response:
 --------------------------------------------------
 
 [float]
-=== Example 2 coming[1.4.0]
+=== Example 2
 
 Term vectors which are not explicitly stored in the index are automatically
 computed on the fly. The following request returns all information and statistics for the
@@ -251,7 +247,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true' -d '{
 --------------------------------------------------
 
 [float]
-=== Example 3 coming[1.4.0]
+=== Example 3
 
 Additionally, term vectors can also be generated for artificial documents,
 that is for documents not present in the index. The syntax is similar to the

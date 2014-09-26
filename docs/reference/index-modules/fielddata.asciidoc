@@ -28,7 +28,7 @@ example, can be set to `5m` for a 5 minute expiry.
 [[circuit-breaker]]
 === Circuit Breaker
 
-coming[1.4.0.Beta,Prior to 1.4.0 there was only a single circuit breaker for fielddata]
+coming[1.4.0.Beta1,Prior to 1.4.0 there was only a single circuit breaker for fielddata]
 
 Elasticsearch contains multiple circuit breakers used to prevent operations from
 causing an OutOfMemoryError. Each breaker specifies a limit for how much memory
@@ -60,16 +60,16 @@ parameters:
     final estimation. Defaults to 1.03
 
 `indices.fielddata.breaker.limit`::
-    deprecated[1.4.0.Beta,Replaced by `indices.breaker.fielddata.limit`]
+    deprecated[1.4.0.Beta1,Replaced by `indices.breaker.fielddata.limit`]
 
 `indices.fielddata.breaker.overhead`::
-    deprecated[1.4.0.Beta,Replaced by `indices.breaker.fielddata.overhead`]
+    deprecated[1.4.0.Beta1,Replaced by `indices.breaker.fielddata.overhead`]
 
 [float]
 [[request-circuit-breaker]]
 ==== Request circuit breaker
 
-coming[1.4.0.Beta]
+coming[1.4.0.Beta1]
 
 The request circuit breaker allows Elasticsearch to prevent per-request data
 structures (for example, memory used for calculating aggregations during a

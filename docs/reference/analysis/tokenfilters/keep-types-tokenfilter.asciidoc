@@ -1,7 +1,7 @@
 [[analysis-keep-types-tokenfilter]]
 === Keep Types Token Filter
 
-coming[1.4.0.Beta]
+coming[1.4.0.Beta1]
 
 A token filter of type `keep_types` that only keeps tokens with a token type 
 contained in a predefined set.

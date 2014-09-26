@@ -93,9 +93,7 @@ public class InternalKeyService extends AbstractComponent implements KeyService 
         if (key == null) {
             return text;
         }
-        Mac mac = createMac(key);
-        byte[] sig = mac.doFinal(text.getBytes(Charsets.UTF_8));
-        String sigStr = Base64.encodeBase64URLSafeString(sig);
+        String sigStr = signInternal(text);
         return "$$" + sigStr.length() + "$$" + sigStr + text;
     }
 
@@ -111,23 +109,20 @@ public class InternalKeyService extends AbstractComponent implements KeyService 
         }
 
         try {
-
             //     $$34$$sigtext
-
             int i = signedText.indexOf("$$", 2);
             int length = Integer.parseInt(signedText.substring(2, i));
             String sigStr = signedText.substring(i + 2, i + 2 + length);
             String text = signedText.substring(i + 2 + length);
-            Mac mac = createMac(key);
-            byte[] sig = mac.doFinal(text.getBytes(Charsets.UTF_8));
-
-
-            if (!Base64.encodeBase64URLSafeString(sig).equals(sigStr)) {
-                throw new SignatureException("tampered signed text");
+            String sig = signInternal(text);
+            if (!sig.equals(sigStr)) {
+                throw new SignatureException("the signed texts don't match");
             }
             return text;
+        } catch (SignatureException e) {
+            throw e;
         } catch (Throwable t) {
-            throw new SignatureException("tampered signed text");
+            throw new SignatureException("error while verifying the signed text", t);
         }
     }
 
@@ -144,6 +139,12 @@ public class InternalKeyService extends AbstractComponent implements KeyService 
         } catch (Exception e) {
             throw new ElasticsearchException("Could not initialize mac", e);
         }
+    }
+
+    private String signInternal(String text) {
+        Mac mac = createMac(key);
+        byte[] sig = mac.doFinal(text.getBytes(Charsets.UTF_8));
+        return Base64.encodeBase64URLSafeString(sig);
     }
 
     private class FileListener extends FileChangesListener {
@@ -188,7 +189,5 @@ public class InternalKeyService extends AbstractComponent implements KeyService 
         };
 
         void onKeyRefresh();
-
-
     }
 }

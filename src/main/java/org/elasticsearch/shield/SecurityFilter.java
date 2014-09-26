@@ -89,7 +89,7 @@ public class SecurityFilter extends AbstractComponent {
 
         } catch (SignatureException se) {
             auditTrail.tamperedRequest(user, action, request);
-            throw new AuthorizationException("Invalid request");
+            throw new AuthorizationException("Invalid request: " + se.getMessage());
         }
     }
 

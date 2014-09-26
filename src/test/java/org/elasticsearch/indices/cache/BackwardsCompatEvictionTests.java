@@ -78,7 +78,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
     public Settings indexSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
         if (randomizeNumberOfShardsAndReplicas()) {
-            int numberOfShards = between(3, 10);    // We need to override this so that all nodes have at least one shard
+            int numberOfShards = between(5, 10);    // We need to override this so that all nodes have at least one shard
             if (numberOfShards > 0) {
                 builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
             }
@@ -261,7 +261,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
         }
 
 
-        int numDocs = randomIntBetween(500, 1000);
+        int numDocs = randomIntBetween(1000, 3000);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource(
@@ -274,9 +274,9 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
         ensureGreen();
 
         // Run some searches to cache and evict filters
-        for (int i = 0; i < 500; i++) {
-            client().prepareSearch().setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.termFilter("field1", English.intToEnglish(i)))).execute().actionGet();
-            client().prepareSearch().setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.termFilter("field2", i))).execute().actionGet();
+        for (int i = 0; i < 2000; i++) {
+            client().prepareSearch().setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.termFilter("field1", English.intToEnglish(i )))).execute().actionGet();
+            client().prepareSearch().setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.termFilter("field2", i % numDocs))).execute().actionGet();
         }
 
         // Just to give enough time for evictions to occur

@@ -615,15 +615,18 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         if (this.fieldType().storeTermVectorPayloads() != fieldMergeWith.fieldType().storeTermVectorPayloads()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_payloads values");
         }
-        if (this.indexAnalyzer == null) {
-            if (fieldMergeWith.indexAnalyzer != null) {
+        
+        // null and "default"-named index analyzers both mean the default is used
+        if (this.indexAnalyzer == null || "default".equals(this.indexAnalyzer.name())) {
+            if (fieldMergeWith.indexAnalyzer != null && !"default".equals(fieldMergeWith.indexAnalyzer.name())) {
                 mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
             }
-        } else if (fieldMergeWith.indexAnalyzer == null) {
+        } else if (fieldMergeWith.indexAnalyzer == null || "default".equals(fieldMergeWith.indexAnalyzer.name())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
         } else if (!this.indexAnalyzer.name().equals(fieldMergeWith.indexAnalyzer.name())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
         }
+        
         if (!this.names().equals(fieldMergeWith.names())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_name");
         }

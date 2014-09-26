@@ -56,8 +56,6 @@ tribe:
         metadata: true
 --------------------------------
 
-added[1.2.0]
-
 The tribe node can also configure blocks on indices explicitly:
 
 [source,yaml]
@@ -66,8 +64,6 @@ tribe:
     blocks:
         indices.write: hk*,ldn*
 --------------------------------
-
-added[1.2.0]
 
 When there is a conflict and multiple clusters hold the same index, by default
 the tribe node will pick one of them. This can be configured using the `tribe.on_conflict`

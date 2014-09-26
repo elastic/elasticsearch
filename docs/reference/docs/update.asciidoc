@@ -145,8 +145,6 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     }
 }'
 --------------------------------------------------
-coming[1.4.0]
-
 If the document does not exist you may want your update script to
 run anyway in order to initialize the document contents using 
 business logic unknown to the client. In this case pass the

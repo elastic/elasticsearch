@@ -113,8 +113,6 @@ GET /test/_mget/
 [[mget-source-filtering]]
 === Source filtering
 
-added[1.0.0.Beta1]
-
 By default, the `_source` field will be returned for every document (if stored).
 Similar to the <<get-source-filtering,get>> API, you can retrieve only parts of
 the `_source` (or not at all) by using the `_source` parameter. You can also use
@@ -182,8 +180,6 @@ curl 'localhost:9200/_mget' -d '{
 
 [float]
 === Generated fields
-
-coming[1.4.0]
 
 See <<generated-fields>> for fields are generated only when indexing. 
 

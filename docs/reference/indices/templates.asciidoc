@@ -27,8 +27,6 @@ Defines a template named template_1, with a template pattern of `te*`.
 The settings and mappings will be applied to any index name that matches
 the `te*` template.
 
-added[1.1.0]
-
 It is also possible to include aliases in an index template as follows:
 
 [source,js]

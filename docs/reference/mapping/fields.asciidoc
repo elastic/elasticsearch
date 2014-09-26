@@ -17,8 +17,6 @@ include::fields/all-field.asciidoc[]
 
 include::fields/analyzer-field.asciidoc[]
 
-include::fields/boost-field.asciidoc[]
-
 include::fields/parent-field.asciidoc[]
 
 include::fields/field-names-field.asciidoc[]

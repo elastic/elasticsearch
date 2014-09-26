@@ -21,6 +21,7 @@ package org.elasticsearch.search.timeout;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
@@ -32,6 +33,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.Matchers.equalTo;
@@ -41,17 +44,20 @@ import static org.hamcrest.Matchers.equalTo;
 @ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.SUITE)
 public class SearchTimeoutTests extends ElasticsearchIntegrationTest {
 
-    
-    //Timings in this test rely on having 2 shards
-    @Override
-    protected int minimumNumberOfShards() {
-        return 2;
-    }
 
-    //Timings in this test rely on having 2 shards
     @Override
-    protected int maximumNumberOfShards() {
-        return 2;
+    public Settings indexSettings() {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        //Timings in this test rely on having 2 shards
+        builder.put(SETTING_NUMBER_OF_SHARDS, 2).build();
+        builder.put(IndexMetaData.SETTING_THOROUGH_TIMEOUT_CHECKS, true).build();
+        if (randomizeNumberOfShardsAndReplicas()) {            
+            int numberOfReplicas = numberOfReplicas();
+            if (numberOfReplicas >= 0) {
+                builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+            }
+        }
+        return builder.build();
     }
 
     @Override

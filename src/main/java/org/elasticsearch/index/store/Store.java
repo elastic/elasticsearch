@@ -32,6 +32,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.Compressor;
@@ -93,6 +94,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
     private final DistributorDirectory distributorDirectory;
+    private boolean enabledThoroughTimeouts;
 
     @Inject
     public Store(ShardId shardId, @IndexSettings Settings indexSettings, CodecService codecService, DirectoryService directoryService, Distributor distributor) throws IOException {
@@ -100,6 +102,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         this.codecService = codecService;
         this.directoryService = directoryService;
         this.distributorDirectory = new DistributorDirectory(distributor);
+        this.enabledThoroughTimeouts = indexSettings.getAsBoolean(IndexMetaData.SETTING_THOROUGH_TIMEOUT_CHECKS, false);
         this.directory = new StoreDirectory(distributorDirectory);
     }
 
@@ -425,8 +428,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             // Merges and other non-search operations are not
             // subject to timeout constraints. Only add timeout
-            // capable wrappers for search operations.
-            if (context.context == Context.READ) {
+            // capable wrappers for search operations and where 
+            // index settings explicitly request this feature
+            if(enabledThoroughTimeouts && (context.context == Context.READ)) {
                 in = new TimeLimitedIndexInput(name, in, null);
             }
             return in;

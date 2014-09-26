@@ -43,20 +43,22 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@ElasticsearchIntegrationTest.ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, minNumDataNodes=0, maxNumDataNodes = 4, numClientNodes = 0)
+@ElasticsearchIntegrationTest.ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, minNumDataNodes=1, maxNumDataNodes = 3, numClientNodes = 0)
 public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         // Set the fielddata and filter size to 1b and expire to 1ms, forces evictions immediately
         return  ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("indices.fielddata.cache.expire", "1ms")
-                .put("indices.fielddata.cache.size", "100b")
-                .put("indices.cache.filter.expire", "1ms")
-                .put("indices.cache.filter.size", "100b")
+                .put("indices.fielddata.cache.expire", "10ms")
+                .put("indices.fielddata.cache.size", "10b")
+                .put("indices.cache.filter.expire", "10ms")
+                .put("indices.cache.filter.size", "10b")
                 .build();
     }
 
@@ -65,11 +67,27 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
         // Set the fielddata and filter size to 1b and expire to 1ms, forces evictions immediately
         return  ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("indices.fielddata.cache.expire", "1ms")
-                .put("indices.fielddata.cache.size", "100b")
-                .put("indices.cache.filter.expire", "1ms")
-                .put("indices.cache.filter.size", "100b")
+                .put("indices.fielddata.cache.expire", "10ms")
+                .put("indices.fielddata.cache.size", "10b")
+                .put("indices.cache.filter.expire", "10ms")
+                .put("indices.cache.filter.size", "10b")
                 .build();
+    }
+
+    @Override
+    public Settings indexSettings() {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        if (randomizeNumberOfShardsAndReplicas()) {
+            int numberOfShards = between(3, 10);    // We need to override this so that all nodes have at least one shard
+            if (numberOfShards > 0) {
+                builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            }
+            int numberOfReplicas = numberOfReplicas();
+            if (numberOfReplicas >= 0) {
+                builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+            }
+        }
+        return builder.build();
     }
 
 
@@ -122,6 +140,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
                     assertThat(ev.getEvictionsFifteenMinuteRate(), equalTo(-1D));
                 }
             }
+            tc.close();
         }
 
         int numDocs = randomIntBetween(500, 5000);
@@ -185,6 +204,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
                     assertThat(ev.getEvictionsFifteenMinuteRate(), equalTo(-1D));
                 }
             }
+            tc.close();
         }
     }
 
@@ -237,6 +257,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
                     assertThat(ev.getEvictionsFifteenMinuteRate(), equalTo(-1D));
                 }
             }
+            tc.close();
         }
 
 
@@ -253,7 +274,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
         ensureGreen();
 
         // Run some searches to cache and evict filters
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 500; i++) {
             client().prepareSearch().setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.termFilter("field1", English.intToEnglish(i)))).execute().actionGet();
             client().prepareSearch().setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.termFilter("field2", i))).execute().actionGet();
         }
@@ -301,6 +322,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
                     assertThat(ev.getEvictionsFifteenMinuteRate(), equalTo(-1D));
                 }
             }
+            tc.close();
         }
     }
 
@@ -320,7 +342,8 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
                     } else {
                         ev = n.getIndices().getFieldData().getEvictionStats();
                     }
-                    if (ev.getEvictions() <= 0 || ev.getEvictionsOneMinuteRate() <= 0) {
+
+                    if (ev.getEvictions() <= 0 || ev.getEvictionsOneMinuteRate() == 0) {
                         success = false;
                         break;
                     }

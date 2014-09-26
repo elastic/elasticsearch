@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope= Scope.SUITE, minNumDataNodes=0, maxNumDataNodes = 4, numClientNodes = 0)
+@ElasticsearchIntegrationTest.ClusterScope(scope= Scope.TEST, minNumDataNodes=1, maxNumDataNodes = 4, numClientNodes = 0)
 public class EvictionTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -51,11 +51,27 @@ public class EvictionTests extends ElasticsearchIntegrationTest {
         // Set the fielddata and filter size to 1b and expire to 1ms, forces evictions immediately
         return  ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("indices.fielddata.cache.expire", "1ms")
-                .put("indices.fielddata.cache.size", "100b")
-                .put("indices.cache.filter.expire", "1ms")
-                .put("indices.cache.filter.size", "100b")
+                .put("indices.fielddata.cache.expire", "10ms")
+                .put("indices.fielddata.cache.size", "10b")
+                .put("indices.cache.filter.expire", "10ms")
+                .put("indices.cache.filter.size", "10b")
                 .build();
+    }
+
+    @Override
+    public Settings indexSettings() {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        if (randomizeNumberOfShardsAndReplicas()) {
+            int numberOfShards = between(4, 10);    // We need to override this so that all nodes have at least one shard
+            if (numberOfShards > 0) {
+                builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            }
+            int numberOfReplicas = numberOfReplicas();
+            if (numberOfReplicas >= 0) {
+                builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+            }
+        }
+        return builder.build();
     }
 
 
@@ -169,7 +185,7 @@ public class EvictionTests extends ElasticsearchIntegrationTest {
                     } else {
                         ev = n.getIndices().getFieldData().getEvictionStats();
                     }
-                    if (ev.getEvictions() <= 0 || ev.getEvictionsOneMinuteRate() <= 0) {
+                    if (ev.getEvictions() <= 0 || ev.getEvictionsOneMinuteRate() == 0) {
                         success = false;
                         break;
                     }

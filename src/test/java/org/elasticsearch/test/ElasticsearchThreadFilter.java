@@ -21,7 +21,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import org.elasticsearch.common.network.MulticastChannel;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
+import org.elasticsearch.common.util.concurrent.ActivityTimeMonitor;
 import org.elasticsearch.tribe.TribeTests;
 
 import java.util.regex.Pattern;
@@ -49,7 +49,8 @@ public final class ElasticsearchThreadFilter implements ThreadFilter {
 
         if (threadName.contains("[" + MulticastChannel.SHARED_CHANNEL_NAME + "]")
                 || threadName.contains("[" + ElasticsearchSingleNodeTest.nodeName() + "]")
-                || threadName.contains("Keep-Alive-Timer")) {
+                || threadName.contains("Keep-Alive-Timer")
+                || threadName.contains(ActivityTimeMonitor.TIMEOUT_MONITOR_THREADNAME)) {
             return true;
         }
         return nodePrefix.matcher(t.getName()).find();

@@ -26,16 +26,16 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.network.MulticastChannel;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ActivityTimeMonitor;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.*;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchSingleNodeTest;
-import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.tribe.TribeTests;
@@ -52,7 +52,6 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
@@ -114,7 +113,8 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
             // or the ones that are occasionally come up from ElasticsearchSingleNodeTest
             if (threadName.contains("[" + MulticastChannel.SHARED_CHANNEL_NAME + "]")
                     || threadName.contains("[" + ElasticsearchSingleNodeTest.nodeName() + "]")
-                    || threadName.contains("Keep-Alive-Timer")) {
+                    || threadName.contains("Keep-Alive-Timer")
+                    || threadName.contains(ActivityTimeMonitor.TIMEOUT_MONITOR_THREADNAME)) {
                 continue;
             }
             String nodePrefix = "(" + Pattern.quote(InternalTestCluster.TRANSPORT_CLIENT_PREFIX) + ")?(" +

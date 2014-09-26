@@ -44,6 +44,8 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
  */
 public class ActivityTimeMonitor implements Delayed {
 
+    public static final String TIMEOUT_MONITOR_THREADNAME = "ActivityTimeoutMonitor";
+    
     public enum ActivityStatus {
         INACTIVE, ACTIVE, OVERRUNNING
     }
@@ -149,7 +151,6 @@ public class ActivityTimeMonitor implements Delayed {
 
     static {
         timeoutMonitorThread = new TimeoutMonitorThread();
-        timeoutMonitorThread.setDaemon(true);
         timeoutMonitorThread.start();
     }
 
@@ -229,6 +230,11 @@ public class ActivityTimeMonitor implements Delayed {
     private static final class TimeoutMonitorThread extends Thread {
         // A queue of Thread statuses sorted by their scheduled timeout time.
         DelayQueue<ActivityTimeMonitor> inboundMessageQueue = new DelayQueue<ActivityTimeMonitor>();
+        
+        TimeoutMonitorThread(){
+            super(TIMEOUT_MONITOR_THREADNAME);
+            setDaemon(true);
+        }
 
         @Override
         public void run() {
@@ -238,7 +244,7 @@ public class ActivityTimeMonitor implements Delayed {
                     // timeout then set the volatile boolean indicating an error
                     inboundMessageQueue.take().moveToOverrun();
                 } catch (InterruptedException e1) {
-                    // Need to keep on trucking
+                    // Need to keep on trucking 
                 }
             }
         }

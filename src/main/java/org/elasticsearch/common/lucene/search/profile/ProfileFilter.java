@@ -43,11 +43,13 @@ public class ProfileFilter extends Filter implements ProfileComponent {
 
     private String className;
     private String details;
+    private Stopwatch stopwatch;
 
     public ProfileFilter(Filter filter) {
         this.subFilter = filter;
         this.setClassName(filter.getClass().getSimpleName());
         this.setDetails(filter.toString());
+        this.stopwatch = Stopwatch.createUnstarted();
     }
 
     public Filter subFilter() {
@@ -84,10 +86,11 @@ public class ProfileFilter extends Filter implements ProfileComponent {
 
     @Override
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-        Stopwatch stopwatch = Stopwatch.createStarted();
+        stopwatch.start();
         DocIdSet idSet = this.subFilter.getDocIdSet(context, acceptDocs);
         stopwatch.stop();
         addTime(stopwatch.elapsed(TimeUnit.MICROSECONDS));
+        stopwatch.reset();
 
         return idSet;
     }

@@ -52,11 +52,13 @@ public class ProfileQuery extends Query implements ProfileComponent {
 
     private String className;
     private String details;
+    private Stopwatch stopwatch;
 
     public ProfileQuery(Query subQuery) {
         this.subQuery = subQuery;
         this.setClassName(subQuery.getClass().getSimpleName());
         this.setDetails(subQuery.toString());
+        this.stopwatch = Stopwatch.createUnstarted();
     }
 
     public Query subQuery() {
@@ -94,10 +96,11 @@ public class ProfileQuery extends Query implements ProfileComponent {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        Stopwatch stopwatch = Stopwatch.createStarted();
+        stopwatch.start();
         Query rewrittenQuery = subQuery.rewrite(reader);
         stopwatch.stop();
         addTime(stopwatch.elapsed(TimeUnit.MICROSECONDS));
+        stopwatch.reset();
 
         if (rewrittenQuery == subQuery) {
             return this;
@@ -119,10 +122,11 @@ public class ProfileQuery extends Query implements ProfileComponent {
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
-        Stopwatch stopwatch = Stopwatch.createStarted();
+        stopwatch.start();
         Weight subQueryWeight = subQuery.createWeight(searcher);
         stopwatch.stop();
         addTime(stopwatch.elapsed(TimeUnit.MICROSECONDS));
+        stopwatch.reset();
 
         return new ProfileWeight(subQueryWeight, this);
     }
@@ -131,10 +135,12 @@ public class ProfileQuery extends Query implements ProfileComponent {
 
         final Weight subQueryWeight;
         private ProfileQuery profileQuery;
+        private Stopwatch stopwatch;
 
         public ProfileWeight(Weight subQueryWeight, ProfileQuery profileQuery) throws IOException {
             this.subQueryWeight = subQueryWeight;
             this.profileQuery = profileQuery;
+            this.stopwatch = Stopwatch.createUnstarted();
         }
 
         public Query getQuery() {
@@ -147,20 +153,22 @@ public class ProfileQuery extends Query implements ProfileComponent {
 
         @Override
         public float getValueForNormalization() throws IOException {
-            Stopwatch stopwatch = Stopwatch.createStarted();
+            stopwatch.start();
             float sum = subQueryWeight.getValueForNormalization();
             stopwatch.stop();
             addTime(stopwatch.elapsed(TimeUnit.MICROSECONDS));
+            stopwatch.reset();
 
             return sum;
         }
 
         @Override
         public void normalize(float norm, float topLevelBoost) {
-            Stopwatch stopwatch = Stopwatch.createStarted();
+            stopwatch.start();
             subQueryWeight.normalize(norm, topLevelBoost * getBoost());
             stopwatch.stop();
             addTime(stopwatch.elapsed(TimeUnit.MICROSECONDS));
+            stopwatch.reset();
         }
 
         @Override
@@ -185,11 +193,13 @@ public class ProfileQuery extends Query implements ProfileComponent {
 
         private final Scorer scorer;
         private ProfileWeight profileWeight;
+        private Stopwatch stopwatch;
 
         private ProfileScorer(ProfileWeight w, Scorer scorer) throws IOException {
             super(w);
             this.scorer = scorer;
             this.profileWeight = w;
+            this.stopwatch = Stopwatch.createUnstarted();
         }
 
         public void addTime(long time) {
@@ -203,30 +213,32 @@ public class ProfileQuery extends Query implements ProfileComponent {
 
         @Override
         public int advance(int target) throws IOException {
-            Stopwatch stopwatch = Stopwatch.createStarted();
+            stopwatch.start();
             int id = scorer.advance(target);
             stopwatch.stop();
             addTime(stopwatch.elapsed(TimeUnit.MICROSECONDS));
-
+            stopwatch.reset();
             return id;
         }
 
         @Override
         public int nextDoc() throws IOException {
-            Stopwatch stopwatch = Stopwatch.createStarted();
+            stopwatch.start();
             int docId = scorer.nextDoc();
             stopwatch.stop();
             addTime(stopwatch.elapsed(TimeUnit.MICROSECONDS));
+            stopwatch.reset();
 
             return docId;
         }
 
         @Override
         public float score() throws IOException {
-            Stopwatch stopwatch = Stopwatch.createStarted();
+            stopwatch.start();
             float score = scorer.score();
             stopwatch.stop();
             addTime(stopwatch.elapsed(TimeUnit.MICROSECONDS));
+            stopwatch.reset();
 
             return score;
         }

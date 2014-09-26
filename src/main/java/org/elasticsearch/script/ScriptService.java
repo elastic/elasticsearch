@@ -55,6 +55,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.TemplateQueryParser;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -79,9 +80,12 @@ public class ScriptService extends AbstractComponent {
     public static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
     public static final String SCRIPT_CACHE_SIZE_SETTING = "script.cache.max_size";
     public static final String SCRIPT_CACHE_EXPIRE_SETTING = "script.cache.expire";
+    public static final String SCRIPT_RELOAD_INTERVAL_SETTING = "script.auto_reload_interval";
     public static final String DISABLE_DYNAMIC_SCRIPTING_DEFAULT = "sandbox";
     public static final String SCRIPT_INDEX = ".scripts";
     public static final String DEFAULT_LANG = "groovy";
+
+
 
     private final String defaultLang;
 
@@ -91,6 +95,9 @@ public class ScriptService extends AbstractComponent {
 
     private final Cache<CacheKey, CompiledScript> cache;
     private final File scriptsDirectory;
+    private final FileWatcher fileWatcher;
+    private TimeValue scriptWatcherInterval;
+    private final ResourceWatcherService resourceWatcherService;
 
     private final DynamicScriptDisabling dynamicScriptingDisabled;
 
@@ -203,9 +210,10 @@ public class ScriptService extends AbstractComponent {
 
     @Inject
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
-                         ResourceWatcherService resourceWatcherService) {
+                         ResourceWatcherService resourceWatcherService, NodeSettingsService nodeSettingsService) {
         super(settings);
 
+        this.resourceWatcherService = resourceWatcherService;
         int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, 500);
         TimeValue cacheExpire = settings.getAsTime(SCRIPT_CACHE_EXPIRE_SETTING, null);
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
@@ -238,19 +246,23 @@ public class ScriptService extends AbstractComponent {
         if (logger.isTraceEnabled()) {
             logger.trace("Using scripts directory [{}] ", scriptsDirectory);
         }
-        FileWatcher fileWatcher = new FileWatcher(scriptsDirectory);
+        fileWatcher = new FileWatcher(scriptsDirectory);
         fileWatcher.addListener(new ScriptChangesListener());
 
         if (componentSettings.getAsBoolean("auto_reload_enabled", true)) {
             // automatic reload is enabled - register scripts
-            resourceWatcherService.add(fileWatcher);
+            logger.error("Watching [{}]",scriptsDirectory);
+            scriptWatcherInterval = componentSettings.getAsTime("auto_reload_interval", new TimeValue(25000));
+            this.resourceWatcherService.add(fileWatcher, ResourceWatcherService.Frequency.CUSTOM, scriptWatcherInterval);
         } else {
+            logger.error("NOT Watching [{}]",scriptsDirectory);
             // automatic reload is disable just load scripts once
             fileWatcher.init();
         }
+        nodeSettingsService.addListener(new ApplySettings());
     }
 
-    //This isn't set in the ctor because doing so creates a guice circular
+    //This isn't set in the ctor because doing so creates a guice circular dependency
     @Inject(optional=true)
     public void setClient(Client client) {
         this.client = client;
@@ -262,6 +274,41 @@ public class ScriptService extends AbstractComponent {
         }
     }
 
+    public boolean setWatcherInterval(TimeValue timeInterval) {
+        if (!componentSettings.getAsBoolean("auto_reload_enabled", true)) {
+            logger.warn("Tried to set watcher interval to [{}] but script.auto_reload_enabled is false", timeInterval);
+            return false;
+        } else {
+            if (timeInterval.equals(scriptWatcherInterval)) {
+                return true; //No-op
+            } else {
+                synchronized (fileWatcher) {
+                    if (!this.resourceWatcherService.removeWatcher(fileWatcher, ResourceWatcherService.Frequency.CUSTOM)) {
+                        logger.warn("Unable to find file watcher at expected interval [{}]", timeInterval);
+                        return false;
+                    }
+                    resourceWatcherService.add(fileWatcher, ResourceWatcherService.Frequency.CUSTOM, timeInterval);
+                    scriptWatcherInterval = timeInterval;
+                    return true;
+                }
+            }
+        }
+    }
+
+    class ApplySettings implements NodeSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            final TimeValue interval = settings.getAsTime(SCRIPT_RELOAD_INTERVAL_SETTING, scriptWatcherInterval);
+            if (!interval.equals(scriptWatcherInterval)) {
+                logger.info("updating script.auto_reload_interval from [{}] to [{}]",scriptWatcherInterval, interval);
+                if (ScriptService.this.setWatcherInterval(interval)) {
+                    logger.info("Successfully updated script.auto_reload_interval to [{}]", scriptWatcherInterval);
+                }
+            }
+        }
+    }
+
+
     public CompiledScript compile(String script) {
         return compile(defaultLang, script);
     }
@@ -271,6 +318,10 @@ public class ScriptService extends AbstractComponent {
     }
 
     public CompiledScript compile(String lang,  String script, ScriptType scriptType) {
+        return compile(lang, script, scriptType, true);
+    }
+
+    public CompiledScript compile(String lang,  String script, ScriptType scriptType, boolean doCache) {
         if (logger.isTraceEnabled()) {
             logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, scriptType, script);
         }
@@ -333,7 +384,9 @@ public class ScriptService extends AbstractComponent {
         compiled = getCompiledScript(lang, script);
         //Since the cache key is the script content itself we don't need to
         //invalidate/check the cache if an indexed script changes.
-        cache.put(cacheKey, compiled);
+        if (doCache) {
+            cache.put(cacheKey, compiled);
+        }
 
         return compiled;
     }
@@ -456,6 +509,11 @@ public class ScriptService extends AbstractComponent {
     public ExecutableScript executable(String lang, String script, ScriptType scriptType, Map vars) {
         return executable(compile(lang, script, scriptType), vars);
     }
+
+    public ExecutableScript executable(String lang, String script, ScriptType scriptType, Map vars, boolean doCache) {
+        return executable(compile(lang, script, scriptType, doCache), vars);
+    }
+
 
     public ExecutableScript executable(CompiledScript compiledScript, Map vars) {
         return scriptEngines.get(compiledScript.lang()).executable(compiledScript.compiled(), vars);

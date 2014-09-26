@@ -20,12 +20,16 @@ package org.elasticsearch.watcher;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import javax.annotation.Resource;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ScheduledFuture;
@@ -55,7 +59,12 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         /**
          * Defaults to 60 seconds
          */
-        LOW(TimeValue.timeValueSeconds(60));
+        LOW(TimeValue.timeValueSeconds(60)),
+
+        /**
+         * Allows the setting of custom frequencies
+         */
+        CUSTOM(TimeValue.timeValueSeconds(-1));
 
         final TimeValue interval;
 
@@ -63,6 +72,9 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
             this.interval = interval;
         }
     }
+
+    private final Map<TimeValue, ResourceMonitor> customMonitors = new HashMap<>();
+    private final Map<TimeValue, ScheduledFuture> customFutures = new HashMap<>();
 
     private final boolean enabled;
     private final ThreadPool threadPool;
@@ -107,6 +119,11 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         lowFuture.cancel(true);
         mediumFuture.cancel(true);
         highFuture.cancel(true);
+        synchronized (customFutures) {
+            for (Map.Entry<TimeValue, ScheduledFuture> customEntry : customFutures.entrySet()) {
+                customEntry.getValue().cancel(true);
+            }
+        }
     }
 
     @Override
@@ -120,10 +137,13 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         return add(watcher, Frequency.MEDIUM);
     }
 
+    public <W extends ResourceWatcher> WatcherHandle<W> add(W watcher, Frequency frequency) {
+        return add(watcher,frequency,null);
+    }
     /**
      * Register new resource watcher that will be checked in the given frequency
      */
-    public <W extends ResourceWatcher> WatcherHandle<W> add(W watcher, Frequency frequency) {
+    public <W extends ResourceWatcher> WatcherHandle<W> add(W watcher, Frequency frequency, @Nullable TimeValue customTimePeriod) {
         watcher.init();
         switch (frequency) {
             case LOW:
@@ -132,8 +152,67 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
                 return mediumMonitor.add(watcher);
             case HIGH:
                 return highMonitor.add(watcher);
+            case CUSTOM:
+                if (customTimePeriod == null) {
+                    throw new ElasticsearchIllegalArgumentException("For custom time frequency customTimePeriod cannot be null");
+                }
+                return addCustomWatcher(watcher, customTimePeriod );
             default:
                 throw new ElasticsearchIllegalArgumentException("Unknown frequency [" + frequency + "]");
+        }
+    }
+
+    public <W extends ResourceWatcher> boolean removeWatcher(W watcher, Frequency frequency) {
+        switch (frequency) {
+            case LOW:
+                return lowMonitor.remove(watcher);
+            case MEDIUM:
+                return mediumMonitor.remove(watcher);
+            case HIGH:
+                return highMonitor.remove(watcher);
+            case CUSTOM:
+                synchronized (customMonitors) {
+                    TimeValue foundAtTimeValue = null;
+                    boolean isEmpty = false;
+                    for (Map.Entry<TimeValue, ResourceMonitor> monitorEntry : customMonitors.entrySet()) {
+                        if (monitorEntry.getValue().remove(watcher)) {
+                            foundAtTimeValue = monitorEntry.getKey();
+                            isEmpty = monitorEntry.getValue().isEmpty();
+                            break;
+                        }
+                    }
+                    if (foundAtTimeValue == null) {
+                        return false; //We didn't find it in any of the custom time interval watchers
+                    }
+                    if (!isEmpty) {
+                        return true;
+                    }
+                    //This was the only monitor at this custom interval we can cancel the future and remove this timeperiod
+                    //from the maps
+                    synchronized (customFutures) {
+                        customFutures.get(foundAtTimeValue).cancel(true);
+                        customFutures.remove(foundAtTimeValue);
+                    }
+                    customMonitors.remove(foundAtTimeValue);
+                    return true;
+                }
+            default:
+                throw new ElasticsearchIllegalArgumentException("Unknown frequency [" + frequency + "]");
+        }
+    }
+
+    private <W extends ResourceWatcher> WatcherHandle<W> addCustomWatcher(W watcher, TimeValue customInterval) {
+        synchronized (customMonitors) {
+            if (customMonitors.containsKey(customInterval)) {
+                return customMonitors.get(customInterval).add(watcher);
+            } else {
+                ResourceMonitor monitor = new ResourceMonitor(customInterval, Frequency.CUSTOM);
+                customMonitors.put(customInterval, monitor);
+                synchronized (customFutures) {
+                    customFutures.put(customInterval, threadPool.scheduleWithFixedDelay(monitor, customInterval));
+                }
+                return monitor.add(watcher);
+            }
         }
     }
 
@@ -149,9 +228,17 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
             this.frequency = frequency;
         }
 
+        private boolean isEmpty() {
+            return watchers.isEmpty();
+        }
+
         private <W extends ResourceWatcher> WatcherHandle<W> add(W watcher) {
             watchers.add(watcher);
             return new WatcherHandle<>(this, watcher);
+        }
+
+        private <W extends ResourceWatcher> boolean remove(W watcher) {
+            return watchers.remove(watcher);
         }
 
         @Override

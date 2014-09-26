@@ -105,6 +105,10 @@ public class Profile implements Streamable, ToXContent {
 
     public void setTotalTime(long time) { this.totalTime = time; }
 
+    public void finalizeTotalTime() {
+        this.totalTime = this.time;
+    }
+
     /**
      * Merge another Profile with this one.  The combined results are merged
      * into this Profile, not `other`

@@ -334,6 +334,7 @@ public class SearchPhaseController extends AbstractComponent {
             if (entry.value.queryResult().profile() != null) {
                 if (finalProfile == null) {
                     finalProfile = entry.value.queryResult().profile();
+                    finalProfile.finalizeTotalTime();
                 } else {
                     finalProfile = Profile.merge(finalProfile, entry.value.queryResult().profile());
                 }

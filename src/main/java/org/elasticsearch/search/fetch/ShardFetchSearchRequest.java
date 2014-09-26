@@ -33,18 +33,18 @@ import java.io.IOException;
 /**
  *
  */
-public class FetchSearchRequest extends FetchRequest implements IndicesRequest {
+public class ShardFetchSearchRequest extends ShardFetchRequest implements IndicesRequest {
 
     private OriginalIndices originalIndices;
 
-    public FetchSearchRequest() {
+    public ShardFetchSearchRequest() {
     }
 
-    public FetchSearchRequest(SearchRequest request, long id, IntArrayList list) {
+    public ShardFetchSearchRequest(SearchRequest request, long id, IntArrayList list) {
         this(request, id, list, null);
     }
 
-    public FetchSearchRequest(SearchRequest request, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
+    public ShardFetchSearchRequest(SearchRequest request, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
         super(request, id, list, lastEmittedDoc);
         this.originalIndices = new OriginalIndices(request);
     }

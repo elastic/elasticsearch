@@ -34,7 +34,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
-import org.elasticsearch.search.fetch.FetchRequest;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -217,9 +217,9 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                 IntArrayList docIds = entry.value;
                 final QuerySearchResult querySearchResult = queryResults.get(entry.index);
                 ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[entry.index];
-                FetchRequest fetchRequest = new FetchRequest(request, querySearchResult.id(), docIds, lastEmittedDoc);
+                ShardFetchRequest shardFetchRequest = new ShardFetchRequest(request, querySearchResult.id(), docIds, lastEmittedDoc);
                 DiscoveryNode node = nodes.get(querySearchResult.shardTarget().nodeId());
-                searchService.sendExecuteFetchScroll(node, fetchRequest, new SearchServiceListener<FetchSearchResult>() {
+                searchService.sendExecuteFetchScroll(node, shardFetchRequest, new SearchServiceListener<FetchSearchResult>() {
                     @Override
                     public void onResult(FetchSearchResult result) {
                         result.shardTarget(querySearchResult.shardTarget());

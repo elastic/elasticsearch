@@ -44,7 +44,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
-import org.elasticsearch.search.fetch.FetchSearchRequest;
+import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -356,12 +356,12 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             }
         }
 
-        protected FetchSearchRequest createFetchRequest(QuerySearchResult queryResult, AtomicArray.Entry<IntArrayList> entry, ScoreDoc[] lastEmittedDocPerShard) {
+        protected ShardFetchSearchRequest createFetchRequest(QuerySearchResult queryResult, AtomicArray.Entry<IntArrayList> entry, ScoreDoc[] lastEmittedDocPerShard) {
             if (lastEmittedDocPerShard != null) {
                 ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[entry.index];
-                return new FetchSearchRequest(request, queryResult.id(), entry.value, lastEmittedDoc);
+                return new ShardFetchSearchRequest(request, queryResult.id(), entry.value, lastEmittedDoc);
             } else {
-                return new FetchSearchRequest(request, queryResult.id(), entry.value);
+                return new ShardFetchSearchRequest(request, queryResult.id(), entry.value);
             }
         }
 

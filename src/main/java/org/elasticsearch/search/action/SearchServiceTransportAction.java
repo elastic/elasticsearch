@@ -427,11 +427,11 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    public void sendExecuteFetch(DiscoveryNode node, final FetchSearchRequest request, final SearchServiceListener<FetchSearchResult> listener) {
+    public void sendExecuteFetch(DiscoveryNode node, final ShardFetchSearchRequest request, final SearchServiceListener<FetchSearchResult> listener) {
         sendExecuteFetch(node, FETCH_ID_ACTION_NAME, request, listener);
     }
 
-    public void sendExecuteFetchScroll(DiscoveryNode node, final FetchRequest request, final SearchServiceListener<FetchSearchResult> listener) {
+    public void sendExecuteFetchScroll(DiscoveryNode node, final ShardFetchRequest request, final SearchServiceListener<FetchSearchResult> listener) {
         String action;
         if (node.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             //use the separate action for scroll when possible
@@ -444,7 +444,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         sendExecuteFetch(node, action, request, listener);
     }
 
-    private void sendExecuteFetch(DiscoveryNode node, String action, final FetchRequest request, final SearchServiceListener<FetchSearchResult> listener) {
+    private void sendExecuteFetch(DiscoveryNode node, String action, final ShardFetchRequest request, final SearchServiceListener<FetchSearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             execute(new Callable<FetchSearchResult>() {
                 @Override
@@ -859,7 +859,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    private abstract class FetchByIdTransportHandler<Request extends FetchRequest> extends BaseTransportRequestHandler<Request> {
+    private abstract class FetchByIdTransportHandler<Request extends ShardFetchRequest> extends BaseTransportRequestHandler<Request> {
 
         public abstract Request newInstance();
 
@@ -875,17 +875,17 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    private class ScrollFetchByIdTransportHandler extends FetchByIdTransportHandler<FetchRequest> {
+    private class ScrollFetchByIdTransportHandler extends FetchByIdTransportHandler<ShardFetchRequest> {
         @Override
-        public FetchRequest newInstance() {
-            return new FetchRequest();
+        public ShardFetchRequest newInstance() {
+            return new ShardFetchRequest();
         }
     }
 
-    private class SearchFetchByIdTransportHandler extends FetchByIdTransportHandler<FetchSearchRequest> {
+    private class SearchFetchByIdTransportHandler extends FetchByIdTransportHandler<ShardFetchSearchRequest> {
         @Override
-        public FetchSearchRequest newInstance() {
-            return new FetchSearchRequest();
+        public ShardFetchSearchRequest newInstance() {
+            return new ShardFetchSearchRequest();
         }
     }
 

@@ -35,7 +35,7 @@ import java.io.IOException;
 /**
  *
  */
-public class FetchRequest extends TransportRequest {
+public class ShardFetchRequest extends TransportRequest {
 
     private long id;
 
@@ -45,10 +45,10 @@ public class FetchRequest extends TransportRequest {
 
     private ScoreDoc lastEmittedDoc;
 
-    public FetchRequest() {
+    public ShardFetchRequest() {
     }
 
-    public FetchRequest(SearchScrollRequest request, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
+    public ShardFetchRequest(SearchScrollRequest request, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
         super(request);
         this.id = id;
         this.docIds = list.buffer;
@@ -56,7 +56,7 @@ public class FetchRequest extends TransportRequest {
         this.lastEmittedDoc = lastEmittedDoc;
     }
 
-    protected FetchRequest(TransportRequest originalRequest, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
+    protected ShardFetchRequest(TransportRequest originalRequest, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
         super(originalRequest);
         this.id = id;
         this.docIds = list.buffer;

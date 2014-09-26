@@ -103,7 +103,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     private List<String> ids = new ArrayList<>();
     private List<Item> docs = new ArrayList<>();
     private Boolean include = null;
-    private float percentTermsToMatch = -1;
+    private String minimumShouldMatch = null;
     private int minTermFreq = -1;
     private int maxQueryTerms = -1;
     private String[] stopWords = null;
@@ -162,11 +162,22 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     }
 
     /**
+     * Number of terms that must match the generated query expressed in the
+     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     *
+     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
+     */
+    public MoreLikeThisQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
+    /**
      * The percentage of terms to match. Defaults to <tt>0.3</tt>.
      */
+    @Deprecated
     public MoreLikeThisQueryBuilder percentTermsToMatch(float percentTermsToMatch) {
-        this.percentTermsToMatch = percentTermsToMatch;
-        return this;
+        return minimumShouldMatch((int) (percentTermsToMatch * 100) + "%");
     }
 
     /**
@@ -287,8 +298,8 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
                     MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName() +"' or 'docs/ids' to be provided");
         }
         builder.field(MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName(), likeText);
-        if (percentTermsToMatch != -1) {
-            builder.field(MoreLikeThisQueryParser.Fields.PERCENT_TERMS_TO_MATCH.getPreferredName(), percentTermsToMatch);
+        if (minimumShouldMatch != null) {
+            builder.field(MoreLikeThisQueryParser.Fields.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
         }
         if (minTermFreq != -1) {
             builder.field(MoreLikeThisQueryParser.Fields.MIN_TERM_FREQ.getPreferredName(), minTermFreq);

@@ -87,8 +87,9 @@ unless specified otherwise in each `doc`.
 |`include` |When using `ids` or `docs`, specifies whether the documents should be
 included from the search. Defaults to `false`.
 
-|`percent_terms_to_match` |From the generated query, the percentage of terms
-that must match (float value between 0 and 1). Defaults to `0.3` (30 percent).
+|`minimum_should_match`| From the generated query, the number of terms that
+must match following the <<query-dsl-minimum-should-match,minimum should
+syntax>>. (Defaults to `"30%"`).
 
 |`min_term_freq` |The frequency below which terms will be ignored in the
 source doc. The default frequency is `2`.

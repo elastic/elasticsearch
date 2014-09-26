@@ -1638,7 +1638,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery.getClauses()[0].getQuery();
 
         // all terms must match
-        mltQuery.setPercentTermsToMatch(1.0f);
+        mltQuery.setMinimumShouldMatch("100%");
         mltQuery.setMinWordLen(0);
         mltQuery.setMinDocFreq(0);
 

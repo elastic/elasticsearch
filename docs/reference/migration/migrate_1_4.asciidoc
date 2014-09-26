@@ -1,19 +1,11 @@
-[[breaking-changes-1.x]]
-== Breaking changes in 1.x
+[[breaking-changes-1.4]]
+== Breaking changes in 1.4
 
 This section discusses the changes that you need to be aware of when migrating
-your application from Elasticsearch 1.x to Elasticsearch 1.y.
+your application from Elasticsearch 1.x to Elasticsearch 1.4.
 
 [float]
-=== Facets
-
-Facets are deprecated and will be removed in a future release. You are
-encouraged to migrate to <<search-aggregations, aggregations>> instead.
-
-[[breaking-changes-1.4]]
-=== 1.4
-
-==== Percolator
+=== Percolator
 
 In indices created with version `1.4.0` or later, percolation queries can only
 refer to fields that already exist in the mappings in that index. There are
@@ -25,7 +17,8 @@ two ways to make sure that a field mapping exist:
   add field mappings dynamically, in the same way as happens when indexing a
   document.
 
-==== Aliases
+[float]
+=== Aliases
 
 <<indices-aliases,Aliases>> can include <<query-dsl-filters,filters>> which
 are automatically applied to any search performed via the alias.
@@ -36,9 +29,10 @@ pointed to by the alias.
 Add or update a mapping via the <<indices-create-index,create index>> or
 <<indices-put-mapping,put mapping>> apis.
 
-==== Indices APIs
+[float]
+=== Indices APIs
 
-The <<warmer-retrieving, get warmer api>> will return a section for `warmers` even if there are 
+The <<warmer-retrieving, get warmer api>> will return a section for `warmers` even if there are
 no warmers.  This ensures that the following two examples are equivalent:
 
 [source,js]
@@ -48,7 +42,7 @@ curl -XGET 'http://localhost:9200/_all/_warmers'
 curl -XGET 'http://localhost:9200/_warmers'
 --------------------------------------------------
 
-The <<alias-retrieving, get alias api>> will return a section for `aliases` even if there are 
+The <<alias-retrieving, get alias api>> will return a section for `aliases` even if there are
 no aliases.  This ensures that the following two examples are equivalent:
 
 [source,js]
@@ -61,7 +55,7 @@ curl -XGET 'http://localhost:9200/_aliases'
 In addition, the <<alias-retrieving, get alias api>> now supports <<multi-index>> options and, by default, will
 produce an error response if a requested index does not exist.
 
-The <<indices-get-mapping, get mapping api>> will return a section for `mappings` even if there are 
+The <<indices-get-mapping, get mapping api>> will return a section for `mappings` even if there are
 no mappings.  This ensures that the following two examples are equivalent:
 
 [source,js]
@@ -72,7 +66,8 @@ curl -XGET 'http://localhost:9200/_mappings'
 --------------------------------------------------
 
 
-==== Bulk UDP
+[float]
+=== Bulk UDP
 
 <<docs-bulk-udp,Bulk UDP>> has been deprecated and will be removed in 2.0.
 You should use <<docs-bulk,the standard bulk API>> instead.

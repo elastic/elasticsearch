@@ -12,8 +12,6 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Rule;
 import org.junit.Test;
 
-import java.io.File;
-import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
@@ -76,7 +74,6 @@ public class LdapConnectionTests extends LdapTest {
 
         LdapConnection ldap = ldapFac.bind(user, userPass);
         List<String> groups = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
-        System.out.println("groups:"+groups);
         assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
     }
 
@@ -92,7 +89,6 @@ public class LdapConnectionTests extends LdapTest {
         LdapConnection ldap = ldapFac.bind(user, SecuredStringTests.build("pass"));
 
         List<String> groups = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
-        System.out.println("groups:"+groups);
         assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
     }
 }

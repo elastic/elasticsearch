@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
@@ -19,10 +18,9 @@ import java.io.File;
 import java.net.URISyntaxException;
 import java.util.List;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.core.IsCollectionContaining.hasItem;
+import static org.hamcrest.Matchers.*;
 
+@Network
 public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
     public static final String AD_LDAP_URL = "ldaps://54.213.145.20:636";
     public static final String PASSWORD = "NickFuryHeartsES";
@@ -31,13 +29,13 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
 
     @BeforeClass
     public static void setTrustStore() throws URISyntaxException {
-        new LdapSslSocketFactory(ImmutableSettings.builder()
+        LdapSslSocketFactory.init(ImmutableSettings.builder()
                 .put(SETTINGS_PREFIX + "truststore", new File(LdapConnectionTests.class.getResource("ldaptrust.jks").toURI()))
                 .build());
     }
 
 
-    @Test @Network
+    @Test
     public void testAdAuth() {
         ActiveDirectoryConnectionFactory connectionFactory = new ActiveDirectoryConnectionFactory(
                 buildAdSettings(AD_LDAP_URL, AD_DOMAIN));
@@ -54,10 +52,9 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
                 containsString("Philanthropists"),
                 containsString("Avengers"),
                 containsString("SHIELD")));
-
     }
 
-    @Test @Network
+    @Test
     public void testAdAuth_avengers() {
         ActiveDirectoryConnectionFactory connectionFactory = new ActiveDirectoryConnectionFactory(
                 buildAdSettings(AD_LDAP_URL, AD_DOMAIN));
@@ -70,7 +67,7 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test @Network
+    @Test
     public void testAdAuth_specificUserSearch() {
         ActiveDirectoryConnectionFactory connectionFactory = new ActiveDirectoryConnectionFactory(
                 buildAdSettings(AD_LDAP_URL, AD_DOMAIN,
@@ -81,17 +78,15 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
         String userDN = ldap.getAuthenticatedUserDn();
 
         List<String> groups = ldap.getGroupsFromUserAttrs(userDN);
-        System.out.println("groups: "+groups);
 
         assertThat(groups, containsInAnyOrder(
                 containsString("Avengers"),
                 containsString("SHIELD"),
                 containsString("Geniuses"),
                 containsString("Philanthropists")));
-
     }
 
-    @Test @Network
+    @Test
     public void testAD_standardLdapConnection(){
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
@@ -105,8 +100,6 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
         List<String> groups = ldap.getGroupsFromUserAttrs(ldap.getAuthenticatedUserDn());
         List<String> groups2 = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
 
-        System.out.println(groups);
-        System.out.println(groups2);
         assertThat(groups, containsInAnyOrder(
                 containsString("Avengers"),
                 containsString("SHIELD"),

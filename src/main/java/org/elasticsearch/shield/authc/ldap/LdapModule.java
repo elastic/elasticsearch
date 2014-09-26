@@ -27,8 +27,12 @@ public class LdapModule extends AbstractShieldModule.Node {
     @Override
     protected void configureNode() {
         if (enabled) {
+            /* This socket factory needs to be configured before any LDAP connections are created.  LDAP configuration
+            for JNDI invokes a static getSocketFactory method from LdapSslSocketFactory.  This doesn't mesh well with
+            guice so we set the factory here during startup.  See LdapSslSocketFactory for more details. */
+            LdapSslSocketFactory.init(settings);
+
             bind(Realm.class).annotatedWith(named(LdapRealm.TYPE)).to(LdapRealm.class).asEagerSingleton();
-            bind(LdapSslSocketFactory.class).asEagerSingleton();
             bind(LdapGroupToRoleMapper.class).asEagerSingleton();
             String mode = settings.getComponentSettings(LdapModule.class).get("mode", "ldap");
             if ("ldap".equals(mode)) {

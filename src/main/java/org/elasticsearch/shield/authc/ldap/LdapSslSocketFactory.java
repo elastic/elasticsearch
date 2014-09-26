@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
@@ -22,23 +20,28 @@ import java.util.Locale;
 
 /**
  * This factory is needed for JNDI configuration for LDAP connections.  It wraps a single instance of a static
- * factory that is initiated by the settings constructor
+ * factory that is initiated by the settings constructor.  JNDI uses reflection to call the getDefault() static method
+ * then checks to make sure that the factory returned is an LdapSslSocketFactory.  Because of this we have to wrap
+ * the socket factory
+ *
+ * http://docs.oracle.com/javase/tutorial/jndi/ldap/ssl.html
  */
 public class LdapSslSocketFactory extends SocketFactory {
-    private static SocketFactory socketFactory;
+
     private static ESLogger logger = ESLoggerFactory.getLogger(LdapSslSocketFactory.class.getName());
+    private static LdapSslSocketFactory instance;
 
     /**
-     * This should only be invoked once to establish a static instance.
+     * This should only be invoked once to establish a static instance that will be used for each constructor.
      */
-    @Inject
-    public LdapSslSocketFactory(Settings settings) {
-        if (socketFactory == null) {
+    public static void init(Settings settings) {
+        if (instance != null) {
             logger.error("LdapSslSocketFactory already configured, this change could lead to threading issues");
         }
-        Settings componentSettings = settings.getComponentSettings(getClass());
+
+        Settings componentSettings = settings.getComponentSettings(LdapSslSocketFactory.class);
         SSLTrustConfig sslConfig = new SSLTrustConfig(componentSettings, settings.getByPrefix("shield.ssl."));
-        socketFactory = sslConfig.createSSLSocketFactory();
+        instance = new LdapSslSocketFactory(sslConfig.createSSLSocketFactory());
     }
 
     /**
@@ -46,20 +49,21 @@ public class LdapSslSocketFactory extends SocketFactory {
      * @return
      */
     public static SocketFactory getDefault() {
-        return new LdapSslSocketFactory();
+        assert instance != null;
+        return instance;
     }
 
     public static boolean initialized() {
-        return socketFactory != null;
+        return instance != null;
     }
 
-    LdapSslSocketFactory(){
-        if (socketFactory == null){
-            throw new ElasticsearchException("Attempt to construct an uninitialized LdapSslSocketFactory");
-        }
+    final private SocketFactory socketFactory;
+
+    private LdapSslSocketFactory(SocketFactory wrappedSocketFactory){
+        socketFactory = wrappedSocketFactory;
     }
 
-    //The following methods are all wrappers around the static instance of socketFactory
+    //The following methods are all wrappers around the instance of socketFactory
 
     @Override
     public Socket createSocket(String s, int i) throws IOException {
@@ -82,11 +86,11 @@ public class LdapSslSocketFactory extends SocketFactory {
     }
 
     /**
-     * If one of the ldapUrls are SSL this will set the LdapSslSocketFactory as a socket provider on the
+     * If one of the ldapUrls are SSL this will set the LdapSslSocketFactory as a socket provider on the builder
      * @param ldapUrls
      * @param builder set of jndi properties, that will
      */
-    public static ImmutableMap.Builder<String, Serializable> configureJndiSSL(String[] ldapUrls, ImmutableMap.Builder<String, Serializable> builder) {
+    public static void configureJndiSSL(String[] ldapUrls, ImmutableMap.Builder<String, Serializable> builder) {
         boolean needsSSL = false;
         for(String url: ldapUrls){
             if (url.toLowerCase(Locale.getDefault()).startsWith("ldaps://")) {
@@ -95,14 +99,10 @@ public class LdapSslSocketFactory extends SocketFactory {
             }
         }
         if (needsSSL) {
-            if (socketFactory != null) {
-                builder.put("java.naming.ldap.factory.socket", LdapSslSocketFactory.class.getName());
-            } else {
-                logger.warn("LdapSslSocketFactory not initialized and won't be used for LDAP connections");
-            }
+            assert instance != null : "LdapSslSocketFactory not initialized and won't be used for LDAP connections";
+            builder.put("java.naming.ldap.factory.socket", LdapSslSocketFactory.class.getName());
         } else {
             logger.debug("LdapSslSocketFactory not used for LDAP connections");
         }
-        return builder;
     }
 }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.search.reducers.bucket;
 
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerFactories;
@@ -35,5 +35,15 @@ public abstract class BucketReducer extends Reducer {
     }
 
     @Override
-    public abstract InternalBucketReducerAggregation reduce(List<Aggregation> aggregations, InternalAggregation.ReduceContext reduceContext) throws ReductionExecutionException;
+    public InternalBucketReducerAggregation reduce(List<MultiBucketsAggregation> aggregations, ReduceContext reduceContext)
+            throws ReductionExecutionException {
+        for (MultiBucketsAggregation aggregation : aggregations) {
+            if (aggregation.getName().equals("path")) {
+                return doReduce(aggregation);
+            }
+        }
+        return null;
+    }
+
+    protected abstract InternalBucketReducerAggregation doReduce(MultiBucketsAggregation aggregation) throws ReductionExecutionException;
 }

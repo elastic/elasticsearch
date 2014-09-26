@@ -28,7 +28,7 @@ import java.io.IOException;
 
 public class BucketStreams {
 
-    private static ImmutableMap<BytesReference, Stream> streams = ImmutableMap.of();
+    private static ImmutableMap<BytesReference, Stream> STREAMS = ImmutableMap.of();
 
     /**
      * A stream that knows how to read a bucket from the input.
@@ -44,11 +44,11 @@ public class BucketStreams {
      * @param types     The types associated with the streams
      */
     public static synchronized void registerStream(Stream stream, BytesReference... types) {
-        MapBuilder<BytesReference, Stream> uStreams = MapBuilder.newMapBuilder(streams);
+        MapBuilder<BytesReference, Stream> uStreams = MapBuilder.newMapBuilder(STREAMS);
         for (BytesReference type : types) {
             uStreams.put(type, stream);
         }
-        streams = uStreams.immutableMap();
+        STREAMS = uStreams.immutableMap();
     }
 
     /**
@@ -58,7 +58,7 @@ public class BucketStreams {
      * @return  The associated stream
      */
     public static Stream stream(BytesReference type) {
-        return streams.get(type);
+        return STREAMS.get(type);
     }
 
 }

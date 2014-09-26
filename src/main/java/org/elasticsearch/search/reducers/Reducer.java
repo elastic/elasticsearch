@@ -22,9 +22,9 @@ package org.elasticsearch.search.reducers;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
@@ -81,7 +81,7 @@ public abstract class Reducer implements Releasable{
         // Default Implementation does nothing
     }
 
-    public abstract InternalAggregation reduce(List<Aggregation> aggregations, ReduceContext reduceContext) throws ReductionExecutionException;
+    public abstract InternalAggregation reduce(List<MultiBucketsAggregation> aggregations, ReduceContext reduceContext) throws ReductionExecutionException;
 
     @Override
     public void close() throws ElasticsearchException {

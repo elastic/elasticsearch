@@ -20,6 +20,7 @@
 package org.elasticsearch.search.reducers.bucket;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
@@ -28,6 +29,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;
@@ -38,24 +41,26 @@ import java.util.Map;
 public abstract class InternalBucketReducerAggregation extends InternalAggregation implements BucketReducerAggregation {
 
     private String name;
-    private List<? extends InternalSelection> selections;
+    private List<InternalSelection> selections;
     private Map<String, Selection> selectionMap;
 
     public static class InternalSelection implements Selection {
 
         private String key;
-        private String bucketType;
+        private BytesReference bucketType;
         private List<? extends MultiBucketsAggregation.Bucket> buckets;
         private Map<String, MultiBucketsAggregation.Bucket> bucketMap;
         private InternalAggregations aggregations;
+        private BucketStreamContext bucketStreamContext;
 
         public InternalSelection() {
             // For serialization only
         }
 
-        public InternalSelection(String key, String bucketType, List<? extends MultiBucketsAggregation.Bucket> buckets, InternalAggregations aggregations) {
+        public InternalSelection(String key, BytesReference bucketType, BucketStreamContext bucketStreamContext, List<? extends MultiBucketsAggregation.Bucket> buckets, InternalAggregations aggregations) {
             this.key = key;
             this.bucketType = bucketType;
+            this.bucketStreamContext = bucketStreamContext;
             this.buckets = buckets;
             this.aggregations = aggregations;
         }
@@ -94,7 +99,14 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            // NOCOMMIT write bucket JSON
+            builder.field("key", key);
+            builder.field("bucketType", bucketType);
+            builder.startArray("buckets");
+            for (MultiBucketsAggregation.Bucket bucket : buckets) {
+                bucket.toXContent(builder, params);
+            }
+            builder.endArray();
+            aggregations.toXContent(builder, params);
             builder.endObject();
             return builder;
         }
@@ -102,11 +114,14 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
         @Override
         public void readFrom(StreamInput in) throws IOException {
             this.key = in.readString();
-            this.bucketType = in.readString();
+            this.bucketType = in.readBytesReference();
+            this.bucketStreamContext = new BucketStreamContext();
+            this.bucketStreamContext.readFrom(in);
             int size = in.readVInt();
             List<MultiBucketsAggregation.Bucket> buckets = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                MultiBucketsAggregation.Bucket bucket = null; // NOCOMMIT recreate bucket
+                MultiBucketsAggregation.Bucket bucket = BucketStreams.stream(bucketType)
+                        .readResult(in, bucketStreamContext); // NOCOMMIT populate BucketStreamContext
                 buckets.add(bucket);
             }
             this.buckets = buckets;
@@ -116,10 +131,11 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(key);
-            out.writeString(bucketType);
+            out.writeBytesReference(bucketType);
+            bucketStreamContext.writeTo(out);
             out.writeVInt(buckets.size());
             for (MultiBucketsAggregation.Bucket bucket : buckets) {
-                // NOCOMMIT write bucket
+                bucket.writeTo(out);
             }
         }
     }
@@ -128,7 +144,7 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
         // For serialization only
     }
 
-    protected InternalBucketReducerAggregation(String name, List<? extends InternalSelection> selections) {
+    protected InternalBucketReducerAggregation(String name, List<InternalSelection> selections) {
         super(name);
         this.name = name;
         this.selections = selections;

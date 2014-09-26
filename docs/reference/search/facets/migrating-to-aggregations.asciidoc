@@ -1,0 +1,371 @@
+[[search-facets-migrating-to-aggs]]
+=== Migrating to aggregations
+
+Facets have been deprecated in favor of <<search-aggregations, aggregations>>
+and as such it is recommended to migrate existing code using facets to
+aggregations.
+
+It is recommended to read the documentation about aggregations before this
+section.
+
+==== Simple cases
+
+In quite a number of cases, the migration is rather straightforward as simple
+facets have their direct aggregation equivalent and the only thing that is
+required is to replace `facets` with `aggs`.
+
+For instance:
+
+[source,js]
+--------------------------------------------------
+{
+    "facets" : {
+        "wow" : {
+            "filter" : {
+                "term" : { "tag" : "wow" }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+can be translated to the following aggregation:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "wow" : {
+            "filter" : {
+                "term" : { "tag" : "wow" }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+We will now spend more time on facets that don't have their direct aggregation
+equivalent and need more modifications.
+
+
+==== Query facets
+
+There is no `query` aggregation so such facets must be migrated to the `filter`
+aggregation.
+
+For example:
+
+[source,js]
+--------------------------------------------------
+{
+    "facets" : {
+        "wow" : {
+            "query" : {
+                "query_string" : {
+                    "query" : "tag:wow"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+can be replaced with the following
+<<search-aggregations-bucket-filter-aggregation,filter aggregation>> that uses
+the <<query-dsl-query-filter,query filter>>:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "wow" : {
+            "filter" : {
+                "query" : {
+                    "query_string" : {
+                        "query" : "tag:wow"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+
+==== Term stats
+
+There is no `term_stats` aggregation, so you actually need to create a
+<<search-aggregations-bucket-terms-aggregation,terms aggregation>> that will
+create buckets that will be processed with a
+<<search-aggregations-metrics-stats-aggregation,stats aggregation>>.
+
+For example
+
+[source,js]
+--------------------------------------------------
+{
+    "facets" : {
+        "tag_price_stats" : {
+            "terms_stats" : {
+                "key_field" : "tag",
+                "value_field" : "price"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+can be replaced with
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "tags" : {
+            "terms" : {
+                "field" : "tag"
+            },
+            "aggs" : {
+                "price_stats" : {
+                    "stats" : {
+                        "field" : "price"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+==== value_field
+
+The `histogram`, `date_histogram`, `range` and `geo_distance` facets have a
+`value_field` parameter that allows to compute statistics per bucket. With
+aggregations this needs to be changed to a sub
+<<search-aggregations-metrics-stats-aggregation,stats aggregation>>.
+
+For example
+
+[source,js]
+--------------------------------------------------
+{
+    "facets" : {
+        "histo1" : {
+            "date_histogram" : {
+                "key_field" : "timestamp",
+                "value_field" : "price",
+                "interval" : "day"
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+can be replaced with
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "histo1" : {
+            "date_histogram" : {
+                "field" : "timestamp",
+                "interval" : "day"
+            },
+            "aggs" : {
+                "price_stats" : {
+                    "stats" : {
+                        "field" : "price"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+==== Global scope
+
+Facets allow to set a global scope by setting `global : true` in the facet
+definition. With aggregations, you will need to put your aggregation under a
+<<search-aggregations-bucket-global-aggregation,global aggregation>> instead.
+
+For example
+
+[source,js]
+--------------------------------------------------
+{
+    "facets" : {
+        "terms1" : {
+            "terms" : { ... },
+            "global" : true
+        }
+    }
+}
+--------------------------------------------------
+
+can be replaced with
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "global_count" : {
+            "global" : {},
+            "aggs" : {
+                "terms1" : {
+                    "terms" : { ... }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+
+==== Facet filters
+
+Facet filters can be replaced with a
+<<search-aggregations-bucket-filter-aggregation,filter aggregation>>.
+
+For example
+
+[source,js]
+--------------------------------------------------
+{
+    "facets" : {
+        "<FACET NAME>" : {
+            "<FACET TYPE>" : {
+                ...
+            },
+            "facet_filter" : {
+                "term" : { "user" : "mvg" }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+can be replaced with
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "filter1" : {
+            "filter" : {
+                "term" : { "user" : "mvg" }
+            },
+            "aggs" : {
+                "<AGG NAME>" : {
+                    "<AGG TYPE>" : {
+                        ...
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+
+==== Nested
+
+Aggregations have a dedicated
+<<search-aggregations-bucket-nested-aggregation,nested aggregation>> to deal
+with nested objects.
+
+For example
+
+[source,js]
+--------------------------------------------------
+{
+    "facets" : {
+        "facet1" : {
+            "terms" : {
+                "field" : "name"
+            },
+            "nested" : "obj1"
+        }
+    }
+}
+--------------------------------------------------
+
+can be replaced with
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "agg1" : {
+            "nested" : {
+                "path" : "obj1"
+            },
+            "aggs" : {
+                "agg1": {
+                    "terms": {
+                        "field" : "obj1.name"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Note how fields are identified with their full path instead of relative path.
+
+Similarly, this more complex facet that combines `nested` and facet filters:
+
+[source,js]
+--------------------------------------------------
+{
+    "facets" : {
+        "facet1" : {
+            "terms" : {
+                "field" : "name"
+            },
+            "nested" : "obj1",
+            "facet_filter" : {
+                "term" : { "color" : "blue" }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+can be replaced with the following aggregation, which puts a terms aggregation
+under a filter aggregation, and the filter aggregation under a nested
+aggregation:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "nested_obj1" : {
+            "nested" : {
+                "path" : "obj1"
+            },
+            "aggs" : {
+                "color_filter" : {
+                    "filter" : {
+                        "term" : { "obj1.color" : "blue" }
+                    },
+                    "aggs" : {
+                        "name_terms" : {
+                            "terms" : {
+                                "field" : "obj1.name"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+In short, this aggregation first moves from the root documents to their nested
+documents following the path `obj1`. Then for each nested document, it filters
+out those that are not blue, and for the remaining documents, it computes a
+terms aggregation on the `name` field.

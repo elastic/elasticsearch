@@ -227,13 +227,11 @@ public class Profile implements Streamable, ToXContent {
         out.writeLong(totalTime);
         out.writeString(details);
 
-        if (components.size() > 0) {
-            out.writeInt(components.size());
-            for (Profile component : components) {
-                component.writeTo(out);
-            }
-        } else {
-            out.writeInt(0);
+        //TODO could components be null here?
+        //TODO versioning for backwards compat
+        out.writeInt(components.size());
+        for (Profile component : components) {
+            component.writeTo(out);
         }
 
     }

@@ -43,7 +43,7 @@ specified as well in the URI. Those stats can be any of:
 `fielddata`::   Fielddata statistics.
 `flush`::       Flush statistics.
 `merge`::       Merge statistics.
-`query_cache`:: <<index-modules-shard-query-cache,Shard query cache>> statistics. coming[1.4.0]
+`query_cache`:: <<index-modules-shard-query-cache,Shard query cache>> statistics.
 `refresh`::     Refresh statistics.
 `suggest`::     Suggest statistics.
 `warmer`::      Warmer statistics.

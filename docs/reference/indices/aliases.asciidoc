@@ -74,8 +74,6 @@ the same index. The filter can be defined using Query DSL and is applied
 to all Search, Count, Delete By Query and More Like This operations with
 this alias.
 
-coming[1.4.0,Fields referred to in alias filters must exist in the mappings of the index/indices pointed to by the alias]
-
 To create a filtered alias, first we need to ensure that the fields already
 exist in the mapping:
 
@@ -242,8 +240,6 @@ curl -XPUT 'localhost:9200/users/_alias/user_12' -d '{
 [[alias-index-creation]]
 === Aliases during index creation
 
-added[1.1.0]
-
 Aliases can also be specified during <<create-index-aliases,index creation>>:
 
 [source,js]
@@ -313,8 +309,6 @@ Possible options:
     exist. If set to `true` then those indices are ignored.
 
 The rest endpoint is: `/{index}/_alias/{alias}`.
-
-coming[1.4.0,The API will always include an `aliases` section, even if there aren't any aliases. Previous versions would not return the `aliases` section]
 
 [float]
 ==== Examples:

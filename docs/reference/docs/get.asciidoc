@@ -73,8 +73,6 @@ to fetch the first document matching the id across all types.
 [[get-source-filtering]]
 === Source filtering
 
-added[1.0.0.Beta1]
-
 By default, the get operation returns the contents of the `_source` field unless
 you have used the `fields` parameter or if the `_source` field is disabled. 
 You can turn off `_source` retrieval by using the `_source` parameter:
@@ -127,8 +125,6 @@ will fail.
 [float]
 [[generated-fields]]
 === Generated fields
-coming[1.4.0]
-
 If no refresh occurred between indexing and refresh, GET will access the transaction log to fetch the document. However, some fields are generated only when indexing. 
 If you try to access a field that is only generated when indexing, you will get an exception (default). You can choose to ignore field that are generated if the transaction log is accessed by setting `ignore_errors_on_generated_fields=true`.
 

@@ -67,8 +67,6 @@ root and inner object types:
 [float]
 === Unmapped fields in queries
 
-coming[1.4.0]
-
 Queries and filters can refer to fields which don't exist in a mapping, except
 when registering a new <<search-percolate,percolator query>> or when creating
 a <<filtered,filtered alias>>.  In these two cases, any fields referred to in

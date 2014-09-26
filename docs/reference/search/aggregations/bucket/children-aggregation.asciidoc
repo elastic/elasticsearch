@@ -1,8 +1,6 @@
 [[search-aggregations-bucket-children-aggregation]]
 === Children Aggregation
 
-coming[1.4.0]
-
 A special single bucket aggregation that enables aggregating from buckets on parent document types to buckets on child documents.
 
 This aggregation relies on the <<mapping-parent-field,_parent field>> in the mapping. This aggregation has a single option:

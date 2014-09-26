@@ -52,7 +52,7 @@ $ bin/elasticsearch -Xmx2g -Xms2g -Des.index.store.type=memory --node.name=my-no
 
 Elasticsearch is built using Java, and requires at least
 http://www.oracle.com/technetwork/java/javase/downloads/index.html[Java 7] in
-order to run added[1.2.0,Was at least Java 6 before]. Only Oracle's Java and
+order to run Only Oracle's Java and
 the OpenJDK are supported.
 
 We recommend installing the *Java 8 update 20 or later*, or *Java 7 update 55

@@ -69,7 +69,10 @@ public class RestGetIndicesAction extends BaseRestHandler {
         if (features != null) {
             getIndexRequest.features(features);
         }
-        getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
+        // The order of calls to the request is important here. We must set the indices and features before 
+        // we call getIndexRequest.indicesOptions(); or we might get the wrong default indices options
+        IndicesOptions defaultIndicesOptions = getIndexRequest.indicesOptions();
+        getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, defaultIndicesOptions));
         getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
         client.admin().indices().getIndex(getIndexRequest, new RestBuilderListener<GetIndexResponse>(channel) {
 

@@ -40,6 +40,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -407,7 +408,8 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
             logger.info("Running MoreLikeThis DSL with IDs");
             String id = String.valueOf(getRandom().nextInt(texts.length));
             Client client = client();
-            MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery("text").ids(id).minTermFreq(1).minDocFreq(1);
+            MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery("text").ids(id).minTermFreq(1).minDocFreq(1)
+                    .minimumShouldMatch("0%");
             SearchResponse mltResponseDSL = client.prepareSearch()
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setTypes("type1")
@@ -417,7 +419,8 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
             assertSearchResponse(mltResponseDSL);
 
             logger.info("Running MoreLikeThis API");
-            MoreLikeThisRequest mltRequest = moreLikeThisRequest("test").type("type1").searchSize(texts.length).id(id).minTermFreq(1).minDocFreq(1);
+            MoreLikeThisRequest mltRequest = moreLikeThisRequest("test").type("type1").searchSize(texts.length).id(id).minTermFreq(1).minDocFreq(1)
+                    .minimumShouldMatch("0%");
             SearchResponse mltResponseAPI = client.moreLikeThis(mltRequest).actionGet();
             assertSearchResponse(mltResponseAPI);
 
@@ -521,6 +524,45 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
                     .actionGet();
             assertSearchResponse(response);
             assertHitCount(response, values.length);
+        }
+    }
+
+    @Test
+    public void testMinimumShouldMatch() throws ExecutionException, InterruptedException {
+        logger.info("Creating the index ...");
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", "text", "type=string,analyzer=whitespace")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        ensureGreen();
+
+        logger.info("Indexing with each doc having one less term ...");
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            String text = "";
+            for (int j = 1; j <= 10 - i; j++) {
+                text += j + " ";
+            }
+            builders.add(client().prepareIndex("test", "type1", i + "").setSource("text", text));
+        }
+        indexRandom(true, builders);
+
+        logger.info("Testing each minimum_should_match from 0% - 100% with 10% increment ...");
+        for (int i = 0; i <= 10; i++) {
+            String minimumShouldMatch = (10 * i) + "%";
+            MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery("text")
+                    .likeText("1 2 3 4 5 6 7 8 9 10")
+                    .minTermFreq(1)
+                    .minDocFreq(1)
+                    .minimumShouldMatch(minimumShouldMatch);
+            logger.info("Testing with minimum_should_match = " + minimumShouldMatch);
+            SearchResponse response = client().prepareSearch("test").setTypes("type1")
+                    .setQuery(mltQuery).get();
+            assertSearchResponse(response);
+            if (minimumShouldMatch.equals("0%")) {
+                assertHitCount(response, 10);
+            } else {
+                assertHitCount(response, 11 - i);
+            }
         }
     }
 }

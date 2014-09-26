@@ -56,7 +56,7 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
         //needs some work if it is to be used in a REST context like this too
         // See the MoreLikeThisQueryParser constants that hold the valid syntax
         mltRequest.fields(request.paramAsStringArray("mlt_fields", null));
-        mltRequest.percentTermsToMatch(request.paramAsFloat("percent_terms_to_match", -1));
+        mltRequest.minimumShouldMatch(request.param("minimum_should_match", "0"));
         mltRequest.minTermFreq(request.paramAsInt("min_term_freq", -1));
         mltRequest.maxQueryTerms(request.paramAsInt("max_query_terms", -1));
         mltRequest.stopWords(request.paramAsStringArray("stop_words", null));

@@ -26,6 +26,7 @@ import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.ActivityTimeMonitor;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -173,6 +174,7 @@ public class IncludeExclude {
             }
         } else {
             if(hasRegexTest) {
+                ActivityTimeMonitor atm = ActivityTimeMonitor.getCurrentThreadMonitor();
                 // We have includeVals that are a regex or only regex excludes - we need to do the potentially 
                 // slow option of hitting termsEnum for every term in the index.
                 TermsEnum globalTermsEnum = valueSource.globalOrdinalsValues().termsEnum();
@@ -180,6 +182,9 @@ public class IncludeExclude {
                     for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
                         if (accept(term)) {
                             acceptedGlobalOrdinals.set(globalTermsEnum.ord());
+                        }
+                        if (atm != null) {
+                            atm.checkForTimeout();
                         }
                     }
                 } catch (IOException e) {

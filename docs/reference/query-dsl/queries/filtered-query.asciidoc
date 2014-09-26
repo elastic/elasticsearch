@@ -111,7 +111,7 @@ parameter:
 {
     "filtered" : {
         "query" :   { ... },
-        "filter" :  { ... ],
+        "filter" :  { ... },
         "strategy": "leap_frog"
     }
 }

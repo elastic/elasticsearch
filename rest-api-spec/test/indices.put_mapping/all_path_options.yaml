@@ -176,3 +176,33 @@ setup:
       catch: param
       indices.put_mapping: {}
 
+---
+"post a mapping with default analyzer twice":
+
+  - do:
+      indices.put_mapping:
+        index: test_index1
+        type: test_type
+        body:
+          test_type:
+            dynamic: false
+            properties:
+              text:
+                index:    analyzed
+                analyzer: default
+                type:     string
+
+  - do:
+      indices.put_mapping:
+        index: test_index1
+        type: test_type
+        body:
+          test_type:
+            dynamic: false
+            properties:
+              text:
+                index:    analyzed
+                analyzer: default
+                type:     string
+
+# no exception here means success

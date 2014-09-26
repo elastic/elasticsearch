@@ -62,7 +62,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         helper = new MockDirectoryHelper(shardId, indexSettings, logger, random, seed);
-        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true);
+        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, false);
 
         delegateService = helper.randomDirectorService(indexStore);
         if (checkIndexOnClose) {

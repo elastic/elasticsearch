@@ -106,7 +106,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     private final XContentType format;
     private final ToXContent.Params formatParams;
-    private final ToXContent.Params globalOnlyFormatParams;
+    private final ToXContent.Params gatewayModeFormatParams;
 
 
     private final AutoImportDangledState autoImportDangled;
@@ -130,17 +130,15 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             Map<String, String> params = Maps.newHashMap();
             params.put("binary", "true");
             formatParams = new ToXContent.MapParams(params);
-            Map<String, String> globalOnlyParams = Maps.newHashMap();
-            globalOnlyParams.put("binary", "true");
-            globalOnlyParams.put(MetaData.PERSISTENT_ONLY_PARAM, "true");
-            globalOnlyParams.put(MetaData.GLOBAL_ONLY_PARAM, "true");
-            globalOnlyFormatParams = new ToXContent.MapParams(globalOnlyParams);
+            Map<String, String> gatewayModeParams = Maps.newHashMap();
+            gatewayModeParams.put("binary", "true");
+            gatewayModeParams.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
+            gatewayModeFormatParams = new ToXContent.MapParams(gatewayModeParams);
         } else {
             formatParams = ToXContent.EMPTY_PARAMS;
-            Map<String, String> globalOnlyParams = Maps.newHashMap();
-            globalOnlyParams.put(MetaData.PERSISTENT_ONLY_PARAM, "true");
-            globalOnlyParams.put(MetaData.GLOBAL_ONLY_PARAM, "true");
-            globalOnlyFormatParams = new ToXContent.MapParams(globalOnlyParams);
+            Map<String, String> gatewayModeParams = Maps.newHashMap();
+            gatewayModeParams.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
+            gatewayModeFormatParams = new ToXContent.MapParams(gatewayModeParams);
         }
 
         this.autoImportDangled = AutoImportDangledState.fromString(settings.get("gateway.local.auto_import_dangled", AutoImportDangledState.YES.toString()));
@@ -399,7 +397,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
         XContentBuilder builder = XContentFactory.contentBuilder(format);
         builder.startObject();
-        MetaData.Builder.toXContent(metaData, builder, globalOnlyFormatParams);
+        MetaData.Builder.toXContent(metaData, builder, gatewayModeFormatParams);
         builder.endObject();
         builder.flush();
         String globalFileName = "global-" + metaData.version();

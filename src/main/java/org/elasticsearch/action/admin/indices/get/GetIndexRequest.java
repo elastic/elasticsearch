@@ -21,7 +21,9 @@ package org.elasticsearch.action.admin.indices.get;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -33,6 +35,7 @@ import java.io.IOException;
 public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
     private String[] features = new String[] { "_settings", "_warmers", "_mappings", "_aliases" };
+    private boolean indicesOptionsSet = false;
 
     public GetIndexRequest features(String[] features) {
         if (features == null) {
@@ -56,12 +59,44 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         features = in.readStringArray();
+        indicesOptionsSet = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(features);
+        out.writeBoolean(indicesOptionsSet);
+    }
+
+    @Override
+    public GetIndexRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptionsSet = true;
+        return super.indicesOptions(indicesOptions);
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        if (!indicesOptionsSet) {
+            indicesOptions(resolveIndicesOptions());
+        }
+        IndicesOptions indicesOptions = super.indicesOptions();
+        return indicesOptions;
+    }
+
+    private IndicesOptions resolveIndicesOptions() {
+        IndicesOptions defaultIndicesOptions = IndicesOptions.strictExpandOpen();
+        String[] indices = indices();
+        // This makes sure that the get aliases API behaves exactly like in previous versions wrt indices options iff only aliases are requested
+        if (features != null && features.length == 1 && features[0] != null && ("_alias".equals(features[0]) || "_aliases".equals(features[0]))) {
+            // If we are asking for all indices we need to return open and closed, if not we only expand to open
+            if (MetaData.isAllIndices(indices)) {
+                defaultIndicesOptions = IndicesOptions.fromOptions(true, true, true, true);
+            } else {
+                defaultIndicesOptions = IndicesOptions.lenientExpandOpen();
+            }
+        }
+        return defaultIndicesOptions;
     }
 
 }

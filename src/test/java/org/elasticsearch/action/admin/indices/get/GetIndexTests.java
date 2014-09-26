@@ -242,6 +242,58 @@ public class GetIndexTests extends ElasticsearchIntegrationTest {
         assertEmptyWarmers(response);
     }
 
+    @Test(expected=IndexMissingException.class)
+    public void testNotFoundMapping() {
+        client().admin().indices().prepareGetIndex().addIndices("non_existent_idx").setFeatures("_mapping").get();
+    }
+
+    @Test(expected=IndexMissingException.class)
+    public void testNotFoundMappings() {
+        client().admin().indices().prepareGetIndex().addIndices("non_existent_idx").setFeatures("_mappings").get();
+    }
+
+    @Test(expected=IndexMissingException.class)
+    public void testNotFoundSettings() {
+        client().admin().indices().prepareGetIndex().addIndices("non_existent_idx").setFeatures("_settings").get();
+    }
+
+    @Test(expected=IndexMissingException.class)
+    public void testNotFoundWarmer() {
+        client().admin().indices().prepareGetIndex().addIndices("non_existent_idx").setFeatures("_warmer").get();
+    }
+
+    @Test(expected=IndexMissingException.class)
+    public void testNotFoundWarmers() {
+        client().admin().indices().prepareGetIndex().addIndices("non_existent_idx").setFeatures("_warmers").get();
+    }
+
+    @Test
+    public void testNotFoundAlias() {
+        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("non_existent_idx").setFeatures("_alias").get();
+        String[] indices = response.indices();
+        assertThat(indices, notNullValue());
+        assertThat(indices.length, equalTo(0));
+    }
+
+    @Test(expected=IndexMissingException.class)
+    public void testNotFoundMixedFeatures() {
+        int numFeatures = randomIntBetween(2, allFeatures.length);
+        List<String> features = new ArrayList<String>(numFeatures);
+        for (int i = 0; i < numFeatures; i++) {
+            features.add(randomFrom(allFeatures));
+        }
+        client().admin().indices().prepareGetIndex().addIndices("non_existent_idx")
+                .setFeatures(features.toArray(new String[features.size()])).get();
+    }
+
+    @Test
+    public void testNotFoundAliases() {
+        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("non_existent_idx").setFeatures("_aliases").get();
+        String[] indices = response.indices();
+        assertThat(indices, notNullValue());
+        assertThat(indices.length, equalTo(0));
+    }
+
     private void assertWarmers(GetIndexResponse response, String indexName) {
         ImmutableOpenMap<String, ImmutableList<Entry>> warmers = response.warmers();
         assertThat(warmers, notNullValue());

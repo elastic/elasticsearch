@@ -314,6 +314,9 @@ The rest endpoint is: `/{index}/_alias/{alias}`.
 
 coming[1.4.0.Beta,The API will always include an `aliases` section, even if there aren't any aliases. Previous versions would not return the `aliases` section]
 
+WARNING: For future versions of Elasticsearch, the default <<multi-index>> options will error if a requested index is unavailable. This is to bring 
+this API in line with the other indices GET APIs
+
 [float]
 ==== Examples:
 

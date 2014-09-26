@@ -393,6 +393,8 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testScriptScoresNested() throws IOException {
+        createIndex(INDEX);
+        ensureYellow();
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
         SearchResponse response = client().search(

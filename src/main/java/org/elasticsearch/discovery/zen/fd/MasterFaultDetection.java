@@ -19,16 +19,20 @@
 
 package org.elasticsearch.discovery.zen.fd;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProcessedClusterStateNonMasterUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -54,8 +58,7 @@ public class MasterFaultDetection extends FaultDetection {
         void notListedOnMaster();
     }
 
-    private final DiscoveryNodesProvider nodesProvider;
-
+    private final ClusterService clusterService;
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
     private volatile MasterPinger masterPinger;
@@ -69,9 +72,9 @@ public class MasterFaultDetection extends FaultDetection {
     private final AtomicBoolean notifiedMasterFailure = new AtomicBoolean();
 
     public MasterFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                DiscoveryNodesProvider nodesProvider, ClusterName clusterName) {
+                                ClusterName clusterName, ClusterService clusterService) {
         super(settings, threadPool, transportService, clusterName);
-        this.nodesProvider = nodesProvider;
+        this.clusterService = clusterService;
 
         logger.debug("[master] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
@@ -231,7 +234,7 @@ public class MasterFaultDetection extends FaultDetection {
                 threadPool.schedule(pingInterval, ThreadPool.Names.SAME, MasterPinger.this);
                 return;
             }
-            final MasterPingRequest request = new MasterPingRequest(nodesProvider.nodes().localNode().id(), masterToPing.id(), clusterName);
+            final MasterPingRequest request = new MasterPingRequest(clusterService.localNode().id(), masterToPing.id(), clusterName);
             final TransportRequestOptions options = options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout);
             transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, request, options, new BaseTransportResponseHandler<MasterPingResponseResponse>() {
 
@@ -343,8 +346,8 @@ public class MasterFaultDetection extends FaultDetection {
         }
 
         @Override
-        public void messageReceived(MasterPingRequest request, TransportChannel channel) throws Exception {
-            DiscoveryNodes nodes = nodesProvider.nodes();
+        public void messageReceived(final MasterPingRequest request, final TransportChannel channel) throws Exception {
+            final DiscoveryNodes nodes = clusterService.state().nodes();
             // check if we are really the same master as the one we seemed to be think we are
             // this can happen if the master got "kill -9" and then another node started using the same port
             if (!request.masterNodeId.equals(nodes.localNodeId())) {
@@ -357,15 +360,57 @@ public class MasterFaultDetection extends FaultDetection {
                 throw new NotMasterException("master fault detection ping request is targeted for a different [" + request.clusterName + "] cluster then us [" + clusterName + "]");
             }
 
-            // if we are no longer master, fail...
-            if (!nodes.localNodeMaster()) {
-                throw new NoLongerMasterException();
+            // when we are elected as master or when a node joins, we use a cluster state update thread
+            // to incorporate that information in the cluster state. That cluster state is published
+            // before we make it available locally. This means that a master ping can come from a node
+            // that has already processed the new CS but it is not known locally.
+            // Therefore, if we fail we have to check again under a cluster state thread to make sure
+            // all processing is finished.
+            //
+
+
+            if (!nodes.localNodeMaster() || !nodes.nodeExists(request.nodeId)) {
+                logger.trace("checking ping from [{}] under a cluster state thread", request.nodeId);
+                clusterService.submitStateUpdateTask("master ping (from: [" + request.nodeId + "])", new ProcessedClusterStateNonMasterUpdateTask() {
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        // if we are no longer master, fail...
+                        DiscoveryNodes nodes = currentState.nodes();
+                        if (!nodes.localNodeMaster()) {
+                            throw new NoLongerMasterException();
+                        }
+                        if (!nodes.nodeExists(request.nodeId)) {
+                            throw new NodeDoesNotExistOnMasterException();
+                        }
+                        return currentState;
+                    }
+
+                    @Override
+                    public void onFailure(String source, @Nullable Throwable t) {
+                        if (t == null) {
+                            t = new ElasticsearchException("unknown error while processing ping");
+                        }
+                        try {
+                            channel.sendResponse(t);
+                        } catch (IOException e) {
+                            logger.warn("error while sending ping response", e);
+                        }
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        try {
+                            channel.sendResponse(new MasterPingResponseResponse(true));
+                        } catch (IOException e) {
+                            logger.warn("error while sending ping response", e);
+                        }
+                    }
+                });
+            } else {
+                // send a response, and note if we are connected to the master or not
+                channel.sendResponse(new MasterPingResponseResponse(true));
             }
-            if (!nodes.nodeExists(request.nodeId)) {
-                throw new NodeDoesNotExistOnMasterException();
-            }
-            // send a response, and note if we are connected to the master or not
-            channel.sendResponse(new MasterPingResponseResponse(nodes.nodeExists(request.nodeId)));
         }
 
         @Override

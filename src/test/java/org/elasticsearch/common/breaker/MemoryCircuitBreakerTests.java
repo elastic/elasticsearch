@@ -162,11 +162,12 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
                 // Parent will trip right before regular breaker would trip
                 if (getBreaker(CircuitBreaker.Name.REQUEST).getUsed() > parentLimit) {
                     parentTripped.incrementAndGet();
+                    logger.info("--> parent tripped");
                     throw new CircuitBreakingException("parent tripped");
                 }
             }
         };
-        final BreakerSettings settings = new BreakerSettings(CircuitBreaker.Name.REQUEST, (BYTES_PER_THREAD * NUM_THREADS) - 1, 1.0);
+        final BreakerSettings settings = new BreakerSettings(CircuitBreaker.Name.REQUEST, parentLimit + 1, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(settings, logger,
                 (HierarchyCircuitBreakerService)service, CircuitBreaker.Name.REQUEST);
         breakerRef.set(breaker);
@@ -189,14 +190,22 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
                     }
                 }
             });
+        }
 
-            threads[i].start();
+        logger.info("--> NUM_THREADS: [{}], BYTES_PER_THREAD: [{}], TOTAL_BYTES: [{}], PARENT_LIMIT: [{}], CHILD_LIMIT: [{}]",
+                NUM_THREADS, BYTES_PER_THREAD, (BYTES_PER_THREAD * NUM_THREADS), parentLimit, parentLimit + 1);
+
+        logger.info("--> starting threads...");
+        for (Thread t : threads) {
+            t.start();
         }
 
         for (Thread t : threads) {
             t.join();
         }
 
+        logger.info("--> child breaker: used: {}, limit: {}", breaker.getUsed(), breaker.getLimit());
+        logger.info("--> parent tripped: {}, total trip count: {} (expecting 2 for each)", parentTripped.get(), tripped.get());
         assertThat("no other exceptions were thrown", lastException.get(), equalTo(null));
         assertThat("breaker should be reset back to the parent limit after parent breaker trips",
                 breaker.getUsed(), equalTo((long)parentLimit));

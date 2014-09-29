@@ -776,8 +776,14 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", newTempDir(LifecycleScope.SUITE))));
 
-        createIndex("test-idx-1", "test-idx-2");
+        createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
+
+        assertAcked(client.admin().indices().prepareAliases()
+                        .addAlias("test-idx-1", "alias-1")
+                        .addAlias("test-idx-2", "alias-2")
+                        .addAlias("test-idx-3", "alias-3")
+        );
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
@@ -823,6 +829,9 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setRenamePattern("(.+-2)").setRenameReplacement("$1-copy").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
+        logger.info("--> delete indices");
+        cluster().wipeIndices("test-idx-1", "test-idx-1-copy", "test-idx-2", "test-idx-2-copy");
+
         logger.info("--> try renaming indices using the same name");
         try {
             client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setRenamePattern("(.+)").setRenameReplacement("same-name").setWaitForCompletion(true).execute().actionGet();
@@ -846,6 +855,38 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         } catch (InvalidIndexNameException ex) {
             // Expected
         }
+
+        logger.info("--> try renaming indices into existing alias name");
+        try {
+            client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setIndices("test-idx-1").setRenamePattern(".+").setRenameReplacement("alias-3").setWaitForCompletion(true).execute().actionGet();
+            fail("Shouldn't be here");
+        } catch (InvalidIndexNameException ex) {
+            // Expected
+        }
+
+        logger.info("--> try renaming indices into existing alias of itself");
+        try {
+            client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setIndices("test-idx-1").setRenamePattern("test-idx").setRenameReplacement("alias").setWaitForCompletion(true).execute().actionGet();
+            fail("Shouldn't be here");
+        } catch (SnapshotRestoreException ex) {
+            // Expected
+        }
+
+        logger.info("--> try renaming indices into existing alias of another restored index");
+        try {
+            client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setIndices("test-idx-1", "test-idx-2").setRenamePattern("test-idx-1").setRenameReplacement("alias-2").setWaitForCompletion(true).execute().actionGet();
+            fail("Shouldn't be here");
+        } catch (SnapshotRestoreException ex) {
+            // Expected
+        }
+
+        logger.info("--> try renaming indices into existing alias of itself, but don't restore aliases ");
+        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+                .setIndices("test-idx-1").setRenamePattern("test-idx").setRenameReplacement("alias")
+                .setWaitForCompletion(true).setIncludeAliases(false).execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+
     }
 
     @Test

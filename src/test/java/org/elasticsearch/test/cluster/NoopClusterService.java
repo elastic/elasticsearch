@@ -20,28 +20,50 @@ package org.elasticsearch.test.cluster;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.List;
 
 public class NoopClusterService implements ClusterService {
 
+    final ClusterState state;
+
+    public NoopClusterService() {
+        this(ClusterState.builder(new ClusterName("noop")).build());
+    }
+
+    public NoopClusterService(ClusterState state) {
+        if (state.getNodes().size() == 0) {
+            state = ClusterState.builder(state).nodes(
+                    DiscoveryNodes.builder()
+                            .put(new DiscoveryNode("noop_id", DummyTransportAddress.INSTANCE, Version.CURRENT))
+                            .localNodeId("noop_id")).build();
+        }
+
+        assert state.getNodes().localNode() != null;
+        this.state = state;
+
+    }
+
     @Override
     public DiscoveryNode localNode() {
-        return null;
+        return state.getNodes().localNode();
     }
 
     @Override
     public ClusterState state() {
-        return null;
+        return state;
     }
 
     @Override

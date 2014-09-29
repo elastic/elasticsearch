@@ -132,6 +132,11 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         public void close() {
 
         }
+
+        @Override
+        public void scriptRemoved(CompiledScript script) {
+            // Nothing to do here
+        }
     }
 
 }

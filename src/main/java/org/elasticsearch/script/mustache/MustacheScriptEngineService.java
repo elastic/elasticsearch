@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
@@ -145,6 +146,11 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
 
     @Override
     public void close() {
+        // Nothing to do here
+    }
+
+    @Override
+    public void scriptRemoved(CompiledScript script) {
         // Nothing to do here
     }
 

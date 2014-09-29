@@ -51,7 +51,7 @@ public class SecurityFilter extends AbstractComponent {
         this.auditTrail = auditTrail;
     }
 
-    User process(String action, TransportRequest request) {
+    User authenticateAndAuthorize(String action, TransportRequest request) {
 
         // if the action is a system action, we'll fall back on the system user, otherwise we
         // won't fallback on any user and an authentication exception will be thrown
@@ -61,6 +61,11 @@ public class SecurityFilter extends AbstractComponent {
         User user = authcService.authenticate(action, request, token);
         authzService.authorize(user, action, request);
         return user;
+    }
+
+    User authenticate(RestRequest request) {
+        AuthenticationToken token = authcService.token(request);
+        return authcService.authenticate(request, token);
     }
 
     <Request extends ActionRequest> Request unsign(User user, String action, Request request) {
@@ -124,7 +129,7 @@ public class SecurityFilter extends AbstractComponent {
 
         @Override
         public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
-            filter.authcService.extractAndRegisterToken(request);
+            filter.authenticate(request);
             filterChain.continueProcessing(request, channel);
         }
     }
@@ -140,7 +145,7 @@ public class SecurityFilter extends AbstractComponent {
 
         @Override
         public void inboundRequest(String action, TransportRequest request) {
-            filter.process(action, request);
+            filter.authenticateAndAuthorize(action, request);
         }
     }
 
@@ -156,7 +161,7 @@ public class SecurityFilter extends AbstractComponent {
         @Override
         public void apply(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
             try {
-                User user = filter.process(action, request);
+                User user = filter.authenticateAndAuthorize(action, request);
                 request = filter.unsign(user, action, request);
                 chain.proceed(action, request, new SigningListener(user, action, filter, listener));
             } catch (Throwable t) {

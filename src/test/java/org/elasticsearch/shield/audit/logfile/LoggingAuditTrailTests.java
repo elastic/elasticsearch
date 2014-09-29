@@ -6,17 +6,21 @@
 package org.elasticsearch.shield.audit.logfile;
 
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Test;
 
+import java.net.InetSocketAddress;
 import java.util.List;
 
 import static org.elasticsearch.shield.audit.logfile.CapturingLogger.Level;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  *
@@ -64,6 +68,29 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testAuthenticationFailed_Rest() throws Exception {
+        for (Level level : Level.values()) {
+            RestRequest request = mock(RestRequest.class);
+            when(request.getRemoteAddress()).thenReturn(new InetSocketAddress("_hostname", 9200));
+            when(request.uri()).thenReturn("_uri");
+            when(request.toString()).thenReturn("rest_request");
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(logger);
+            auditTrail.authenticationFailed(new MockToken(), request);
+            switch (level) {
+                case ERROR:
+                case WARN:
+                case INFO:
+                    assertMsg(logger, Level.ERROR, "AUTHENTICATION_FAILED\thost=[_hostname:9200], URI=[_uri], principal=[_principal]");
+                    break;
+                case DEBUG:
+                case TRACE:
+                    assertMsg(logger, Level.DEBUG, "AUTHENTICATION_FAILED\thost=[_hostname:9200], URI=[_uri], principal=[_principal], request=[rest_request]");
+            }
+        }
+    }
+
+    @Test
     public void testAuthenticationFailed_Realm() throws Exception {
         for (Level level : Level.values()) {
             CapturingLogger logger = new CapturingLogger(level);
@@ -78,6 +105,29 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                     break;
                 case TRACE:
                     assertMsg(logger, Level.TRACE, "AUTHENTICATION_FAILED[_realm]\thost=[local[_host]], action=[_action], principal=[_principal], request=[mock-message]");
+            }
+        }
+    }
+
+    @Test
+    public void testAuthenticationFailed_Realm_Rest() throws Exception {
+        for (Level level : Level.values()) {
+            RestRequest request = mock(RestRequest.class);
+            when(request.getRemoteAddress()).thenReturn(new InetSocketAddress("_hostname", 9200));
+            when(request.uri()).thenReturn("_uri");
+            when(request.toString()).thenReturn("rest_request");
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(logger);
+            auditTrail.authenticationFailed("_realm", new MockToken(), request);
+            switch (level) {
+                case ERROR:
+                case WARN:
+                case INFO:
+                case DEBUG:
+                    assertEmptyLog(logger);
+                    break;
+                case TRACE:
+                    assertMsg(logger, Level.TRACE, "AUTHENTICATION_FAILED[_realm]\thost=[_hostname:9200], URI=[_uri], principal=[_principal], request=[rest_request]");
             }
         }
     }
@@ -143,6 +193,7 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
             return "mock-message";
         }
     }
+
 
     private static class MockToken implements AuthenticationToken {
         @Override

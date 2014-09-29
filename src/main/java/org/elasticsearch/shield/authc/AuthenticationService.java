@@ -18,7 +18,7 @@ public interface AuthenticationService {
      * Extracts an authentication token from the given rest request and if found registers it on
      * the request. If not found, an {@link AuthenticationException} is thrown.
      */
-    void extractAndRegisterToken(RestRequest request) throws AuthenticationException;
+    AuthenticationToken token(RestRequest request) throws AuthenticationException;
 
     /**
      * Extracts the authenticate token from the given message. If no recognized auth token is associated
@@ -49,4 +49,18 @@ public interface AuthenticationService {
      */
     User authenticate(String action, TransportMessage<?> message, AuthenticationToken token) throws AuthenticationException;
 
+    /**
+     * Authenticates the user associated with the given request based on the given authentication token.
+     *
+     * On successful authentication, the {@link org.elasticsearch.shield.User user} that is associated
+     * with the request (i.e. that is associated with the token's {@link AuthenticationToken#principal() principal})
+     * will be returned. If authentication fails, an {@link AuthenticationException} will be thrown.
+     *
+     * @param request   The executed request
+     * @param token     The authentication token associated with the given request (must not be {@code null})
+     * @return          The authenticated User
+     * @throws AuthenticationException  If no user could be authenticated (can either be due to missing
+     *                                  supported authentication token, or simply due to bad credentials.
+     */
+    User authenticate(RestRequest request, AuthenticationToken token) throws AuthenticationException;
 }

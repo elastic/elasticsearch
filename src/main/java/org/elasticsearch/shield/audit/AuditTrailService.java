@@ -8,6 +8,7 @@ package org.elasticsearch.shield.audit;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.transport.TransportMessage;
@@ -51,6 +52,20 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
     public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage<?> message) {
         for (AuditTrail auditTrail : auditTrails) {
             auditTrail.authenticationFailed(realm, token, action, message);
+        }
+    }
+
+    @Override
+    public void authenticationFailed(AuthenticationToken token, RestRequest request) {
+        for (AuditTrail auditTrail : auditTrails) {
+            auditTrail.authenticationFailed(token, request);
+        }
+    }
+
+    @Override
+    public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
+        for (AuditTrail auditTrail : auditTrails) {
+            auditTrail.authenticationFailed(realm, token, request);
         }
     }
 

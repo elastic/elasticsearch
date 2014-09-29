@@ -475,7 +475,7 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
         indexRandom(true, builders);
 
         logger.info("Running MoreLikeThis");
-        MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery("text").exclude(false).minTermFreq(1).minDocFreq(1)
+        MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery("text").include(true).minTermFreq(1).minDocFreq(1)
                 .addItem(new MoreLikeThisQueryBuilder.Item("test", "type0", "0"));
 
         String[] types = new String[numOfTypes];

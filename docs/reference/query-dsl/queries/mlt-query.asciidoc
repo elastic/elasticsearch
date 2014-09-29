@@ -62,10 +62,10 @@ this case should be preferred over only using `like_text`.
             "_type" : "type",
             "doc" : {
                 "name": {
-                    "first": "John",
-                    "last": "Doe"
+                    "first": "Ben",
+                    "last": "Grimm"
                 },
-                "tweet": "twitter test test test"
+                "tweet": "You got no idea what I'd... what I'd give to be invisible."
               }
             }
         },

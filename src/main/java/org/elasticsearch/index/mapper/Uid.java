@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.common.lucene.BytesRefs;
 
@@ -95,10 +96,10 @@ public final class Uid {
         return new Uid(uid.substring(0, delimiterIndex), uid.substring(delimiterIndex + 1));
     }
 
-    public static BytesRef[] createUids(List<TermVectorRequest> requests) {
+    public static BytesRef[] createUids(List<? extends DocumentRequest> requests) {
         BytesRef[] uids = new BytesRef[requests.size()];
         int idx = 0;
-        for (TermVectorRequest item : requests) {
+        for (DocumentRequest item : requests) {
             uids[idx++] = createUidAsBytes(item.type(), item.id());
         }
         return uids;

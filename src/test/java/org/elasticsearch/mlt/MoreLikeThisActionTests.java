@@ -561,4 +561,70 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
         assertHitCount(response, 1);
     }
+
+    @Test
+    public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
+        logger.info("Creating an index with a single document ...");
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
+                .startObject()
+                    .field("text", "Hello World!")
+                    .field("date", "2009-01-01")
+                .endObject()));
+
+        logger.info("Checking with a malformed field value ...");
+        XContentBuilder malformedFieldDoc = jsonBuilder()
+                .startObject()
+                    .field("text", "Hello World!")
+                    .field("date", "this is not a date!")
+                .endObject();
+        MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery()
+                .docs((Item) new Item().doc(malformedFieldDoc).index("test").type("type1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .percentTermsToMatch(0);
+        SearchResponse response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 0);
+
+        logger.info("Checking with an empty document ...");
+        XContentBuilder emptyDoc = jsonBuilder().startObject().endObject();
+        mltQuery = moreLikeThisQuery()
+                .docs((Item) new Item().doc(emptyDoc).index("test").type("type1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .percentTermsToMatch(0);
+        response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 0);
+
+        logger.info("Checking when document is malformed ...");
+        XContentBuilder malformedDoc = jsonBuilder().startObject();
+        mltQuery = moreLikeThisQuery()
+                .docs((Item) new Item().doc(malformedDoc).index("test").type("type1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .percentTermsToMatch(0);
+        response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 0);
+
+        logger.info("Checking the document matches otherwise ...");
+        XContentBuilder normalDoc = jsonBuilder()
+                .startObject()
+                    .field("text", "Hello World!")
+                    .field("date", "1000-01-01") // should be properly parsed but ignored ...
+                .endObject();
+        mltQuery = moreLikeThisQuery()
+                .docs((Item) new Item().doc(normalDoc).index("test").type("type1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .percentTermsToMatch(1);  // strict all terms must match but date is ignored
+        response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
+    }
 }

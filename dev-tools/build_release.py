@@ -68,8 +68,6 @@ PLUGINS = [('bigdesk', 'lukas-vlcek/bigdesk'),
            ('head', 'mobz/elasticsearch-head')]
 
 LOG = env.get('ES_RELEASE_LOG', '/tmp/elasticsearch_release.log')
-if os.path.exists(LOG):
-  raise RuntimeError('please remove old release log %s first' % LOG)
 
 def log(msg):
   log_plain('\n%s' % msg)
@@ -116,14 +114,14 @@ def java_exe():
 
 def verify_java_version(version):
   s = os.popen('%s; java -version 2>&1' % java_exe()).read()
-  if s.find(' version "%s.' % version) == -1:
+  if ' version "%s.' % version not in s:
     raise RuntimeError('got wrong version for java %s:\n%s' % (version, s))
 
 # Verifies the java version. We guarantee that we run with Java 1.7
 # If 1.7 is not available fail the build!
 def verify_mvn_java_version(version, mvn):
   s = os.popen('%s; %s --version 2>&1' % (java_exe(), mvn)).read()
-  if s.find('Java version: %s' % version) == -1:
+  if 'Java version: %s' % version not in s:
     raise RuntimeError('got wrong java version for %s %s:\n%s' % (mvn, version, s))
 
 # Returns the hash of the current git HEAD revision
@@ -312,7 +310,7 @@ def wait_for_node_startup(host='127.0.0.1', port=9200,timeout=15):
 # Ensures we are using a true Lucene release, not a snapshot build:
 def verify_lucene_version():
   s = open('pom.xml', encoding='utf-8').read()
-  if s.find('download.elasticsearch.org/lucenesnapshots') != -1:
+  if 'download.elasticsearch.org/lucenesnapshots' in s:
     raise RuntimeError('pom.xml contains download.elasticsearch.org/lucenesnapshots repository: remove that before releasing')
 
   m = re.search(r'<lucene.version>(.*?)</lucene.version>', s)
@@ -598,6 +596,10 @@ if __name__ == '__main__':
   cpus = args.cpus
   build = not args.smoke
   smoke_test_version = args.smoke
+
+  if os.path.exists(LOG):
+    raise RuntimeError('please remove old release log %s first' % LOG)
+  
   if not dry_run:
     check_s3_credentials()
     print('WARNING: dryrun is set to "false" - this will push and publish the release')

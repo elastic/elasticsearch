@@ -675,7 +675,7 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         while (nonMasterNode == null) {
             nonMasterNode = randomFrom(internalCluster().getNodeNames());
             if (nonMasterNode.equals(masterNode)) {
-                masterNode = null;
+                nonMasterNode = null;
             }
         }
 

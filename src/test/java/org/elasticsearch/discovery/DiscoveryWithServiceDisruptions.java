@@ -107,11 +107,36 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
     }
 
     private List<String> startCluster(int numberOfNodes, int minimumMasterNode) throws ExecutionException, InterruptedException {
-        if (randomBoolean()) {
-            return startMulticastCluster(numberOfNodes, minimumMasterNode);
-        } else {
-            return startUnicastCluster(numberOfNodes, null, minimumMasterNode);
+        configureCluster(numberOfNodes, minimumMasterNode);
+        List<String> nodes = internalCluster().startNodesAsync(numberOfNodes).get();
+        ensureStableCluster(numberOfNodes);
+
+        // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
+        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
+            for (ZenPing zenPing : pingService.zenPings()) {
+                if (zenPing instanceof UnicastZenPing) {
+                    ((UnicastZenPing) zenPing).clearTemporalResponses();
+                }
+            }
         }
+        return nodes;
+    }
+
+
+    private List<String> startUnicastCluster(int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
+        configureUnicastCluster(numberOfNodes, unicastHostsOrdinals, minimumMasterNode);
+        List<String> nodes = internalCluster().startNodesAsync(numberOfNodes).get();
+        ensureStableCluster(numberOfNodes);
+
+        // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
+        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
+            for (ZenPing zenPing : pingService.zenPings()) {
+                if (zenPing instanceof UnicastZenPing) {
+                    ((UnicastZenPing) zenPing).clearTemporalResponses();
+                }
+            }
+        }
+        return nodes;
     }
 
     final static Settings DEFAULT_SETTINGS = ImmutableSettings.builder()
@@ -124,7 +149,16 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
             .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
             .build();
 
-    private List<String> startMulticastCluster(int numberOfNodes, int minimumMasterNode) throws ExecutionException, InterruptedException {
+    private void configureCluster(int numberOfNodes, int minimumMasterNode) throws ExecutionException, InterruptedException {
+        if (randomBoolean()) {
+            configureMulticastCluster(numberOfNodes, minimumMasterNode);
+        } else {
+            configureUnicastCluster(numberOfNodes, null, minimumMasterNode);
+        }
+
+    }
+
+    private void configureMulticastCluster(int numberOfNodes, int minimumMasterNode) throws ExecutionException, InterruptedException {
         if (minimumMasterNode < 0) {
             minimumMasterNode = numberOfNodes / 2 + 1;
         }
@@ -137,13 +171,9 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         if (discoveryConfig == null) {
             discoveryConfig = new ClusterDiscoveryConfiguration(numberOfNodes, settings);
         }
-        List<String> nodes = internalCluster().startNodesAsync(numberOfNodes).get();
-        ensureStableCluster(numberOfNodes);
-
-        return nodes;
     }
 
-    private List<String> startUnicastCluster(int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
+    private void configureUnicastCluster(int numberOfNodes, @Nullable int[] unicastHostsOrdinals, int minimumMasterNode) throws ExecutionException, InterruptedException {
         if (minimumMasterNode < 0) {
             minimumMasterNode = numberOfNodes / 2 + 1;
         }
@@ -160,19 +190,6 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
                 discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, nodeSettings, unicastHostsOrdinals);
             }
         }
-        List<String> nodes = internalCluster().startNodesAsync(numberOfNodes).get();
-        ensureStableCluster(numberOfNodes);
-
-        // TODO: this is a temporary solution so that nodes will not base their reaction to a partition based on previous successful results
-        for (ZenPingService pingService : internalCluster().getInstances(ZenPingService.class)) {
-            for (ZenPing zenPing : pingService.zenPings()) {
-                if (zenPing instanceof UnicastZenPing) {
-                    ((UnicastZenPing) zenPing).clearTemporalResponses();
-                }
-            }
-        }
-
-        return nodes;
     }
 
 
@@ -760,6 +777,68 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         nonMasterTransportService.clearRule(discoveryNodes.masterNode());
 
         ensureStableCluster(2);
+    }
+
+
+    @Test
+    @TestLogging("discovery.zen:TRACE,action:TRACE")
+    public void testClusterFormingWithASlowNode() throws Exception {
+        configureCluster(3, 2);
+
+        SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(getRandom(), 0, 0, 5000, 6000);
+
+        // don't wait for initial state, wat want to add the disruption while the cluster is forming..
+        internalCluster().startNodesAsync(3,
+                ImmutableSettings.builder()
+                        .put(DiscoveryService.SETTING_INITIAL_STATE_TIMEOUT, "1ms")
+                        .put(DiscoverySettings.PUBLISH_TIMEOUT, "3s")
+                        .build()).get();
+
+        logger.info("applying disruption while cluster is forming ...");
+
+        internalCluster().setDisruptionScheme(disruption);
+        disruption.startDisrupting();
+
+        ensureStableCluster(3);
+    }
+
+    /**
+     * Adds an asymetric break between a master and one of the nodes and makes
+     * sure that the node is removed form the cluster, that the node start pinging and that
+     * the cluster reforms when healed.
+     */
+    @Test
+    @TestLogging("discovery.zen:TRACE,action:TRACE")
+    public void testNodeNotReachableFromMaster() throws Exception {
+        startCluster(3);
+
+        String masterNode = internalCluster().getMasterName();
+        String nonMasterNode = null;
+        while (nonMasterNode == null) {
+            nonMasterNode = randomFrom(internalCluster().getNodeNames());
+            if (nonMasterNode.equals(masterNode)) {
+                masterNode = null;
+            }
+        }
+
+        logger.info("blocking request from master [{}] to [{}]", masterNode, nonMasterNode);
+        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, masterNode);
+        if (randomBoolean()) {
+            masterTransportService.addUnresponsiveRule(internalCluster().getInstance(ClusterService.class, nonMasterNode).localNode());
+        } else {
+            masterTransportService.addFailToSendNoConnectRule(internalCluster().getInstance(ClusterService.class, nonMasterNode).localNode());
+        }
+
+        logger.info("waiting for [{}] to be removed from cluster", nonMasterNode);
+        ensureStableCluster(2, masterNode);
+
+        logger.info("waiting for [{}] to have no master", nonMasterNode);
+        assertNoMaster(nonMasterNode);
+
+        logger.info("healing partition and checking cluster reforms");
+        masterTransportService.clearAllRules();
+
+        ensureStableCluster(3);
     }
 
 

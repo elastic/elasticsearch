@@ -27,12 +27,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.cluster.NoopClusterService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportConnectionListener;
@@ -172,21 +171,9 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
         settings.put(FaultDetection.SETTING_CONNECT_ON_NETWORK_DISCONNECT, shouldRetry)
                 .put(FaultDetection.SETTING_PING_INTERVAL, "5m");
         ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
-        final DiscoveryNodes nodes = buildNodesForA(false);
-        MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA,
-                new DiscoveryNodesProvider() {
-                    @Override
-                    public DiscoveryNodes nodes() {
-                        return nodes;
-                    }
-
-                    @Override
-                    public NodeService nodeService() {
-                        return null;
-                    }
-                },
-                clusterName
-        );
+        final ClusterState state = ClusterState.builder(clusterName).nodes(buildNodesForA(false)).build();
+        MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA, clusterName,
+                new NoopClusterService(state));
         masterFD.start(nodeB, "test");
 
         final String[] failureReason = new String[1];

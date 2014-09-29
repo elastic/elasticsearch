@@ -22,7 +22,10 @@ package org.elasticsearch.discovery.zen;
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.elasticsearch.*;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -180,7 +183,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         nodeSettingsService.addListener(new ApplySettings());
 
-        this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, this, clusterName);
+        this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, clusterName, clusterService);
         this.masterFD.addListener(new MasterNodeFailureListener());
 
         this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, clusterName);

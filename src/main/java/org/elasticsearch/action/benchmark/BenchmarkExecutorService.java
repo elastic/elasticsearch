@@ -30,6 +30,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -164,16 +166,14 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
                         break;
                     }
 
-                    if (state.resume()) {
-                        try {
+                    try {
+                        if (state.resume()) {
                             logger.debug("benchmark [{}]: resuming execution", entry.benchmarkId());
-                            state.benchmarkSemaphores.resumeAllCompetitors();
-                            state.response.state(BenchmarkStartResponse.State.RUNNING);
                             updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.RUNNING);
-                        } catch (Throwable t) {
-                            logger.error("benchmark [{}]: failed to resume", t, entry.benchmarkId());
-                            updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.FAILED);
                         }
+                    } catch (Exception e) {
+                        logger.error("benchmark [{}]: failed to resume", e, entry.benchmarkId());
+                        updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.FAILED);
                     }
                     break;
                 case PAUSED:
@@ -182,16 +182,14 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
                         break;
                     }
 
-                    if (state.pause()) {
-                        try {
+                    try {
+                        if (state.pause()) {
                             logger.debug("benchmark [{}]: pausing execution", entry.benchmarkId());
-                            state.benchmarkSemaphores.pauseAllCompetitors();
-                            state.response.state(BenchmarkStartResponse.State.PAUSED);
                             updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.PAUSED);
-                        } catch (Throwable t) {
-                            logger.error("benchmark [{}]: failed to pause", t, entry.benchmarkId());
-                            updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.FAILED);
                         }
+                    } catch (Exception e) {
+                        logger.error("benchmark [{}]: failed to pause", e, entry.benchmarkId());
+                        updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.FAILED);
                     }
                     break;
                 case ABORTED:
@@ -201,16 +199,14 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
                         break;
                     }
 
-                    if (state.abort()) {
-                        try {
+                    try {
+                        if (state.abort()) {
                             logger.debug("benchmark [{}]: aborting execution", entry.benchmarkId());
-                            state.benchmarkSemaphores.abortAllCompetitors();
-                            state.response.state(BenchmarkStartResponse.State.ABORTED);
                             updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.ABORTED);
-                        } catch (Throwable t) {
-                            logger.error("benchmark [{}]: failed to abort", t, entry.benchmarkId());
-                            updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.FAILED);
                         }
+                    } catch (Exception e) {
+                        logger.error("benchmark [{}]: failed to abort", e, entry.benchmarkId());
+                        updateNodeState(entry.benchmarkId(), nodeId(), BenchmarkMetaData.Entry.NodeState.FAILED);
                     }
                     break;
                 case COMPLETED:
@@ -459,8 +455,13 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
             return false;
         }
 
-        public boolean pause() {
+        public boolean pause() throws InterruptedException {
             if (initialized && started && !paused) {
+                if (response == null || benchmarkSemaphores == null) {
+                    throw new ElasticsearchIllegalStateException("benchmark [" + benchmarkId + "]: not properly initialized");
+                }
+                benchmarkSemaphores.pauseAllCompetitors();
+                response.state(BenchmarkStartResponse.State.PAUSED);
                 paused = true;
                 return true;
             }
@@ -469,6 +470,11 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
 
         public boolean resume() {
             if (initialized && started && paused) {
+                if (response == null || benchmarkSemaphores == null) {
+                    throw new ElasticsearchIllegalStateException("benchmark [" + benchmarkId + "]: not properly initialized");
+                }
+                benchmarkSemaphores.resumeAllCompetitors();
+                response.state(BenchmarkStartResponse.State.RUNNING);
                 paused = false;
                 return true;
             }
@@ -476,7 +482,15 @@ public class BenchmarkExecutorService extends AbstractBenchmarkService {
         }
 
         public boolean abort() {
-            return initialized;
+            if (initialized) {
+                if (response == null || benchmarkSemaphores == null) {
+                    throw new ElasticsearchIllegalStateException("benchmark [" + benchmarkId + "]: not properly initialized");
+                }
+                benchmarkSemaphores.abortAllCompetitors();
+                response.state(BenchmarkStartResponse.State.ABORTED);
+                return true;
+            }
+            return false;
         }
 
         public boolean complete() {

@@ -972,7 +972,7 @@ And the response (partially shown):
 }
 --------------------------------------------------
 
-We can see that there are 21 accounts in AL(abama), followed by 17 accounts in TX, followed by 15 accounts in ID(daho), and so forth.
+We can see that there are 21 accounts in AL(abama), followed by 17 accounts in TX, followed by 15 accounts in ID(aho), and so forth.
 
 Note that we set `size=0` to not show search hits because we only want to see the aggregation results in the response.
 

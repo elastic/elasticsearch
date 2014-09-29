@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine.internal;
 
+import com.google.common.base.Predicate;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -29,6 +30,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexDeletionPolicy;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -374,7 +376,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             }
         });
 
-        Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
+        final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
         engine.start();
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
@@ -410,13 +412,15 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         index = new Engine.Index(null, newUid("4"), doc);
         engine.index(index);
         engine.flush(new Engine.Flush());
-
+        final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
         // now, optimize and wait for merges, see that we have no merge flag
         engine.optimize(new Engine.Optimize().flush(true).maxNumSegments(1).waitForMerge(true));
 
         for (Segment segment : engine.segments()) {
             assertThat(segment.getMergeId(), nullValue());
         }
+        // we could have multiple underlying merges, so the generation may increase more than once
+        assertTrue(store.readLastCommittedSegmentsInfo().getGeneration() > gen1);
 
         // forcing an optimize will merge this single segment shard
         final boolean force = randomBoolean();
@@ -424,12 +428,28 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             waitTillMerge.set(new CountDownLatch(1));
             waitForMerge.set(new CountDownLatch(1));
         }
-        engine.optimize(new Engine.Optimize().flush(true).maxNumSegments(1).force(force).waitForMerge(false));
+        final boolean flush = randomBoolean();
+        final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
+        engine.optimize(new Engine.Optimize().flush(flush).maxNumSegments(1).force(force).waitForMerge(false));
         waitTillMerge.get().await();
         for (Segment segment : engine.segments()) {
             assertThat(segment.getMergeId(), force ? notNullValue() : nullValue());
         }
         waitForMerge.get().countDown();
+        
+        if (flush) {
+            awaitBusy(new Predicate<Object>() {
+                @Override
+                public boolean apply(Object o) {
+                    try {
+                        // we should have had just 1 merge, so last generation should be exact
+                        return store.readLastCommittedSegmentsInfo().getLastGeneration() == gen2;
+                    } catch (IOException e) {
+                        throw ExceptionsHelper.convertToRuntime(e);
+                    }
+                }
+            });
+        }
 
         engine.close();
     }

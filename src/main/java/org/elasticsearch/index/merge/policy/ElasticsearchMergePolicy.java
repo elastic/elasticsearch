@@ -196,20 +196,22 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     public MergeSpecification findForcedMerges(SegmentInfos segmentInfos,
         int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge, IndexWriter writer)
         throws IOException {
-      if (force) {
-          List<SegmentCommitInfo> segments = Lists.newArrayList();
-          for (SegmentCommitInfo info : segmentInfos) {
-              if (segmentsToMerge.containsKey(info)) {
-                  segments.add(info);
-              }
-          }
-          if (!segments.isEmpty()) {
-              MergeSpecification spec = new IndexUpgraderMergeSpecification();
-              spec.add(new OneMerge(segments));
-              return spec;
-          }
-      }
-      return upgradedMergeSpecification(delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, writer));
+        MergeSpecification spec = delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, writer);
+
+        if (spec == null && force) {
+            List<SegmentCommitInfo> segments = Lists.newArrayList();
+            for (SegmentCommitInfo info : segmentInfos) {
+                if (segmentsToMerge.containsKey(info)) {
+                    segments.add(info);
+                }
+            }
+            if (!segments.isEmpty()) {
+                spec = new IndexUpgraderMergeSpecification();
+                spec.add(new OneMerge(segments));
+                return spec;
+            }
+        }
+        return upgradedMergeSpecification(spec);
     }
 
     @Override

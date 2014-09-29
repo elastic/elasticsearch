@@ -51,6 +51,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -1009,12 +1010,20 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             throw new OptimizeFailedEngineException(shardId, t);
         }
     }
+    
+    private void waitForMerges(boolean flushAfter) {
+        try {
+            currentIndexWriter().waitForMerges();
+        } catch (IOException e) {
+            throw new OptimizeFailedEngineException(shardId, e);
+        }
+        if (flushAfter) {
+            flush(new Flush().force(true).waitIfOngoing(true));
+        }
+    }
 
     @Override
     public void optimize(Optimize optimize) throws EngineException {
-        if (optimize.flush()) {
-            flush(new Flush().force(true).waitIfOngoing(true));
-        }
         if (optimizeMutex.compareAndSet(false, true)) {
             ElasticsearchMergePolicy elasticsearchMergePolicy = null;
             try (InternalLock _ = readLock.acquire()) {
@@ -1054,18 +1063,23 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 }
                 optimizeMutex.set(false);
             }
-
         }
+        
         // wait for the merges outside of the read lock
         if (optimize.waitForMerge()) {
-            try {
-                currentIndexWriter().waitForMerges();
-            } catch (IOException e) {
-                throw new OptimizeFailedEngineException(shardId, e);
-            }
-        }
-        if (optimize.flush()) {
-            flush(new Flush().force(true).waitIfOngoing(true));
+            waitForMerges(optimize.flush());
+        } else if (optimize.flush()) {
+            // we only need to monitor merges for async calls if we are going to flush
+            threadPool.executor(ThreadPool.Names.OPTIMIZE).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.error("Exception while waiting for merges asynchronously after optimize", t);
+                }
+                @Override
+                protected void doRun() throws Exception {
+                    waitForMerges(true);
+                }
+            });
         }
     }
 

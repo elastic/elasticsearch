@@ -1209,8 +1209,8 @@
                                 <bundledSignature>jdk-system-out</bundledSignature>
                             </bundledSignatures>
                             <signaturesFiles>
-                                <signaturesFile>core-signatures.txt</signaturesFile>
-                                <signaturesFile>all-signatures.txt</signaturesFile>
+                                <signaturesFile>dev-tools/forbidden/core-signatures.txt</signaturesFile>
+                                <signaturesFile>dev-tools/forbidden/all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.signatures}</signatures>
                         </configuration>
@@ -1233,8 +1233,8 @@
                                 <bundledSignature>jdk-deprecated</bundledSignature>
                             </bundledSignatures>
                             <signaturesFiles>
-                                <signaturesFile>test-signatures.txt</signaturesFile>
-                                <signaturesFile>all-signatures.txt</signaturesFile>
+                                <signaturesFile>dev-tools/forbidden/test-signatures.txt</signaturesFile>
+                                <signaturesFile>dev-tools/forbidden/all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.test.signatures}</signatures>
                         </configuration>

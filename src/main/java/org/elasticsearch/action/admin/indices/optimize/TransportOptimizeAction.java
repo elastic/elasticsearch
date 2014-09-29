@@ -113,7 +113,7 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
                 .maxNumSegments(request.maxNumSegments())
                 .onlyExpungeDeletes(request.onlyExpungeDeletes())
                 .flush(request.flush())
-                .force(request.force())
+                .upgrade(request.force())
         );
         return new ShardOptimizeResponse(request.shardId());
     }

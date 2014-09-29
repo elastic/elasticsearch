@@ -303,7 +303,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private int maxNumSegments = -1;
         private boolean onlyExpungeDeletes = false;
         private boolean flush = false;
-        private boolean force = false;
+        private boolean upgrade = false;
 
         public Optimize() {
         }
@@ -344,18 +344,18 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
-        public boolean force() {
-            return force;
+        public boolean upgrade() {
+            return upgrade;
         }
 
-        public Optimize force(boolean force) {
-            this.force = force;
+        public Optimize upgrade(boolean upgrade) {
+            this.upgrade = upgrade;
             return this;
         }
 
         @Override
         public String toString() {
-            return "waitForMerge[" + waitForMerge + "], maxNumSegments[" + maxNumSegments + "], onlyExpungeDeletes[" + onlyExpungeDeletes + "], flush[" + flush + "], force[" + force + "]";
+            return "waitForMerge[" + waitForMerge + "], maxNumSegments[" + maxNumSegments + "], onlyExpungeDeletes[" + onlyExpungeDeletes + "], flush[" + flush + "], upgrade[" + upgrade + "]";
         }
     }
 

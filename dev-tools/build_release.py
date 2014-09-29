@@ -67,6 +67,8 @@ PLUGINS = [('bigdesk', 'lukas-vlcek/bigdesk'),
            ('head', 'mobz/elasticsearch-head')]
 
 LOG = env.get('ES_RELEASE_LOG', '/tmp/elasticsearch_release.log')
+if os.path.exists(LOG):
+  raise RuntimeError('please remove old release log %s first' % LOG)
 
 def log(msg):
   log_plain('\n%s' % msg)

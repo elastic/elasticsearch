@@ -22,9 +22,12 @@ package org.elasticsearch.script;
 import com.google.common.base.Charsets;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -64,11 +67,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
@@ -206,7 +212,7 @@ public class ScriptService extends AbstractComponent {
                          ResourceWatcherService resourceWatcherService) {
         super(settings);
 
-        int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, 500);
+        int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, 100);
         TimeValue cacheExpire = settings.getAsTime(SCRIPT_CACHE_EXPIRE_SETTING, null);
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
 
@@ -220,6 +226,7 @@ public class ScriptService extends AbstractComponent {
         if (cacheExpire != null) {
             cacheBuilder.expireAfterAccess(cacheExpire.nanos(), TimeUnit.NANOSECONDS);
         }
+        cacheBuilder.removalListener(new ScriptCacheRemovalListener());
         this.cache = cacheBuilder.build();
 
         ImmutableMap.Builder<String, ScriptEngineService> builder = ImmutableMap.builder();
@@ -480,6 +487,30 @@ public class ScriptService extends AbstractComponent {
             return false;
         } else {
             return service.sandboxed();
+        }
+    }
+
+    /**
+     * A small listener for the script cache that calls each
+     * {@code ScriptEngineService}'s {@code scriptRemoved} method when the
+     * script has been removed from the cache
+     */
+    private class ScriptCacheRemovalListener implements RemovalListener<CacheKey, CompiledScript> {
+
+        @Override
+        public void onRemoval(RemovalNotification<CacheKey, CompiledScript> notification) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("notifying script services of script removal due to: [{}]", notification.getCause());
+            }
+            List<Exception> errors = newArrayList();
+            for (ScriptEngineService service : scriptEngines.values()) {
+                try {
+                    service.scriptRemoved(notification.getValue());
+                } catch (Exception e) {
+                    errors.add(e);
+                }
+            }
+            ExceptionsHelper.maybeThrowRuntimeAndSuppress(errors);
         }
     }
 

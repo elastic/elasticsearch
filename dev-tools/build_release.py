@@ -153,6 +153,8 @@ def fetch(remote):
 # the release branch. Note: This fails if the source branch
 # doesn't exist on the provided remote.
 def create_release_branch(remote, src_branch, release):
+  run('git checkout %s' % src_branch)
+  run('git pull --rebase %s %s' % (remote, src_branch))
   run('git checkout -b %s' % (release_branch(release)))
 
 
@@ -525,32 +527,9 @@ def find_bwc_version(release_version, bwc_dir='backwards'):
     log('  bwc directory [%s] does not exists or is not a directory - skipping' % bwc_dir)
   return bwc_version
 
-def ensure_checkout_is_clean(branchName):
-  # Make sure no local mods:
-  s = os.popen('git diff --shortstat').read()
-  if len(s) > 0:
-    raise RuntimeError('git diff --shortstat is non-empty: got:\n%s' % s)
-
-  # Make sure no untracked files:
-  s = os.popen('git status').read()
-  if s.find('Untracked files:') != -1:
-    raise RuntimeError('git status shows untracked files: got:\n%s' % s)
-
-  # Make sure we are on the right branch (NOTE: a bit weak, since we default to current branch):
-  if s.find('On branch %s' % branchName) == -1:
-    raise RuntimeError('git status does not show branch %s: got:\n%s' % (branchName, s))
-
-  # Make sure we have all changes from origin:
-  if s.find('is behind') != -1:
-    raise RuntimeError('git status shows not all changes pulled from origin; try running "git pull origin %s": got:\n%s' % (branchName, s))
-
-  # Make sure we no local unpushed changes (this is supposed to be a clean area):
-  if s.find('is ahead') != -1:
-    raise RuntimeError('git status shows local commits; try running "git fetch origin", "git checkout %s", "git reset --hard origin/%s": got:\n%s' % (branchName, branchName, s))
-
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Builds and publishes a Elasticsearch Release')
-  parser.add_argument('--branch', '-b', metavar='1.3', default=get_current_branch(),
+  parser.add_argument('--branch', '-b', metavar='master', default=get_current_branch(),
                        help='The branch to release from. Defaults to the current branch.')
   parser.add_argument('--cpus', '-c', metavar='1', default=1,
                        help='The number of cpus to use for running the test. Default is [1]')
@@ -587,7 +566,6 @@ if __name__ == '__main__':
   print('  JAVA_HOME is [%s]' % JAVA_HOME)
   print('  Running with maven command: [%s] ' % (MVN))
   if build:
-    ensure_checkout_is_clean(src_branch)
     release_version = find_release_version(src_branch)
     ensure_no_open_tickets(release_version)
     if not dry_run:

@@ -610,7 +610,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public synchronized Client startNodeClient(Settings settings) {
         ensureOpen(); // currently unused
-        Builder builder = settingsBuilder().put(settings).put("node.client", true).put("node.data", false);
+        Builder builder = settingsBuilder().put(settings).put("node.client", true);
         if (size() == 0) {
             // if we are the first node - don't wait for a state
             builder.put("discovery.initial_state_timeout", 0);
@@ -880,7 +880,7 @@ public final class InternalTestCluster extends TestCluster {
             NodeAndClient nodeAndClient = nodes.get(buildNodeName);
             if (nodeAndClient == null) {
                 changed = true;
-                Builder clientSettingsBuilder = ImmutableSettings.builder().put("node.data", false).put("node.master", false);
+                Builder clientSettingsBuilder = ImmutableSettings.builder().put("node.client", true);
                 if (enableRandomBenchNodes && usually(random)) {
                     //client nodes might also be bench nodes
                     clientSettingsBuilder.put("node.bench", true);
@@ -1458,7 +1458,7 @@ public final class InternalTestCluster extends TestCluster {
     private static final class DataNodePredicate implements Predicate<NodeAndClient> {
         @Override
         public boolean apply(NodeAndClient nodeAndClient) {
-            return nodeAndClient.node.settings().getAsBoolean("node.data", true);
+            return nodeAndClient.node.settings().getAsBoolean("node.data", true) && nodeAndClient.node.settings().getAsBoolean("node.client", false) == false;
         }
     }
 

@@ -180,7 +180,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         nodeSettingsService.addListener(new ApplySettings());
 
-        this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, this, clusterName);
+        this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, clusterName, clusterService);
         this.masterFD.addListener(new MasterNodeFailureListener());
 
         this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, clusterName);

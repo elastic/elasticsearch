@@ -20,6 +20,7 @@ package org.elasticsearch.test;
 
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
@@ -215,8 +216,10 @@ final class ExternalNode implements Closeable {
         if (running()) {
             try {
                 if (forceKill == false && nodeInfo != null && random.nextBoolean()) {
-                    // sometimes shut down gracefully
-                    getClient().admin().cluster().prepareNodesShutdown(this.nodeInfo.getNode().id()).setExit(random.nextBoolean()).setDelay("0s").get();
+                    if (nodeInfo.getVersion().onOrAfter(Version.V_1_3_3)) {
+                        // sometimes shut down gracefully
+                        getClient().admin().cluster().prepareNodesShutdown(this.nodeInfo.getNode().id()).setExit(random.nextBoolean()).setDelay("0s").get();
+                    }
                 }
                 if (this.client != null) {
                     client.close();

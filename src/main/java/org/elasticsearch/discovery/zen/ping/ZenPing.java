@@ -213,5 +213,9 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
             return pings.values().toArray(new PingResponse[pings.size()]);
         }
 
+        /** the number of nodes for which there are known pings */
+        public synchronized int size() {
+            return pings.size();
+        }
     }
 }

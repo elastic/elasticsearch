@@ -41,6 +41,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptException;
@@ -88,6 +89,16 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             loader.close();
         } catch (IOException e) {
             logger.warn("Unable to close Groovy loader", e);
+        }
+    }
+
+    @Override
+    public void scriptRemoved(@Nullable CompiledScript script) {
+        // script could be null, meaning the script has already been garbage collected
+        if (script == null || "groovy".equals(script.lang())) {
+            // Clear the cache, this removes old script versions from the
+            // cache to prevent running out of PermGen space
+            loader.clearCache();
         }
     }
 

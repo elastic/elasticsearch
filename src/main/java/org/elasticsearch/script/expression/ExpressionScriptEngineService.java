@@ -33,6 +33,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
@@ -154,4 +155,9 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
 
     @Override
     public void close() {}
+
+    @Override
+    public void scriptRemoved(CompiledScript script) {
+        // Nothing to do
+    }
 }

@@ -75,7 +75,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
      */
     public MoreLikeThisRequestBuilder setPercentTermsToMatch(float percentTermsToMatch) {
-        return setMinimumShouldMatch((int) (percentTermsToMatch * 100) + "%");
+        return setMinimumShouldMatch(Math.round(percentTermsToMatch * 100) + "%");
     }
 
     /**

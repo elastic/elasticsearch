@@ -93,7 +93,7 @@ due to forced awareness or allocation filtering.
       the tendency to equalize the number of primary shards across all nodes in
       the cluster.
 
-`cluster.routing.allocation.balance.shard_size` added[1.4.0]::
+`cluster.routing.allocation.balance.shard_size` coming[1.5.0]::
      Defines a weight factor for the number of similarly sized shards allocated
       on a node (float). Defaults to `0.00f` because it is new and we're not
       yet sure what a good default is.  Raising this raises the tendency to

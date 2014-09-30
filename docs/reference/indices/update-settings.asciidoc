@@ -160,14 +160,14 @@ added[1.0.0.RC1]
     See <<indices-warmers>>. Defaults to `true`.
 
 
-coming[1.4.0]
+coming[1.5.0]
 `index.minimum_shard_size`::
     If a shard of the index is smaller then this size it is considered to be
     this size for the purposes of the disk aware allocation decider and the
     shard size allocation function.  This should prevent the shard size
-    allocation function from causing many index moves when an index is being
-    under construction.  Its best to set this setting to `0` once the index has
-    grown to the size that is it going to stay.
+    allocation function from causing many index moves when an index is under
+    construction.  Its best to set this setting to `0` once the index has grown
+    to the size that is it going to stay.
 
 [float]
 [[bulk]]

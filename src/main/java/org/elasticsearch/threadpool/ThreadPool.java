@@ -117,7 +117,7 @@ public class ThreadPool extends AbstractComponent {
                 .put(Names.SEARCH, settingsBuilder().put("type", "fixed").put("size", availableProcessors * 3).put("queue_size", 1000).build())
                 .put(Names.SUGGEST, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build())
                 .put(Names.PERCOLATE, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build())
-                .put(Names.MANAGEMENT, settingsBuilder().put("type", "fixed").put("size", halfProcMaxAt5).put("queue_size", 100).build())
+                .put(Names.MANAGEMENT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 5).build())
                 // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
                 // the assumption here is that the listeners should be very lightweight on the listeners side
                 .put(Names.LISTENER, settingsBuilder().put("type", "fixed").put("size", halfProcMaxAt10).build())

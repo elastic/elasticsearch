@@ -660,7 +660,7 @@ if __name__ == '__main__':
         cherry_pick_command = ' and cherry-pick the documentation changes: \'git cherry-pick %s\' to the development branch' % (version_head_hash)
       pending_msg = """
       Release successful pending steps:
-        * create a new vX.Y.Z label on github for the next release (https://github.com/elasticsearch/elasticsearch/labels)
+        * create a new vX.Y.Z label on github for the next release, with label color #dddddd (https://github.com/elasticsearch/elasticsearch/labels)
         * publish the maven artifacts on Sonatype: https://oss.sonatype.org/index.html
            - here is a guide: https://docs.sonatype.org/display/Repository/Sonatype+OSS+Maven+Repository+Usage+Guide#SonatypeOSSMavenRepositoryUsageGuide-8a.ReleaseIt
         * check if the release is there https://oss.sonatype.org/content/repositories/releases/org/elasticsearch/elasticsearch/%(version)s

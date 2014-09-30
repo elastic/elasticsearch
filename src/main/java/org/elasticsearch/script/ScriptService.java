@@ -23,6 +23,7 @@ import com.google.common.base.Charsets;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.io.Files;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
@@ -65,6 +66,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -84,7 +88,8 @@ public class ScriptService extends AbstractComponent {
     public static final String DISABLE_DYNAMIC_SCRIPTING_DEFAULT = "sandbox";
     public static final String SCRIPT_INDEX = ".scripts";
     public static final String DEFAULT_LANG = "groovy";
-
+    public static final String AUTO_RELOAD_INTERVAL_COMPONENT_SETTING = "auto_reload_interval";
+    public static final String AUTO_RELOAD_ENABLED_COMPONENT_SETTING = "auto_reload_enabled";
 
 
     private final String defaultLang;
@@ -102,6 +107,9 @@ public class ScriptService extends AbstractComponent {
     private final DynamicScriptDisabling dynamicScriptingDisabled;
 
     private Client client = null;
+
+    protected static final TimeValue DEFAULT_AUTO_RELOAD_INTERVAL = new TimeValue(25000);
+    protected static final boolean DEFAULT_AUTO_RELOAD_SETTING = true;
 
     /**
      * Enum defining the different dynamic settings for scripting, either
@@ -249,13 +257,13 @@ public class ScriptService extends AbstractComponent {
         fileWatcher = new FileWatcher(scriptsDirectory);
         fileWatcher.addListener(new ScriptChangesListener());
 
-        if (componentSettings.getAsBoolean("auto_reload_enabled", true)) {
+        if (componentSettings.getAsBoolean(AUTO_RELOAD_ENABLED_COMPONENT_SETTING, DEFAULT_AUTO_RELOAD_SETTING)) {
             // automatic reload is enabled - register scripts
-            logger.error("Watching [{}]",scriptsDirectory);
-            scriptWatcherInterval = componentSettings.getAsTime("auto_reload_interval", new TimeValue(25000));
+            scriptWatcherInterval = componentSettings.getAsTime(AUTO_RELOAD_INTERVAL_COMPONENT_SETTING, DEFAULT_AUTO_RELOAD_INTERVAL);
+            logger.info("Watching [{}] with auto_reload_interval set to [{}]", Paths.get(scriptsDirectory.getPath()).toAbsolutePath(), scriptWatcherInterval);
             this.resourceWatcherService.add(fileWatcher, ResourceWatcherService.Frequency.CUSTOM, scriptWatcherInterval);
         } else {
-            logger.error("NOT Watching [{}]",scriptsDirectory);
+            logger.info("Loading scripts from [{}] but not watching this directory for further changes.", scriptsDirectory);
             // automatic reload is disable just load scripts once
             fileWatcher.init();
         }
@@ -325,7 +333,6 @@ public class ScriptService extends AbstractComponent {
         if (logger.isTraceEnabled()) {
             logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, scriptType, script);
         }
-
         CacheKey cacheKey;
         CompiledScript compiled;
 
@@ -572,7 +579,7 @@ public class ScriptService extends AbstractComponent {
                             found = true;
                             try {
                                 logger.info("compiling script file [{}]", file.getAbsolutePath());
-                                String script = Streams.copyToString(new InputStreamReader(new FileInputStream(file), Charsets.UTF_8));
+                                String script = Files.toString(file, Charsets.UTF_8);
                                 staticCache.put(scriptNameExt.v1(), new CompiledScript(engineService.types()[0], engineService.compile(script)));
                             } catch (Throwable e) {
                                 logger.warn("failed to load/compile script [{}]", e, scriptNameExt.v1());

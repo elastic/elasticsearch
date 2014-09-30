@@ -21,10 +21,13 @@ package org.elasticsearch.watcher;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
+import java.io.File;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -65,6 +68,64 @@ public class ResourceWatcherServiceTests extends ElasticsearchTestCase {
         assertThat(service.highMonitor.interval.millis(), is(timeValueSeconds(10).millis()));
         assertThat(service.mediumMonitor.interval.millis(), is(timeValueSeconds(20).millis()));
         assertThat(service.lowMonitor.interval.millis(), is(timeValueSeconds(30).millis()));
+
+        terminate(threadPool);
+    }
+
+
+    @Test
+    public void testFullyCustomIntervalsBeforeStart() throws Exception {
+        ThreadPool threadPool = new ThreadPool("test");
+        Settings settings = ImmutableSettings.builder().build();
+        ResourceWatcherService service = new ResourceWatcherService(settings, threadPool);
+        final long start = System.currentTimeMillis();
+        final long interval = 1000l;
+        final CountDownLatch doneOneNotifyLatch = new CountDownLatch(1);
+        ResourceWatcher watcher = new ResourceWatcher() {
+            @Override
+            public void init() {
+            }
+
+            @Override
+            public void checkAndNotify() {
+                assertThat(System.currentTimeMillis() - start+interval, greaterThanOrEqualTo(0l));
+                doneOneNotifyLatch.countDown();
+            }
+        };
+        service.add(watcher, ResourceWatcherService.Frequency.CUSTOM,new TimeValue(interval));
+        service.start();
+        doneOneNotifyLatch.await(interval*2, TimeUnit.MILLISECONDS);
+        service.removeWatcher(watcher, ResourceWatcherService.Frequency.CUSTOM);
+        assertTrue(service.customMonitors.isEmpty());
+        service.stop();
+        terminate(threadPool);
+    }
+
+    @Test
+    public void testFullyCustomIntervalsWhileRunning() throws Exception {
+        ThreadPool threadPool = new ThreadPool("test");
+        Settings settings = ImmutableSettings.builder().build();
+        ResourceWatcherService service = new ResourceWatcherService(settings, threadPool);
+        final long start = System.currentTimeMillis();
+        final long interval = randomIntBetween(1000, 2000);
+        final CountDownLatch doneOneNotifyLatch = new CountDownLatch(1);
+        ResourceWatcher watcher = new ResourceWatcher() {
+            @Override
+            public void init() {
+            }
+
+            @Override
+            public void checkAndNotify() {
+                assertThat(System.currentTimeMillis() - start+interval, greaterThanOrEqualTo(0l));
+                doneOneNotifyLatch.countDown();
+            }
+        };
+        service.start();
+        service.add(watcher, ResourceWatcherService.Frequency.CUSTOM,new TimeValue(interval));
+        doneOneNotifyLatch.await(interval*2, TimeUnit.MILLISECONDS);
+        service.removeWatcher(watcher, ResourceWatcherService.Frequency.CUSTOM);
+        assertTrue(service.customMonitors.isEmpty());
+        service.stop();
         terminate(threadPool);
     }
 

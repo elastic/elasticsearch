@@ -56,7 +56,6 @@ public class RestRenderSearchTemplate extends BaseRestHandler {
             TemplateQueryParser.TemplateContext templateContext = SearchService.getTemplateContext(request.content());
             ExecutableScript executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.scriptType(), templateContext.params(), false);
             BytesReference processedQuery = (BytesReference) executable.run();
-            logger.error(processedQuery.toUtf8());
             builder.startObject();
             builder.field("template");
             try {

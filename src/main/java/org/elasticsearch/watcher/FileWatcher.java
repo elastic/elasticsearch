@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.watcher;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.File;
 import java.util.Arrays;
@@ -33,7 +30,6 @@ import java.util.Arrays;
 public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
     private FileObserver rootFileObserver;
-    ESLogger logger = Loggers.getLogger(FileWatcher.class);
     /**
      * Creates new file watcher on the given directory
      */
@@ -62,13 +58,10 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         private FileObserver[] children;
 
         public FileObserver(File file) {
-            this.file = file;
+            this.file = file;//new File(Paths.get(file.toString()).toAbsolutePath().toString());
         }
 
         public void checkAndNotify() {
-            ElasticsearchException ee = new ElasticsearchException("foobar");
-            logger.error("Checking : [{}]", ee, file);
-
             boolean prevExists = exists;
             boolean prevIsDirectory = isDirectory;
             long prevLength = length;

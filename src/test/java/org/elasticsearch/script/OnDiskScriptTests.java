@@ -64,8 +64,6 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
         SearchHit sh = searchResponse.getHits().getAt(0);
         assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
         assertThat((Integer)sh.field("test2").getValue(), equalTo(6));
-
-
     }
 
     @Test

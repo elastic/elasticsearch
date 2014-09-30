@@ -291,7 +291,7 @@ GET /_search/template
 [added 1.5.0]
 ===== Render template
 
-You can get the rendered version of a template by calling 
+You can get the rendered version of a template by calling
 [source,js]
 GET /_render/template
 ------------------------------------------

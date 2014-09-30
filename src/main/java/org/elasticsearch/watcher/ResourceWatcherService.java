@@ -73,7 +73,7 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         }
     }
 
-    private final Map<TimeValue, ResourceMonitor> customMonitors = new HashMap<>();
+    final Map<TimeValue, ResourceMonitor> customMonitors = new HashMap<>();
     private final Map<TimeValue, ScheduledFuture> customFutures = new HashMap<>();
 
     private final boolean enabled;

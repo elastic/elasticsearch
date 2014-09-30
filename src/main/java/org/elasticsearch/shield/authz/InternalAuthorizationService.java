@@ -72,7 +72,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
 
         if (user.isSystem()) {
             MetaData metaData = clusterService.state().metaData();
-            if (SystemRole.INSTANCE.check(action, request, metaData)) {
+            if (SystemRole.INSTANCE.check(user, action, request, metaData)) {
                 grant(user, action, request);
             } else {
                 deny(user, action, request);
@@ -88,7 +88,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         MetaData metaData = clusterService.state().metaData();
         for (String role : roles) {
             Permission permission = rolesStore.permission(role);
-            if (permission != null && permission.check(action, request, metaData)) {
+            if (permission != null && permission.check(user, action, request, metaData)) {
                 grant(user, action, request);
                 return;
             }

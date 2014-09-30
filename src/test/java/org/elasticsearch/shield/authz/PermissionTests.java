@@ -12,7 +12,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.elasticsearch.shield.authz.Privilege.Index.*;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 /**
  *
@@ -23,7 +24,7 @@ public class PermissionTests extends ElasticsearchTestCase {
 
     @Before
     public void init() {
-        Permission.Global.Builder builder = Permission.Global.builder();
+        Permission.Global.Builder builder = Permission.Global.builder(mock(AuthorizationService.class));
         builder.add(union(SEARCH, MONITOR), "test_.*", "foo.*");
         builder.add(union(READ), "baz_.*foo", "fool.*bar");
         builder.add(union(MONITOR), "bar.*");

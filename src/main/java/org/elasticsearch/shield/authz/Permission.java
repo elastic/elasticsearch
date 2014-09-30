@@ -10,6 +10,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authz.indicesresolver.DefaultIndicesResolver;
 import org.elasticsearch.shield.authz.indicesresolver.IndicesResolver;
 import org.elasticsearch.shield.support.AutomatonPredicate;
@@ -38,7 +39,7 @@ import java.util.Set;
  */
 public interface Permission {
 
-    boolean check(String action, TransportRequest request, MetaData metaData);
+    boolean check(User user, String action, TransportRequest request, MetaData metaData);
 
     static class Global implements Permission {
 
@@ -62,26 +63,29 @@ public interface Permission {
             return indices;
         }
 
-        public boolean check(String action, TransportRequest request, MetaData metaData) {
-            if (cluster != null && cluster.check(action, request, metaData)) {
+        public boolean check(User user, String action, TransportRequest request, MetaData metaData) {
+            if (cluster != null && cluster.check(user, action, request, metaData)) {
                 return true;
             }
-            if (indices != null && indices.check(action, request, metaData)) {
+            if (indices != null && indices.check(user, action, request, metaData)) {
                 return true;
             }
             return false;
         }
 
-        public static Builder builder() {
-            return new Builder();
+        public static Builder builder(AuthorizationService authzService) {
+            return new Builder(authzService);
         }
 
         public static class Builder {
 
+            private final AuthorizationService authzService;
+
             private Cluster cluster = Cluster.NONE;
             private ImmutableList.Builder<Indices.Group> groups;
 
-            private Builder() {
+            private Builder(AuthorizationService authzService) {
+                this.authzService = authzService;
             }
 
             public Builder set(Privilege.Cluster privilege) {
@@ -98,7 +102,7 @@ public interface Permission {
             }
 
             public Global build() {
-                Indices indices = groups != null ? new Indices(groups.build()) : Indices.NONE;
+                Indices indices = groups != null ? new Indices(authzService, groups.build()) : Indices.NONE;
                 return new Global(cluster, indices);
             }
         }
@@ -108,7 +112,7 @@ public interface Permission {
 
         public static final Cluster NONE = new Cluster(Privilege.Cluster.NONE) {
             @Override
-            public boolean check(String action, TransportRequest request, MetaData metaData) {
+            public boolean check(User user, String action, TransportRequest request, MetaData metaData) {
                 return false;
             }
         };
@@ -126,7 +130,7 @@ public interface Permission {
         }
 
         @Override
-        public boolean check(String action, TransportRequest request, MetaData metaData) {
+        public boolean check(User user, String action, TransportRequest request, MetaData metaData) {
             return predicate.apply(action);
         }
     }
@@ -135,24 +139,26 @@ public interface Permission {
 
         public static final Indices NONE = new Indices() {
             @Override
-            public boolean check(String action, TransportRequest request, MetaData metaData) {
+            public boolean check(User user, String action, TransportRequest request, MetaData metaData) {
                 return false;
             }
         };
 
-        static final IndicesResolver[] indicesResolvers = new IndicesResolver[] {
-                // add special resolvers here
-                new DefaultIndicesResolver()
-        };
+        private final IndicesResolver[] indicesResolvers;
+        private final Group[] groups;
 
-        private Group[] groups;
-
-        public Indices(Collection<Group> groups) {
-            this(groups.toArray(new Group[groups.size()]));
+        private Indices() {
+            this.indicesResolvers = new IndicesResolver[0];
+            this.groups = new Group[0];
         }
 
-        public Indices(Group... groups) {
-            this.groups = groups;
+
+        public Indices(AuthorizationService authzService, Collection<Group> groups) {
+            this.groups = groups.toArray(new Group[groups.size()]);
+            this.indicesResolvers = new IndicesResolver[] {
+                    // add special resolvers here
+                    new DefaultIndicesResolver(authzService)
+            };
         }
 
         public Group[] groups() {
@@ -188,7 +194,7 @@ public interface Permission {
         }
 
         @Override @SuppressWarnings("unchecked")
-        public boolean check(String action, TransportRequest request, MetaData metaData) {
+        public boolean check(User user, String action, TransportRequest request, MetaData metaData) {
 
             // some APIs are indices requests that are not actually associated with indices. For example,
             // search scroll request, is categorized under the indices context, but doesn't hold indices names
@@ -202,14 +208,14 @@ public interface Permission {
                 indices = Collections.emptySet();
                 for (IndicesResolver resolver : indicesResolvers) {
                     if (resolver.requestType().isInstance(request)) {
-                        indices = resolver.resolve(request, metaData);
+                        indices = resolver.resolve(user, action, request, metaData);
                         break;
                     }
                 }
             }
 
-            for (int i = 0; i < groups.length; i++) {
-                if (groups[i].check(action, indices)) {
+            for (Group group : groups) {
+                if (group.check(action, indices)) {
                     return true;
                 }
             }

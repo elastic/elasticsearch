@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.is;
 
 @Ignore
 @AbstractRandomizedTest.Integration
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0, maxNumDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
 public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest {
 
     protected static final String DEFAULT_USER_NAME = "test_user";
@@ -50,7 +50,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     public static final String CONFIG_IPFILTER_ALLOW_ALL = "allow: all\n";
     public static final String CONFIG_STANDARD_USER = DEFAULT_USER_NAME + ":{plain}" + DEFAULT_PASSWORD + "\n";
     public static final String CONFIG_STANDARD_USER_ROLES = DEFAULT_USER_NAME + ":" + DEFAULT_ROLE + "\n";
-    public static final String CONFIG_ROLE_ALLOW_ALL = "user:\n" +
+    public static final String CONFIG_ROLE_ALLOW_ALL = DEFAULT_ROLE + ":\n" +
                                                         "  cluster: ALL\n" +
                                                         "  indices:\n" +
                                                         "    '.*': ALL\n";
@@ -70,7 +70,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                 .put("plugin.types", ShieldPlugin.class.getName())
                 .put("shield.authc.esusers.files.users", writeFile(folder, "users", CONFIG_STANDARD_USER))
                 .put("shield.authc.esusers.files.users_roles", writeFile(folder, "users_roles", CONFIG_STANDARD_USER_ROLES))
-                .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", CONFIG_ROLE_ALLOW_ALL))
+                .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRole()))
                 .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", CONFIG_IPFILTER_ALLOW_ALL))
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("shield.audit.enabled", true)
@@ -82,6 +82,10 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
         }
 
         return builder.build();
+    }
+
+    protected String configRole() {
+        return CONFIG_ROLE_ALLOW_ALL;
     }
 
     @Override

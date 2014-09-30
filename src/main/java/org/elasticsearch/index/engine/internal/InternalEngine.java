@@ -1072,12 +1072,12 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             // we only need to monitor merges for async calls if we are going to flush
             threadPool.executor(ThreadPool.Names.OPTIMIZE).execute(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.error("Exception while waiting for merges asynchronously after optimize", t);
-                }
-                @Override
-                protected void doRun() throws Exception {
-                    waitForMerges(true);
+                public void run() {
+                    try {
+                        waitForMerges(true);
+                    } catch (Exception e) {
+                        logger.error("Exception while waiting for merges asynchronously after optimize", e);
+                    }
                 }
             });
         }

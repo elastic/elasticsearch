@@ -639,7 +639,7 @@ public class PluginManager {
         }
 
         File configDir(Environment env) {
-            return new File(new File(env.homeFile(), "config"), name);
+            return new File(env.configFile(), name);
         }
 
         static PluginHandle parse(String name) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.mlt;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -569,6 +570,7 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "alex k working on it")
     public void testMoreLikeThisArtificialDocs() throws Exception {
         int numFields = randomIntBetween(5, 10);
 
@@ -605,6 +607,7 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "alex k working on it")
     public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
         logger.info("Creating an index with a single document ...");
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()

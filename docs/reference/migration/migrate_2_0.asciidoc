@@ -1,0 +1,12 @@
+[[breaking-changes-2.0]]
+== Breaking changes in 2.0
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 2.0.
+
+=== Indices API
+
+The <<alias-retrieving, get alias api>> will, by default produce an error response 
+if a requested index does not exist. This change brings the defaults for this API in 
+line with the other Indices APIs. The <<multi-index>> options can be used on a request 
+to change this behavior

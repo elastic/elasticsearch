@@ -26,6 +26,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -164,7 +165,7 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
 
         @Override
         public void setScorer(Scorer scorer) {
-            lookup.setScorer(scorer);
+            pyVars.__setitem__("_score", Py.java2py(new ScoreAccessor(scorer)));
         }
 
         @Override

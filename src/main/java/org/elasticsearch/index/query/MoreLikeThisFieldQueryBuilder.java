@@ -79,7 +79,7 @@ public class MoreLikeThisFieldQueryBuilder extends BaseQueryBuilder implements B
      */
     @Deprecated
     public MoreLikeThisFieldQueryBuilder percentTermsToMatch(float percentTermsToMatch) {
-        return minimumShouldMatch((int) (percentTermsToMatch * 100) + "%");
+        return minimumShouldMatch(Math.round(percentTermsToMatch * 100) + "%");
     }
 
     /**

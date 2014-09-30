@@ -144,6 +144,7 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
         final int parentLimit = (BYTES_PER_THREAD * NUM_THREADS) - 2;
+        final int childLimit = parentLimit + 10;
         final Thread[] threads = new Thread[NUM_THREADS];
         final AtomicInteger tripped = new AtomicInteger(0);
         final AtomicReference<Throwable> lastException = new AtomicReference<>(null);
@@ -167,7 +168,7 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
                 }
             }
         };
-        final BreakerSettings settings = new BreakerSettings(CircuitBreaker.Name.REQUEST, parentLimit + 1, 1.0);
+        final BreakerSettings settings = new BreakerSettings(CircuitBreaker.Name.REQUEST, childLimit, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(settings, logger,
                 (HierarchyCircuitBreakerService)service, CircuitBreaker.Name.REQUEST);
         breakerRef.set(breaker);
@@ -193,7 +194,7 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
         }
 
         logger.info("--> NUM_THREADS: [{}], BYTES_PER_THREAD: [{}], TOTAL_BYTES: [{}], PARENT_LIMIT: [{}], CHILD_LIMIT: [{}]",
-                NUM_THREADS, BYTES_PER_THREAD, (BYTES_PER_THREAD * NUM_THREADS), parentLimit, parentLimit + 1);
+                NUM_THREADS, BYTES_PER_THREAD, (BYTES_PER_THREAD * NUM_THREADS), parentLimit, childLimit);
 
         logger.info("--> starting threads...");
         for (Thread t : threads) {
@@ -211,6 +212,8 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
                 breaker.getUsed(), equalTo((long)parentLimit));
         assertThat("parent breaker was tripped exactly twice", parentTripped.get(), equalTo(2));
         assertThat("total breaker was tripped exactly twice", tripped.get(), equalTo(2));
+        assertThat("breaker total is expected value: " + parentLimit, breaker.getUsed(), equalTo((long)
+                parentLimit));
     }
 
     @Test

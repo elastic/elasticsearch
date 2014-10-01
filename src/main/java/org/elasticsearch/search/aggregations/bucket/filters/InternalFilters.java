@@ -54,12 +54,19 @@ public class InternalFilters extends InternalAggregation implements Filters {
         }
     };
 
-    private final static BucketStreams.Stream BUCKET_STREAM = new BucketStreams.Stream() {
+    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
         @Override
         public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
             Bucket filters = new Bucket(context.keyed());
             filters.readFrom(in);
             return filters;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            context.keyed(bucket.keyed);
+            return context;
         }
     };
 

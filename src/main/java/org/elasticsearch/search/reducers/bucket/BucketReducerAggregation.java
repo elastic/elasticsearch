@@ -21,13 +21,11 @@ package org.elasticsearch.search.reducers.bucket;
 
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.HasAggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
-import org.elasticsearch.search.aggregations.support.OrderPath;
 
 import java.util.List;
 

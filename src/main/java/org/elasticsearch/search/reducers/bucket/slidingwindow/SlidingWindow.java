@@ -16,16 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.reducers;
 
-/**
- * An aggregation
- */
-public interface Reduction {
+package org.elasticsearch.search.reducers.bucket.slidingwindow;
 
-    /**
-     * @return The name of this aggregation.
-     */
-    String getName();
+import org.elasticsearch.search.reducers.bucket.BucketReducerAggregation;
 
+public interface SlidingWindow extends BucketReducerAggregation {
 }

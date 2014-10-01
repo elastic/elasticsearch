@@ -56,12 +56,18 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
     };
 
 
-    public static final BucketStreams.Stream BUCKET_STREAM = new BucketStreams.Stream() {
+    public static final BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
         @Override
         public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
             Bucket bucket = new Bucket();
             bucket.readFrom(in);
             return bucket;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            return context;
         }
     };
 

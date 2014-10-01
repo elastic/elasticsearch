@@ -19,11 +19,12 @@
 
 package org.elasticsearch.search.reducers.bucket.slidingwindow;
 
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerFactories;
+import org.elasticsearch.search.reducers.ReducerFactory;
 import org.elasticsearch.search.reducers.bucket.BucketReducer;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation.InternalSelection;
@@ -34,29 +35,45 @@ import java.util.List;
 public class SlidingWindowReducer extends BucketReducer {
 
     private int windowSize;
-    private String path;
 
     public SlidingWindowReducer(String name, String path, int windowSize, ReducerFactories factories, SearchContext context, Reducer parent) {
-        super(name, factories, context, parent);
-        this.path = path;
+        super(name, path, factories, context, parent);
         this.windowSize = windowSize;
     }
 
     protected InternalBucketReducerAggregation doReduce(MultiBucketsAggregation aggregation) {
         List<InternalSelection> selections = new ArrayList<>();
-        List<MultiBucketsAggregation.Bucket> aggBuckets = (List<MultiBucketsAggregation.Bucket>) aggregation.getBuckets();
+        List<? extends Bucket> aggBuckets = (List<? extends MultiBucketsAggregation.Bucket>) aggregation.getBuckets();
         for (int i = 0; i <= aggBuckets.size() - windowSize; i++) {
             List<MultiBucketsAggregation.Bucket> selectionBuckets = new ArrayList<>();
             for (int j = 0; j < windowSize; j++) {
                 selectionBuckets.add(aggBuckets.get(i + j));
             }
-            // NOCOMMIT get bucketType from somewhere
-            // NOCOMMIT populate aggregations
-            // NOCOMMIT sort out BucketStreamContext from somewhere
-            InternalSelection selection = new InternalSelection("Selection " + i, null, new BucketStreamContext(), selectionBuckets , null);
+            // NOCOMMIT populate aggregations (sub reducers outputs)
+            // NOCOMMIT get bucket stream context from somewhere
+            // NOCOMMIT get bucket type from somewhere
+            InternalSelection selection = new InternalSelection("Selection " + i, null, null, selectionBuckets , null);
             selections.add(selection);
         }
         return new InternalSlidingWindow(name(), selections);
+    }
+
+    public static class Factory extends ReducerFactory {
+
+        private String path;
+        private int windowSize;
+
+        public Factory(String name, String path, int windowSize) {
+            super(name, InternalSlidingWindow.TYPE.name());
+            this.path = path;
+            this.windowSize = windowSize;
+        }
+
+        @Override
+        public Reducer create(SearchContext context, Reducer parent) {
+            return new SlidingWindowReducer(name, path, windowSize, factories, context, parent);
+        }
+        
     }
 
 }

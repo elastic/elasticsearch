@@ -49,12 +49,19 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
         }
     };
 
-    private final static BucketStreams.Stream BUCKET_STREAM = new BucketStreams.Stream() {
+    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
         @Override
         public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
             Bucket buckets = new Bucket(context.keyed());
             buckets.readFrom(in);
             return buckets;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            context.keyed(bucket.keyed());
+            return context;
         }
     };
 
@@ -94,6 +101,10 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
         @Override
         protected InternalRange.Factory<Bucket, ?> getFactory() {
             return FACTORY;
+        }
+
+        boolean keyed() {
+            return keyed;
         }
     }
 

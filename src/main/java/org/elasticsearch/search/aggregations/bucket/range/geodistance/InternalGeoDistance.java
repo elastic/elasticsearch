@@ -47,12 +47,20 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
     };
 
-    private final static BucketStreams.Stream BUCKET_STREAM = new BucketStreams.Stream() {
+    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
         @Override
         public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
             Bucket buckets = new Bucket(context.keyed(), context.formatter());
             buckets.readFrom(in);
             return buckets;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            context.formatter(bucket.formatter());
+            context.keyed(bucket.keyed());
+            return context;
         }
     };
 
@@ -80,6 +88,14 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         @Override
         protected InternalRange.Factory<Bucket, ?> getFactory() {
             return FACTORY;
+        }
+
+        boolean keyed() {
+            return keyed;
+        }
+
+        ValueFormatter formatter() {
+            return formatter;
         }
     }
 

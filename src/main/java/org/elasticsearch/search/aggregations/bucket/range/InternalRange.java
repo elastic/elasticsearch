@@ -58,12 +58,20 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
         }
     };
 
-    private final static BucketStreams.Stream BUCKET_STREAM = new BucketStreams.Stream() {
+    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
         @Override
         public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
             Bucket buckets = new Bucket(context.keyed(), context.formatter());
             buckets.readFrom(in);
             return buckets;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            context.formatter(bucket.formatter);
+            context.keyed(bucket.keyed);
+            return context;
         }
     };
 
@@ -74,8 +82,8 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
 
     public static class Bucket implements Range.Bucket {
 
-        private transient final boolean keyed;
-        private transient final ValueFormatter formatter;
+        protected transient final boolean keyed;
+        protected transient final ValueFormatter formatter;
         private double from;
         private double to;
         private long docCount;

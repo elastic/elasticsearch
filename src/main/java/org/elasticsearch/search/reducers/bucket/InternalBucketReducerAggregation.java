@@ -121,7 +121,7 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
             List<MultiBucketsAggregation.Bucket> buckets = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 MultiBucketsAggregation.Bucket bucket = BucketStreams.stream(bucketType)
-                        .readResult(in, bucketStreamContext); // NOCOMMIT populate BucketStreamContext
+                        .readResult(in, bucketStreamContext);
                 buckets.add(bucket);
             }
             this.buckets = buckets;

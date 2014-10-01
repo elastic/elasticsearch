@@ -61,12 +61,20 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
     };
 
-    private final static BucketStreams.Stream BUCKET_STREAM = new BucketStreams.Stream() {
+    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
         @Override
         public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
             Bucket histogram = new Bucket(context.keyed(), context.formatter());
             histogram.readFrom(in);
             return histogram;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            context.formatter(bucket.formatter);
+            context.keyed(bucket.keyed);
+            return context;
         }
     };
 

@@ -19,6 +19,24 @@
 
 package org.elasticsearch.search.reducers;
 
-public class ReductionContext {
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.script.ScriptService;
 
+public class ReductionContext {
+    
+    private final BigArrays bigArrays;
+    private final ScriptService scriptService;
+
+    public ReductionContext(BigArrays bigArrays, ScriptService scriptService) {
+        this.bigArrays = bigArrays;
+        this.scriptService = scriptService;
+    }
+
+    public BigArrays bigArrays() {
+        return bigArrays;
+    }
+    
+    public ScriptService scriptService() {
+        return scriptService;
+    }
 }

@@ -30,19 +30,22 @@ import java.util.List;
 
 public abstract class BucketReducer extends Reducer {
 
-    public BucketReducer(String name, ReducerFactories factories, SearchContext context, Reducer parent) {
+    private String path;
+
+    public BucketReducer(String name, String path, ReducerFactories factories, SearchContext context, Reducer parent) {
         super(name, factories, context, parent);
+        this.path = path;
     }
 
     @Override
     public InternalBucketReducerAggregation reduce(List<MultiBucketsAggregation> aggregations, ReduceContext reduceContext)
             throws ReductionExecutionException {
         for (MultiBucketsAggregation aggregation : aggregations) {
-            if (aggregation.getName().equals("path")) {
+            if (aggregation.getName().equals(path)) {
                 return doReduce(aggregation);
             }
         }
-        return null;
+        return null; // NOCOMMIT throw exception if we can't find the aggregation
     }
 
     protected abstract InternalBucketReducerAggregation doReduce(MultiBucketsAggregation aggregation) throws ReductionExecutionException;

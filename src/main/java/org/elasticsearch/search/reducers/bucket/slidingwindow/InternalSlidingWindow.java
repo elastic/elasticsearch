@@ -19,13 +19,29 @@
 
 package org.elasticsearch.search.reducers.bucket.slidingwindow;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation;
 
+import java.io.IOException;
 import java.util.List;
 
-public class InternalSlidingWindow extends InternalBucketReducerAggregation {
+public class InternalSlidingWindow extends InternalBucketReducerAggregation implements SlidingWindow {
 
-    private static final Type TYPE = new Type("sliding_window");
+    public static final Type TYPE = new Type("sliding_window");
+
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+        @Override
+        public InternalSlidingWindow readResult(StreamInput in) throws IOException {
+            InternalSlidingWindow selections = new InternalSlidingWindow();
+            selections.readFrom(in);
+            return selections;
+        }
+    };
+
+    public static void registerStreams() {
+        AggregationStreams.registerStream(STREAM, TYPE.stream());
+    }
 
     public InternalSlidingWindow() {
         super();
@@ -39,5 +55,4 @@ public class InternalSlidingWindow extends InternalBucketReducerAggregation {
     public Type type() {
         return TYPE;
     }
-
 }

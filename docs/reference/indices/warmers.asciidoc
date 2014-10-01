@@ -66,7 +66,7 @@ curl -XPUT localhost:9200/_template/template_1 -d '
 }'
 --------------------------------------------------
 
-coming[1.4.0.Beta1]
+added[1.4.0.Beta1]
 
 On the same level as `types` and `source`, the `query_cache` flag is supported
 to enable query caching for the warmed search request. If not specified, it will
@@ -142,7 +142,7 @@ where
 
 Instead of `_warmer` you can also use the plural `_warmers`.
 
-coming[1.4.0.Beta1]
+added[1.4.0.Beta1]
 
 The `query_cache` parameter can be used to enable query caching for
 the search request. If not specified, it will use the index level configuration
@@ -182,7 +182,7 @@ Getting a warmer for specific index (or alias, or several indices) based
 on its name. The provided name can be a simple wildcard expression or
 omitted to get all warmers. 
 
-coming[1.4.0.Beta1,The API will always include a `warmers` section, even if there aren't any warmers. Previous versions would not return the `warmers` section]
+added[1.4.0.Beta1,The API will always include a `warmers` section, even if there aren't any warmers. Previous versions would not return the `warmers` section]
 
 Some examples:
 

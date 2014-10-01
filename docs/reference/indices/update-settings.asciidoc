@@ -224,7 +224,7 @@ curl -XPOST 'localhost:9200/myindex/_open'
 [[codec-bloom-load]]
 === Bloom filters
 
-coming[1.4.0.Beta1,Bloom filters will no longer be loaded into memory at search time by default]
+added[1.4.0.Beta1,Bloom filters will no longer be loaded into memory at search time by default]
 
 Up to version 1.3, Elasticsearch used to generate bloom filters for the `_uid`
 field at indexing time and to load them at search time in order to speed-up

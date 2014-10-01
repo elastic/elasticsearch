@@ -25,7 +25,10 @@ specified as well in the URI. Those stats can be any of:
 
 [horizontal]
 `docs`:: 		The number of docs / deleted docs (docs not yet merged out).
-				Note, affected by refreshing the index.
+			Note, affected by refreshing the index.  Also, docs.count here 
+			include the count of nested documents. So if you have a single 
+			document with 2 associated nested documents, the index's docs.count
+			will show 3.
 
 `store`:: 		The size of the index.
 

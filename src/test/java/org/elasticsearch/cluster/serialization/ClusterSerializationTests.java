@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.serialization;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -41,7 +42,7 @@ public class ClusterSerializationTests extends ElasticsearchAllocationTestCase {
     @Test
     public void testClusterStateSerialization() throws Exception {
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(10).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -65,7 +66,7 @@ public class ClusterSerializationTests extends ElasticsearchAllocationTestCase {
     @Test
     public void testRoutingTableSerialization() throws Exception {
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(10).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()

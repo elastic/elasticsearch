@@ -30,9 +30,12 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -377,6 +380,17 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
             int range = minVersionIndex + 1 - maxVersionIndex;
             return SORTED_VERSIONS.get(maxVersionIndex + random.nextInt(range));
         }
+    }
+
+    /**
+     * Return consistent index settings for the provided index version.
+     */
+    public static ImmutableSettings.Builder settings(Version version) {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
+        if (version.before(Version.V_2_0_0)) {
+            builder.put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, DjbHashFunction.class);
+        }
+        return builder;
     }
 
     static final class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {

@@ -381,7 +381,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         TestFieldSetting[] testFieldSettings = getFieldSettings();
         createIndexBasedOnFieldSettings("test", "alias", testFieldSettings);
         //we generate as many docs as many shards we have
-        TestDoc[] testDocs = generateTestDocs(getNumShards("test").numPrimaries, testFieldSettings);
+        TestDoc[] testDocs = generateTestDocs("test", testFieldSettings);
 
         DirectoryReader directoryReader = indexDocsWithLucene(testDocs);
         TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -27,7 +28,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
@@ -52,7 +52,7 @@ public class DisableAllocationTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -81,7 +81,7 @@ public class DisableAllocationTests extends ElasticsearchAllocationTestCase {
         logger.info("Building initial routing table");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -112,8 +112,8 @@ public class DisableAllocationTests extends ElasticsearchAllocationTestCase {
                 .build());
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("disabled").settings(ImmutableSettings.builder().put(DisableAllocationDecider.INDEX_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true).put(DisableAllocationDecider.INDEX_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, true)).numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetaData.builder("enabled").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("disabled").settings(settings(Version.CURRENT).put(DisableAllocationDecider.INDEX_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true).put(DisableAllocationDecider.INDEX_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, true)).numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("enabled").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()

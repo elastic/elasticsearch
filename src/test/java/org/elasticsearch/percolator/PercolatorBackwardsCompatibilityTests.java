@@ -22,8 +22,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.percolator.PercolatorException;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -43,7 +41,7 @@ public class PercolatorBackwardsCompatibilityTests extends ElasticsearchIntegrat
     public void testPercolatorUpgrading() throws Exception {
         // Simulates an index created on an node before 1.4.0 where the field resolution isn't strict.
         assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_3_0).put(indexSettings())));
+                .setSettings(settings(Version.V_1_3_0).put(indexSettings())));
         ensureGreen();
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];

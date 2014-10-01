@@ -32,7 +32,7 @@ public class MultiTermVectorsTests extends AbstractTermVectorTests {
         AbstractTermVectorTests.TestFieldSetting[] testFieldSettings = getFieldSettings();
         createIndexBasedOnFieldSettings("test", "alias", testFieldSettings);
         //we generate as many docs as many shards we have
-        TestDoc[] testDocs = generateTestDocs(getNumShards("test").numPrimaries, testFieldSettings);
+        TestDoc[] testDocs = generateTestDocs("test", testFieldSettings);
 
         DirectoryReader directoryReader = indexDocsWithLucene(testDocs);
         AbstractTermVectorTests.TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);

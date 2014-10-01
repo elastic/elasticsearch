@@ -38,6 +38,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.cluster.routing.operation.plain.PlainOperationRouting;
 import org.elasticsearch.common.inject.internal.Join;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -217,15 +218,20 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
         String[] contentArray = new String[fieldSettings.length];
         Map<String, Object> docSource = new HashMap<>();
         TestDoc[] testDocs = new TestDoc[numberOfDocs];
-        for (int docId = 0; docId < numberOfDocs; docId++) {
+        // this methods wants to send one doc to each shard
+        for (int shardId = 0; shardId < numberOfDocs; shardId++) {
             docSource.clear();
             for (int i = 0; i < contentArray.length; i++) {
                 contentArray[i] = fieldContentOptions[randomInt(fieldContentOptions.length - 1)];
                 docSource.put(fieldSettings[i].name, contentArray[i]);
             }
-            TestDoc doc = new TestDoc(Integer.toString(docId), fieldSettings, contentArray.clone());
+            int id = 0;
+            while (PlainOperationRouting.shardId(numberOfDocs, Integer.toString(id)) != shardId) {
+                id += 1;
+            }
+            TestDoc doc = new TestDoc(Integer.toString(id), fieldSettings, contentArray.clone());
             index(doc.index, doc.type, doc.id, docSource);
-            testDocs[docId] = doc;
+            testDocs[shardId] = doc;
         }
 
         refresh();

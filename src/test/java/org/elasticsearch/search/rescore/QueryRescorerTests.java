@@ -72,16 +72,17 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                             QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery())
                                     .boostMode("replace").add(ScoreFunctionBuilders.factorFunction(100))).setQueryWeight(0.0f).setRescoreQueryWeight(1.0f))
                     .setRescoreWindow(1).setSize(randomIntBetween(2,10)).execute().actionGet();
+            assertSearchResponse(searchResponse);
             assertFirstHit(searchResponse, hasScore(100.f));
-            int numPending100 = numShards;
+            int numDocsWith100AsAScore = 0;
             for (int i = 0; i < searchResponse.getHits().hits().length; i++) {
                 float score = searchResponse.getHits().hits()[i].getScore();
                 if  (score == 100f) {
-                    assertThat(numPending100--, greaterThanOrEqualTo(0));
-                } else {
-                    assertThat(numPending100, equalTo(0));
+                    numDocsWith100AsAScore += 1;
                 }
             }
+            // we cannot assert that they are equal since some shards might not have docs at all
+            assertThat(numDocsWith100AsAScore, lessThanOrEqualTo(numShards));
         }
 
     }

@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.*;
@@ -43,10 +44,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -69,6 +72,8 @@ import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.engine.IndexEngineModule;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.Node;
@@ -107,7 +112,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
@@ -1531,6 +1536,30 @@ public final class InternalTestCluster extends TestCluster {
         public boolean apply(Map.Entry<String, NodeAndClient> entry) {
             return delegateNodePredicate.apply(entry.getValue());
         }
+    }
+
+    synchronized String routingKeyForShard(String index, String type, int shard, Random random) {
+        assertThat(shard, greaterThanOrEqualTo(0));
+        assertThat(shard, greaterThanOrEqualTo(0));
+        for (NodeAndClient n : nodes.values()) {
+            InternalNode node = (InternalNode) n.node;
+            IndicesService indicesService = getInstanceFromNode(IndicesService.class, node);
+            ClusterService clusterService = getInstanceFromNode(ClusterService.class, node);
+            IndexService indexService = indicesService.indexService(index);
+            if (indexService != null) {
+                assertThat(indexService.settingsService().getSettings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), greaterThan(shard));
+                OperationRouting operationRouting = indexService.injector().getInstance(OperationRouting.class);
+                while (true) {
+                    String routing = RandomStrings.randomAsciiOfLength(random, 10);
+                    final int targetShard = operationRouting.indexShards(clusterService.state(), index, type, null, routing).shardId().getId();
+                    if (shard == targetShard) {
+                        return routing;
+                    }
+                }
+            }
+        }
+        fail("Could not find a node that holds " + index);
+        return null;
     }
 
     @Override

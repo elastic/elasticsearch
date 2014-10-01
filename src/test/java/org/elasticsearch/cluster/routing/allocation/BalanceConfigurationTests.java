@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -141,7 +142,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         for (int i = 0; i < numberOfIndices; i++) {
-            IndexMetaData.Builder index = IndexMetaData.builder("test" + i).numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas);
+            IndexMetaData.Builder index = IndexMetaData.builder("test" + i).settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(numberOfReplicas);
             metaDataBuilder = metaDataBuilder.put(index);
         }
 
@@ -446,7 +447,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         }), ClusterInfoService.EMPTY);
         MetaData.Builder metaDataBuilder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        IndexMetaData.Builder indexMeta = IndexMetaData.builder("test").numberOfShards(5).numberOfReplicas(1);
+        IndexMetaData.Builder indexMeta = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1);
         metaDataBuilder = metaDataBuilder.put(indexMeta);
         MetaData metaData = metaDataBuilder.build();
         for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {

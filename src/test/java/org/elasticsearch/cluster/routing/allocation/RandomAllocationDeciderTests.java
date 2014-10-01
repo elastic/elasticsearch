@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -69,7 +70,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
             maxNumReplicas = Math.max(maxNumReplicas, replicas + 1);
             int numShards = scaledRandomIntBetween(1, 20);
             totalNumShards += numShards * (replicas + 1);
-            metaBuilder.put(IndexMetaData.builder("INDEX_" + i).numberOfShards(numShards).numberOfReplicas(replicas));
+            metaBuilder.put(IndexMetaData.builder("INDEX_" + i).settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(replicas));
 
         }
         MetaData metaData = metaBuilder.build();

@@ -228,7 +228,6 @@ public class Profile implements Streamable, ToXContent {
         out.writeString(details);
 
         //TODO could components be null here?
-        //TODO versioning for backwards compat
         out.writeInt(components.size());
         for (Profile component : components) {
             component.writeTo(out);

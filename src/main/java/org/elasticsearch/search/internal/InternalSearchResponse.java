@@ -139,15 +139,17 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         if (in.readBoolean()) {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
-        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-            if (in.readBoolean()) {
-                profile = Profile.readProfile(in);
-            }
-        }
+
         timedOut = in.readBoolean();
 
         if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             terminatedEarly = in.readOptionalBoolean();
+        }
+
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            if (in.readBoolean()) {
+                profile = Profile.readProfile(in);
+            }
         }
     }
 
@@ -172,6 +174,14 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             out.writeBoolean(true);
             suggest.writeTo(out);
         }
+
+        out.writeBoolean(timedOut);
+
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            out.writeOptionalBoolean(terminatedEarly);
+
+        }
+
         if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
             if (profile == null) {
                 out.writeBoolean(false);
@@ -179,12 +189,6 @@ public class InternalSearchResponse implements Streamable, ToXContent {
                 out.writeBoolean(true);
                 profile.writeTo(out);
             }
-        }
-        out.writeBoolean(timedOut);
-
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeOptionalBoolean(terminatedEarly);
-
         }
     }
 }

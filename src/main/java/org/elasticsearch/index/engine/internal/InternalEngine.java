@@ -51,6 +51,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -358,13 +359,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     if (!get.loadSource()) {
                         return new GetResult(true, versionValue.version(), null);
                     }
-                    try {
-                        Translog.Source source = translog.readSource(versionValue.translogLocation());
-                        if (source != null) {
-                            return new GetResult(true, versionValue.version(), source);
-                        }
-                    } catch (IOException e) {
-                        // switched on us, read it from the reader
+                    Translog.Operation op = translog.read(versionValue.translogLocation());
+                    if (op != null) {
+                        return new GetResult(true, versionValue.version(), op.getSource());
                     }
                 }
             }
@@ -1013,12 +1010,20 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             throw new OptimizeFailedEngineException(shardId, t);
         }
     }
+    
+    private void waitForMerges(boolean flushAfter) {
+        try {
+            currentIndexWriter().waitForMerges();
+        } catch (IOException e) {
+            throw new OptimizeFailedEngineException(shardId, e);
+        }
+        if (flushAfter) {
+            flush(new Flush().force(true).waitIfOngoing(true));
+        }
+    }
 
     @Override
     public void optimize(Optimize optimize) throws EngineException {
-        if (optimize.flush()) {
-            flush(new Flush().force(true).waitIfOngoing(true));
-        }
         if (optimizeMutex.compareAndSet(false, true)) {
             ElasticsearchMergePolicy elasticsearchMergePolicy = null;
             try (InternalLock _ = readLock.acquire()) {
@@ -1058,18 +1063,23 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 }
                 optimizeMutex.set(false);
             }
-
         }
+        
         // wait for the merges outside of the read lock
         if (optimize.waitForMerge()) {
-            try {
-                currentIndexWriter().waitForMerges();
-            } catch (IOException e) {
-                throw new OptimizeFailedEngineException(shardId, e);
-            }
-        }
-        if (optimize.flush()) {
-            flush(new Flush().force(true).waitIfOngoing(true));
+            waitForMerges(optimize.flush());
+        } else if (optimize.flush()) {
+            // we only need to monitor merges for async calls if we are going to flush
+            threadPool.executor(ThreadPool.Names.OPTIMIZE).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.error("Exception while waiting for merges asynchronously after optimize", t);
+                }
+                @Override
+                protected void doRun() throws Exception {
+                    waitForMerges(true);
+                }
+            });
         }
     }
 
@@ -1735,7 +1745,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
 
         @Override
-        public void beforeMerge(OnGoingMerge merge) {
+        public synchronized void beforeMerge(OnGoingMerge merge) {
             if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
                 if (isThrottling.getAndSet(true) == false) {
                     logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
@@ -1745,7 +1755,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
 
         @Override
-        public void afterMerge(OnGoingMerge merge) {
+        public synchronized void afterMerge(OnGoingMerge merge) {
             if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
                 if (isThrottling.getAndSet(false)) {
                     logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);

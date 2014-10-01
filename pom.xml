@@ -32,7 +32,7 @@
 
     <properties>
         <lucene.version>4.10.1</lucene.version>
-        <lucene.maven.version>4.10.1-snapshot-1627368</lucene.maven.version>
+        <lucene.maven.version>4.10.1</lucene.maven.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -46,10 +46,6 @@
     </properties>
 
     <repositories>
-        <repository>
-            <id>Lucene snapshots</id>
-            <url>https://download.elasticsearch.org/lucenesnapshots/</url>
-        </repository>
         <repository>
             <id>Codehaus Snapshots</id>
             <url>http://repository.codehaus.org/</url>
@@ -519,6 +515,7 @@
                                 <tests.cluster>${tests.cluster}</tests.cluster>
                                 <tests.heap.size>${tests.heap.size}</tests.heap.size>
                                 <tests.filter>${tests.filter}</tests.filter>
+                                <tests.version>${project.version}</tests.version>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
@@ -1216,8 +1213,8 @@
                                 <bundledSignature>jdk-system-out</bundledSignature>
                             </bundledSignatures>
                             <signaturesFiles>
-                                <signaturesFile>core-signatures.txt</signaturesFile>
-                                <signaturesFile>all-signatures.txt</signaturesFile>
+                                <signaturesFile>dev-tools/forbidden/core-signatures.txt</signaturesFile>
+                                <signaturesFile>dev-tools/forbidden/all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.signatures}</signatures>
                         </configuration>
@@ -1245,8 +1242,8 @@
                                 <!-- end exclude for GC simulation  -->
                             </excludes>
                             <signaturesFiles>
-                                <signaturesFile>test-signatures.txt</signaturesFile>
-                                <signaturesFile>all-signatures.txt</signaturesFile>
+                                <signaturesFile>dev-tools/forbidden/test-signatures.txt</signaturesFile>
+                                <signaturesFile>dev-tools/forbidden/all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.test.signatures}</signatures>
                         </configuration>

@@ -48,7 +48,7 @@ from http.client import HTTPSConnection
   - builds the artifacts and runs smoke-tests on the build zip & tar.gz files
   - commits the new version and merges the release branch into the source branch
   - creates a tag and pushes the commit to the specified origin (--remote)
-  - publishes the releases to sonar-type and S3
+  - publishes the releases to Sonatype and S3
 
 Once it's done it will print all the remaining steps.
 
@@ -488,7 +488,7 @@ def publish_artifacts(artifacts, base='elasticsearch/elasticsearch', dry_run=Tru
       # requires boto to be installed but it is not available on python3k yet so we use a dedicated tool
       run('python %s/upload-s3.py --file %s ' % (location, os.path.abspath(artifact)))
 
-def print_sonartype_notice():
+def print_sonatype_notice():
   settings = os.path.join(os.path.expanduser('~'), '.m2/settings.xml')
   if os.path.isfile(settings):
      with open(settings, encoding='utf-8') as settings_file:
@@ -497,8 +497,8 @@ def print_sonartype_notice():
            # moving out - we found the indicator no need to print the warning
            return
   print("""
-    NOTE: No sonartype settings detected, make sure you have configured
-    your sonartype credentials in '~/.m2/settings.xml':
+    NOTE: No sonatype settings detected, make sure you have configured
+    your sonatype credentials in '~/.m2/settings.xml':
 
     <settings>
     ...
@@ -526,7 +526,7 @@ VERSION_FILE = 'src/main/java/org/elasticsearch/Version.java'
 POM_FILE = 'pom.xml'
 
 # we print a notice if we can not find the relevant infos in the ~/.m2/settings.xml
-print_sonartype_notice()
+print_sonatype_notice()
 
 # finds the highest available bwc version to test against
 def find_bwc_version(release_version, bwc_dir='backwards'):
@@ -614,7 +614,7 @@ if __name__ == '__main__':
       print('Building Release candidate')
       input('Press Enter to continue...')
       if not dry_run:
-        print('  Running maven builds now and publish to sonartype - run-tests [%s]' % run_tests)
+        print('  Running maven builds now and publish to Sonatype - run-tests [%s]' % run_tests)
       else:
         print('  Running maven builds now run-tests [%s]' % run_tests)
       build_release(run_tests=run_tests, dry_run=dry_run, cpus=cpus, bwc_version=find_bwc_version(release_version, bwc_path))
@@ -635,7 +635,7 @@ if __name__ == '__main__':
       Release successful pending steps:
         * create a version tag on github for version 'v%(version)s'
         * check if there are pending issues for this version (https://github.com/elasticsearch/elasticsearch/issues?labels=v%(version)s&page=1&state=open)
-        * publish the maven artifacts on sonartype: https://oss.sonatype.org/index.html
+        * publish the maven artifacts on Sonatype: https://oss.sonatype.org/index.html
            - here is a guide: https://docs.sonatype.org/display/Repository/Sonatype+OSS+Maven+Repository+Usage+Guide#SonatypeOSSMavenRepositoryUsageGuide-8a.ReleaseIt
         * check if the release is there https://oss.sonatype.org/content/repositories/releases/org/elasticsearch/elasticsearch/%(version)s
         * announce the release on the website / blog post

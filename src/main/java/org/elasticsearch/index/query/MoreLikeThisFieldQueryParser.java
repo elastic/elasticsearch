@@ -96,8 +96,10 @@ public class MoreLikeThisFieldQueryParser implements QueryParser {
                         mltQuery.setBoostTerms(true);
                         mltQuery.setBoostTermsFactor(boostFactor);
                     }
+                } else if (MoreLikeThisQueryParser.Fields.MINIMUM_SHOULD_MATCH.match(currentFieldName,parseContext.parseFlags())) {
+                    mltQuery.setMinimumShouldMatch(parser.text());
                 } else if (MoreLikeThisQueryParser.Fields.PERCENT_TERMS_TO_MATCH.match(currentFieldName,parseContext.parseFlags())) {
-                    mltQuery.setPercentTermsToMatch(parser.floatValue());
+                    mltQuery.setMinimumShouldMatch(Math.round(parser.floatValue() * 100) + "%");
                 } else if ("analyzer".equals(currentFieldName)) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
                 } else if ("boost".equals(currentFieldName)) {

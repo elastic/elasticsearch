@@ -120,7 +120,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     private final BlobStoreIndexShardRepository indexShardRepository;
 
-    private final ToXContent.Params globalOnlyFormatParams;
+    private final ToXContent.Params snapshotOnlyFormatParams;
 
     private final RateLimiter snapshotRateLimiter;
 
@@ -142,10 +142,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         super(repositorySettings.globalSettings());
         this.repositoryName = repositoryName;
         this.indexShardRepository = (BlobStoreIndexShardRepository) indexShardRepository;
-        Map<String, String> globalOnlyParams = Maps.newHashMap();
-        globalOnlyParams.put(MetaData.PERSISTENT_ONLY_PARAM, "true");
-        globalOnlyParams.put(MetaData.GLOBAL_ONLY_PARAM, "true");
-        globalOnlyFormatParams = new ToXContent.MapParams(globalOnlyParams);
+        Map<String, String> snpashotOnlyParams = Maps.newHashMap();
+        snpashotOnlyParams.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_SNAPSHOT);
+        snapshotOnlyFormatParams = new ToXContent.MapParams(snpashotOnlyParams);
         snapshotRateLimiter = getRateLimiter(repositorySettings, "max_snapshot_bytes_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(repositorySettings, "max_restore_bytes_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB));
     }
@@ -555,7 +554,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         }
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
         builder.startObject();
-        BlobStoreSnapshot.Builder.toXContent(snapshot, builder, globalOnlyFormatParams);
+        BlobStoreSnapshot.Builder.toXContent(snapshot, builder, snapshotOnlyFormatParams);
         builder.endObject();
         builder.close();
     }
@@ -574,7 +573,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         }
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
         builder.startObject();
-        MetaData.Builder.toXContent(metaData, builder, globalOnlyFormatParams);
+        MetaData.Builder.toXContent(metaData, builder, snapshotOnlyFormatParams);
         builder.endObject();
         builder.close();
     }

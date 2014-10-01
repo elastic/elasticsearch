@@ -22,9 +22,9 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
@@ -44,12 +44,23 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
      * A single get item. Pure delegate to multi get.
      */
     public static final class Item extends MultiGetRequest.Item implements ToXContent {
+        private BytesReference doc;
+
         public Item() {
             super();
         }
 
         public Item(String index, @Nullable String type, String id) {
             super(index, type, id);
+        }
+
+        public BytesReference doc() {
+            return doc;
+        }
+
+        public Item doc(XContentBuilder doc) {
+            this.doc = doc.bytes();
+            return this;
         }
 
         @Override
@@ -60,6 +71,17 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             }
             if (this.id() != null) {
                 builder.field("_id", this.id());
+            }
+            if (this.doc() != null) {
+                XContentType contentType = XContentFactory.xContentType(doc);
+                if (contentType == builder.contentType()) {
+                    builder.rawField("doc", doc);
+                } else {
+                    XContentParser parser = XContentFactory.xContent(contentType).createParser(doc);
+                    parser.nextToken();
+                    builder.field("doc");
+                    builder.copyCurrentStructure(parser);
+                }
             }
             if (this.type() != null) {
                 builder.field("_type", this.type());
@@ -103,7 +125,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     private List<String> ids = new ArrayList<>();
     private List<Item> docs = new ArrayList<>();
     private Boolean include = null;
-    private float percentTermsToMatch = -1;
+    private String minimumShouldMatch = null;
     private int minTermFreq = -1;
     private int maxQueryTerms = -1;
     private String[] stopWords = null;
@@ -162,11 +184,22 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     }
 
     /**
+     * Number of terms that must match the generated query expressed in the
+     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     *
+     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
+     */
+    public MoreLikeThisQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
+    /**
      * The percentage of terms to match. Defaults to <tt>0.3</tt>.
      */
+    @Deprecated
     public MoreLikeThisQueryBuilder percentTermsToMatch(float percentTermsToMatch) {
-        this.percentTermsToMatch = percentTermsToMatch;
-        return this;
+        return minimumShouldMatch(Math.round(percentTermsToMatch * 100) + "%");
     }
 
     /**
@@ -287,8 +320,8 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
                     MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName() +"' or 'docs/ids' to be provided");
         }
         builder.field(MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName(), likeText);
-        if (percentTermsToMatch != -1) {
-            builder.field(MoreLikeThisQueryParser.Fields.PERCENT_TERMS_TO_MATCH.getPreferredName(), percentTermsToMatch);
+        if (minimumShouldMatch != null) {
+            builder.field(MoreLikeThisQueryParser.Fields.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
         }
         if (minTermFreq != -1) {
             builder.field(MoreLikeThisQueryParser.Fields.MIN_TERM_FREQ.getPreferredName(), minTermFreq);

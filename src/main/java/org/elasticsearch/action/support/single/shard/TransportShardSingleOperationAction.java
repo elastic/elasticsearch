@@ -172,7 +172,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             if (shardRouting == null) {
                 Throwable failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {
-                    failure = new NoShardAvailableActionException(shardIt.shardId());
+                    failure = new NoShardAvailableActionException(shardIt.shardId(), null, failure);
                 } else {
                     if (logger.isDebugEnabled()) {
                         logger.debug("{}: failed to execute [{}]", failure, shardIt.shardId(), internalRequest.request());

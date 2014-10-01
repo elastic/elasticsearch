@@ -35,7 +35,9 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvector.TermVectorRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.lucene.Lucene;
@@ -1638,7 +1640,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery.getClauses()[0].getQuery();
 
         // all terms must match
-        mltQuery.setPercentTermsToMatch(1.0f);
+        mltQuery.setMinimumShouldMatch("100%");
         mltQuery.setMinWordLen(0);
         mltQuery.setMinDocFreq(0);
 
@@ -1666,10 +1668,11 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             super(null, ImmutableSettings.Builder.EMPTY_SETTINGS);
         }
 
-        public Fields[] fetch(List<MultiGetRequest.Item> items) throws IOException {
+        @Override
+        public Fields[] fetch(MultiTermVectorsRequest items) throws IOException {
             List<Fields> likeTexts = new ArrayList<>();
-            for (MultiGetRequest.Item item : items) {
-                likeTexts.add(generateFields(item.fields(), item.id()));
+            for (TermVectorRequest item : items) {
+                likeTexts.add(generateFields(item.selectedFields().toArray(Strings.EMPTY_ARRAY), item.id()));
             }
             return likeTexts.toArray(Fields.EMPTY_ARRAY);
         }

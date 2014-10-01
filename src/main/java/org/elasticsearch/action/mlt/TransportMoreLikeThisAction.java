@@ -323,7 +323,7 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
     private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, String fieldName, String likeText, boolean failOnUnsupportedField) {
         MoreLikeThisFieldQueryBuilder mlt = moreLikeThisFieldQuery(fieldName)
                 .likeText(likeText)
-                .percentTermsToMatch(request.percentTermsToMatch())
+                .minimumShouldMatch(request.minimumShouldMatch())
                 .boostTerms(request.boostTerms())
                 .minDocFreq(request.minDocFreq())
                 .maxDocFreq(request.maxDocFreq())

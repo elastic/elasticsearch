@@ -61,11 +61,21 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
     }
 
     /**
+     * Number of terms that must match the generated query expressed in the
+     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     *
+     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
+     */
+    public MoreLikeThisRequestBuilder setMinimumShouldMatch(String minimumShouldMatch) {
+        request.minimumShouldMatch(minimumShouldMatch);
+        return this;
+    }
+
+    /**
      * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
      */
     public MoreLikeThisRequestBuilder setPercentTermsToMatch(float percentTermsToMatch) {
-        request.percentTermsToMatch(percentTermsToMatch);
-        return this;
+        return setMinimumShouldMatch(Math.round(percentTermsToMatch * 100) + "%");
     }
 
     /**

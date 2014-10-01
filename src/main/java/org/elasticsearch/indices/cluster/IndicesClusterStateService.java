@@ -43,7 +43,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -406,8 +405,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         boolean requiresRefresh = false;
         try {
             if (!mapperService.hasMapping(mappingType)) {
-                if (logger.isDebugEnabled()) {
+                if (logger.isDebugEnabled() && mappingSource.compressed().length < 512) {
                     logger.debug("[{}] adding mapping [{}], source [{}]", index, mappingType, mappingSource.string());
+                } else if (logger.isTraceEnabled()) {
+                    logger.trace("[{}] adding mapping [{}], source [{}]", index, mappingType, mappingSource.string());
+                } else {
+                    logger.debug("[{}] adding mapping [{}] (source suppressed due to length, use TRACE level if needed)", index, mappingType);
                 }
                 // we don't apply default, since it has been applied when the mappings were parsed initially
                 mapperService.merge(mappingType, mappingSource, false);
@@ -419,8 +422,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
                 if (!mappingSource.equals(existingMapper.mappingSource())) {
                     // mapping changed, update it
-                    if (logger.isDebugEnabled()) {
+                    if (logger.isDebugEnabled() && mappingSource.compressed().length < 512) {
                         logger.debug("[{}] updating mapping [{}], source [{}]", index, mappingType, mappingSource.string());
+                    } else if (logger.isTraceEnabled()) {
+                        logger.trace("[{}] updating mapping [{}], source [{}]", index, mappingType, mappingSource.string());
+                    } else {
+                        logger.debug("[{}] updating mapping [{}] (source suppressed due to length, use TRACE level if needed)", index, mappingType);
                     }
                     // we don't apply default, since it has been applied when the mappings were parsed initially
                     mapperService.merge(mappingType, mappingSource, false);

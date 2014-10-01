@@ -21,15 +21,14 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import org.apache.lucene.store.RateLimiter;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
 /**
  * Rate limiting wrapper for InputStream
  */
-public class RateLimitingInputStream extends InputStream {
-
-    private final InputStream delegate;
+public class RateLimitingInputStream extends FilterInputStream {
 
     private final RateLimiter rateLimiter;
 
@@ -42,7 +41,7 @@ public class RateLimitingInputStream extends InputStream {
     }
 
     public RateLimitingInputStream(InputStream delegate, RateLimiter rateLimiter, Listener listener) {
-        this.delegate = delegate;
+        super(delegate);
         this.rateLimiter = rateLimiter;
         this.listener = listener;
     }
@@ -60,52 +59,17 @@ public class RateLimitingInputStream extends InputStream {
 
     @Override
     public int read() throws IOException {
-        int b = delegate.read();
+        int b = super.read();
         maybePause(1);
         return b;
     }
 
     @Override
-    public int read(byte[] b) throws IOException {
-        return read(b, 0, b.length);
-    }
-
-    @Override
     public int read(byte[] b, int off, int len) throws IOException {
-        int n = delegate.read(b, off, len);
+        int n = super.read(b, off, len);
         if (n > 0) {
             maybePause(n);
         }
         return n;
-    }
-
-    @Override
-    public long skip(long n) throws IOException {
-        return delegate.skip(n);
-    }
-
-    @Override
-    public int available() throws IOException {
-        return delegate.available();
-    }
-
-    @Override
-    public void close() throws IOException {
-        delegate.close();
-    }
-
-    @Override
-    public void mark(int readlimit) {
-        delegate.mark(readlimit);
-    }
-
-    @Override
-    public void reset() throws IOException {
-        delegate.reset();
-    }
-
-    @Override
-    public boolean markSupported() {
-        return delegate.markSupported();
     }
 }

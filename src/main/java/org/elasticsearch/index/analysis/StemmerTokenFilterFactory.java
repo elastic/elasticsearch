@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
 import org.apache.lucene.analysis.bg.BulgarianStemFilter;
 import org.apache.lucene.analysis.br.BrazilianStemFilter;
+import org.apache.lucene.analysis.ckb.SoraniStemFilter;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
 import org.apache.lucene.analysis.de.GermanLightStemFilter;
 import org.apache.lucene.analysis.de.GermanMinimalStemFilter;
@@ -35,11 +36,15 @@ import org.apache.lucene.analysis.es.SpanishLightStemFilter;
 import org.apache.lucene.analysis.fi.FinnishLightStemFilter;
 import org.apache.lucene.analysis.fr.FrenchLightStemFilter;
 import org.apache.lucene.analysis.fr.FrenchMinimalStemFilter;
+import org.apache.lucene.analysis.gl.GalicianMinimalStemFilter;
+import org.apache.lucene.analysis.gl.GalicianStemFilter;
 import org.apache.lucene.analysis.hi.HindiStemFilter;
 import org.apache.lucene.analysis.hu.HungarianLightStemFilter;
 import org.apache.lucene.analysis.id.IndonesianStemFilter;
 import org.apache.lucene.analysis.it.ItalianLightStemFilter;
 import org.apache.lucene.analysis.lv.LatvianStemFilter;
+import org.apache.lucene.analysis.no.NorwegianLightStemFilter;
+import org.apache.lucene.analysis.no.NorwegianLightStemmer;
 import org.apache.lucene.analysis.no.NorwegianMinimalStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseLightStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseMinimalStemFilter;
@@ -137,6 +142,12 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new FrenchLightStemFilter(tokenStream);
         } else if ("minimal_french".equalsIgnoreCase(language) || "minimalFrench".equalsIgnoreCase(language)) {
             return new FrenchMinimalStemFilter(tokenStream);
+            
+            // Galician stemmers
+        } else if ("galician".equalsIgnoreCase(language)) {
+            return new GalicianStemFilter(tokenStream);
+        } else if ("minimal_galician".equalsIgnoreCase(language)) {
+            return new GalicianMinimalStemFilter(tokenStream);
 
             // German stemmers
         } else if ("german".equalsIgnoreCase(language)) {
@@ -161,6 +172,10 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
         } else if ("indonesian".equalsIgnoreCase(language)) {
             return new IndonesianStemFilter(tokenStream);
+            
+            // Irish stemmer
+        } else if ("irish".equalsIgnoreCase(language)) {
+            return new SnowballFilter(tokenStream, new IrishStemmer());
 
             // Italian stemmers
         } else if ("italian".equalsIgnoreCase(language)) {
@@ -171,11 +186,19 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("latvian".equalsIgnoreCase(language)) {
             return new LatvianStemFilter(tokenStream);
 
-            // Norwegian stemmers
+            // Norwegian (Bokmål) stemmers
         } else if ("norwegian".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new NorwegianStemmer());
+        } else if ("light_norwegian".equalsIgnoreCase(language) || "lightNorwegian".equalsIgnoreCase(language)) {
+            return new NorwegianLightStemFilter(tokenStream);
         } else if ("minimal_norwegian".equalsIgnoreCase(language) || "minimalNorwegian".equals(language)) {
             return new NorwegianMinimalStemFilter(tokenStream);
+            
+            // Norwegian (Nynorsk) stemmers 
+        } else if ("light_nynorsk".equalsIgnoreCase(language) || "lightNynorsk".equalsIgnoreCase(language)) {
+            return new NorwegianLightStemFilter(tokenStream, NorwegianLightStemmer.NYNORSK);
+        } else if ("minimal_nynorsk".equalsIgnoreCase(language) || "minimalNynorsk".equalsIgnoreCase(language)) {
+            return new NorwegianMinimalStemFilter(tokenStream, NorwegianLightStemmer.NYNORSK);
 
             // Portuguese stemmers
         } else if ("portuguese".equalsIgnoreCase(language)) {
@@ -201,6 +224,10 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new SnowballFilter(tokenStream, new SpanishStemmer());
         } else if ("light_spanish".equalsIgnoreCase(language) || "lightSpanish".equalsIgnoreCase(language)) {
             return new SpanishLightStemFilter(tokenStream);
+            
+            // Sorani Kurdish stemmer
+        } else if ("sorani".equalsIgnoreCase(language)) {
+            return new SoraniStemFilter(tokenStream);
 
             // Swedish stemmers
         } else if ("swedish".equalsIgnoreCase(language)) {

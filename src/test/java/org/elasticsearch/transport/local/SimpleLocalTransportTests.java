@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.AbstractSimpleTransportTests;
-import org.elasticsearch.transport.TransportService;
 
 public class SimpleLocalTransportTests extends AbstractSimpleTransportTests {
 

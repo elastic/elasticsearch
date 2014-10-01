@@ -143,13 +143,13 @@ polygon and a minimum of `4` vertices.
 points.
 |`MultiLineString` |`multilinestring` |An array of separate linestrings.
 |`MultiPolygon` |`multipolygon` |An array of separate polygons.
+|`GeometryCollection` |`geometrycollection` | A GeoJSON shape similar to the
+`multi*` shapes except that multiple types can coexist (e.g., a Point
+and a LineString).
 |`N/A` |`envelope` |A bounding rectangle, or envelope, specified by
 specifying only the top left and bottom right points.
 |`N/A` |`circle` |A circle specified by a center point and radius with
 units, which default to `METERS`.
-|`GeometryCollection` |`N/A` | An unsupported GeoJSON shape similar to the
-`multi*` shapes except that multiple types can coexist (e.g., a Point
-and a LineString).
 |=======================================================================
 
 [NOTE]
@@ -290,6 +290,31 @@ A list of geojson polygons.
     }
 }
 --------------------------------------------------
+
+[float]
+===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
+
+A collection of geojson geometry objects.
+
+[source,js]
+--------------------------------------------------
+{
+    "location" : {
+        "type": "geometrycollection",
+        "geometries": [
+            {
+                "type": "point",
+                "coordinates": [100.0, 0.0]
+            },
+            {
+                "type": "linestring",
+                "coordinates": [ [101.0, 0.0], [102.0, 1.0] ]
+            }
+        ]
+    }
+}
+--------------------------------------------------
+
 
 [float]
 ===== Envelope

@@ -40,8 +40,8 @@ public class RestMultiPercolateAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
 
     @Inject
-    public RestMultiPercolateAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestMultiPercolateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/_mpercolate", this);
         controller.registerHandler(POST, "/{index}/_mpercolate", this);
         controller.registerHandler(POST, "/{index}/{type}/_mpercolate", this);

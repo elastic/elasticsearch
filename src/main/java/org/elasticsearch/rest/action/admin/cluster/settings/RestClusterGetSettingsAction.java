@@ -34,8 +34,8 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 public class RestClusterGetSettingsAction extends BaseRestHandler {
 
     @Inject
-    public RestClusterGetSettingsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestClusterGetSettingsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
     }
 

@@ -8,7 +8,7 @@ index and make it searchable.
 [[generate]]
 === Generate JSON document
 
-There are different way of generating a JSON document:
+There are several different ways of generating a JSON document:
 
 * Manually (aka do it yourself) using native `byte[]` or as a `String`
 
@@ -173,19 +173,8 @@ String _type = response.getType();
 String _id = response.getId();
 // Version (if it's the first time you index this document, you will get: 1)
 long _version = response.getVersion();
---------------------------------------------------
-
-If you use percolation while indexing, `IndexResponse` object will give
-you a percolator that have matched:
-
-[source,java]
---------------------------------------------------
-IndexResponse response = client.prepareIndex("twitter", "tweet", "1")
-        .setSource(json)
-        .execute()
-        .actionGet();
-
-List<String> matches = response.matches();
+// isCreated() is true if the document is a new one, false if it has been updated
+boolean created = response.isCreated();
 --------------------------------------------------
 
 For more information on the index operation, check out the REST

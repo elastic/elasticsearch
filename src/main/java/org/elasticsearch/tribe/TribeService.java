@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -43,7 +42,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
@@ -53,7 +52,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 
 /**
  * The tribe service holds a list of node clients connected to a list of tribe members, and uses their
@@ -121,7 +119,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     private final List<InternalNode> nodes = Lists.newCopyOnWriteArrayList();
 
     @Inject
-    public TribeService(Settings settings, ClusterService clusterService) {
+    public TribeService(Settings settings, ClusterService clusterService, DiscoveryService discoveryService) {
         super(settings);
         this.clusterService = clusterService;
         Map<String, Settings> nodesSettings = Maps.newHashMap(settings.getGroups("tribe", true));
@@ -143,7 +141,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         if (!nodes.isEmpty()) {
             // remove the initial election / recovery blocks since we are not going to have a
             // master elected in this single tribe  node local "cluster"
-            clusterService.removeInitialStateBlock(Discovery.NO_MASTER_BLOCK);
+            clusterService.removeInitialStateBlock(discoveryService.getNoMasterBlock());
             clusterService.removeInitialStateBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
             if (settings.getAsBoolean("tribe.blocks.write", false)) {
                 clusterService.addInitialStateBlock(TRIBE_WRITE_BLOCK);
@@ -167,36 +165,6 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("updating local node id", new ProcessedClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                // add our local node to the mix...
-                return ClusterState.builder(currentState)
-                        .nodes(DiscoveryNodes.builder(currentState.nodes()).put(clusterService.localNode()).localNodeId(clusterService.localNode().id()))
-                        .build();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                try {
-                    logger.error("{}", t, source);
-                } finally {
-                    latch.countDown();
-                }
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                latch.countDown();
-            }
-        });
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new ElasticsearchIllegalStateException("Interrupted while starting [" + this.getClass().getSimpleName() + "]", e);
-        }
         for (InternalNode node : nodes) {
             try {
                 node.start();
@@ -252,7 +220,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         @Override
         public void clusterChanged(final ClusterChangedEvent event) {
             logger.debug("[{}] received cluster event, [{}]", tribeName, event.source());
-            clusterService.submitStateUpdateTask("cluster event from " + tribeName + ", " + event.source(), new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("cluster event from " + tribeName + ", " + event.source(), new ClusterStateNonMasterUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     ClusterState tribeState = event.state();

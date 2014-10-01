@@ -21,6 +21,9 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -38,7 +41,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
 import java.io.IOException;
-import java.io.InputStream;
+
 
 /**
  *
@@ -100,7 +103,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
      */
     Location add(Operation operation) throws TranslogException;
 
-    byte[] read(Location location);
+    Translog.Operation read(Location location);
 
     /**
      * Snapshots the current transaction log allowing to safely iterate over the snapshot.
@@ -133,7 +136,8 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
      */
     TranslogStats stats();
 
-    static class Location {
+    static class Location implements Accountable {
+
         public final long translogId;
         public final long translogLocation;
         public final int size;
@@ -142,6 +146,16 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
             this.translogId = translogId;
             this.translogLocation = translogLocation;
             this.size = size;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2*RamUsageEstimator.NUM_BYTES_LONG + RamUsageEstimator.NUM_BYTES_INT;
+        }
+
+        @Override
+        public String toString() {
+            return "[id: " + translogId + ", location: " + translogLocation + ", size: " + size + "]";
         }
     }
 
@@ -155,6 +169,9 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
          */
         long translogId();
 
+        /**
+         * Returns the current position in the translog stream
+         */
         long position();
 
         /**
@@ -167,16 +184,15 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
          */
         int estimatedTotalOperations();
 
-        boolean hasNext();
-
+        /**
+         * Returns the next operation, or null when no more operations are found
+         */
         Operation next();
 
-        void seekForward(long length);
-
         /**
-         * Returns a stream of this snapshot.
+         * Seek to the specified position in the translog stream
          */
-        InputStream stream() throws IOException;
+        void seekTo(long position);
 
         /**
          * The length in bytes of this stream.
@@ -216,7 +232,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
                     case 4:
                         return DELETE_BY_QUERY;
                     default:
-                        throw new IllegalArgumentException("No type mapped for [" + id + "]");
+                        throw new ElasticsearchIllegalArgumentException("No type mapped for [" + id + "]");
                 }
             }
         }
@@ -225,7 +241,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
 
         long estimateSize();
 
-        Source readSource(StreamInput in) throws IOException;
+        Source getSource();
     }
 
     static class Source {
@@ -325,8 +341,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         }
 
         @Override
-        public Source readSource(StreamInput in) throws IOException {
-            readFrom(in);
+        public Source getSource() {
             return new Source(source, routing, parent, timestamp, ttl);
         }
 
@@ -468,8 +483,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         }
 
         @Override
-        public Source readSource(StreamInput in) throws IOException {
-            readFrom(in);
+        public Source getSource() {
             return new Source(source, routing, parent, timestamp, ttl);
         }
 
@@ -479,27 +493,31 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
             id = in.readString();
             type = in.readString();
             source = in.readBytesReference();
-            if (version >= 1) {
-                if (in.readBoolean()) {
-                    routing = in.readString();
+            try {
+                if (version >= 1) {
+                    if (in.readBoolean()) {
+                        routing = in.readString();
+                    }
                 }
-            }
-            if (version >= 2) {
-                if (in.readBoolean()) {
-                    parent = in.readString();
+                if (version >= 2) {
+                    if (in.readBoolean()) {
+                        parent = in.readString();
+                    }
                 }
-            }
-            if (version >= 3) {
-                this.version = in.readLong();
-            }
-            if (version >= 4) {
-                this.timestamp = in.readLong();
-            }
-            if (version >= 5) {
-                this.ttl = in.readLong();
-            }
-            if (version >= 6) {
-                this.versionType = VersionType.fromValue(in.readByte());
+                if (version >= 3) {
+                    this.version = in.readLong();
+                }
+                if (version >= 4) {
+                    this.timestamp = in.readLong();
+                }
+                if (version >= 5) {
+                    this.ttl = in.readLong();
+                }
+                if (version >= 6) {
+                    this.versionType = VersionType.fromValue(in.readByte());
+                }
+            } catch (Exception e) {
+                throw new ElasticsearchException("failed to read [" + type + "][" + id + "]", e);
             }
 
             assert versionType.validateVersionForWrites(version);
@@ -550,6 +568,12 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
             this.uid = uid;
         }
 
+        public Delete(Term uid, long version, VersionType versionType) {
+            this.uid = uid;
+            this.version = version;
+            this.versionType = versionType;
+        }
+
         @Override
         public Type opType() {
             return Type.DELETE;
@@ -573,7 +597,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         }
 
         @Override
-        public Source readSource(StreamInput in) throws IOException {
+        public Source getSource(){
             throw new ElasticsearchIllegalStateException("trying to read doc source from delete operation");
         }
 
@@ -645,7 +669,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         }
 
         @Override
-        public Source readSource(StreamInput in) throws IOException {
+        public Source getSource() {
             throw new ElasticsearchIllegalStateException("trying to read doc source from delete_by_query operation");
         }
 

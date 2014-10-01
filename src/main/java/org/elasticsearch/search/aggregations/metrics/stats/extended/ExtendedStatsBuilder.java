@@ -22,10 +22,13 @@ package org.elasticsearch.search.aggregations.metrics.stats.extended;
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
 
 /**
- *
+ * Builder for the {@link ExtendedStats} aggregation.
  */
 public class ExtendedStatsBuilder extends ValuesSourceMetricsAggregationBuilder<ExtendedStatsBuilder> {
 
+    /**
+     * Sole constructor.
+     */
     public ExtendedStatsBuilder(String name) {
         super(name, InternalExtendedStats.TYPE.name());
     }

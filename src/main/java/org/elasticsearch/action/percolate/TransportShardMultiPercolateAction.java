@@ -22,13 +22,14 @@ package org.elasticsearch.action.percolate;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,12 +37,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -50,15 +53,17 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
 
     private final PercolatorService percolatorService;
 
+    private static final String ACTION_NAME = MultiPercolateAction.NAME + "[shard]";
+
     @Inject
-    public TransportShardMultiPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, PercolatorService percolatorService) {
-        super(settings, threadPool, clusterService, transportService);
+    public TransportShardMultiPercolateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, PercolatorService percolatorService, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters);
         this.percolatorService = percolatorService;
     }
 
     @Override
-    protected String transportAction() {
-        return "mpercolate/shard";
+    protected boolean isSubAction() {
+        return true;
     }
 
     @Override
@@ -77,24 +82,19 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, Request request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    protected boolean resolveIndex() {
+        return false;
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, Request request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
-    }
-
-    @Override
-    protected ShardIterator shards(ClusterState state, Request request) throws ElasticsearchException {
+    protected ShardIterator shards(ClusterState state, InternalRequest request) throws ElasticsearchException {
         return clusterService.operationRouting().getShards(
-                clusterService.state(), request.index(), request.shardId(), request.preference
+                state, request.concreteIndex(), request.request().shardId(), request.request().preference
         );
     }
 
     @Override
-    protected Response shardOperation(Request request, int shardId) throws ElasticsearchException {
+    protected Response shardOperation(Request request, ShardId shardId) throws ElasticsearchException {
         // TODO: Look into combining the shard req's docs into one in memory index.
         Response response = new Response();
         response.items = new ArrayList<>(request.items.size());
@@ -107,7 +107,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
                 if (TransportActions.isShardNotAvailableException(t)) {
                     throw (ElasticsearchException) t;
                 } else {
-                    logger.debug("[{}][{}] failed to multi percolate", t, request.index(), request.shardId());
+                    logger.debug("{} failed to multi percolate", t, request.shardId());
                     responseItem = new Response.Item(slot, new StringText(ExceptionsHelper.detailedMessage(t)));
                 }
             }
@@ -117,20 +117,29 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
     }
 
 
-    public static class Request extends SingleShardOperationRequest {
+    public static class Request extends SingleShardOperationRequest implements IndicesRequest {
 
         private int shardId;
         private String preference;
         private List<Item> items;
 
-        public Request() {
+        Request() {
         }
 
-        public Request(String concreteIndex, int shardId, String preference) {
-            this.index = concreteIndex;
+        Request(MultiPercolateRequest multiPercolateRequest, String concreteIndex, int shardId, String preference) {
+            super(multiPercolateRequest, concreteIndex);
             this.shardId = shardId;
             this.preference = preference;
             this.items = new ArrayList<>();
+        }
+
+        @Override
+        public String[] indices() {
+            List<String> indices = new ArrayList<>();
+            for (Item item : items) {
+                Collections.addAll(indices, item.request.indices());
+            }
+            return indices.toArray(new String[indices.size()]);
         }
 
         public int shardId() {
@@ -154,7 +163,8 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             items = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 int slot = in.readVInt();
-                PercolateShardRequest shardRequest = new PercolateShardRequest(index(), shardId);
+                OriginalIndices originalIndices = OriginalIndices.readOriginalIndices(in);
+                PercolateShardRequest shardRequest = new PercolateShardRequest(new ShardId(index, shardId), originalIndices);
                 shardRequest.documentType(in.readString());
                 shardRequest.source(in.readBytesReference());
                 shardRequest.docSource(in.readBytesReference());
@@ -172,6 +182,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             out.writeVInt(items.size());
             for (Item item : items) {
                 out.writeVInt(item.slot);
+                OriginalIndices.writeOriginalIndices(item.request.originalIndices(), out);
                 out.writeString(item.request.documentType());
                 out.writeBytesReference(item.request.source());
                 out.writeBytesReference(item.request.docSource());
@@ -179,7 +190,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             }
         }
 
-        public static class Item {
+        static class Item {
 
             private final int slot;
             private final PercolateShardRequest request;

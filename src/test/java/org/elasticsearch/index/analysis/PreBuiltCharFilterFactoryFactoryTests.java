@@ -22,6 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.*;
@@ -30,7 +31,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 /**
  *
  */
-public class PreBuiltCharFilterFactoryFactoryTests {
+public class PreBuiltCharFilterFactoryFactoryTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatDifferentVersionsCanBeLoaded() {

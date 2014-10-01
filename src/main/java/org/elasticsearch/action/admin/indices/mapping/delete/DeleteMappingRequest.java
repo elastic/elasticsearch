@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
@@ -34,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Represents a request to delete a mapping
  */
-public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingRequest> {
+public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
@@ -84,6 +85,7 @@ public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingReque
     /**
      * Sets the indices this delete mapping operation will execute on.
      */
+    @Override
     public DeleteMappingRequest indices(String[] indices) {
         this.indices = indices;
         return this;
@@ -92,10 +94,12 @@ public class DeleteMappingRequest extends AcknowledgedRequest<DeleteMappingReque
     /**
      * The indices the mappings will be removed from.
      */
+    @Override
     public String[] indices() {
         return indices;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

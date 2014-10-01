@@ -75,3 +75,4 @@ include::mapping/conf-mappings.asciidoc[]
 
 include::mapping/meta.asciidoc[]
 
+include::mapping/transform.asciidoc[]

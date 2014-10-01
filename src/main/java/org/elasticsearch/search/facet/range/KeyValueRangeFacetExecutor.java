@@ -20,8 +20,8 @@
 package org.elasticsearch.search.facet.range;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -58,7 +58,7 @@ public class KeyValueRangeFacetExecutor extends FacetExecutor {
     class Collector extends FacetExecutor.Collector {
 
         private final RangeProc rangeProc;
-        private DoubleValues keyValues;
+        private SortedNumericDoubleValues keyValues;
 
         public Collector() {
             this.rangeProc = new RangeProc(entries);
@@ -87,7 +87,7 @@ public class KeyValueRangeFacetExecutor extends FacetExecutor {
 
         private final RangeFacet.Entry[] entries;
 
-        DoubleValues valueValues;
+        SortedNumericDoubleValues valueValues;
 
         public RangeProc(RangeFacet.Entry[] entries) {
             this.entries = entries;
@@ -102,9 +102,10 @@ public class KeyValueRangeFacetExecutor extends FacetExecutor {
                 if (value >= entry.getFrom() && value < entry.getTo()) {
                     entry.foundInDoc = true;
                     entry.count++;
-                    int seek = valueValues.setDocument(docId);
+                    valueValues.setDocument(docId);
+                    int seek = valueValues.count();
                     for (int i = 0; i < seek; i++) {
-                        double valueValue = valueValues.nextValue();
+                        double valueValue = valueValues.valueAt(i);
                         entry.total += valueValue;
                         entry.min = Math.min(entry.min, valueValue);
                         entry.max = Math.max(entry.max, valueValue);

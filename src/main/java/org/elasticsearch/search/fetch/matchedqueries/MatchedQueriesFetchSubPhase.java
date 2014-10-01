@@ -20,12 +20,17 @@ package org.elasticsearch.search.fetch.matchedqueries;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -65,29 +70,57 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
         List<String> matchedQueries = Lists.newArrayListWithCapacity(2);
 
-        addMatchedQueries(hitContext, context.parsedQuery().namedFilters(), matchedQueries);
+        try {
+            DocIdSet docAndNestedDocsIdSet = null;
+            if (context.mapperService().documentMapper(hitContext.hit().type()).hasNestedObjects()) {
+                // Both main and nested Lucene docs have a _uid field
+                Filter docAndNestedDocsFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(hitContext.hit().type(), hitContext.hit().id())));
+                docAndNestedDocsIdSet = docAndNestedDocsFilter.getDocIdSet(hitContext.readerContext(), null);
+            }
+            addMatchedQueries(hitContext, context.parsedQuery().namedFilters(), matchedQueries, docAndNestedDocsIdSet);
 
-        if (context.parsedPostFilter() != null) {
-            addMatchedQueries(hitContext, context.parsedPostFilter().namedFilters(), matchedQueries);
+            if (context.parsedPostFilter() != null) {
+                addMatchedQueries(hitContext, context.parsedPostFilter().namedFilters(), matchedQueries, docAndNestedDocsIdSet);
+            }
+        } catch (IOException e) {
+            throw ExceptionsHelper.convertToElastic(e);
+        } finally {
+            SearchContext.current().clearReleasables(Lifetime.COLLECTION);
         }
 
         hitContext.hit().matchedQueries(matchedQueries.toArray(new String[matchedQueries.size()]));
     }
 
-    private void addMatchedQueries(HitContext hitContext, ImmutableMap<String, Filter> namedFiltersAndQueries, List<String> matchedQueries) {
+    private void addMatchedQueries(HitContext hitContext, ImmutableMap<String, Filter> namedFiltersAndQueries, List<String> matchedQueries, DocIdSet docAndNestedDocsIdSet) throws IOException {
         for (Map.Entry<String, Filter> entry : namedFiltersAndQueries.entrySet()) {
             String name = entry.getKey();
             Filter filter = entry.getValue();
-            try {
-                DocIdSet docIdSet = filter.getDocIdSet(hitContext.readerContext(), null); // null is fine, since we filter by hitContext.docId()
-                if (!DocIdSets.isEmpty(docIdSet)) {
-                    Bits bits = docIdSet.bits();
+
+            DocIdSet filterDocIdSet = filter.getDocIdSet(hitContext.readerContext(), null); // null is fine, since we filter by hitContext.docId()
+            if (!DocIdSets.isEmpty(filterDocIdSet)) {
+                if (!DocIdSets.isEmpty(docAndNestedDocsIdSet)) {
+                    DocIdSetIterator filterIterator = filterDocIdSet.iterator();
+                    DocIdSetIterator docAndNestedDocsIterator = docAndNestedDocsIdSet.iterator();
+                    if (filterIterator != null && docAndNestedDocsIterator != null) {
+                        int matchedDocId = -1;
+                        for (int docId = docAndNestedDocsIterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = docAndNestedDocsIterator.nextDoc()) {
+                            if (docId != matchedDocId) {
+                                matchedDocId = filterIterator.advance(docId);
+                            }
+                            if (matchedDocId == docId) {
+                                matchedQueries.add(name);
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    Bits bits = filterDocIdSet.bits();
                     if (bits != null) {
                         if (bits.get(hitContext.docId())) {
                             matchedQueries.add(name);
                         }
                     } else {
-                        DocIdSetIterator iterator = docIdSet.iterator();
+                        DocIdSetIterator iterator = filterDocIdSet.iterator();
                         if (iterator != null) {
                             if (iterator.advance(hitContext.docId()) == hitContext.docId()) {
                                 matchedQueries.add(name);
@@ -95,10 +128,6 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
                         }
                     }
                 }
-            } catch (IOException e) {
-                // ignore
-            } finally {
-                SearchContext.current().clearReleasables(Lifetime.COLLECTION);
             }
         }
     }

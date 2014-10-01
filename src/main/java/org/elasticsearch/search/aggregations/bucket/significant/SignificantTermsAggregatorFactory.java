@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
@@ -46,6 +47,10 @@ import java.io.IOException;
  *
  */
 public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory implements Releasable {
+
+    public SignificanceHeuristic getSignificanceHeuristic() {
+        return significanceHeuristic;
+    }
 
     public enum ExecutionMode {
 
@@ -131,14 +136,20 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private int numberOfAggregatorsCreated = 0;
     private Filter filter;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
+    private final SignificanceHeuristic significanceHeuristic;
+
+    protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
+        return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
+    }
 
     public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                                             String executionHint, Filter filter) {
+                                             String executionHint, Filter filter, SignificanceHeuristic significanceHeuristic) {
 
         super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);
         this.bucketCountThresholds = bucketCountThresholds;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
+        this.significanceHeuristic = significanceHeuristic;
         if (!valueSourceConfig.unmapped()) {
             this.indexedFieldName = config.fieldContext().field();
             mapper = SearchContext.current().smartNameFieldMapper(indexedFieldName);
@@ -183,9 +194,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             return execution.create(name, factories, valuesSource, estimatedBucketCount, bucketCountThresholds, includeExclude, aggregationContext, parent, this);
         }
 
-        if (includeExclude != null) {
-            throw new AggregationExecutionException("Aggregation [" + name + "] cannot support the include/exclude " +
-                    "settings as it can only be applied to string values");
+        
+        if ((includeExclude != null) && (includeExclude.isRegexBased())) {
+            throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude " +
+                    "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses used to filter numeric fields");
         }
 
         if (valuesSource instanceof ValuesSource.Numeric) {
@@ -193,7 +205,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
                 throw new UnsupportedOperationException("No support for examining floating point numerics");
             }
-            return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount, bucketCountThresholds, aggregationContext, parent, this);
+            IncludeExclude.LongFilter longFilter = null;
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToLongFilter();
+            }
+            return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount, bucketCountThresholds, aggregationContext, parent, this, longFilter);
         }
 
         throw new AggregationExecutionException("sigfnificant_terms aggregation cannot be applied to field [" + config.fieldContext().field() +

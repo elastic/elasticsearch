@@ -30,10 +30,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
@@ -51,8 +48,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestRecoveryAction extends AbstractCatAction {
 
     @Inject
-    protected RestRecoveryAction(Settings settings, Client client, RestController restController) {
-        super(settings, client);
+    protected RestRecoveryAction(Settings settings, RestController restController, RestController controller, Client client) {
+        super(settings, controller, client);
         restController.registerHandler(GET, "/_cat/recovery", this);
         restController.registerHandler(GET, "/_cat/recovery/{index}", this);
     }
@@ -138,10 +135,6 @@ public class RestRecoveryAction extends AbstractCatAction {
             for (ShardRecoveryResponse shardResponse : shardRecoveryResponses) {
 
                 RecoveryState state = shardResponse.recoveryState();
-
-                int filesRecovered = state.getIndex().recoveredFileCount();
-                long bytesRecovered = state.getIndex().recoveredByteCount();
-
                 t.startRow();
                 t.addCell(index);
                 t.addCell(shardResponse.getShardId());
@@ -153,9 +146,9 @@ public class RestRecoveryAction extends AbstractCatAction {
                 t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getRepository());
                 t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getSnapshot());
                 t.addCell(state.getIndex().totalFileCount());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().percentFilesRecovered(filesRecovered)));
+                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().percentFilesRecovered()));
                 t.addCell(state.getIndex().totalByteCount());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().percentBytesRecovered(bytesRecovered)));
+                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().percentBytesRecovered()));
                 t.endRow();
             }
         }

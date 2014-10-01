@@ -36,10 +36,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -65,7 +62,6 @@ public class RestThreadPoolAction extends AbstractCatAction {
             ThreadPool.Names.REFRESH,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SNAPSHOT,
-            ThreadPool.Names.SNAPSHOT_DATA,
             ThreadPool.Names.SUGGEST,
             ThreadPool.Names.WARMER
     };
@@ -109,8 +105,8 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     @Inject
-    public RestThreadPoolAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestThreadPoolAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/thread_pool", this);
     }
 

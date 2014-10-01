@@ -49,31 +49,19 @@ public interface IndicesWarmer {
         }
 
         /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the execution of those tasks. */
-        public abstract TerminationHandle warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
+        public abstract TerminationHandle warmNewReaders(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
 
-        public TerminationHandle warmTop(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
-            return TerminationHandle.NO_WAIT;
-        }
+        public abstract TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
     }
 
     public static class WarmerContext {
 
         private final ShardId shardId;
+        private final Engine.Searcher searcher;
 
-        private final Engine.Searcher newSearcher;
-
-        private final IndexReader indexReader;
-
-        public WarmerContext(ShardId shardId, Engine.Searcher newSearcher) {
+        public WarmerContext(ShardId shardId, Engine.Searcher searcher) {
             this.shardId = shardId;
-            this.newSearcher = newSearcher;
-            this.indexReader = null;
-        }
-
-        public WarmerContext(ShardId shardId, IndexReader indexReader) {
-            this.shardId = shardId;
-            this.newSearcher = null;
-            this.indexReader = indexReader;
+            this.searcher = searcher;
         }
 
         public ShardId shardId() {
@@ -81,25 +69,17 @@ public interface IndicesWarmer {
         }
 
         /** Return a searcher instance that only wraps the segments to warm. */
-        public Engine.Searcher newSearcher() {
-            return newSearcher;
+        public Engine.Searcher searcher() {
+            return searcher;
         }
 
-        public IndexReader indexReader() {
-            return indexReader;
+        public IndexReader reader() {
+            return searcher.reader();
         }
 
         @Override
         public String toString() {
-            final String value;
-            if (newSearcher != null) {
-                value = newSearcher.reader().toString();
-            } else if (indexReader != null) {
-                value = indexReader.toString();
-            } else {
-                value = "null";
-            }
-            return "WarmerContext: " + value;
+            return "WarmerContext: " + searcher.reader();
         }
     }
 

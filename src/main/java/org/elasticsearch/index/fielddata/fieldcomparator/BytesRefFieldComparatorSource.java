@@ -19,36 +19,38 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
 /**
+ * Comparator source for string/binary values.
  */
 public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparatorSource {
-
-    /** UTF-8 term containing a single code point: {@link Character#MAX_CODE_POINT} which will compare greater than all other index terms
-     *  since {@link Character#MAX_CODE_POINT} is a noncharacter and thus shouldn't appear in an index term. */
-    public static final BytesRef MAX_TERM;
-    static {
-        MAX_TERM = new BytesRef();
-        final char[] chars = Character.toChars(Character.MAX_CODE_POINT);
-        UnicodeUtil.UTF16toUTF8(chars, 0, chars.length, MAX_TERM);
-    }
 
     private final IndexFieldData<?> indexFieldData;
     private final MultiValueMode sortMode;
     private final Object missingValue;
+    private final Nested nested;
 
-    public BytesRefFieldComparatorSource(IndexFieldData<?> indexFieldData, Object missingValue, MultiValueMode sortMode) {
+    public BytesRefFieldComparatorSource(IndexFieldData<?> indexFieldData, Object missingValue, MultiValueMode sortMode, Nested nested) {
         this.indexFieldData = indexFieldData;
         this.sortMode = sortMode;
         this.missingValue = missingValue;
+        this.nested = nested;
     }
 
     @Override
@@ -56,15 +58,154 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         return SortField.Type.STRING;
     }
 
-    @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-        assert fieldname.equals(indexFieldData.getFieldNames().indexName());
-        final BytesRef missingBytes = (BytesRef) missingObject(missingValue, reversed);
-
-        if (indexFieldData.valuesOrdered() && indexFieldData instanceof IndexFieldData.WithOrdinals) {
-            return new BytesRefOrdValComparator((IndexFieldData.WithOrdinals<?>) indexFieldData, numHits, sortMode, missingBytes);
-        }
-        return new BytesRefValComparator(indexFieldData, numHits, sortMode, missingBytes);
+    protected SortedBinaryDocValues getValues(AtomicReaderContext context) {
+        return indexFieldData.load(context).getBytesValues();
     }
 
+    protected void setScorer(Scorer scorer) {}
+
+    @Override
+    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+        assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldNames().indexName());
+
+        final boolean sortMissingLast = sortMissingLast(missingValue) ^ reversed;
+        final BytesRef missingBytes = (BytesRef) missingObject(missingValue, reversed);
+        if (indexFieldData instanceof IndexOrdinalsFieldData) {
+            return new FieldComparator.TermOrdValComparator(numHits, null, sortMissingLast) {
+                
+                @Override
+                protected SortedDocValues getSortedDocValues(AtomicReaderContext context, String field) throws IOException {
+                    final RandomAccessOrds values = ((IndexOrdinalsFieldData) indexFieldData).load(context).getOrdinalsValues();
+                    final SortedDocValues selectedValues;
+                    if (nested == null) {
+                        selectedValues = sortMode.select(values);
+                    } else {
+                        final FixedBitSet rootDocs = nested.rootDocs(context);
+                        final FixedBitSet innerDocs = nested.innerDocs(context);
+                        selectedValues = sortMode.select(values, rootDocs, innerDocs);
+                    }
+                    if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
+                        return selectedValues;
+                    } else {
+                        return new ReplaceMissing(selectedValues, missingBytes);
+                    }
+                }
+                
+                public BytesRef value(int slot) {
+                    // TODO: When serializing the response to the coordinating node, we lose the information about
+                    // whether the comparator sorts missing docs first or last. We should fix it and let
+                    // TopDocs.merge deal with it (it knows how to)
+                    BytesRef value = super.value(slot);
+                    if (value == null) {
+                        value = missingBytes;
+                    }
+                    return value;
+                }
+                
+            };
+        }
+
+        final BytesRef nullPlaceHolder = new BytesRef();
+        final BytesRef nonNullMissingBytes = missingBytes == null ? nullPlaceHolder : missingBytes;
+        return new FieldComparator.TermValComparator(numHits, null, sortMissingLast) {
+
+            @Override
+            protected BinaryDocValues getBinaryDocValues(AtomicReaderContext context, String field) throws IOException {
+                final SortedBinaryDocValues values = getValues(context);
+                final BinaryDocValues selectedValues;
+                if (nested == null) {
+                    selectedValues = sortMode.select(values, nonNullMissingBytes);
+                } else {
+                    final FixedBitSet rootDocs = nested.rootDocs(context);
+                    final FixedBitSet innerDocs = nested.innerDocs(context);
+                    selectedValues = sortMode.select(values, nonNullMissingBytes, rootDocs, innerDocs, context.reader().maxDoc());
+                }
+                return selectedValues;
+            }
+
+            @Override
+            protected Bits getDocsWithField(AtomicReaderContext context, String field) throws IOException {
+                return new Bits.MatchAllBits(context.reader().maxDoc());
+            }
+
+            @Override
+            protected boolean isNull(int doc, BytesRef term) {
+                return term == nullPlaceHolder;
+            }
+
+            @Override
+            public void setScorer(Scorer scorer) {
+                BytesRefFieldComparatorSource.this.setScorer(scorer);
+            }
+
+            @Override
+            public BytesRef value(int slot) {
+                BytesRef value = super.value(slot);
+                if (value == null) {
+                    value = missingBytes;
+                }
+                return value;
+            }
+
+        };
+    }
+    
+    /** 
+     * A view of a SortedDocValues where missing values 
+     * are replaced with the specified term  
+     */
+    // TODO: move this out if we need it for other reasons
+    static class ReplaceMissing extends SortedDocValues {
+        final SortedDocValues in;
+        final int substituteOrd;
+        final BytesRef substituteTerm;
+        final boolean exists;
+        
+        ReplaceMissing(SortedDocValues in, BytesRef term) {
+            this.in = in;
+            this.substituteTerm = term;
+            int sub = in.lookupTerm(term);
+            if (sub < 0) {
+                substituteOrd = -sub-1;
+                exists = false;
+            } else {
+                substituteOrd = sub;
+                exists = true;
+            }
+        }
+
+        @Override
+        public int getOrd(int docID) {
+            int ord = in.getOrd(docID);
+            if (ord < 0) {
+                return substituteOrd;
+            } else if (exists == false && ord >= substituteOrd) {
+                return ord + 1;
+            } else {
+                return ord;
+            }
+        }
+
+        @Override
+        public int getValueCount() {
+            if (exists) {
+                return in.getValueCount();
+            } else {
+                return in.getValueCount() + 1;
+            }
+        }
+
+        @Override
+        public BytesRef lookupOrd(int ord) {
+            if (ord == substituteOrd) {
+                return substituteTerm;
+            } else if (exists == false && ord > substituteOrd) {
+                return in.lookupOrd(ord-1);
+            } else {
+                return in.lookupOrd(ord);
+            }
+        }
+        
+        // we let termsenum etc fall back to the default implementation
+    }
 }

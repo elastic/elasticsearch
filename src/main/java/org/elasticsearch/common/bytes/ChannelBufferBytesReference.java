@@ -20,6 +20,7 @@ package org.elasticsearch.common.bytes;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.transport.netty.ChannelBufferStreamInputFactory;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -27,7 +28,6 @@ import org.jboss.netty.buffer.ChannelBuffer;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.GatheringByteChannel;
-import java.nio.channels.WritableByteChannel;
 
 /**
  */
@@ -66,7 +66,7 @@ public class ChannelBufferBytesReference implements BytesReference {
 
     @Override
     public void writeTo(GatheringByteChannel channel) throws IOException {
-        buffer.getBytes(buffer.readerIndex(), channel, length());
+        Channels.writeToChannel(buffer, buffer.readerIndex(), length(), channel);
     }
 
     @Override

@@ -33,7 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,7 +56,7 @@ public class NodeService extends AbstractComponent {
 
     private final Version version;
 
-    private final Discovery disovery;
+    private final Discovery discovery;
 
     @Inject
     public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
@@ -67,7 +67,7 @@ public class NodeService extends AbstractComponent {
         this.monitorService = monitorService;
         this.transportService = transportService;
         this.indicesService = indicesService;
-        this.disovery = discovery;
+        this.discovery = discovery;
         discovery.setNodeService(this);
         this.version = version;
         this.pluginService = pluginService;
@@ -104,7 +104,7 @@ public class NodeService extends AbstractComponent {
     }
 
     public NodeInfo info() {
-        return new NodeInfo(version, Build.CURRENT, disovery.localNode(), serviceAttributes,
+        return new NodeInfo(version, Build.CURRENT, discovery.localNode(), serviceAttributes,
                 settings,
                 monitorService.osService().info(),
                 monitorService.processService().info(),
@@ -119,7 +119,7 @@ public class NodeService extends AbstractComponent {
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
                          boolean network, boolean transport, boolean http, boolean plugin) {
-        return new NodeInfo(version, Build.CURRENT, disovery.localNode(), serviceAttributes,
+        return new NodeInfo(version, Build.CURRENT, discovery.localNode(), serviceAttributes,
                 settings ? this.settings : null,
                 os ? monitorService.osService().info() : null,
                 process ? monitorService.processService().info() : null,
@@ -135,7 +135,7 @@ public class NodeService extends AbstractComponent {
     public NodeStats stats() {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
-        return new NodeStats(disovery.localNode(), System.currentTimeMillis(),
+        return new NodeStats(discovery.localNode(), System.currentTimeMillis(),
                 indicesService.stats(true),
                 monitorService.osService().stats(),
                 monitorService.processService().stats(),
@@ -153,7 +153,7 @@ public class NodeService extends AbstractComponent {
                            boolean fs, boolean transport, boolean http, boolean circuitBreaker) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
-        return new NodeStats(disovery.localNode(), System.currentTimeMillis(),
+        return new NodeStats(discovery.localNode(), System.currentTimeMillis(),
                 indices.anySet() ? indicesService.stats(true, indices) : null,
                 os ? monitorService.osService().stats() : null,
                 process ? monitorService.processService().stats() : null,

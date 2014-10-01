@@ -76,6 +76,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginsModule;
@@ -99,19 +100,15 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  */
 public class TransportClient extends AbstractClient {
 
-    private final Injector injector;
+    private static final String CLIENT_TYPE = "transport";
+
+    final Injector injector;
 
     private final Settings settings;
-
     private final Environment environment;
-
-
     private final PluginsService pluginsService;
-
     private final TransportClientNodesService nodesService;
-
     private final InternalTransportClient internalClient;
-
 
     /**
      * Constructs a new transport client with settings loaded either from the classpath or the file system (the
@@ -164,6 +161,7 @@ public class TransportClient extends AbstractClient {
         Settings settings = settingsBuilder().put(tuple.v1())
                 .put("network.server", false)
                 .put("node.client", true)
+                .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
                 .build();
         this.environment = tuple.v2();
 
@@ -187,6 +185,7 @@ public class TransportClient extends AbstractClient {
         modules.add(new TransportModule(this.settings));
         modules.add(new ActionModule(true));
         modules.add(new ClientTransportModule());
+        modules.add(new CircuitBreakerModule(this.settings));
 
         injector = modules.createInjector();
 
@@ -194,6 +193,10 @@ public class TransportClient extends AbstractClient {
 
         nodesService = injector.getInstance(TransportClientNodesService.class);
         internalClient = injector.getInstance(InternalTransportClient.class);
+    }
+
+    TransportClientNodesService nodeService() {
+        return nodesService;
     }
 
     /**
@@ -279,16 +282,8 @@ public class TransportClient extends AbstractClient {
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             injector.getInstance(plugin).close();
         }
-
-        injector.getInstance(ThreadPool.class).shutdown();
         try {
-            injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-            Thread.currentThread().interrupt();
-        }
-        try {
-            injector.getInstance(ThreadPool.class).shutdownNow();
+            ThreadPool.terminate(injector.getInstance(ThreadPool.class), 10, TimeUnit.SECONDS);
         } catch (Exception e) {
             // ignore
         }

@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.script.SearchScript;
 
 import java.util.regex.Matcher;
@@ -45,9 +44,9 @@ public final class HashedScriptAggregator extends HashedAggregator {
     }
 
     @Override
-    public void addValue(BytesRef value, int hashCode, BytesValues values) {
+    public void addValue(BytesRef value, int hashCode) {
         if (accept(value)) {
-            super.addValue(value, hashCode, values);
+            super.addValue(value, hashCode);
         }
     }
     
@@ -68,7 +67,7 @@ public final class HashedScriptAggregator extends HashedAggregator {
     }
     
     @Override
-    protected void onValue(int docId, BytesRef value, int hashCode, BytesValues values) {
+    protected void onValue(int docId, BytesRef value, int hashCode) {
         if (accept(value)) {
             if (script != null) {
                 assert convert : "script: [convert == false] but should be true";
@@ -89,12 +88,12 @@ public final class HashedScriptAggregator extends HashedAggregator {
                 } else {
                     scriptSpare.copyChars(scriptValue.toString());
                     hashCode = scriptSpare.hashCode();
-                    super.onValue(docId, scriptSpare, hashCode, values);
+                    super.onValue(docId, scriptSpare, hashCode);
                     return;
                 }
             }
             assert convert || (matcher == null && script == null);
-            super.onValue(docId, value, hashCode, values);
+            super.onValue(docId, value, hashCode);
         }
     }
 }

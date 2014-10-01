@@ -152,10 +152,10 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
-    public void afterIndexShardClosed(ShardId shardId) {
+    public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
         for (Listener listener : listeners) {
             try {
-                listener.afterIndexShardClosed(shardId);
+                listener.afterIndexShardClosed(shardId, indexShard);
             } catch (Throwable t) {
                 logger.warn("{} failed to invoke after shard closed callback", t, shardId);
             }

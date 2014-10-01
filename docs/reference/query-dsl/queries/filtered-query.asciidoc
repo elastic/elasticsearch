@@ -2,7 +2,7 @@
 === Filtered Query
 
 The `filtered` query is used to combine another query with any
-<<query-dsl-filters,filter>>). Filters are usually faster than queries because:
+<<query-dsl-filters,filter>>. Filters are usually faster than queries because:
 
 *   they don't have to calculate the relevance `_score` for each document --
     the answer is just a boolean ``Yes, the document matches the filter'' or

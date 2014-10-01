@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.snapshots.mockstore;
 
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 
 /**
  *
@@ -34,8 +34,8 @@ public class BlobStoreWrapper implements BlobStore {
     }
 
     @Override
-    public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
-        return delegate.immutableBlobContainer(path);
+    public BlobContainer blobContainer(BlobPath path) {
+        return delegate.blobContainer(path);
     }
 
     @Override

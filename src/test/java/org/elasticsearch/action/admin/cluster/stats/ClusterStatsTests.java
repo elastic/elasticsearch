@@ -64,13 +64,13 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         assertCounts(response.getNodesStats().getCounts(), 2, 1, 0, 1, 0);
 
         internalCluster().startNode(ImmutableSettings.builder().put("node.master", false));
-        response = client().admin().cluster().prepareClusterStats().get();
         waitForNodes(3);
+        response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 3, 1, 1, 1, 0);
 
         internalCluster().startNode(ImmutableSettings.builder().put("node.client", true));
-        response = client().admin().cluster().prepareClusterStats().get();
         waitForNodes(4);
+        response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 4, 1, 1, 1, 1);
     }
 

@@ -56,6 +56,11 @@
       indices.create:
         index: test_index
         body:
+          mappings:
+            type_1:
+              properties:
+                field:
+                  type: string
           aliases:
             test_alias: {}
             test_blias:

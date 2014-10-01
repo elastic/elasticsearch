@@ -25,10 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import static org.elasticsearch.client.Requests.snapshotsStatusRequest;
@@ -40,8 +37,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestSnapshotsStatusAction extends BaseRestHandler {
 
     @Inject
-    public RestSnapshotsStatusAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestSnapshotsStatusAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_snapshot/{repository}/{snapshot}/_status", this);
         controller.registerHandler(GET, "/_snapshot/{repository}/_status", this);
         controller.registerHandler(GET, "/_snapshot/_status", this);

@@ -71,10 +71,6 @@
           "type" : "list",
           "description" : "A comma-separated list of indices to perform the query against (default: the index containing the document)"
         },
-        "search_query_hint": {
-          "type" : "string",
-          "description" : "The search query hint"
-        },
         "search_scroll": {
           "type" : "string",
           "description" : "A scroll search request definition"

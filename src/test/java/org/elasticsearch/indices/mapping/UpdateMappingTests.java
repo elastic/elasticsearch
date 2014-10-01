@@ -19,9 +19,7 @@
 
 package org.elasticsearch.indices.mapping;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -29,7 +27,6 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -225,8 +222,8 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
         logger.info("Index doc");
         index("test", "type", "1", JsonXContent.contentBuilder().startObject()
-                .field("normal", 1).field("exclude", 1).field("include", 1)
-                .endObject()
+                        .field("normal", 1).field("exclude", 1).field("include", 1)
+                        .endObject()
         );
         refresh(); // commit it for later testing.
 
@@ -250,8 +247,8 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
         logger.info("Index doc again");
         index("test", "type", "1", JsonXContent.contentBuilder().startObject()
-                .field("normal", 2).field("exclude", 1).field("include", 2)
-                .endObject()
+                        .field("normal", 2).field("exclude", 1).field("include", 2)
+                        .endObject()
         );
 
         // but do affect newly indexed docs
@@ -282,8 +279,8 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
         logger.info("Indexing doc yet again");
         index("test", "type", "1", JsonXContent.contentBuilder().startObject()
-                .field("normal", 3).field("exclude", 3).field("include", 3)
-                .endObject()
+                        .field("normal", 3).field("exclude", 3).field("include", 3)
+                        .endObject()
         );
 
         getResponse = get("test", "type", "1");

@@ -47,8 +47,6 @@ things like `_source.obj1.field1` can be used, though not recommended, as
 [[partial]]
 ==== Partial
 
-deprecated[1.0.0Beta1,Replaced by <<search-request-source-filtering>>]
-
 
 When loading data from `_source`, partial fields can be used to use
 wildcards to control what part of the `_source` will be loaded based on

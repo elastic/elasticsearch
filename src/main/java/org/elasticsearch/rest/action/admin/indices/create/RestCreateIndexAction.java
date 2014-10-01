@@ -24,10 +24,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 /**
@@ -36,8 +33,8 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 public class RestCreateIndexAction extends BaseRestHandler {
 
     @Inject
-    public RestCreateIndexAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestCreateIndexAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}", this);
     }

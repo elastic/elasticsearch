@@ -43,25 +43,44 @@ public class SizeMappingIntegrationTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         // check mapping again
-        assertSizeMappingEnabled(index, type);
+        assertSizeMappingEnabled(index, type, true);
 
         // update some field in the mapping
         XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("properties").startObject("otherField").field("type", "string").endObject().endObject();
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
         assertAcked(putMappingResponse);
 
-        // make sure timestamp field is still in mapping
-        assertSizeMappingEnabled(index, type);
+        // make sure size field is still in mapping
+        assertSizeMappingEnabled(index, type, true);
     }
 
-    private void assertSizeMappingEnabled(String index, String type) throws IOException {
-        String errMsg = String.format(Locale.ROOT, "Expected size field mapping to be enabled for %s/%s", index, type);
+    @Test
+    public void testThatSizeCanBeSwitchedOnAndOff() throws Exception {
+        String index = "foo";
+        String type = "mytype";
 
+        XContentBuilder builder = jsonBuilder().startObject().startObject("_size").field("enabled", true).endObject().endObject();
+        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+
+        // check mapping again
+        assertSizeMappingEnabled(index, type, true);
+
+        // update some field in the mapping
+        XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("_size").field("enabled", false).endObject().endObject();
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
+        assertAcked(putMappingResponse);
+
+        // make sure size field is still in mapping
+        assertSizeMappingEnabled(index, type, false);
+    }
+
+    private void assertSizeMappingEnabled(String index, String type, boolean enabled) throws IOException {
+        String errMsg = String.format(Locale.ROOT, "Expected size field mapping to be " + (enabled ? "enabled" : "disabled") + " for %s/%s", index, type);
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes(type).get();
         Map<String, Object> mappingSource = getMappingsResponse.getMappings().get(index).get(type).getSourceAsMap();
         assertThat(errMsg, mappingSource, hasKey("_size"));
-        String ttlAsString = mappingSource.get("_size").toString();
-        assertThat(ttlAsString, is(notNullValue()));
-        assertThat(errMsg, ttlAsString, is("{enabled=true}"));
+        String sizeAsString = mappingSource.get("_size").toString();
+        assertThat(sizeAsString, is(notNullValue()));
+        assertThat(errMsg, sizeAsString, is("{enabled=" + (enabled) + "}"));
     }
 }

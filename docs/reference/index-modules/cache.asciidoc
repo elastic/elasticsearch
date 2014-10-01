@@ -31,25 +31,3 @@ configured in the node configuration).
 `indices.cache.filter.size` can accept either a percentage value, like
 `30%`, or an exact value, like `512mb`.
 
-[float]
-[[index-filter]]
-==== Index Filter Cache
-
-A filter cache that exists on the index level (on each node). Generally,
-not recommended for use since its memory usage depends on which shards
-are allocated on each node and its hard to predict it. The types are:
-`resident`, `soft` and `weak`.
-
-All types support the following settings:
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`index.cache.filter.max_size` |The max size (count, not byte size) of
-the cache (per search segment in a shard). Defaults to not set (`-1`),
-which is usually fine with `soft` cache and proper cacheable filters.
-
-|`index.cache.filter.expire` |A time based setting that expires filters
-after a certain time of inactivity. Defaults to `-1`. For example, can
-be set to `5m` for a 5 minute expiry.
-|=======================================================================

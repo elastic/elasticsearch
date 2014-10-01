@@ -30,7 +30,6 @@ import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.profile.Profile;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 
@@ -40,7 +39,7 @@ import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 /**
  *
  */
-public class QuerySearchResult extends TransportResponse implements QuerySearchResultProvider {
+public class QuerySearchResult extends QuerySearchResultProvider {
 
     private long id;
     private SearchShardTarget shardTarget;
@@ -52,6 +51,7 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
     private Suggest suggest;
     private Profile profile;
     private boolean searchTimedOut;
+    private Boolean terminatedEarly = null;
 
     public QuerySearchResult() {
 
@@ -91,6 +91,14 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
 
     public boolean searchTimedOut() {
         return searchTimedOut;
+    }
+
+    public void terminatedEarly(boolean terminatedEarly) {
+        this.terminatedEarly = terminatedEarly;
+    }
+
+    public Boolean terminatedEarly() {
+        return this.terminatedEarly;
     }
 
     public TopDocs topDocs() {
@@ -160,7 +168,12 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        id = in.readLong();
+        long id = in.readLong();
+        readFromWithId(id, in);
+    }
+
+    public void readFromWithId(long id, StreamInput in) throws IOException {
+        this.id = id;
 //        shardTarget = readSearchShardTarget(in);
         from = in.readVInt();
         size = in.readVInt();
@@ -180,12 +193,19 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
             }
         }
         searchTimedOut = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            terminatedEarly = in.readOptionalBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(id);
+        writeToNoId(out);
+    }
+
+    public void writeToNoId(StreamOutput out) throws IOException {
 //        shardTarget.writeTo(out);
         out.writeVInt(from);
         out.writeVInt(size);
@@ -217,5 +237,8 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
             }
         }
         out.writeBoolean(searchTimedOut);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            out.writeOptionalBoolean(terminatedEarly);
+        }
     }
 }

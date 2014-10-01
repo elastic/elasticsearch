@@ -20,6 +20,7 @@
 package org.elasticsearch.search.fetch.script;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
@@ -53,6 +54,7 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                 String fieldName = currentFieldName;
                 String script = null;
                 String scriptLang = null;
+                ScriptService.ScriptType scriptType = null;
                 Map<String, Object> params = null;
                 boolean ignoreException = false;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -63,6 +65,13 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                     } else if (token.isValue()) {
                         if ("script".equals(currentFieldName)) {
                             script = parser.text();
+                            scriptType = ScriptService.ScriptType.INLINE;
+                        } else if ("script_id".equals(currentFieldName)) {
+                            script = parser.text();
+                            scriptType = ScriptService.ScriptType.INDEXED;
+                        } else if ("file".equals(currentFieldName)) {
+                            script = parser.text();
+                            scriptType = ScriptService.ScriptType.FILE;
                         } else if ("lang".equals(currentFieldName)) {
                             scriptLang = parser.text();
                         } else if ("ignore_failure".equals(currentFieldName)) {
@@ -70,7 +79,7 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                         }
                     }
                 }
-                SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, params);
+                SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, params);
                 context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, searchScript, ignoreException));
             }
         }

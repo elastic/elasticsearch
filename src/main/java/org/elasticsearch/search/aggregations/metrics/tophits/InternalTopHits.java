@@ -58,18 +58,16 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
 
     private int from;
     private int size;
-    private Sort sort;
     private TopDocs topDocs;
     private InternalSearchHits searchHits;
 
     InternalTopHits() {
     }
 
-    public InternalTopHits(String name, int from, int size, Sort sort, TopDocs topDocs, InternalSearchHits searchHits) {
+    public InternalTopHits(String name, int from, int size, TopDocs topDocs, InternalSearchHits searchHits) {
         this.name = name;
         this.from = from;
         this.size = size;
-        this.sort = sort;
         this.topDocs = topDocs;
         this.searchHits = searchHits;
     }
@@ -96,10 +94,20 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         TopDocs[] shardDocs = new TopDocs[aggregations.size()];
         InternalSearchHits[] shardHits = new InternalSearchHits[aggregations.size()];
+        TopDocs topDocs = this.topDocs;
         for (int i = 0; i < shardDocs.length; i++) {
             InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
             shardDocs[i] = topHitsAgg.topDocs;
             shardHits[i] = topHitsAgg.searchHits;
+            if (topDocs.scoreDocs.length == 0) {
+                topDocs = topHitsAgg.topDocs;
+            }
+        }
+        final Sort sort;
+        if (topDocs instanceof TopFieldDocs) {
+            sort = new Sort(((TopFieldDocs) topDocs).fields);
+        } else {
+            sort = null;
         }
 
         try {
@@ -126,9 +134,6 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
         from = in.readVInt();
         size = in.readVInt();
         topDocs = Lucene.readTopDocs(in);
-        if (topDocs instanceof TopFieldDocs) {
-            sort = new Sort(((TopFieldDocs) topDocs).fields);
-        }
         searchHits = InternalSearchHits.readSearchHits(in);
     }
 
@@ -142,10 +147,8 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         searchHits.toXContent(builder, params);
-        builder.endObject();
         return builder;
     }
 }

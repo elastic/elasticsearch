@@ -21,11 +21,11 @@ package org.elasticsearch.search.facet.datehistogram;
 
 import com.carrotsearch.hppc.LongLongOpenHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.rounding.TimeZoneRounding;
+import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.LongFacetAggregatorBase;
@@ -38,13 +38,13 @@ import java.io.IOException;
  */
 public class CountDateHistogramFacetExecutor extends FacetExecutor {
 
-    private final TimeZoneRounding tzRounding;
+    private final Rounding tzRounding;
     private final IndexNumericFieldData indexFieldData;
     final DateHistogramFacet.ComparatorType comparatorType;
 
     final Recycler.V<LongLongOpenHashMap> counts;
 
-    public CountDateHistogramFacetExecutor(IndexNumericFieldData indexFieldData, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, CacheRecycler cacheRecycler) {
+    public CountDateHistogramFacetExecutor(IndexNumericFieldData indexFieldData, Rounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, CacheRecycler cacheRecycler) {
         this.comparatorType = comparatorType;
         this.indexFieldData = indexFieldData;
         this.tzRounding = tzRounding;
@@ -76,7 +76,7 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
 
     class Collector extends FacetExecutor.Collector {
 
-        private LongValues values;
+        private SortedNumericDocValues values;
         private final DateHistogramProc histoProc;
 
         public Collector() {
@@ -101,9 +101,9 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
     public static class DateHistogramProc extends LongFacetAggregatorBase {
 
         private final LongLongOpenHashMap counts;
-        private final TimeZoneRounding tzRounding;
+        private final Rounding tzRounding;
 
-        public DateHistogramProc(LongLongOpenHashMap counts, TimeZoneRounding tzRounding) {
+        public DateHistogramProc(LongLongOpenHashMap counts, Rounding tzRounding) {
             this.counts = counts;
             this.tzRounding = tzRounding;
         }

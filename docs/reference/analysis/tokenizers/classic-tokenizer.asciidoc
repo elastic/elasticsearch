@@ -1,0 +1,19 @@
+[[analysis-classic-tokenizer]]
+=== Classic Tokenizer
+
+A tokenizer of type `classic` providing grammar based tokenizer that is
+a good tokenizer for English language documents. This tokenizer has 
+heuristics for special treatment of acronyms, company names, email addresses,
+and internet host names. However, these rules don't always work, and 
+the tokenizer doesn't work well for most languages other than English.
+
+The following are settings that can be set for a `classic` tokenizer
+type:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Setting |Description
+|`max_token_length` |The maximum token length. If a token is seen that
+exceeds this length then it is discarded. Defaults to `255`.
+|=======================================================================
+

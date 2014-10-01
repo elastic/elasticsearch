@@ -65,14 +65,14 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return builder().put("gateway.type", "local").build();
+        return builder().put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local").build();
     }
 
     @Test
     @Slow
     public void testRestartNodePercolator1() throws Exception {
         internalCluster().startNode();
-        createIndex("test");
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string"));
 
         logger.info("--> register a query");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
@@ -112,7 +112,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testRestartNodePercolator2() throws Exception {
         internalCluster().startNode();
-        createIndex("test");
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string"));
 
         logger.info("--> register a query");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
@@ -196,6 +196,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         logger.info("--> Add dummy docs");
         client().prepareIndex("test", "type1", "1").setSource("field1", 0).get();
         client().prepareIndex("test", "type2", "1").setSource("field1", "0").get();
+        waitForConcreteMappingsOnAll("test", "type1", "field1");
 
         logger.info("--> register a queries");
         for (int i = 1; i <= 100; i++) {
@@ -208,6 +209,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
                             .endObject())
                     .get();
         }
+        waitForConcreteMappingsOnAll("test", PercolatorService.TYPE_NAME);
 
         logger.info("--> Percolate doc with field1=95");
         PercolateResponse response = client().preparePercolate()

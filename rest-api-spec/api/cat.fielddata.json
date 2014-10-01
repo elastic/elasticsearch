@@ -41,7 +41,7 @@
         },
         "fields": {
           "type": "list",
-          "description": "A comma-separated list of fields to return the fielddata size"
+          "description": "A comma-separated list of fields to return in the output"
         }
       }
     },

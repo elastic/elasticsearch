@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public class IndicesReplicationOperationRequest<T extends IndicesReplicationOperationRequest> extends ActionRequest<T> {
+public abstract class IndicesReplicationOperationRequest<T extends IndicesReplicationOperationRequest> extends ActionRequest<T> implements IndicesRequest.Replaceable {
 
     protected TimeValue timeout = ShardReplicationOperationRequest.DEFAULT_TIMEOUT;
     protected String[] indices;
@@ -43,6 +44,13 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
 
     public TimeValue timeout() {
         return timeout;
+    }
+
+    protected IndicesReplicationOperationRequest() {
+    }
+
+    protected IndicesReplicationOperationRequest(ActionRequest actionRequest) {
+        super(actionRequest);
     }
 
     /**
@@ -63,14 +71,17 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         return (T) this;
     }
 
+    @Override
     public String[] indices() {
         return this.indices;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
 
+    @SuppressWarnings("unchecked")
     public T indicesOptions(IndicesOptions indicesOptions) {
         if (indicesOptions == null) {
             throw new IllegalArgumentException("IndicesOptions must not be null");
@@ -83,6 +94,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
      * The indices the request will execute against.
      */
     @SuppressWarnings("unchecked")
+    @Override
     public final T indices(String[] indices) {
         this.indices = indices;
         return (T) this;

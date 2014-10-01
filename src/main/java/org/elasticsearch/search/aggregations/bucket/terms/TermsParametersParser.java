@@ -25,49 +25,109 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 
 public class TermsParametersParser extends AbstractTermsParametersParser {
 
     private static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(1, 0, 10, -1);
 
-    public String getOrderKey() {
-        return orderKey;
+    public List<OrderElement> getOrderElements() {
+        return orderElements;
+    }
+    
+    public boolean showTermDocCountError() {
+        return showTermDocCountError;
     }
 
-    public boolean isOrderAsc() {
-        return orderAsc;
-    }
+    List<OrderElement> orderElements;
+    private boolean showTermDocCountError = false;
 
-    String orderKey = "_count";
-    boolean orderAsc = false;
+    public TermsParametersParser() {
+        orderElements = new ArrayList<>(1);
+        orderElements.add(new OrderElement("_count", false));
+    }
 
     @Override
     public void parseSpecial(String aggregationName, XContentParser parser, SearchContext context, XContentParser.Token token, String currentFieldName) throws IOException {
         if (token == XContentParser.Token.START_OBJECT) {
             if ("order".equals(currentFieldName)) {
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        orderKey = parser.currentName();
-                    } else if (token == XContentParser.Token.VALUE_STRING) {
-                        String dir = parser.text();
-                        if ("asc".equalsIgnoreCase(dir)) {
-                            orderAsc = true;
-                        } else if ("desc".equalsIgnoreCase(dir)) {
-                            orderAsc = false;
-                        } else {
-                            throw new SearchParseException(context, "Unknown terms order direction [" + dir + "] in terms aggregation [" + aggregationName + "]");
-                        }
+                this.orderElements = Collections.singletonList(parseOrderParam(aggregationName, parser, context));
+            } else {
+                throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+            }
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            if ("order".equals(currentFieldName)) {
+                orderElements = new ArrayList<>();
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    if (token == XContentParser.Token.START_OBJECT) {
+                        OrderElement orderParam = parseOrderParam(aggregationName, parser, context);
+                        orderElements.add(orderParam);
                     } else {
-                        throw new SearchParseException(context, "Unexpected token " + token + " for [order] in [" + aggregationName + "].");
+                        throw new SearchParseException(context, "Order elements must be of type object in [" + aggregationName + "].");
                     }
                 }
             } else {
                 throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
             }
+        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+            if (SHOW_TERM_DOC_COUNT_ERROR.match(currentFieldName)) {
+                showTermDocCountError = parser.booleanValue();
+            }
         } else {
             throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
         }
+    }
+
+    private OrderElement parseOrderParam(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
+        XContentParser.Token token;
+        OrderElement orderParam = null;
+        String orderKey = null;
+        boolean orderAsc = false;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                orderKey = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                String dir = parser.text();
+                if ("asc".equalsIgnoreCase(dir)) {
+                    orderAsc = true;
+                } else if ("desc".equalsIgnoreCase(dir)) {
+                    orderAsc = false;
+                } else {
+                    throw new SearchParseException(context, "Unknown terms order direction [" + dir + "] in terms aggregation [" + aggregationName + "]");
+                }
+            } else {
+                throw new SearchParseException(context, "Unexpected token " + token + " for [order] in [" + aggregationName + "].");
+            }
+        }
+        if (orderKey == null) {
+            throw new SearchParseException(context, "Must specify at least one field for [order] in [" + aggregationName + "].");
+        } else {
+            orderParam = new OrderElement(orderKey, orderAsc);
+        }
+        return orderParam;
+    }
+
+    static class OrderElement {
+        private final String key;
+        private final boolean asc;
+
+        public OrderElement(String key, boolean asc) {
+            this.key = key;
+            this.asc = asc;
+        }
+
+        public String key() {
+            return key;
+        }
+
+        public boolean asc() {
+            return asc;
+        }
+
+        
     }
 
     @Override

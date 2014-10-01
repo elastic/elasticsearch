@@ -41,6 +41,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -56,7 +57,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class AllFieldMapper extends AbstractFieldMapper<Void> implements InternalMapper, RootMapper {
+public class AllFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
 
     public interface IncludeInAll extends Mapper {
 
@@ -150,6 +151,9 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, name, name, name), 1.0f, fieldType, null, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
                 similarity, normsLoading, fieldDataSettings, indexSettings);
+        if (hasDocValues()) {
+            throw new MapperParsingException("Field [" + names.fullName() + "] is always tokenized and cannot have doc values");
+        }
         this.enabled = enabled;
         this.autoBoost = autoBoost;
 
@@ -237,15 +241,13 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         }
         return analyzer;
     }
-
+    
     @Override
-    public Void value(Object value) {
-        return null;
-    }
-
-    @Override
-    public Object valueForSearch(Object value) {
-        return null;
+    public String value(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return value.toString();
     }
 
     @Override
@@ -343,14 +345,16 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         }
     }
 
-
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        // do nothing here, no merging, but also no exception
+        if (((AllFieldMapper)mergeWith).enabled() != this.enabled()) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
+        }
+        super.merge(mergeWith, mergeContext);
     }
 
     @Override
-    public boolean hasDocValues() {
-        return false;
+    public boolean isGenerated() {
+        return true;
     }
 }

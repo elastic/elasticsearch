@@ -43,7 +43,7 @@ import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHit
 public class InternalSearchResponse implements Streamable, ToXContent {
 
     public static InternalSearchResponse empty() {
-        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, null, null, false);
+        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, null, null, false, null);
     }
 
     private InternalSearchHits hits;
@@ -58,22 +58,27 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private boolean timedOut;
 
-    public static final InternalSearchResponse EMPTY = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 0, 0), null, null, null, null, false);
+    private Boolean terminatedEarly = null;
 
     private InternalSearchResponse() {
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets, InternalAggregations aggregations, Suggest suggest, Profile profile, boolean timedOut) {
+    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets, InternalAggregations aggregations, Suggest suggest, Profile profile, boolean timedOut, Boolean terminatedEarly) {
         this.hits = hits;
         this.facets = facets;
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.timedOut = timedOut;
+        this.terminatedEarly = terminatedEarly;
         this.profile = profile;
     }
 
     public boolean timedOut() {
         return this.timedOut;
+    }
+
+    public Boolean terminatedEarly() {
+        return this.terminatedEarly;
     }
 
     public SearchHits hits() {
@@ -140,6 +145,10 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             }
         }
         timedOut = in.readBoolean();
+
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            terminatedEarly = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -172,5 +181,10 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             }
         }
         out.writeBoolean(timedOut);
+
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            out.writeOptionalBoolean(terminatedEarly);
+
+        }
     }
 }

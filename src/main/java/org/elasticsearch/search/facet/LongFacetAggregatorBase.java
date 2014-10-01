@@ -18,7 +18,8 @@
  */
 package org.elasticsearch.search.facet;
 
-import org.elasticsearch.index.fielddata.LongValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.util.LongValues;
 
 /**
  * Simple Facet aggregator base class for {@link LongValues}
@@ -27,12 +28,13 @@ public abstract class LongFacetAggregatorBase {
     private int total;
     private int missing;
 
-    public void onDoc(int docId, LongValues values) {
-        final int numValues = values.setDocument(docId);
+    public void onDoc(int docId, SortedNumericDocValues values) {
+        values.setDocument(docId);
+        final int numValues = values.count();
         int tempMissing = 1;
         for (int i = 0; i < numValues; i++) {
             tempMissing = 0;
-            onValue(docId, values.nextValue());
+            onValue(docId, values.valueAt(i));
             total++;
         }
         missing += tempMissing;

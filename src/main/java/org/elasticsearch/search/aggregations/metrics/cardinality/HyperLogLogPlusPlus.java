@@ -31,8 +31,8 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.common.util.UnsafeUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -438,7 +438,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
 
         private int get(long bucket, int index) {
             runLens.get(index(bucket, index), 4, readSpare);
-            return UnsafeUtils.readIntLE(readSpare.bytes, readSpare.offset);
+            return ByteUtils.readIntLE(readSpare.bytes, readSpare.offset);
         }
 
         private void set(long bucket, int index, int value) {

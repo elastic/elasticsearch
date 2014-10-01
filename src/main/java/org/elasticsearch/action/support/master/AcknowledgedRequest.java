@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +40,10 @@ public abstract class AcknowledgedRequest<T extends MasterNodeOperationRequest> 
     protected TimeValue timeout = DEFAULT_ACK_TIMEOUT;
 
     protected AcknowledgedRequest() {
+    }
+
+    protected AcknowledgedRequest(ActionRequest request) {
+        super(request);
     }
 
     /**

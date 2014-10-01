@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.exists.types;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,7 +32,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExistsRequest> {
+public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExistsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private String[] types;
@@ -46,12 +47,15 @@ public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExis
         this.types = types;
     }
 
+    @Override
     public String[] indices() {
         return indices;
     }
 
-    public void indices(String[] indices) {
+    @Override
+    public TypesExistsRequest indices(String[] indices) {
         this.indices = indices;
+        return this;
     }
 
     public String[] types() {
@@ -62,6 +66,7 @@ public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExis
         this.types = types;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

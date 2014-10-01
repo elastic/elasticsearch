@@ -23,3 +23,5 @@ include::metrics/cardinality-aggregation.asciidoc[]
 include::metrics/geobounds-aggregation.asciidoc[]
 
 include::metrics/tophits-aggregation.asciidoc[]
+
+include::metrics/scripted-metric-aggregation.asciidoc[]

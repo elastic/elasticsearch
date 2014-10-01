@@ -70,6 +70,8 @@ public class ScriptFilterParser implements FilterParser {
 
         String filterName = null;
         String currentFieldName = null;
+        ScriptService.ScriptType scriptType = null;
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -82,6 +84,13 @@ public class ScriptFilterParser implements FilterParser {
             } else if (token.isValue()) {
                 if ("script".equals(currentFieldName)) {
                     script = parser.text();
+                    scriptType = ScriptService.ScriptType.INLINE;
+                } else if ("script_id".equals(currentFieldName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.INDEXED;
+                } else if ("file".equals(currentFieldName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.FILE;
                 } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
@@ -103,7 +112,7 @@ public class ScriptFilterParser implements FilterParser {
             params = newHashMap();
         }
 
-        Filter filter = new ScriptFilter(scriptLang, script, params, parseContext.scriptService(), parseContext.lookup());
+        Filter filter = new ScriptFilter(scriptLang, script, scriptType, params, parseContext.scriptService(), parseContext.lookup());
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);
         }
@@ -121,11 +130,13 @@ public class ScriptFilterParser implements FilterParser {
 
         private final SearchScript searchScript;
 
-        public ScriptFilter(String scriptLang, String script, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
+        private final ScriptService.ScriptType scriptType;
+
+        public ScriptFilter(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
             this.script = script;
             this.params = params;
-
-            this.searchScript = scriptService.search(searchLookup, scriptLang, script, newHashMap(params));
+            this.scriptType = scriptType;
+            this.searchScript = scriptService.search(searchLookup, scriptLang, script, scriptType, newHashMap(params));
         }
 
         @Override

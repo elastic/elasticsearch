@@ -33,8 +33,6 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     SearchScript script;
     ValueType scriptValueType;
     boolean unmapped = false;
-    boolean ensureUnique = false;
-    boolean ensureSorted = false;
     String formatPattern;
     ValueFormat format;
 

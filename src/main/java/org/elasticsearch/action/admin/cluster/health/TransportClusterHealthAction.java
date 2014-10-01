@@ -21,12 +21,14 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  *
@@ -46,8 +49,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
 
     @Inject
     public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                        ClusterName clusterName) {
-        super(settings, transportService, clusterService, threadPool);
+                                        ClusterName clusterName, ActionFilters actionFilters) {
+        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.clusterName = clusterName;
     }
 
@@ -58,8 +61,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
     }
 
     @Override
-    protected String transportAction() {
-        return ClusterHealthAction.NAME;
+    protected ClusterBlockException checkBlock(ClusterHealthRequest request, ClusterState state) {
+        return null; // we want users to be able to call this even when there are global blocks, just to check the health (are there blocks?)
     }
 
     @Override
@@ -78,6 +81,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
 
         if (request.waitForEvents() != null) {
             final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<ElasticsearchException> failure = new AtomicReference<>();
             clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", request.waitForEvents(), new ProcessedClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -92,6 +96,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
                 @Override
                 public void onFailure(String source, Throwable t) {
                     logger.error("unexpected failure during [{}]", t, source);
+                    failure.set(new ElasticsearchException("Error while waiting for events", t));
+                    latch.countDown();
+                }
+
+                @Override
+                public boolean runOnlyOnMaster() {
+                    return !request.local();
                 }
             });
 
@@ -99,6 +110,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
                 latch.await(request.timeout().millis(), TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 // ignore
+            }
+            if (failure.get() != null) {
+                throw failure.get();
             }
         }
 
@@ -221,7 +235,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
         }
         String[] concreteIndices;
         try {
-            concreteIndices = clusterState.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), request.indices());
+            concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
         } catch (IndexMissingException e) {
             // one of the specified indices is not there - treat it as RED.
             ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState);

@@ -25,8 +25,8 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
@@ -110,7 +110,7 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
     class Collector extends FacetExecutor.Collector {
 
         private final Aggregator aggregator;
-        private DoubleValues keyValues;
+        private SortedNumericDoubleValues keyValues;
 
         public Collector() {
             if (script == null) {
@@ -152,7 +152,7 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
 
         final DoubleObjectOpenHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries;
         int missing;
-        DoubleValues valueFieldData;
+        SortedNumericDoubleValues valueFieldData;
         final ValueAggregator valueAggregator = new ValueAggregator();
 
         public Aggregator(DoubleObjectOpenHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries) {

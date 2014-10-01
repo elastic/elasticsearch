@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.warmer.delete;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
@@ -43,24 +44,21 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Delete index warmer.
+ * Internal Actions executed on the master deleting the warmer from the cluster state metadata.
+ *
+ * Note: this is an internal API and should not be used / called by any client code.
  */
 public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAction<DeleteWarmerRequest, DeleteWarmerResponse> {
 
     @Inject
-    public TransportDeleteWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, transportService, clusterService, threadPool);
+    public TransportDeleteWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, DeleteWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override
     protected String executor() {
         // we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteWarmerAction.NAME;
     }
 
     @Override
@@ -74,19 +72,13 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
     }
 
     @Override
-    protected void doExecute(DeleteWarmerRequest request, ActionListener<DeleteWarmerResponse> listener) {
-        // update to concrete indices
-        request.indices(clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
-        super.doExecute(request, listener);
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(DeleteWarmerRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
     protected void masterOperation(final DeleteWarmerRequest request, final ClusterState state, final ActionListener<DeleteWarmerResponse> listener) throws ElasticsearchException {
+        final String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices());
         clusterService.submitStateUpdateTask("delete_warmer [" + Arrays.toString(request.names()) + "]", new AckedClusterStateUpdateTask<DeleteWarmerResponse>(request, listener) {
 
             @Override
@@ -96,7 +88,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
 
             @Override
             public void onFailure(String source, Throwable t) {
-                logger.debug("failed to delete warmer [{}] on indices [{}]", t, Arrays.toString(request.names()), request.indices());
+                logger.debug("failed to delete warmer [{}] on indices [{}]", t, Arrays.toString(request.names()), concreteIndices);
                 super.onFailure(source, t);
             }
 
@@ -105,7 +97,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
 
                 boolean globalFoundAtLeastOne = false;
-                for (String index : request.indices()) {
+                for (String index : concreteIndices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                     if (indexMetaData == null) {
                         throw new IndexMissingException(new Index(index));
@@ -141,7 +133,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                 }
 
                 if (logger.isInfoEnabled()) {
-                    for (String index : request.indices()) {
+                    for (String index : concreteIndices) {
                         IndexMetaData indexMetaData = currentState.metaData().index(index);
                         if (indexMetaData == null) {
                             throw new IndexMissingException(new Index(index));

@@ -27,7 +27,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class NodesShutdownAction extends ClusterAction<NodesShutdownRequest, NodesShutdownResponse, NodesShutdownRequestBuilder> {
 
     public static final NodesShutdownAction INSTANCE = new NodesShutdownAction();
-    public static final String NAME = "cluster/nodes/shutdown";
+    public static final String NAME = "cluster:admin/nodes/shutdown";
 
     private NodesShutdownAction() {
         super(NAME);

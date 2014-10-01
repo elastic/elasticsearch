@@ -18,22 +18,23 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.IntsRefBuilder;
 import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.FST.Arc;
 import org.apache.lucene.util.fst.FST.BytesReader;
 import org.apache.lucene.util.fst.Util;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 import java.io.IOException;
 
 /**
  */
-public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
+public class FSTBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
     // 0 ordinal in values means no value (its null)
     protected final Ordinals ordinals;
@@ -63,14 +64,8 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     }
 
     @Override
-    public BytesValues.WithOrdinals getBytesValues() {
+    public RandomAccessOrds getOrdinalsValues() {
         return ordinals.ordinals(new ValuesHolder(fst));
-    }
-
-    @Override
-    public ScriptDocValues.Strings getScriptValues() {
-        assert fst != null;
-        return new ScriptDocValues.Strings(getBytesValues());
     }
 
     private static class ValuesHolder implements Ordinals.ValuesHolder {
@@ -78,32 +73,32 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         private final FST<Long> fst;
 
         // per-thread resources
-        private final BytesRef scratch;
+        private final BytesRefBuilder scratch;
         protected final BytesReader in;
         protected final Arc<Long> firstArc = new Arc<>();
         protected final Arc<Long> scratchArc = new Arc<>();
-        protected final IntsRef scratchInts = new IntsRef();
+        protected final IntsRefBuilder scratchInts = new IntsRefBuilder();
 
         ValuesHolder(FST<Long> fst) {
             this.fst = fst;
-            scratch = new BytesRef();
+            scratch = new BytesRefBuilder();
             in = fst.getBytesReader();
         }
 
         @Override
-        public BytesRef getValueByOrd(long ord) {
-            assert ord != BytesValues.WithOrdinals.MISSING_ORDINAL;
+        public BytesRef lookupOrd(long ord) {
+            assert ord != SortedSetDocValues.NO_MORE_ORDS;
             in.setPosition(0);
             fst.getFirstArc(firstArc);
             try {
                 IntsRef output = Util.getByOutput(fst, ord, in, firstArc, scratchArc, scratchInts);
-                scratch.length = scratch.offset = 0;
+                scratch.clear();
                 scratch.grow(output.length);
                 Util.toBytesRef(output, scratch);
             } catch (IOException ex) {
                 //bogus
             }
-            return scratch;
+            return scratch.get();
         }
     }
 

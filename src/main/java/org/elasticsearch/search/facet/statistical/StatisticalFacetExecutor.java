@@ -20,8 +20,8 @@
 package org.elasticsearch.search.facet.statistical;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -60,7 +60,7 @@ public class StatisticalFacetExecutor extends FacetExecutor {
     class Collector extends FacetExecutor.Collector {
 
         private final StatsProc statsProc = new StatsProc();
-        private DoubleValues values;
+        private SortedNumericDoubleValues values;
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {

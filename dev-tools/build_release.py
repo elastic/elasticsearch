@@ -48,7 +48,7 @@ from http.client import HTTPSConnection
   - builds the artifacts and runs smoke-tests on the build zip & tar.gz files
   - commits the new version and merges the release branch into the source branch
   - creates a tag and pushes the commit to the specified origin (--remote)
-  - publishes the releases to sonar-type and S3
+  - publishes the releases to Sonatype and S3
 
 Once it's done it will print all the remaining steps.
 
@@ -67,6 +67,8 @@ PLUGINS = [('bigdesk', 'lukas-vlcek/bigdesk'),
            ('head', 'mobz/elasticsearch-head')]
 
 LOG = env.get('ES_RELEASE_LOG', '/tmp/elasticsearch_release.log')
+if os.path.exists(LOG):
+  raise RuntimeError('please remove old release log %s first' % LOG)
 
 def log(msg):
   log_plain('\n%s' % msg)
@@ -234,7 +236,7 @@ def run_mvn(*cmd):
   for c in cmd:
     run('%s; %s %s' % (java_exe(), MVN, c))
 
-def build_release(run_tests=False, dry_run=True, cpus=1):
+def build_release(run_tests=False, dry_run=True, cpus=1, bwc_version=None):
   target = 'deploy'
   if dry_run:
     target = 'package'
@@ -242,6 +244,9 @@ def build_release(run_tests=False, dry_run=True, cpus=1):
     run_mvn('clean',
             'test -Dtests.jvms=%s -Des.node.mode=local' % (cpus),
             'test -Dtests.jvms=%s -Des.node.mode=network' % (cpus))
+  if bwc_version:
+      print('Running Backwards compatibilty tests against version [%s]' % (bwc_version))
+      run_mvn('clean', 'test -Dtests.filter=@backwards -Dtests.bwc.version=%s -Dtests.bwc=true -Dtests.jvms=1' % bwc_version)
   run_mvn('clean test-compile -Dforbidden.test.signatures="org.apache.lucene.util.LuceneTestCase\$AwaitsFix @ Please fix all bugs before release"')
   run_mvn('clean %s -DskipTests' % (target))
   success = False
@@ -303,6 +308,24 @@ def wait_for_node_startup(host='127.0.0.1', port=9200,timeout=15):
 
   return False
 
+# Ensures we are using a true Lucene release, not a snapshot build:
+def verify_lucene_version():
+  s = open('pom.xml', encoding='utf-8').read()
+  if s.find('download.elasticsearch.org/lucenesnapshots') != -1:
+    raise RuntimeError('pom.xml contains download.elasticsearch.org/lucenesnapshots repository: remove that before releasing')
+
+  m = re.search(r'<lucene.version>(.*?)</lucene.version>', s)
+  if m is None:
+    raise RuntimeError('unable to locate lucene.version in pom.xml')
+  lucene_version = m.group(1)
+
+  m = re.search(r'<lucene.maven.version>(.*?)</lucene.maven.version>', s)
+  if m is None:
+    raise RuntimeError('unable to locate lucene.maven.version in pom.xml')
+  lucene_maven_version = m.group(1)
+  if lucene_version != lucene_maven_version:
+    raise RuntimeError('pom.xml is still using a snapshot release of lucene (%s): cutover to a real lucene release before releasing' % lucene_maven_version)
+    
 # Checks the pom.xml for the release version.
 # This method fails if the pom file has no SNAPSHOT version set ie.
 # if the version is already on a release version we fail.
@@ -345,7 +368,7 @@ def generate_checksums(files):
     directory = os.path.dirname(release_file)
     file = os.path.basename(release_file)
     checksum_file = '%s.sha1.txt' % file
-    
+
     if os.system('cd %s; shasum %s > %s' % (directory, file, checksum_file)):
       raise RuntimeError('Failed to generate checksum for file %s' % release_file)
     res = res + [os.path.join(directory, checksum_file), release_file]
@@ -379,12 +402,12 @@ def smoke_test_release(release, files, expected_hash, plugins):
       raise RuntimeError('Smoketest failed missing file %s' % (release_file))
     tmp_dir = tempfile.mkdtemp()
     if release_file.endswith('tar.gz'):
-      run('tar -xzf %s -C %s' % (release_file, tmp_dir)) 
+      run('tar -xzf %s -C %s' % (release_file, tmp_dir))
     elif release_file.endswith('zip'):
-      run('unzip %s -d %s' % (release_file, tmp_dir)) 
+      run('unzip %s -d %s' % (release_file, tmp_dir))
     else:
       log('Skip SmokeTest for [%s]' % release_file)
-      continue # nothing to do here 
+      continue # nothing to do here
     es_run_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release), 'bin/elasticsearch')
     print('  Smoke testing package [%s]' % release_file)
     es_plugin_path = os.path.join(tmp_dir, 'elasticsearch-%s' % (release),'bin/plugin')
@@ -465,17 +488,17 @@ def publish_artifacts(artifacts, base='elasticsearch/elasticsearch', dry_run=Tru
       # requires boto to be installed but it is not available on python3k yet so we use a dedicated tool
       run('python %s/upload-s3.py --file %s ' % (location, os.path.abspath(artifact)))
 
-def print_sonartype_notice():
+def print_sonatype_notice():
   settings = os.path.join(os.path.expanduser('~'), '.m2/settings.xml')
   if os.path.isfile(settings):
      with open(settings, encoding='utf-8') as settings_file:
        for line in settings_file:
          if line.strip() == '<id>sonatype-nexus-snapshots</id>':
            # moving out - we found the indicator no need to print the warning
-           return 
+           return
   print("""
-    NOTE: No sonartype settings detected, make sure you have configured
-    your sonartype credentials in '~/.m2/settings.xml':
+    NOTE: No sonatype settings detected, make sure you have configured
+    your sonatype credentials in '~/.m2/settings.xml':
 
     <settings>
     ...
@@ -499,11 +522,28 @@ def check_s3_credentials():
   if not env.get('AWS_ACCESS_KEY_ID', None) or not env.get('AWS_SECRET_ACCESS_KEY', None):
     raise RuntimeError('Could not find "AWS_ACCESS_KEY_ID" / "AWS_SECRET_ACCESS_KEY" in the env variables please export in order to upload to S3')
 
-VERSION_FILE = 'src/main/java/org/elasticsearch/Version.java'    
+VERSION_FILE = 'src/main/java/org/elasticsearch/Version.java'
 POM_FILE = 'pom.xml'
 
-# we print a notice if we can not find the relevant infos in the ~/.m2/settings.xml 
-print_sonartype_notice()
+# we print a notice if we can not find the relevant infos in the ~/.m2/settings.xml
+print_sonatype_notice()
+
+# finds the highest available bwc version to test against
+def find_bwc_version(release_version, bwc_dir='backwards'):
+  log('  Lookup bwc version in directory [%s]' % bwc_dir)
+  bwc_version = None
+  if os.path.exists(bwc_dir) and os.path.isdir(bwc_dir):
+    max_version = [int(x) for x in release_version.split('.')]
+    for dir in os.listdir(bwc_dir):
+      if os.path.isdir(os.path.join(bwc_dir, dir)) and dir.startswith('elasticsearch-'):
+        version = [int(x) for x in dir[len('elasticsearch-'):].split('.')]
+        if version < max_version: # bwc tests only against smaller versions
+          if (not bwc_version) or version > [int(x) for x in bwc_version.split('.')]:
+            bwc_version = dir[len('elasticsearch-'):]
+    log('  Using bwc version [%s]' % bwc_version)
+  else:
+    log('  bwc directory [%s] does not exists or is not a directory - skipping' % bwc_dir)
+  return bwc_version
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Builds and publishes a Elasticsearch Release')
@@ -520,11 +560,13 @@ if __name__ == '__main__':
                       help='Publishes the release. Disable by default.')
   parser.add_argument('--smoke', '-s', dest='smoke', default='',
                       help='Smoke tests the given release')
+  parser.add_argument('--bwc', '-w', dest='bwc', metavar='backwards', default='backwards',
+                      help='Backwards compatibility version path to use to run compatibility tests against')
 
   parser.set_defaults(dryrun=True)
   parser.set_defaults(smoke=None)
   args = parser.parse_args()
-
+  bwc_path = args.bwc
   src_branch = args.branch
   remote = args.remote
   run_tests = args.tests
@@ -534,7 +576,7 @@ if __name__ == '__main__':
   smoke_test_version = args.smoke
   if not dry_run:
     check_s3_credentials()
-    print('WARNING: dryrun is set to "false" - this will push and publish the release') 
+    print('WARNING: dryrun is set to "false" - this will push and publish the release')
     input('Press Enter to continue...')
 
   print(''.join(['-' for _ in range(80)]))
@@ -542,6 +584,7 @@ if __name__ == '__main__':
   print('  JAVA_HOME is [%s]' % JAVA_HOME)
   print('  Running with maven command: [%s] ' % (MVN))
   if build:
+    verify_lucene_version()
     release_version = find_release_version(src_branch)
     ensure_no_open_tickets(release_version)
     if not dry_run:
@@ -571,10 +614,10 @@ if __name__ == '__main__':
       print('Building Release candidate')
       input('Press Enter to continue...')
       if not dry_run:
-        print('  Running maven builds now and publish to sonartype - run-tests [%s]' % run_tests)
+        print('  Running maven builds now and publish to Sonatype - run-tests [%s]' % run_tests)
       else:
         print('  Running maven builds now run-tests [%s]' % run_tests)
-      build_release(run_tests=run_tests, dry_run=dry_run, cpus=cpus)
+      build_release(run_tests=run_tests, dry_run=dry_run, cpus=cpus, bwc_version=find_bwc_version(release_version, bwc_path))
       artifacts = get_artifacts(release_version)
       artifacts_and_checksum = generate_checksums(artifacts)
       smoke_test_release(release_version, artifacts, get_head_hash(), PLUGINS)
@@ -592,7 +635,7 @@ if __name__ == '__main__':
       Release successful pending steps:
         * create a version tag on github for version 'v%(version)s'
         * check if there are pending issues for this version (https://github.com/elasticsearch/elasticsearch/issues?labels=v%(version)s&page=1&state=open)
-        * publish the maven artifacts on sonartype: https://oss.sonatype.org/index.html
+        * publish the maven artifacts on Sonatype: https://oss.sonatype.org/index.html
            - here is a guide: https://docs.sonatype.org/display/Repository/Sonatype+OSS+Maven+Repository+Usage+Guide#SonatypeOSSMavenRepositoryUsageGuide-8a.ReleaseIt
         * check if the release is there https://oss.sonatype.org/content/repositories/releases/org/elasticsearch/elasticsearch/%(version)s
         * announce the release on the website / blog post

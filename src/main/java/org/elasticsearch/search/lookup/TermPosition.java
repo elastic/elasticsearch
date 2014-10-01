@@ -21,8 +21,7 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.analysis.payloads.PayloadHelper;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.CharsRefBuilder;
 
 public class TermPosition {
 
@@ -30,11 +29,11 @@ public class TermPosition {
     public int startOffset = -1;
     public int endOffset = -1;
     public BytesRef payload;
-    private CharsRef spare = new CharsRef(0); 
+    private CharsRefBuilder spare = new CharsRefBuilder(); 
 
     public String payloadAsString() {
         if (payload != null && payload.length != 0) {
-            UnicodeUtil.UTF8toUTF16(payload.bytes, payload.offset, payload.length, spare);
+            spare.copyUTF8Bytes(payload);
             return spare.toString();
         } else {
             return null;

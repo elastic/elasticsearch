@@ -42,8 +42,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestIndicesAliasesAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesAliasesAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestIndicesAliasesAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/_aliases", this);
     }
 

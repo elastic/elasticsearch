@@ -32,7 +32,7 @@ public enum MemorySizeValue {
      *  <tt>42</tt> (default assumed unit is byte) or <tt>2mb</tt>, or percentages of the heap size: if
      *  the heap is 1G, <tt>10%</tt> will be parsed as <tt>100mb</tt>.  */
     public static ByteSizeValue parseBytesSizeValueOrHeapRatio(String sValue) {
-        if (sValue.endsWith("%")) {
+        if (sValue != null && sValue.endsWith("%")) {
             final String percentAsString = sValue.substring(0, sValue.length() - 1);
             try {
                 final double percent = Double.parseDouble(percentAsString);

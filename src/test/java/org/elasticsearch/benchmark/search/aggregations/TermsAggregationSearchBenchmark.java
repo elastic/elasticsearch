@@ -175,10 +175,6 @@ public class TermsAggregationSearchBenchmark {
                 .endObject()
               .endObject())).actionGet();
 
-            long[] lValues = new long[NUMBER_OF_TERMS];
-            for (int i = 0; i < NUMBER_OF_TERMS; i++) {
-                lValues[i] = ThreadLocalRandom.current().nextLong();
-            }
             ObjectOpenHashSet<String> uniqueTerms = ObjectOpenHashSet.newInstance();
             for (int i = 0; i < NUMBER_OF_TERMS; i++) {
                 boolean added;
@@ -203,7 +199,7 @@ public class TermsAggregationSearchBenchmark {
                     XContentBuilder builder = jsonBuilder().startObject();
                     builder.field("id", Integer.toString(counter));
                     final String sValue = sValues[ThreadLocalRandom.current().nextInt(sValues.length)];
-                    final long lValue = lValues[ThreadLocalRandom.current().nextInt(lValues.length)];
+                    final long lValue = ThreadLocalRandom.current().nextInt(NUMBER_OF_TERMS);
                     builder.field("s_value", sValue);
                     builder.field("l_value", lValue);
                     builder.field("s_value_dv", sValue);
@@ -220,7 +216,7 @@ public class TermsAggregationSearchBenchmark {
                     for (String field : new String[] {"lm_value", "lm_value_dv"}) {
                         builder.startArray(field);
                         for (int k = 0; k < NUMBER_OF_MULTI_VALUE_TERMS; k++) {
-                            builder.value(lValues[ThreadLocalRandom.current().nextInt(sValues.length)]);
+                            builder.value(ThreadLocalRandom.current().nextInt(NUMBER_OF_TERMS));
                         }
                         builder.endArray();
                     }
@@ -327,7 +323,7 @@ public class TermsAggregationSearchBenchmark {
         stats.add(termsStats("terms_stats_agg_sm_l_dv", Method.AGGREGATION, "sm_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_def_sm_l", Method.AGGREGATION_DEFERRED, "sm_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_def_sm_l_dv", Method.AGGREGATION_DEFERRED, "sm_value_dv", "l_value_dv", null));
-        
+
         System.out.println("------------------ SUMMARY ----------------------------------------------");
         System.out.format(Locale.ENGLISH, "%35s%10s%10s%15s\n", "name", "took", "millis", "fieldata size");
         for (StatsResult stat : stats) {

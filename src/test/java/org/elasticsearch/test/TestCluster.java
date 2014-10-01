@@ -21,8 +21,6 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -38,8 +36,6 @@ import java.net.InetSocketAddress;
 import java.util.Random;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
 
 /**
  * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout
@@ -185,24 +181,20 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     }
 
     /**
-     * Ensures that the breaker statistics are reset to 0 since we wiped all indices and that
-     * means all stats should be set to 0 otherwise something is wrong with the field data
-     * calculation.
+     * Ensures that any breaker statistics are reset to 0.
+     *
+     * The implementation is specific to the test cluster, because the act of
+     * checking some breaker stats can increase them.
      */
-    public void ensureEstimatedStats() {
-        if (size() > 0) {
-            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
-                    .clear().setBreaker(true).execute().actionGet();
-            for (NodeStats stats : nodeStats.getNodes()) {
-                assertThat("Breaker not reset to 0 on node: " + stats.getNode(),
-                        stats.getBreaker().getEstimated(), equalTo(0L));
-            }
-        }
-    }
+    public abstract void ensureEstimatedStats();
 
     /**
      * Return whether or not this cluster can cache filters.
      */
     public abstract boolean hasFilterCache();
 
+    /**
+     * Returns the cluster name
+     */
+    public abstract String getClusterName();
 }

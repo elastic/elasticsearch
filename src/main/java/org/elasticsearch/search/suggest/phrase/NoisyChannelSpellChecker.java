@@ -25,8 +25,8 @@ import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.io.FastCharArrayReader;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
@@ -66,7 +66,7 @@ public final class NoisyChannelSpellChecker {
         SuggestUtils.analyze(stream, new SuggestUtils.TokenConsumer() {
             CandidateSet currentSet = null;
             private TypeAttribute typeAttribute;
-            private final BytesRef termsRef = new BytesRef();
+            private final BytesRefBuilder termsRef = new BytesRefBuilder();
             private boolean anyUnigram = false;
             private boolean anyTokens = false;
             @Override
@@ -134,13 +134,13 @@ public final class NoisyChannelSpellChecker {
     public Result getCorrections(Analyzer analyzer, BytesRef query, CandidateGenerator generator,
             float maxErrors, int numCorrections, IndexReader reader, String analysisField, WordScorer scorer, float confidence, int gramSize) throws IOException {
        
-        return getCorrections(tokenStream(analyzer, query, new CharsRef(), analysisField), generator, maxErrors, numCorrections, reader, scorer, new BytesRef(" "), confidence, gramSize);
+        return getCorrections(tokenStream(analyzer, query, new CharsRefBuilder(), analysisField), generator, maxErrors, numCorrections, reader, scorer, new BytesRef(" "), confidence, gramSize);
 
     }
 
-    public TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRef spare, String field) throws IOException {
-        UnicodeUtil.UTF8toUTF16(query, spare);
-        return analyzer.tokenStream(field, new FastCharArrayReader(spare.chars, spare.offset, spare.length));
+    public TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) throws IOException {
+        spare.copyUTF8Bytes(query);
+        return analyzer.tokenStream(field, new FastCharArrayReader(spare.chars(), 0, spare.length()));
     }
 
     public static class Result {

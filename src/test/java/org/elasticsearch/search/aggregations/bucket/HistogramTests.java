@@ -130,6 +130,52 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void singleValuedField_withPreOffset() throws Exception {
+        long preOffsetMultiplier = randomIntBetween(2, 10);
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).preOffset(preOffsetMultiplier * interval))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
+
+        for (int i = 0; i < numValueBuckets; ++i) {
+            Histogram.Bucket bucket = histo.getBucketByKey((i + preOffsetMultiplier) * interval);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) (i + preOffsetMultiplier) * interval));
+            assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
+        }
+    }
+
+    @Test
+    public void singleValuedField_withPostOffset() throws Exception {
+        long postOffsetMultiplier = randomIntBetween(2, 10);
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).postOffset(postOffsetMultiplier * interval))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
+
+        for (int i = 0; i < numValueBuckets; ++i) {
+            Histogram.Bucket bucket = histo.getBucketByKey((i + postOffsetMultiplier) * interval);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) (i + postOffsetMultiplier) * interval));
+            assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
+        }
+    }
+
+    @Test
     public void singleValuedField_OrderedByKeyAsc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.KEY_ASC))

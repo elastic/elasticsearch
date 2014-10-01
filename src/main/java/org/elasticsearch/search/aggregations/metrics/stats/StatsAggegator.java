@@ -24,7 +24,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
@@ -41,7 +41,7 @@ import java.io.IOException;
 public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
 
     private final ValuesSource.Numeric valuesSource;
-    private DoubleValues values;
+    private SortedNumericDoubleValues values;
 
     private LongArray counts;
     private DoubleArray sums;
@@ -85,13 +85,14 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
             maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
         }
 
-        final int valuesCount = values.setDocument(doc);
+        values.setDocument(doc);
+        final int valuesCount = values.count();
         counts.increment(owningBucketOrdinal, valuesCount);
         double sum = 0;
         double min = mins.get(owningBucketOrdinal);
         double max = maxes.get(owningBucketOrdinal);
         for (int i = 0; i < valuesCount; i++) {
-            double value = values.nextValue();
+            double value = values.valueAt(i);
             sum += value;
             min = Math.min(min, value);
             max = Math.max(max, value);

@@ -20,18 +20,23 @@
 package org.elasticsearch.test.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.cluster.routing.operation.plain.Preference;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Random;
 
 /** A {@link Client} that randomizes request parameters. */
 public class RandomizingClient extends FilterClient {
 
     private final SearchType defaultSearchType;
+    private final String defaultPreference;
+
 
     public RandomizingClient(Client client, Random random) {
         super(client);
@@ -40,11 +45,20 @@ public class RandomizingClient extends FilterClient {
         defaultSearchType = RandomPicks.randomFrom(random, Arrays.asList(
                 SearchType.DFS_QUERY_THEN_FETCH,
                 SearchType.QUERY_THEN_FETCH));
+        if (random.nextInt(10) == 0) {
+            defaultPreference = RandomPicks.randomFrom(random, EnumSet.of(Preference.PRIMARY_FIRST, Preference.LOCAL)).type();
+        } else if (random.nextInt(10) == 0) {
+            String s = TestUtil.randomRealisticUnicodeString(random, 1, 10);
+            defaultPreference = s.startsWith("_") ? null : s; // '_' is a reserved character
+        } else {
+            defaultPreference = null;
+        }
+
     }
     
     @Override
     public SearchRequestBuilder prepareSearch(String... indices) {
-        return in.prepareSearch(indices).setSearchType(defaultSearchType);
+        return in.prepareSearch(indices).setSearchType(defaultSearchType).setPreference(defaultPreference);
     }
 
     @Override

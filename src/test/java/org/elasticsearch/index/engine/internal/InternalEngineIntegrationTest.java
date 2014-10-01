@@ -26,15 +26,22 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.BloomFilter;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class InternalEngineIntegrationTest extends ElasticsearchIntegrationTest {
 
@@ -130,6 +137,40 @@ public class InternalEngineIntegrationTest extends ElasticsearchIntegrationTest 
         assertTotalCompoundSegments(2, 3, "test");
     }
 
+    public void testForceOptimize() throws ExecutionException, InterruptedException {
+        boolean compound = randomBoolean();
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder()
+                .put("number_of_replicas", 0)
+                .put("number_of_shards", 1)
+                 // this is important otherwise the MP will still trigger a merge even if there is only one segment
+                .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, compound)
+                .put(AbstractMergePolicyProvider.INDEX_COMPOUND_FORMAT, compound)
+        ));
+        final int numDocs = randomIntBetween(10, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+        }
+        indexRandom(true, builders);
+        ensureGreen();
+        flushAndRefresh();
+        client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).setWaitForMerge(true).get();
+        IndexSegments firstSegments = client().admin().indices().prepareSegments("test").get().getIndices().get("test");
+        client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).setWaitForMerge(true).get();
+        IndexSegments secondsSegments = client().admin().indices().prepareSegments("test").get().getIndices().get("test");
+
+        assertThat(segments(firstSegments), Matchers.containsInAnyOrder(segments(secondsSegments).toArray()));
+        assertThat(segments(firstSegments).size(), Matchers.equalTo(1));
+        assertThat(segments(secondsSegments), Matchers.containsInAnyOrder(segments(firstSegments).toArray()));
+        assertThat(segments(secondsSegments).size(), Matchers.equalTo(1));
+        client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).setWaitForMerge(true).setForce(true).get();
+        IndexSegments thirdSegments = client().admin().indices().prepareSegments("test").get().getIndices().get("test");
+        assertThat(segments(firstSegments).size(), Matchers.equalTo(1));
+        assertThat(segments(thirdSegments).size(), Matchers.equalTo(1));
+        assertThat(segments(firstSegments), Matchers.not(Matchers.containsInAnyOrder(segments(thirdSegments).toArray())));
+        assertThat(segments(thirdSegments), Matchers.not(Matchers.containsInAnyOrder(segments(firstSegments).toArray())));
+    }
+
     private void assertTotalCompoundSegments(int i, int t, String index) {
         IndicesSegmentResponse indicesSegmentResponse = client().admin().indices().prepareSegments(index).get();
         IndexSegments indexSegments = indicesSegmentResponse.getIndices().get(index);
@@ -150,7 +191,15 @@ public class InternalEngineIntegrationTest extends ElasticsearchIntegrationTest 
         }
         assertThat(compounds, Matchers.equalTo(i));
         assertThat(total, Matchers.equalTo(t));
-
     }
 
+    private Set<Segment> segments(IndexSegments segments) {
+        Set<Segment> segmentSet = new HashSet<>();
+        for (IndexShardSegments s : segments) {
+            for (ShardSegments shardSegments : s) {
+                segmentSet.addAll(shardSegments.getSegments());
+            }
+        }
+        return segmentSet;
+    }
 }

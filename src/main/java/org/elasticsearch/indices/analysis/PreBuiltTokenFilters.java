@@ -22,32 +22,41 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
 import org.apache.lucene.analysis.br.BrazilianStemFilter;
+import org.apache.lucene.analysis.cjk.CJKBigramFilter;
+import org.apache.lucene.analysis.cjk.CJKWidthFilter;
+import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.UpperCaseFilter;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
+import org.apache.lucene.analysis.de.GermanNormalizationFilter;
 import org.apache.lucene.analysis.de.GermanStemFilter;
 import org.apache.lucene.analysis.en.KStemFilter;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchStemFilter;
+import org.apache.lucene.analysis.hi.HindiNormalizationFilter;
+import org.apache.lucene.analysis.in.IndicNormalizationFilter;
 import org.apache.lucene.analysis.miscellaneous.*;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.nl.DutchStemFilter;
+import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilter;
 import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.standard.ClassicFilter;
 import org.apache.lucene.analysis.standard.StandardFilter;
+import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.elasticsearch.Version;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.*;
+import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.util.Locale;
@@ -76,6 +85,8 @@ public enum PreBuiltTokenFilters {
                            WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null);
             }
         }
+
+
     },
 
     STOP(CachingStrategy.LUCENE) {
@@ -294,7 +305,86 @@ public enum PreBuiltTokenFilters {
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new ShingleFilter(tokenStream);
         }
-    };
+    },
+
+    GERMAN_NORMALIZATION(CachingStrategy.ONE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new GermanNormalizationFilter(tokenStream);
+        }
+    },
+
+    HINDI_NORMALIZATION(CachingStrategy.ONE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new HindiNormalizationFilter(tokenStream);
+        }
+    },
+
+    INDIC_NORMALIZATION(CachingStrategy.ONE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new IndicNormalizationFilter(tokenStream);
+        }
+    },
+
+    SORANI_NORMALIZATION(CachingStrategy.ONE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new SoraniNormalizationFilter(tokenStream);
+        }
+    },
+
+    SCANDINAVIAN_NORMALIZATION(CachingStrategy.ONE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new ScandinavianNormalizationFilter(tokenStream);
+        }
+    },
+
+    SCANDINAVIAN_FOLDING(CachingStrategy.ONE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new ScandinavianFoldingFilter(tokenStream);
+        }
+    },
+
+    APOSTROPHE(CachingStrategy.ONE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new ApostropheFilter(tokenStream);
+        }
+    },
+
+    CJK_WIDTH(CachingStrategy.ONE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new CJKWidthFilter(tokenStream);
+        }
+    },
+
+    CJK_BIGRAM(CachingStrategy.ONE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new CJKBigramFilter(tokenStream);
+        }
+    },
+
+    DELIMITED_PAYLOAD_FILTER(CachingStrategy.ONE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new DelimitedPayloadTokenFilter(tokenStream, DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER, DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER);
+        }
+    },
+
+    LIMIT(CachingStrategy.ONE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new LimitTokenCountFilter(tokenStream, LimitTokenCountFilterFactory.DEFAULT_MAX_TOKEN_COUNT, LimitTokenCountFilterFactory.DEFAULT_CONSUME_ALL_TOKENS);
+        }
+    }
+
+    ;
 
     abstract public TokenStream create(TokenStream tokenStream, Version version);
 

@@ -21,10 +21,14 @@ package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -40,8 +44,8 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
 
     @Inject
     public TransportUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                         MetaDataUpdateSettingsService updateSettingsService) {
-        super(settings, transportService, clusterService, threadPool);
+                                         MetaDataUpdateSettingsService updateSettingsService, ActionFilters actionFilters) {
+        super(settings, UpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.updateSettingsService = updateSettingsService;
     }
 
@@ -52,8 +56,16 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected String transportAction() {
-        return UpdateSettingsAction.NAME;
+    protected ClusterBlockException checkBlock(UpdateSettingsRequest request, ClusterState state) {
+        // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
+        ClusterBlockException globalBlock = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        if (globalBlock != null) {
+            return globalBlock;
+        }
+        if (request.settings().getAsMap().size() == 1 && (request.settings().get(IndexMetaData.SETTING_BLOCKS_METADATA) != null || request.settings().get(IndexMetaData.SETTING_READ_ONLY) != null )) {
+            return null;
+        }
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
@@ -67,15 +79,10 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
     }
 
     @Override
-    protected void doExecute(UpdateSettingsRequest request, ActionListener<UpdateSettingsResponse> listener) {
-        request.indices(clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
-        super.doExecute(request, listener);
-    }
-
-    @Override
     protected void masterOperation(final UpdateSettingsRequest request, final ClusterState state, final ActionListener<UpdateSettingsResponse> listener) throws ElasticsearchException {
+        final String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices());
         UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
-                .indices(request.indices())
+                .indices(concreteIndices)
                 .settings(request.settings())
                 .ackTimeout(request.timeout())
                 .masterNodeTimeout(request.masterNodeTimeout());
@@ -88,7 +95,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
 
             @Override
             public void onFailure(Throwable t) {
-                logger.debug("failed to update settings on indices [{}]", t, request.indices());
+                logger.debug("failed to update settings on indices [{}]", t, concreteIndices);
                 listener.onFailure(t);
             }
         });

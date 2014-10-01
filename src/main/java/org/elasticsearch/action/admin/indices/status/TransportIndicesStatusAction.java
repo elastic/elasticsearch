@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.status;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
@@ -34,14 +35,18 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,8 +71,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
     @Inject
     public TransportIndicesStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                        IndicesService indicesService, RecoveryTarget peerRecoveryTarget) {
-        super(settings, threadPool, clusterService, transportService);
+                                        IndicesService indicesService, RecoveryTarget peerRecoveryTarget, ActionFilters actionFilters) {
+        super(settings, IndicesStatusAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.peerRecoveryTarget = peerRecoveryTarget;
         this.indicesService = indicesService;
     }
@@ -75,11 +80,6 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return IndicesStatusAction.NAME;
     }
 
     @Override
@@ -136,7 +136,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
     @Override
     protected IndexShardStatusRequest newShardRequest(int numShards, ShardRouting shard, IndicesStatusRequest request) {
-        return new IndexShardStatusRequest(shard.index(), shard.id(), request);
+        return new IndexShardStatusRequest(shard.shardId(), request);
     }
 
     @Override
@@ -146,14 +146,18 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
     @Override
     protected ShardStatus shardOperation(IndexShardStatusRequest request) throws ElasticsearchException {
-        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.shardId().getIndex());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
         ShardStatus shardStatus = new ShardStatus(indexShard.routingEntry());
         shardStatus.state = indexShard.state();
+        final Store store = indexShard.store();
+        store.incRef();
         try {
-            shardStatus.storeSize = indexShard.store().estimateSize();
+            shardStatus.storeSize = new ByteSizeValue(Directories.estimateSize(store.directory()));
         } catch (IOException e) {
             // failure to get the store size...
+        } finally {
+            store.decRef();
         }
         if (indexShard.state() == IndexShardState.STARTED) {
 //            shardStatus.estimatedFlushableMemorySize = indexShard.estimateFlushableMemorySize();
@@ -178,7 +182,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
             // check on going recovery (from peer or gateway)
             RecoveryStatus peerRecoveryStatus = indexShard.recoveryStatus();
             if (peerRecoveryStatus == null) {
-                peerRecoveryStatus = peerRecoveryTarget.recoveryStatus(indexShard.shardId());
+                peerRecoveryStatus = peerRecoveryTarget.recoveryStatus(indexShard);
             }
             if (peerRecoveryStatus != null) {
                 PeerRecoveryStatus.Stage stage;
@@ -208,7 +212,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                         peerRecoveryStatus.recoveryState().getIndex().recoveredByteCount(), peerRecoveryStatus.recoveryState().getTranslog().currentTranslogOperations());
             }
 
-            IndexShardGatewayService gatewayService = indexService.shardInjector(request.shardId()).getInstance(IndexShardGatewayService.class);
+            IndexShardGatewayService gatewayService = indexService.shardInjector(request.shardId().id()).getInstance(IndexShardGatewayService.class);
             RecoveryState gatewayRecoveryState = gatewayService.recoveryState();
             if (gatewayRecoveryState != null) {
                 GatewayRecoveryStatus.Stage stage;
@@ -235,7 +239,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         return shardStatus;
     }
 
-    public static class IndexShardStatusRequest extends BroadcastShardOperationRequest {
+    static class IndexShardStatusRequest extends BroadcastShardOperationRequest {
 
         boolean recovery;
 
@@ -244,8 +248,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         IndexShardStatusRequest() {
         }
 
-        IndexShardStatusRequest(String index, int shardId, IndicesStatusRequest request) {
-            super(index, shardId, request);
+        IndexShardStatusRequest(ShardId shardId, IndicesStatusRequest request) {
+            super(shardId, request);
             recovery = request.recovery();
             snapshot = request.snapshot();
         }

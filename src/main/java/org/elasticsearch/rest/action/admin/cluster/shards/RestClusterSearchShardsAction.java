@@ -27,10 +27,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -41,8 +38,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestClusterSearchShardsAction extends BaseRestHandler {
 
     @Inject
-    public RestClusterSearchShardsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestClusterSearchShardsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_search_shards", this);
         controller.registerHandler(POST, "/_search_shards", this);
         controller.registerHandler(GET, "/{index}/_search_shards", this);

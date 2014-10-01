@@ -24,6 +24,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -170,7 +172,7 @@ public class TopHitsContext extends SearchContext {
     }
 
     @Override
-    public long nowInMillis() {
+    protected long nowInMillisImpl() {
         return context.nowInMillis();
     }
 
@@ -348,6 +350,11 @@ public class TopHitsContext extends SearchContext {
     }
 
     @Override
+    public FixedBitSetFilterCache fixedBitSetFilterCache() {
+        return context.fixedBitSetFilterCache();
+    }
+
+    @Override
     public DocSetCache docSetCache() {
         return context.docSetCache();
     }
@@ -364,6 +371,16 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public void timeoutInMillis(long timeoutInMillis) {
+        throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public int terminateAfter() {
+        return context.terminateAfter();
+    }
+
+    @Override
+    public void terminateAfter(int terminateAfter) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -614,6 +631,11 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public SearchContext useSlowScroll(boolean useSlowScroll) {
+        throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public Counter timeEstimateCounter() {
         throw new UnsupportedOperationException("Not supported");
     }
 

@@ -25,8 +25,8 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.index.fielddata.plain.PackedArrayAtomicFieldData;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
@@ -77,21 +77,22 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
 
         IndexNumericFieldData indexFieldData = getForField("value");
         AtomicNumericFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData, instanceOf(PackedArrayAtomicFieldData.class));
         assertThat(getFirst(fieldData.getLongValues(), 0), equalTo((long) Integer.MAX_VALUE + 1l));
         assertThat(getFirst(fieldData.getLongValues(), 1), equalTo((long) Integer.MIN_VALUE - 1l));
     }
 
-    private static long getFirst(LongValues values, int docId) {
-        final int numValues = values.setDocument(docId);
+    private static long getFirst(SortedNumericDocValues values, int docId) {
+        values.setDocument(docId);
+        final int numValues = values.count();
         assertThat(numValues, is(1));
-        return values.nextValue();
+        return values.valueAt(0);
     }
 
-    private static double getFirst(DoubleValues values, int docId) {
-        final int numValues = values.setDocument(docId);
+    private static double getFirst(SortedNumericDoubleValues values, int docId) {
+        values.setDocument(docId);
+        final int numValues = values.count();
         assertThat(numValues, is(1));
-        return values.nextValue();
+        return values.valueAt(0);
     }
 
     @Test
@@ -337,20 +338,23 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
 
         final IndexNumericFieldData indexFieldData = getForField("value");
         final AtomicNumericFieldData atomicFieldData = indexFieldData.load(refreshReader());
-        final LongValues data = atomicFieldData.getLongValues();
-        final DoubleValues doubleData = atomicFieldData.getDoubleValues();
+        final SortedNumericDocValues data = atomicFieldData.getLongValues();
+        final SortedNumericDoubleValues doubleData = atomicFieldData.getDoubleValues();
         final LongOpenHashSet set = new LongOpenHashSet();
         final DoubleOpenHashSet doubleSet = new DoubleOpenHashSet();
         for (int i = 0; i < values.size(); ++i) {
             final LongOpenHashSet v = values.get(i);
 
-            assertThat(data.setDocument(i) > 0, equalTo(!v.isEmpty()));
-            assertThat(doubleData.setDocument(i) > 0, equalTo(!v.isEmpty()));
+            data.setDocument(i);
+            assertThat(data.count() > 0, equalTo(!v.isEmpty()));
+            doubleData.setDocument(i);
+            assertThat(doubleData.count() > 0, equalTo(!v.isEmpty()));
 
             set.clear();
-            int numValues = data.setDocument(i);
+            data.setDocument(i);
+            int numValues = data.count();
             for (int j = 0; j < numValues; j++) {
-                set.add(data.nextValue());
+                set.add(data.valueAt(j));
             }
             assertThat(set, equalTo(v));
 
@@ -363,11 +367,12 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
                 }
             }
             doubleSet.clear();
-            numValues = doubleData.setDocument(i);
+            doubleData.setDocument(i);
+            numValues = doubleData.count();
             double prev = 0;
             for (int j = 0; j < numValues; j++) {
                 double current;
-                doubleSet.add(current = doubleData.nextValue());
+                doubleSet.add(current = doubleData.valueAt(j));
                 if (j > 0) {
                     assertThat(prev, lessThan(current));
                 }

@@ -28,7 +28,7 @@ import org.elasticsearch.client.Client;
 public class ExplainAction extends ClientAction<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
 
     public static final ExplainAction INSTANCE = new ExplainAction();
-    public static final String NAME = "explain";
+    public static final String NAME = "indices:data/read/explain";
 
     private ExplainAction() {
         super(NAME);

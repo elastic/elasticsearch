@@ -13,11 +13,11 @@ You can use the *Java client* in multiple ways:
 Obtaining an elasticsearch `Client` is simple. The most common way to
 get a client is by:
 
-1.  Creating an embedded link:#nodeclient[`Node`] that acts as a node
+1.  Creating an embedded <<node-client,`Node`>> that acts as a node
 within a cluster.
 2.  Requesting a `Client` from your embedded `Node`.
 
-Another manner is by creating a link:#transport-client[`TransportClient`]
+Another manner is by creating a <<transport-client,`TransportClient`>>
 that connects to a cluster.
 
 *Important:*
@@ -54,12 +54,12 @@ different clusters by simply setting the `cluster.name` setting, or
 explicitly using the `clusterName` method on the builder.
 
 You can define `cluster.name` in the `/src/main/resources/elasticsearch.yml`
-dir in your project. As long as `elasticsearch.yml` is present in the
+file in your project. As long as `elasticsearch.yml` is present in the
 classpath, it will be used when you start your node.
 
-[source,java]
+[source,yaml]
 --------------------------------------------------
-cluster.name=yourclustername
+cluster.name: yourclustername
 --------------------------------------------------
 
 Or in Java:
@@ -154,8 +154,7 @@ Client client =    new TransportClient(settings);
 //Add transport addresses and do something with the client...
 --------------------------------------------------
 
-Or using `elasticsearch.yml` file as shown in the link:#nodeclient[Node
-Client section]
+Or using `elasticsearch.yml` file as shown in <<node-client>>
 
 The client allows to sniff the rest of the cluster, and add those into
 its list of machines to use. In this case, note that the IP addresses

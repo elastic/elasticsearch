@@ -1,8 +1,6 @@
 [[query-dsl-template-query]]
 === Template Query
 
-added[1.1.0]
-
 A query that accepts a query template and a map of key/value pairs to fill in
 template parameters.
 
@@ -94,6 +92,44 @@ which is then turned into:
     }
 }
 ------------------------------------------
+
+You can register a template by storing it in the elasticsearch index `.scripts` or by using the REST API. (See <<search-template>> for more details)
+In order to execute the stored template, reference it by name in the `query`
+parameter:
+
+
+[source,js]
+------------------------------------------
+GET /_search
+{
+    "query": {
+        "template": {
+            "query": "templateName", <1>
+            "params" : {
+                "template" : "all"
+            }
+        }
+    }
+}
+------------------------------------------
+<1> Name of the the query template stored in the index.
+
+[source,js]
+------------------------------------------
+GET /_search
+{
+    "query": {
+        "template": {
+            "query": "storedTemplate", <1>
+            "params" : {
+                "template" : "all"
+            }
+        }
+    }
+}
+
+------------------------------------------
+
 
 There is also a dedicated `template` endpoint, allows you to template an entire search request.
 Please see <<search-template>> for more details.

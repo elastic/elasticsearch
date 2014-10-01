@@ -20,8 +20,11 @@
 package org.elasticsearch.deleteByQuery;
 
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
+import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,7 +33,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.concurrent.ExecutionException;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
@@ -101,22 +108,22 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testFailure() throws Exception {
-        client().admin().indices().prepareCreate("twitter").execute().actionGet();
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
 
-        DeleteByQueryResponse response = client().prepareDeleteByQuery("twitter")
+        DeleteByQueryResponse response = client().prepareDeleteByQuery(indexOrAlias())
                 .setQuery(QueryBuilders.hasChildQuery("type", QueryBuilders.matchAllQuery()))
                 .execute().actionGet();
 
-        NumShards twitter = getNumShards("twitter");
+        NumShards twitter = getNumShards("test");
 
         assertThat(response.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(response.getIndex("twitter").getSuccessfulShards(), equalTo(0));
-        assertThat(response.getIndex("twitter").getFailedShards(), equalTo(twitter.numPrimaries));
+        assertThat(response.getIndex("test").getSuccessfulShards(), equalTo(0));
+        assertThat(response.getIndex("test").getFailedShards(), equalTo(twitter.numPrimaries));
         assertThat(response.getIndices().size(), equalTo(1));
-        assertThat(response.getIndices().get("twitter").getFailedShards(), equalTo(twitter.numPrimaries));
-        assertThat(response.getIndices().get("twitter").getFailures().length, equalTo(twitter.numPrimaries));
-        for (ShardOperationFailedException failure : response.getIndices().get("twitter").getFailures()) {
-            assertThat(failure.reason(), containsString("[twitter] [has_child] unsupported in delete_by_query api"));
+        assertThat(response.getIndices().get("test").getFailedShards(), equalTo(twitter.numPrimaries));
+        assertThat(response.getIndices().get("test").getFailures().length, equalTo(twitter.numPrimaries));
+        for (ShardOperationFailedException failure : response.getIndices().get("test").getFailures()) {
+            assertThat(failure.reason(), containsString("[test] [has_child] unsupported in delete_by_query api"));
             assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(failure.shardId(), greaterThan(-1));
         }
@@ -124,7 +131,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDeleteByFieldQuery() throws Exception {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         int numDocs = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test", "test", Integer.toString(i))
@@ -134,12 +141,13 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         refresh();
         assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.matchQuery("_id", Integer.toString(between(0, numDocs - 1)))).get(), 1);
         assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).get(), numDocs);
-        client().prepareDeleteByQuery("test")
-                .setQuery(QueryBuilders.matchQuery("_id", Integer.toString(between(0, numDocs - 1))))
-                .execute().actionGet();
+        DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery(indexOrAlias())
+                .setQuery(QueryBuilders.matchQuery("_id", Integer.toString(between(0, numDocs - 1)))).get();
+        assertThat(deleteByQueryResponse.getIndices().size(), equalTo(1));
+        assertThat(deleteByQueryResponse.getIndex("test"), notNullValue());
+
         refresh();
         assertHitCount(client().prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).get(), numDocs - 1);
-
     }
 
     @Test
@@ -153,5 +161,37 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(client().prepareCount("test").get(), 0);
     }
 
+    @Test
+    public void testDeleteByTermQuery() throws ExecutionException, InterruptedException {
+        createIndex("test");
+        ensureGreen();
 
+        int numDocs = iterations(10, 50);
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs + 1];
+        for (int i = 0; i < numDocs; i++) {
+            indexRequestBuilders[i] = client().prepareIndex("test", "test", Integer.toString(i)).setSource("field", "value");
+        }
+        indexRequestBuilders[numDocs] = client().prepareIndex("test", "test", Integer.toString(numDocs)).setSource("field", "other_value");
+        indexRandom(true, indexRequestBuilders);
+
+        SearchResponse searchResponse = client().prepareSearch("test").get();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long)numDocs + 1));
+
+        DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test").setQuery(QueryBuilders.termQuery("field", "value")).get();
+        assertThat(deleteByQueryResponse.getIndices().size(), equalTo(1));
+        for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : deleteByQueryResponse) {
+            assertThat(indexDeleteByQueryResponse.getIndex(), equalTo("test"));
+            assertThat(indexDeleteByQueryResponse.getFailures().length, equalTo(0));
+        }
+
+        refresh();
+        searchResponse = client().prepareSearch("test").get();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+    }
+
+    private static String indexOrAlias() {
+        return randomBoolean() ? "test" : "alias";
+    }
 }

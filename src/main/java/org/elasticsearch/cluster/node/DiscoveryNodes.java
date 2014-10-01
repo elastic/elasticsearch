@@ -55,13 +55,17 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
 
     private final String masterNodeId;
     private final String localNodeId;
+    private final Version minNodeVersion;
+    private final Version minNonClientNodeVersion;
 
-    private DiscoveryNodes(ImmutableOpenMap<String, DiscoveryNode> nodes, ImmutableOpenMap<String, DiscoveryNode> dataNodes, ImmutableOpenMap<String, DiscoveryNode> masterNodes, String masterNodeId, String localNodeId) {
+    private DiscoveryNodes(ImmutableOpenMap<String, DiscoveryNode> nodes, ImmutableOpenMap<String, DiscoveryNode> dataNodes, ImmutableOpenMap<String, DiscoveryNode> masterNodes, String masterNodeId, String localNodeId, Version minNodeVersion, Version minNonClientNodeVersion) {
         this.nodes = nodes;
         this.dataNodes = dataNodes;
         this.masterNodes = masterNodes;
         this.masterNodeId = masterNodeId;
         this.localNodeId = localNodeId;
+        this.minNodeVersion = minNodeVersion;
+        this.minNonClientNodeVersion = minNonClientNodeVersion;
     }
 
     @Override
@@ -290,11 +294,16 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
      * @return the oldest version in the cluster
      */
     public Version smallestVersion() {
-        Version version = Version.CURRENT;
-        for (ObjectCursor<DiscoveryNode> cursor : nodes.values()) {
-            version = Version.smallest(version, cursor.value.version());
-        }
-        return version;
+       return minNodeVersion;
+    }
+
+    /**
+     * Returns the version of the node with the oldest version in the cluster that is not a client node
+     *
+     * @return the oldest version in the cluster
+     */
+    public Version smallestNonClientNodeVersion() {
+        return minNonClientNodeVersion;
     }
 
     /**
@@ -606,15 +615,21 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
         public DiscoveryNodes build() {
             ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodesBuilder = ImmutableOpenMap.builder();
             ImmutableOpenMap.Builder<String, DiscoveryNode> masterNodesBuilder = ImmutableOpenMap.builder();
+            Version minNodeVersion = Version.CURRENT;
+            Version minNonClientNodeVersion = Version.CURRENT;
             for (ObjectObjectCursor<String, DiscoveryNode> nodeEntry : nodes) {
                 if (nodeEntry.value.dataNode()) {
                     dataNodesBuilder.put(nodeEntry.key, nodeEntry.value);
+                    minNonClientNodeVersion = Version.smallest(minNonClientNodeVersion, nodeEntry.value.version());
                 }
                 if (nodeEntry.value.masterNode()) {
                     masterNodesBuilder.put(nodeEntry.key, nodeEntry.value);
+                    minNonClientNodeVersion = Version.smallest(minNonClientNodeVersion, nodeEntry.value.version());
                 }
+                minNodeVersion = Version.smallest(minNodeVersion, nodeEntry.value.version());
             }
-            return new DiscoveryNodes(nodes.build(), dataNodesBuilder.build(), masterNodesBuilder.build(), masterNodeId, localNodeId);
+
+            return new DiscoveryNodes(nodes.build(), dataNodesBuilder.build(), masterNodesBuilder.build(), masterNodeId, localNodeId, minNodeVersion, minNonClientNodeVersion);
         }
 
         public static void writeTo(DiscoveryNodes nodes, StreamOutput out) throws IOException {

@@ -35,6 +35,7 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
     private String analyzer;
     private Operator operator;
     private final String queryText;
+    private String queryName;
     private int flags = -1;
     private Boolean lowercaseExpandedTerms;
     private Boolean lenient;
@@ -68,6 +69,14 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
      */
     public SimpleQueryStringBuilder field(String field, float boost) {
         this.fields.put(field, boost);
+        return this;
+    }
+
+    /**
+     * Specify a name for the query
+     */
+    public SimpleQueryStringBuilder queryName(String name) {
+        this.queryName = name;
         return this;
     }
 
@@ -161,6 +170,10 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
 
         if (locale != null) {
             builder.field("locale", locale.toString());
+        }
+
+        if (queryName != null) {
+            builder.field("_name", queryName);
         }
 
         builder.endObject();

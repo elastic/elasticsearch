@@ -28,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -58,13 +59,13 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
     long total;
 
     public ScriptTermsStringFieldFacetExecutor(int size, int shardSize, InternalStringTermsFacet.ComparatorType comparatorType, SearchContext context,
-                                               ImmutableSet<BytesRef> excluded, Pattern pattern, String scriptLang, String script, Map<String, Object> params,
+                                               ImmutableSet<BytesRef> excluded, Pattern pattern, String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params,
                                                CacheRecycler cacheRecycler) {
         this.size = size;
         this.shardSize = shardSize;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
-        this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
+        this.script = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, params);
 
         this.excluded = excluded;
         this.matcher = pattern != null ? pattern.matcher("") : null;

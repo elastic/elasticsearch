@@ -22,11 +22,11 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
@@ -48,19 +48,13 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
 
     protected final TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardReplicaRequest, ShardResponse> indexAction;
 
-
-    final String transportAction;
-
-    @Inject
-    public TransportIndicesReplicationOperationAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                      TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardReplicaRequest, ShardResponse> indexAction) {
-        super(settings, threadPool);
+    protected TransportIndicesReplicationOperationAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                                         TransportIndexReplicationOperationAction<IndexRequest, IndexResponse, ShardRequest, ShardReplicaRequest, ShardResponse> indexAction, ActionFilters actionFilters) {
+        super(settings, actionName, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.indexAction = indexAction;
 
-        this.transportAction = transportAction();
-
-        transportService.registerHandler(transportAction, new TransportHandler());
+        transportService.registerHandler(actionName, new TransportHandler());
     }
 
 
@@ -86,7 +80,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
         final long startTimeInMillis = System.currentTimeMillis();
 
         Map<String, Set<String>> routingMap = resolveRouting(clusterState, request);
-        if (concreteIndices == null || concreteIndices.length == 0) {
+        if (concreteIndices.length == 0) {
             listener.onResponse(newResponseInstance(request, indexResponses));
         } else {
             for (final String index : concreteIndices) {
@@ -124,8 +118,6 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
     protected abstract Request newRequestInstance();
 
     protected abstract Response newResponseInstance(Request request, AtomicReferenceArray indexResponses);
-
-    protected abstract String transportAction();
 
     protected abstract IndexRequest newIndexRequestInstance(Request request, String index, Set<String> routing, long startTimeInMillis);
 
@@ -166,7 +158,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + transportAction + "] and request [" + request + "]", e1);
+                        logger.warn("Failed to send error response for action [" + actionName + "] and request [" + request + "]", e1);
                     }
                 }
             });

@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.action.percolate;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.client.Requests;
@@ -27,19 +30,22 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.builder.SearchSourceBuilderException;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- *
+ * A request to execute a percolate operation.
  */
-public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest> {
+public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest> implements CompositeIndicesRequest {
 
     private String documentType;
     private String routing;
@@ -56,11 +62,15 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
     // to hold it temporarily in an easy way
     long startTime;
 
+    /**
+     * Constructor only for internal usage.
+     */
     public PercolateRequest() {
     }
 
-    public PercolateRequest(PercolateRequest request, BytesReference docSource) {
-        super(request.indices());
+    PercolateRequest(PercolateRequest request, BytesReference docSource) {
+        super(request);
+        this.indices = request.indices();
         this.documentType = request.documentType();
         this.routing = request.routing();
         this.preference = request.preference();
@@ -70,38 +80,80 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         this.startTime = request.startTime;
     }
 
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
+        List<IndicesRequest> requests = Lists.newArrayList();
+        requests.add(this);
+        if (getRequest != null) {
+            requests.add(getRequest);
+        }
+        return requests;
+    }
+
+    /**
+     * Getter for {@link #documentType(String)}
+     */
     public String documentType() {
         return documentType;
     }
 
-    public void documentType(String type) {
+    /**
+     * Sets the type of the document to percolate. This is important as it selects the mapping to be used to parse
+     * the document.
+     */
+    public PercolateRequest documentType(String type) {
         this.documentType = type;
+        return this;
     }
 
+    /**
+     * Getter for {@link #routing(String)}
+     */
     public String routing() {
         return routing;
     }
 
+    /**
+     * A comma separated list of routing values to control the shards the search will be executed on.
+     */
     public PercolateRequest routing(String routing) {
         this.routing = routing;
         return this;
     }
 
+    /**
+     * Getter for {@link #preference(String)}
+     */
     public String preference() {
         return preference;
     }
 
+    /**
+     * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
+     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
+     * a custom value, which guarantees that the same order will be used across different requests.
+     */
     public PercolateRequest preference(String preference) {
         this.preference = preference;
         return this;
     }
 
+    /**
+     * Getter for {@link #getRequest(GetRequest)}
+     */
     public GetRequest getRequest() {
         return getRequest;
     }
 
-    public void getRequest(GetRequest getRequest) {
+    /**
+     * This defines where to fetch the document to be percolated from, which is an alternative of defining the document
+     * to percolate in the request body.
+     *
+     * If this defined than this will override the document specified in the request body.
+     */
+    public PercolateRequest getRequest(GetRequest getRequest) {
         this.getRequest = getRequest;
+        return this;
     }
 
     /**
@@ -115,14 +167,24 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         }
     }
 
+    /**
+     * @return The request body in its raw form.
+     */
     public BytesReference source() {
         return source;
     }
 
+    /**
+     * Raw version of {@link #source(PercolateSourceBuilder)}
+     */
     public PercolateRequest source(Map document) throws ElasticsearchGenerationException {
         return source(document, Requests.CONTENT_TYPE);
     }
 
+    /**
+     * Raw version of {@link #source(PercolateSourceBuilder)}
+     */
+    @SuppressWarnings("unchecked")
     public PercolateRequest source(Map document, XContentType contentType) throws ElasticsearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -133,48 +195,85 @@ public class PercolateRequest extends BroadcastOperationRequest<PercolateRequest
         }
     }
 
+    /**
+     * Raw version of {@link #source(PercolateSourceBuilder)}
+     */
     public PercolateRequest source(String document) {
         this.source = new BytesArray(document);
         this.unsafe = false;
         return this;
     }
 
+    /**
+     * Raw version of {@link #source(PercolateSourceBuilder)}
+     */
     public PercolateRequest source(XContentBuilder documentBuilder) {
         source = documentBuilder.bytes();
         unsafe = false;
         return this;
     }
 
+    /**
+     * Raw version of {@link #source(PercolateSourceBuilder)}
+     */
     public PercolateRequest source(byte[] document) {
         return source(document, 0, document.length);
     }
 
+    /**
+     * Raw version of {@link #source(PercolateSourceBuilder)}
+     */
     public PercolateRequest source(byte[] source, int offset, int length) {
         return source(source, offset, length, false);
     }
 
+    /**
+     * Raw version of {@link #source(PercolateSourceBuilder)}
+     */
     public PercolateRequest source(byte[] source, int offset, int length, boolean unsafe) {
         return source(new BytesArray(source, offset, length), unsafe);
     }
 
+    /**
+     * Raw version of {@link #source(PercolateSourceBuilder)}
+     */
     public PercolateRequest source(BytesReference source, boolean unsafe) {
         this.source = source;
         this.unsafe = unsafe;
         return this;
     }
 
+    /**
+     * Sets the request body definition for this percolate request as raw bytes.
+     *
+     * This is the preferred way to set the request body.
+     */
     public PercolateRequest source(PercolateSourceBuilder sourceBuilder) {
-        this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
+            sourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            this.source = builder.bytes();
+        } catch (Exception e) {
+            throw new SearchSourceBuilderException("Failed to build search source", e);
+        }
         this.unsafe = false;
         return this;
     }
 
+    /**
+     * Getter for {@link #onlyCount(boolean)}
+     */
     public boolean onlyCount() {
         return onlyCount;
     }
 
-    public void onlyCount(boolean onlyCount) {
+    /**
+     * Sets whether this percolate request should only count the number of percolator queries that matches with
+     * the document being percolated and don't keep track of the actual queries that have matched.
+     */
+    public PercolateRequest onlyCount(boolean onlyCount) {
         this.onlyCount = onlyCount;
+        return this;
     }
 
     BytesReference docSource() {

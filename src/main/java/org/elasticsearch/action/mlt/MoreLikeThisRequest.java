@@ -19,25 +19,28 @@
 
 package org.elasticsearch.action.mlt;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.*;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.Scroll.readScroll;
@@ -52,7 +55,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Requests#moreLikeThisRequest(String)
  * @see org.elasticsearch.action.search.SearchResponse
  */
-public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
+public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> implements CompositeIndicesRequest {
 
     private String index;
 
@@ -64,7 +67,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
     private String[] fields;
 
-    private float percentTermsToMatch = -1;
+    private String minimumShouldMatch = "0%";
     private int minTermFreq = -1;
     private int maxQueryTerms = -1;
     private String[] stopWords = null;
@@ -78,7 +81,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     private SearchType searchType = SearchType.DEFAULT;
     private int searchSize = 0;
     private int searchFrom = 0;
-    private String searchQueryHint;
     private String[] searchIndices;
     private String[] searchTypes;
     private Scroll searchScroll;
@@ -113,6 +115,49 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
     void index(String index) {
         this.index = index;
+    }
+
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    }
+
+    @Override
+    public List<? extends IndicesRequest> subRequests() {
+        //we create two fake indices subrequests as we don't have the actual ones yet
+        //since they get created later on in TransportMoreLikeThisAction
+        List<IndicesRequest> requests = Lists.newArrayList();
+        requests.add(new IndicesRequest() {
+            @Override
+            public String[] indices() {
+                return new String[]{index};
+            }
+
+            @Override
+            public IndicesOptions indicesOptions() {
+                return MoreLikeThisRequest.this.indicesOptions();
+            }
+        });
+        requests.add(new IndicesRequest.Replaceable() {
+            @Override
+            public String[] indices() {
+                if (searchIndices != null) {
+                    return searchIndices;
+                }
+                return new String[]{index};
+            }
+
+            @Override
+            public IndicesRequest indices(String[] indices) {
+                searchIndices = indices;
+                return this;
+            }
+
+            @Override
+            public IndicesOptions indicesOptions() {
+                return SearchRequest.DEFAULT_INDICES_OPTIONS;
+            }
+        });
+        return requests;
     }
 
     /**
@@ -167,18 +212,44 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     }
 
     /**
-     * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
+     * Number of terms that must match the generated query expressed in the
+     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     *
+     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
      */
-    public MoreLikeThisRequest percentTermsToMatch(float percentTermsToMatch) {
-        this.percentTermsToMatch = percentTermsToMatch;
+    public MoreLikeThisRequest minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
         return this;
+    }
+
+    /**
+     * Number of terms that must match the generated query expressed in the
+     * common syntax for minimum should match.
+     *
+     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
+     */
+    public String minimumShouldMatch() {
+        return this.minimumShouldMatch;
     }
 
     /**
      * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
      */
+    @Deprecated
+    public MoreLikeThisRequest percentTermsToMatch(float percentTermsToMatch) {
+        return minimumShouldMatch(Math.round(percentTermsToMatch * 100) + "%");
+    }
+
+    /**
+     * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
+     */
+    @Deprecated
     public float percentTermsToMatch() {
-        return this.percentTermsToMatch;
+        if (minimumShouldMatch.endsWith("%")) {
+            return Float.parseFloat(minimumShouldMatch.substring(0, minimumShouldMatch.indexOf("%"))) / 100;
+        } else {
+            return -1;
+        }
     }
 
     /**
@@ -468,21 +539,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     }
 
     /**
-     * Optional search query hint.
-     */
-    public MoreLikeThisRequest searchQueryHint(String searchQueryHint) {
-        this.searchQueryHint = searchQueryHint;
-        return this;
-    }
-
-    /**
-     * Optional search query hint.
-     */
-    public String searchQueryHint() {
-        return this.searchQueryHint;
-    }
-
-    /**
      * An optional search scroll request to be able to continue and scroll the search
      * operation.
      */
@@ -555,7 +611,12 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
             }
         }
 
-        percentTermsToMatch = in.readFloat();
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            minimumShouldMatch(in.readString());
+        } else {
+            percentTermsToMatch(in.readFloat());
+        }
+
         minTermFreq = in.readVInt();
         maxQueryTerms = in.readVInt();
         size = in.readVInt();
@@ -577,8 +638,11 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         }
 
         searchType = SearchType.fromId(in.readByte());
-        if (in.readBoolean()) {
-            searchQueryHint = in.readString();
+        if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
+            //searchQueryHint was unused and removed in 1.4
+            if (in.readBoolean()) {
+                in.readString();
+            }
         }
         size = in.readVInt();
         if (size == 0) {
@@ -629,7 +693,12 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
             }
         }
 
-        out.writeFloat(percentTermsToMatch);
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeString(minimumShouldMatch);
+        } else {
+            out.writeFloat(percentTermsToMatch());
+        }
+
         out.writeVInt(minTermFreq);
         out.writeVInt(maxQueryTerms);
         if (stopWords == null) {
@@ -650,11 +719,9 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         }
 
         out.writeByte(searchType.id());
-        if (searchQueryHint == null) {
+        if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
+            //searchQueryHint was unused and removed in 1.4
             out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(searchQueryHint);
         }
         if (searchIndices == null) {
             out.writeVInt(0);

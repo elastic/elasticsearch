@@ -485,6 +485,7 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("synonym", SynonymTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("elision", ElisionTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("keep", KeepWordFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("keep_types", KeepTypesFilterFactory.class);
 
             tokenFiltersBindings.processTokenFilter("pattern_capture", PatternCaptureGroupTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("pattern_replace", PatternReplaceTokenFilterFactory.class);
@@ -503,11 +504,20 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("stemmer_override", StemmerOverrideTokenFilterFactory.class);
 
             tokenFiltersBindings.processTokenFilter("arabic_normalization", ArabicNormalizationFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("german_normalization", GermanNormalizationFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("hindi_normalization", HindiNormalizationFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("indic_normalization", IndicNormalizationFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("sorani_normalization", SoraniNormalizationFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("persian_normalization", PersianNormalizationFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("scandinavian_normalization", ScandinavianNormalizationFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("scandinavian_folding", ScandinavianFoldingFilterFactory.class);
 
             tokenFiltersBindings.processTokenFilter("hunspell", HunspellTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("cjk_bigram", CJKBigramFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("cjk_width", CJKWidthFilterFactory.class);
+            
+            tokenFiltersBindings.processTokenFilter("apostrophe", ApostropheFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("classic", ClassicFilterFactory.class);
 
 
         }
@@ -515,6 +525,8 @@ public class AnalysisModule extends AbstractModule {
         @Override
         public void processTokenizers(TokenizersBindings tokenizersBindings) {
             tokenizersBindings.processTokenizer("pattern", PatternTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("classic", ClassicTokenizerFactory.class);
+            tokenizersBindings.processTokenizer("thai", ThaiTokenizerFactory.class);
         }
 
         @Override
@@ -542,6 +554,7 @@ public class AnalysisModule extends AbstractModule {
             analyzersBindings.processAnalyzer("hindi", HindiAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("hungarian", HungarianAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("indonesian", IndonesianAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("irish", IrishAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("italian", ItalianAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("latvian", LatvianAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("norwegian", NorwegianAnalyzerProvider.class);
@@ -549,6 +562,7 @@ public class AnalysisModule extends AbstractModule {
             analyzersBindings.processAnalyzer("portuguese", PortugueseAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("romanian", RomanianAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("russian", RussianAnalyzerProvider.class);
+            analyzersBindings.processAnalyzer("sorani", SoraniAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("spanish", SpanishAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("swedish", SwedishAnalyzerProvider.class);
             analyzersBindings.processAnalyzer("turkish", TurkishAnalyzerProvider.class);

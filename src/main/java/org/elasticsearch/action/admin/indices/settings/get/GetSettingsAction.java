@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class GetSettingsAction extends IndicesAction<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
 
     public static final GetSettingsAction INSTANCE = new GetSettingsAction();
-    public static final String NAME = "indices/settings/get";
+    public static final String NAME = "indices:monitor/settings/get";
 
     public GetSettingsAction() {
         super(NAME);

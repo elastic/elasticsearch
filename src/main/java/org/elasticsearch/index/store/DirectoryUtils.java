@@ -21,6 +21,7 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.CompoundFileDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.common.Nullable;
 
@@ -52,10 +53,14 @@ public final class DirectoryUtils {
         }
     }
 
-    private static final Directory getLeafDirectory(FilterDirectory dir) {
+    static final Directory getLeafDirectory(FilterDirectory dir) {
         Directory current = dir.getDelegate();
-        while ((current instanceof FilterDirectory)) {
-            current = ((FilterDirectory) current).getDelegate();
+        while (true) {
+            if ((current instanceof FilterDirectory)) {
+                current = ((FilterDirectory) current).getDelegate();
+            } else {
+                break;
+            }
         }
         return current;
     }
@@ -78,7 +83,16 @@ public final class DirectoryUtils {
         if (dir instanceof FilterDirectory) {
             d = getLeafDirectory((FilterDirectory) dir);
         }
-        if (targetClass.isAssignableFrom(d.getClass())) {
+        if (d instanceof FileSwitchDirectory) {
+            T leaf = getLeaf(((FileSwitchDirectory) d).getPrimaryDir(), targetClass);
+            if (leaf == null) {
+                d = getLeaf(((FileSwitchDirectory) d).getSecondaryDir(), targetClass, defaultValue);
+            } else {
+                d = leaf;
+            }
+        }
+
+        if (d != null && targetClass.isAssignableFrom(d.getClass())) {
             return targetClass.cast(d);
         } else {
             return defaultValue;

@@ -21,12 +21,15 @@ package org.elasticsearch.test.store;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.StoreRateLimiting;
+import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -59,15 +62,15 @@ public class MockFSDirectoryService extends FsDirectoryService {
         final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         helper = new MockDirectoryHelper(shardId, indexSettings, logger, random, seed);
-        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, random.nextDouble() < 0.1);
+        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, false);
 
         delegateService = helper.randomDirectorService(indexStore);
         if (checkIndexOnClose) {
             final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
                 @Override
-                public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
+                public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
                     if (shardId.equals(sid) && indexShard != null) {
-                        checkIndex(((InternalIndexShard) indexShard).store());
+                        checkIndex(((InternalIndexShard) indexShard).store(), sid);
                     }
                     service.indicesLifecycle().removeListener(this);
                 }
@@ -82,23 +85,28 @@ public class MockFSDirectoryService extends FsDirectoryService {
     }
     
     @Override
-    protected synchronized FSDirectory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
+    protected synchronized Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
         throw new UnsupportedOperationException();
     }
 
-
-    private void checkIndex(Store store) throws IndexShardException {
+    public void checkIndex(Store store, ShardId shardId) throws IndexShardException {
         try {
-            if (!Lucene.indexExists(store.directory())) {
+            Directory dir = store.directory();
+            if (!Lucene.indexExists(dir)) {
                 return;
             }
-            CheckIndex checkIndex = new CheckIndex(store.directory());
+            if (IndexWriter.isLocked(dir)) {
+                AbstractRandomizedTest.checkIndexFailed = true;
+                throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
+            }
+            CheckIndex checkIndex = new CheckIndex(dir);
             BytesStreamOutput os = new BytesStreamOutput();
             PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
             checkIndex.setInfoStream(out);
             out.flush();
             CheckIndex.Status status = checkIndex.checkIndex();
             if (!status.clean) {
+                AbstractRandomizedTest.checkIndexFailed = true;
                 logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
                 throw new IndexShardException(shardId, "index check failure");
             } else {
@@ -109,5 +117,20 @@ public class MockFSDirectoryService extends FsDirectoryService {
         } catch (Exception e) {
             logger.warn("failed to check index", e);
         }
+    }
+
+    @Override
+    public void onPause(long nanos) {
+        delegateService.onPause(nanos);
+    }
+
+    @Override
+    public StoreRateLimiting rateLimiting() {
+        return delegateService.rateLimiting();
+    }
+
+    @Override
+    public long throttleTimeInNanos() {
+        return delegateService.throttleTimeInNanos();
     }
 }

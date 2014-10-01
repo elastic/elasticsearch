@@ -46,7 +46,7 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
     GetResponse() {
     }
 
-    GetResponse(GetResult getResult) {
+    public GetResponse(GetResult getResult) {
         this.getResult = getResult;
     }
 
@@ -149,6 +149,12 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return getResult.toXContent(builder, params);
+    }
+
+    public static GetResponse readGetResponse(StreamInput in) throws IOException {
+        GetResponse result = new GetResponse();
+        result.readFrom(in);
+        return result;
     }
 
     @Override

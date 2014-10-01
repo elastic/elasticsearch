@@ -46,4 +46,9 @@ public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushR
     protected void doExecute(ActionListener<FlushResponse> listener) {
         client.flush(request, listener);
     }
+
+    public FlushRequestBuilder setWaitIfOngoing(boolean waitIfOngoing) {
+        request.waitIfOngoing(waitIfOngoing);
+        return this;
+    }
 }

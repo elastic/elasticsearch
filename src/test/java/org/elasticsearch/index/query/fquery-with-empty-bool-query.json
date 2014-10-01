@@ -1,0 +1,16 @@
+{
+  "fquery": {
+    "query": {
+      "filtered": {
+        "query": {
+          "bool": {}
+        },
+        "filter": {
+          "term": {
+            "text": "apache"
+          }
+        }
+      }
+    }
+  }
+}

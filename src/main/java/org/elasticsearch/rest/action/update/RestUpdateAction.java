@@ -34,6 +34,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
 
@@ -46,8 +47,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestUpdateAction extends BaseRestHandler {
 
     @Inject
-    public RestUpdateAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestUpdateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
     }
 
@@ -68,7 +69,13 @@ public class RestUpdateAction extends BaseRestHandler {
             updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
         updateRequest.docAsUpsert(request.paramAsBoolean("doc_as_upsert", updateRequest.docAsUpsert()));
-        updateRequest.script(request.param("script"));
+        if( request.hasParam("script") ) {
+            updateRequest.script(request.param("script"), ScriptService.ScriptType.INLINE);
+        } else if( request.hasParam("script_id") ) {
+            updateRequest.script(request.param("script_id"), ScriptService.ScriptType.INDEXED);
+        } else if( request.hasParam("script_file") ) {
+            updateRequest.script(request.param("script_file"), ScriptService.ScriptType.FILE);
+        }
         updateRequest.scriptLang(request.param("lang"));
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
             if (entry.getKey().startsWith("sp_")) {

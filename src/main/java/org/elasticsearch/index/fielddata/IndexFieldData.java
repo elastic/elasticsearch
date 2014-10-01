@@ -21,22 +21,27 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.FieldComparatorSource;
-import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
+
+import java.io.IOException;
 
 /**
+ * Thread-safe utility class that allows to get per-segment values via the
+ * {@link #load(AtomicReaderContext)} method.
  */
 public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
 
@@ -80,11 +85,6 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     FieldDataType getFieldDataType();
 
     /**
-     * Are the values ordered? (in ascending manner).
-     */
-    boolean valuesOrdered();
-
-    /**
      * Loads the atomic field data for the reader, possibly cached.
      */
     FD load(AtomicReaderContext context);
@@ -97,7 +97,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     /**
      * Comparator used for sorting.
      */
-    XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode);
+    XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested);
 
     /**
      * Clears any resources associated with this field data.
@@ -115,9 +115,40 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
          *  since {@link Character#MAX_CODE_POINT} is a noncharacter and thus shouldn't appear in an index term. */
         public static final BytesRef MAX_TERM;
         static {
-            MAX_TERM = new BytesRef();
+            BytesRefBuilder builder = new BytesRefBuilder();
             final char[] chars = Character.toChars(Character.MAX_CODE_POINT);
-            UnicodeUtil.UTF16toUTF8(chars, 0, chars.length, MAX_TERM);
+            builder.copyChars(chars, 0, chars.length);
+            MAX_TERM = builder.toBytesRef();
+        }
+
+        /**
+         * Simple wrapper class around a filter that matches parent documents
+         * and a filter that matches child documents. For every root document R,
+         * R will be in the parent filter and its children documents will be the
+         * documents that are contained in the inner set between the previous
+         * parent + 1, or 0 if there is no previous parent, and R (excluded).
+         */
+        public static class Nested {
+            private final FixedBitSetFilter rootFilter, innerFilter;
+
+            public Nested(FixedBitSetFilter rootFilter, FixedBitSetFilter innerFilter) {
+                this.rootFilter = rootFilter;
+                this.innerFilter = innerFilter;
+            }
+
+            /**
+             * Get a {@link FixedBitSet} that matches the root documents.
+             */
+            public FixedBitSet rootDocs(AtomicReaderContext ctx) throws IOException {
+                return rootFilter.getDocIdSet(ctx, null);
+            }
+
+            /**
+             * Get a {@link FixedBitSet} that matches the inner documents.
+             */
+            public FixedBitSet innerDocs(AtomicReaderContext ctx) throws IOException {
+                return innerFilter.getDocIdSet(ctx, null);
+            }
         }
 
         /** Whether missing values should be sorted first. */
@@ -195,25 +226,15 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
 
     interface Builder {
 
-        IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
-                             CircuitBreakerService breakerService, MapperService mapperService, GlobalOrdinalsBuilder globalOrdinalBuilder);
+        IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
+                             CircuitBreakerService breakerService, MapperService mapperService);
     }
 
-    public interface WithOrdinals<FD extends AtomicFieldData.WithOrdinals> extends IndexFieldData<FD> {
+    public static interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {
 
-        /**
-         * Loads the atomic field data for the reader, possibly cached.
-         */
-        FD load(AtomicReaderContext context);
+        IndexFieldData<FD> loadGlobal(IndexReader indexReader);
 
-        /**
-         * Loads directly the atomic field data for the reader, ignoring any caching involved.
-         */
-        FD loadDirect(AtomicReaderContext context) throws Exception;
-
-        WithOrdinals loadGlobal(IndexReader indexReader);
-
-        WithOrdinals localGlobalDirect(IndexReader indexReader) throws Exception;
+        IndexFieldData<FD> localGlobalDirect(IndexReader indexReader) throws Exception;
 
     }
 

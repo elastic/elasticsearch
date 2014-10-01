@@ -33,16 +33,25 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- *
+ * Builder for the {@link GeoDistance} aggregation.
  */
 public class GeoDistanceBuilder extends AggregationBuilder<GeoDistanceBuilder> {
 
+    /**
+     * A range of values.
+     */
     public static class Range implements ToXContent {
 
         private String key;
         private Double from;
         private Double to;
 
+        /**
+         * Create a new range.
+         * @param key   the identifier of this range
+         * @param from  the lower bound (inclusive)
+         * @param to    the upper bound (exclusive)
+         */
         public Range(String key, Double from, Double to) {
             this.key = key;
             this.from = from;
@@ -73,34 +82,57 @@ public class GeoDistanceBuilder extends AggregationBuilder<GeoDistanceBuilder> {
 
     private List<Range> ranges = Lists.newArrayList();
 
+    /**
+     * Sole constructor.
+     */
     public GeoDistanceBuilder(String name) {
         super(name, InternalGeoDistance.TYPE.name());
     }
 
+    /**
+     * Set the field to use to compute distances.
+     */
     public GeoDistanceBuilder field(String field) {
         this.field = field;
         return this;
     }
 
+    /**
+     * Set the unit to use for distances, default is kilometers.
+     */
     public GeoDistanceBuilder unit(DistanceUnit unit) {
         this.unit = unit;
         return this;
     }
 
+    /**
+     * Set the {@link GeoDistance distance type} to use, defaults to
+     * {@link GeoDistance#SLOPPY_ARC}.
+     */
     public GeoDistanceBuilder distanceType(GeoDistance distanceType) {
         this.distanceType = distanceType;
         return this;
     }
 
+    /**
+     * Set the point to calculate distances from using a
+     * <code>lat,lon</code> notation or geohash.
+     */
     public GeoDistanceBuilder point(String latLon) {
         return point(GeoPoint.parseFromLatLon(latLon));
     }
 
+    /**
+     * Set the point to calculate distances from.
+     */
     public GeoDistanceBuilder point(GeoPoint point) {
         this.point = point;
         return this;
     }
 
+    /**
+     * Set the point to calculate distances from using its geohash.
+     */
     public GeoDistanceBuilder geohash(String geohash) {
         if (this.point == null) {
             this.point = new GeoPoint();
@@ -109,6 +141,9 @@ public class GeoDistanceBuilder extends AggregationBuilder<GeoDistanceBuilder> {
         return this;
     }
 
+    /**
+     * Set the latitude of the point to calculate distances from.
+     */
     public GeoDistanceBuilder lat(double lat) {
         if (this.point == null) {
             point = new GeoPoint();
@@ -117,6 +152,9 @@ public class GeoDistanceBuilder extends AggregationBuilder<GeoDistanceBuilder> {
         return this;
     }
 
+    /**
+     * Set the longitude of the point to calculate distances from.
+     */
     public GeoDistanceBuilder lon(double lon) {
         if (this.point == null) {
             point = new GeoPoint();
@@ -125,29 +163,60 @@ public class GeoDistanceBuilder extends AggregationBuilder<GeoDistanceBuilder> {
         return this;
     }
 
+    /**
+     * Add a new range to this aggregation.
+     *
+     * @param key  the key to use for this range in the response
+     * @param from the lower bound on the distances, inclusive
+     * @parap to   the upper bound on the distances, exclusive
+     */
     public GeoDistanceBuilder addRange(String key, double from, double to) {
         ranges.add(new Range(key, from, to));
         return this;
     }
 
+    /**
+     * Same as {@link #addRange(String, double, double)} but the key will be
+     * automatically generated based on <code>from</code> and <code>to</code>.
+     */
     public GeoDistanceBuilder addRange(double from, double to) {
         return addRange(null, from, to);
     }
 
+    /**
+     * Add a new range with no lower bound.
+     *
+     * @param key the key to use for this range in the response
+     * @param to  the upper bound on the distances, exclusive
+     */
     public GeoDistanceBuilder addUnboundedTo(String key, double to) {
         ranges.add(new Range(key, null, to));
         return this;
     }
 
+    /**
+     * Same as {@link #addUnboundedTo(String, double)} but the key will be
+     * computed automatically.
+     */
     public GeoDistanceBuilder addUnboundedTo(double to) {
         return addUnboundedTo(null, to);
     }
 
+    /**
+     * Add a new range with no upper bound.
+     *
+     * @param key  the key to use for this range in the response
+     * @param from the lower bound on the distances, inclusive
+     */
     public GeoDistanceBuilder addUnboundedFrom(String key, double from) {
         ranges.add(new Range(key, from, null));
         return this;
     }
 
+    /**
+     * Same as {@link #addUnboundedFrom(String, double)} but the key will be
+     * computed automatically.
+     */
     public GeoDistanceBuilder addUnboundedFrom(double from) {
         return addUnboundedFrom(null, from);
     }
@@ -156,10 +225,10 @@ public class GeoDistanceBuilder extends AggregationBuilder<GeoDistanceBuilder> {
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (ranges.isEmpty()) {
-            throw new SearchSourceBuilderException("at least one range must be defined for geo_distance aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("at least one range must be defined for geo_distance aggregation [" + getName() + "]");
         }
         if (point == null) {
-            throw new SearchSourceBuilderException("center point must be defined for geo_distance aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("center point must be defined for geo_distance aggregation [" + getName() + "]");
         }
 
         if (field != null) {

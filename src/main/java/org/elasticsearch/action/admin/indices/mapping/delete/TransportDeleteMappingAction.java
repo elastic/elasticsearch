@@ -23,18 +23,21 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -72,8 +75,8 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
     public TransportDeleteMappingAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         ThreadPool threadPool, MetaDataMappingService metaDataMappingService,
                                         TransportDeleteByQueryAction deleteByQueryAction, TransportRefreshAction refreshAction,
-                                        TransportFlushAction flushAction, NodeSettingsService nodeSettingsService) {
-        super(settings, transportService, clusterService, threadPool);
+                                        TransportFlushAction flushAction, NodeSettingsService nodeSettingsService, ActionFilters actionFilters) {
+        super(settings, DeleteMappingAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.metaDataMappingService = metaDataMappingService;
         this.deleteByQueryAction = deleteByQueryAction;
         this.refreshAction = refreshAction;
@@ -85,11 +88,6 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
     protected String executor() {
         // no need for fork on another thread pool, we go async right away
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteMappingAction.NAME;
     }
 
     @Override
@@ -110,13 +108,13 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
     @Override
     protected ClusterBlockException checkBlock(DeleteMappingRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
     }
 
     @Override
     protected void masterOperation(final DeleteMappingRequest request, final ClusterState state, final ActionListener<DeleteMappingResponse> listener) throws ElasticsearchException {
-        request.indices(state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
-        flushAction.execute(Requests.flushRequest(request.indices()), new ActionListener<FlushResponse>() {
+        final String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
+        flushAction.execute(new FlushRequest(request).indices(concreteIndices), new ActionListener<FlushResponse>() {
             @Override
             public void onResponse(FlushResponse flushResponse) {
                 if (logger.isTraceEnabled()) {
@@ -125,7 +123,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
   
                 // get all types that need to be deleted.
                 ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> result = clusterService.state().metaData().findMappings(
-                        request.indices(), request.types()
+                        concreteIndices, request.types()
                 );
                 // create OrFilter with type filters within to account for different types
                 BoolFilterBuilder filterBuilder = new BoolFilterBuilder();
@@ -142,7 +140,9 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                 request.types(types.toArray(new String[types.size()]));
                 QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder()
                         .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), filterBuilder));
-                deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.indices()).source(querySourceBuilder), new ActionListener<DeleteByQueryResponse>() {
+
+                DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(request).indices(concreteIndices).types(request.types()).source(querySourceBuilder);
+                deleteByQueryAction.execute(deleteByQueryRequest, new ActionListener<DeleteByQueryResponse>() {
                     @Override
                     public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
                         if (logger.isTraceEnabled()) {
@@ -155,7 +155,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                                 }
                             }
                         }
-                        refreshAction.execute(Requests.refreshRequest(request.indices()), new ActionListener<RefreshResponse>() {
+                        refreshAction.execute(new RefreshRequest(request).indices(concreteIndices), new ActionListener<RefreshResponse>() {
                             @Override
                             public void onResponse(RefreshResponse refreshResponse) {
                                 if (logger.isTraceEnabled()) {
@@ -174,7 +174,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
                             protected void removeMapping() {
                                 DeleteMappingClusterStateUpdateRequest clusterStateUpdateRequest = new DeleteMappingClusterStateUpdateRequest()
-                                        .indices(request.indices()).types(request.types())
+                                        .indices(concreteIndices).types(request.types())
                                         .ackTimeout(request.timeout())
                                         .masterNodeTimeout(request.masterNodeTimeout());
 

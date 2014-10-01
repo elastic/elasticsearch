@@ -15,7 +15,8 @@ Elasticsearch can usually be upgraded using a rolling upgrade process, resulting
 |1.x |1.x |Rolling Upgrade
 |=======================================================================
 
-Before upgrading from 0.90.x or any earlier version to 1.x or later, it is a good idea to consult the <<breaking-changes,breaking changes>> docs.
+TIP: Before upgrading Elasticsearch, it is a good idea to consult the
+<<breaking-changes,breaking changes>> docs.
 
 [float]
 [[backup]]
@@ -105,9 +106,8 @@ curl -XPOST 'http://localhost:9200/_cluster/nodes/_local/_shutdown'
 ** Copy the configuration files from the old Elasticsearch installation's config directory to the new Elasticsearch installation's config directory.  Move data files from the old Elasticsesarch installation's data directory if necessary.  If data files are not located within the tarball's extraction directory, they will not have to be moved.
 ** The simplest solution for moving from one version to another is to have a symbolic link for 'elasticsearch' that points to the currently running version.  This link can be easily updated and will provide a stable access point to the most recent version.  Update this symbolic link if it is being used.
 
-*To upgrade using a .deb or .rpm package:
-
-** Use rpm or deb to install the new package.  All files should be placed in their proper locations, and config files should not be overwritten.
+* To upgrade using a `.deb` or `.rpm` package:
+** Use `rpm` or `dpkg` to install the new package.  All files should be placed in their proper locations, and config files should not be overwritten.
 
 * Start the now upgraded node.  Confirm that it joins the cluster.
 

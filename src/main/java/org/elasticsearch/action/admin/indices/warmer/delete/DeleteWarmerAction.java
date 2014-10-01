@@ -23,11 +23,12 @@ import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
+ * Action for the admin/warmers/delete API.
  */
 public class DeleteWarmerAction extends IndicesAction<DeleteWarmerRequest, DeleteWarmerResponse, DeleteWarmerRequestBuilder> {
 
     public static final DeleteWarmerAction INSTANCE = new DeleteWarmerAction();
-    public static final String NAME = "indices/warmer/delete";
+    public static final String NAME = "indices:admin/warmers/delete";
 
     private DeleteWarmerAction() {
         super(NAME);

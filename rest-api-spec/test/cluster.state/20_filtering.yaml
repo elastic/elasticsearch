@@ -25,8 +25,6 @@ setup:
 
 ---
 "Filtering the cluster state by blocks should return the blocks":
-# read only index
-# TODO: can this cause issues leaving it read only when deleting it in teardown
   - do:
       indices.put_settings:
         index: testidx
@@ -43,6 +41,12 @@ setup:
   - is_false: routing_nodes
   - is_false: allocations
   - length:   { blocks: 1 }
+
+  - do:
+      indices.put_settings:
+        index: testidx
+        body:
+          index.blocks.read_only: false
 
 ---
 "Filtering the cluster state by nodes only should work":

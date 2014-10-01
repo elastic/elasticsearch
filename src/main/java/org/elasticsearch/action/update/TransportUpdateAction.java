@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -34,14 +35,12 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.instance.TransportInstanceSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -53,7 +52,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -68,22 +70,19 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     private final AutoCreateIndex autoCreateIndex;
     private final TransportCreateIndexAction createIndexAction;
     private final UpdateHelper updateHelper;
+    private final IndicesService indicesService;
 
     @Inject
     public TransportUpdateAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                  TransportIndexAction indexAction, TransportDeleteAction deleteAction, TransportCreateIndexAction createIndexAction,
-                                 UpdateHelper updateHelper) {
-        super(settings, threadPool, clusterService, transportService);
+                                 UpdateHelper updateHelper, ActionFilters actionFilters, IndicesService indicesService) {
+        super(settings, UpdateAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indexAction = indexAction;
         this.deleteAction = deleteAction;
         this.createIndexAction = createIndexAction;
         this.updateHelper = updateHelper;
+        this.indicesService = indicesService;
         this.autoCreateIndex = new AutoCreateIndex(settings);
-    }
-
-    @Override
-    protected String transportAction() {
-        return UpdateAction.NAME;
     }
 
     @Override
@@ -102,30 +101,16 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, UpdateRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
-    }
-
-    @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, UpdateRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
-    }
-
-    @Override
     protected boolean retryOnFailure(Throwable e) {
         return TransportActions.isShardNotAvailableException(e);
     }
 
     @Override
-    protected boolean resolveRequest(ClusterState state, UpdateRequest request, ActionListener<UpdateResponse> listener) {
-        MetaData metaData = clusterService.state().metaData();
-        String aliasOrIndex = request.index();
-        request.routing((metaData.resolveIndexRouting(request.routing(), aliasOrIndex)));
-        request.index(metaData.concreteSingleIndex(request.index()));
-
+    protected boolean resolveRequest(ClusterState state, InternalRequest request, ActionListener<UpdateResponse> listener) {
+        request.request().routing((state.metaData().resolveIndexRouting(request.request().routing(), request.request().index())));
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
-        if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {
-            throw new RoutingMissingException(request.index(), request.type(), request.id());
+        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
+            throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
         }
         return true;
     }
@@ -135,7 +120,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
             request.beforeLocalFork(); // we fork on another thread...
-            createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(update api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(new CreateIndexRequest(request).index(request.index()).cause("auto(update api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);
@@ -165,12 +150,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected ShardIterator shards(ClusterState clusterState, UpdateRequest request) throws ElasticsearchException {
-        if (request.shardId() != -1) {
-            return clusterState.routingTable().index(request.index()).shard(request.shardId()).primaryShardIt();
+    protected ShardIterator shards(ClusterState clusterState, InternalRequest request) throws ElasticsearchException {
+        if (request.request().shardId() != -1) {
+            return clusterState.routingTable().index(request.concreteIndex()).shard(request.request().shardId()).primaryShardIt();
         }
         ShardIterator shardIterator = clusterService.operationRouting()
-                .indexShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
+                .indexShards(clusterState, request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing());
         ShardRouting shard;
         while ((shard = shardIterator.nextOrNull()) != null) {
             if (shard.primary()) {
@@ -181,24 +166,26 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener) throws ElasticsearchException {
+    protected void shardOperation(final InternalRequest request, final ActionListener<UpdateResponse> listener) throws ElasticsearchException {
         shardOperation(request, listener, 0);
     }
 
-    protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) throws ElasticsearchException {
-        final UpdateHelper.Result result = updateHelper.prepare(request);
+    protected void shardOperation(final InternalRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) throws ElasticsearchException {
+        IndexService indexService = indicesService.indexServiceSafe(request.concreteIndex());
+        IndexShard indexShard = indexService.shardSafe(request.request().shardId());
+        final UpdateHelper.Result result = updateHelper.prepare(request.request(), indexShard);
         switch (result.operation()) {
             case UPSERT:
-                IndexRequest upsertRequest = result.action();
+                IndexRequest upsertRequest = new IndexRequest((IndexRequest)result.action(), request.request());
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 indexAction.execute(upsertRequest, new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
-                        if (request.fields() != null && request.fields().length > 0) {
+                        if (request.request().fields() != null && request.request().fields().length > 0) {
                             Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(upsertSourceBytes, true);
-                            update.setGetResult(updateHelper.extractGetResult(request, response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
+                            update.setGetResult(updateHelper.extractGetResult(request.request(), request.concreteIndex(), response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
                         } else {
                             update.setGetResult(null);
                         }
@@ -209,10 +196,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     public void onFailure(Throwable e) {
                         e = ExceptionsHelper.unwrapCause(e);
                         if (e instanceof VersionConflictEngineException || e instanceof DocumentAlreadyExistsException) {
-                            if (retryCount < request.retryOnConflict()) {
-                                threadPool.executor(executor()).execute(new Runnable() {
+                            if (retryCount < request.request().retryOnConflict()) {
+                                threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
                                     @Override
-                                    public void run() {
+                                    protected void doRun() {
                                         shardOperation(request, listener, retryCount + 1);
                                     }
                                 });
@@ -224,14 +211,14 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case INDEX:
-                IndexRequest indexRequest = result.action();
+                IndexRequest indexRequest = new IndexRequest((IndexRequest)result.action(), request.request());
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
                 indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
-                        update.setGetResult(updateHelper.extractGetResult(request, response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
+                        update.setGetResult(updateHelper.extractGetResult(request.request(), request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
                         listener.onResponse(update);
                     }
 
@@ -239,10 +226,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     public void onFailure(Throwable e) {
                         e = ExceptionsHelper.unwrapCause(e);
                         if (e instanceof VersionConflictEngineException) {
-                            if (retryCount < request.retryOnConflict()) {
-                                threadPool.executor(executor()).execute(new Runnable() {
+                            if (retryCount < request.request().retryOnConflict()) {
+                                threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
                                     @Override
-                                    public void run() {
+                                    protected void doRun() {
                                         shardOperation(request, listener, retryCount + 1);
                                     }
                                 });
@@ -254,12 +241,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case DELETE:
-                DeleteRequest deleteRequest = result.action();
+                DeleteRequest deleteRequest = new DeleteRequest((DeleteRequest)result.action(), request.request());
                 deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                     @Override
                     public void onResponse(DeleteResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion(), false);
-                        update.setGetResult(updateHelper.extractGetResult(request, response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
+                        update.setGetResult(updateHelper.extractGetResult(request.request(), request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
                         listener.onResponse(update);
                     }
 
@@ -267,10 +254,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     public void onFailure(Throwable e) {
                         e = ExceptionsHelper.unwrapCause(e);
                         if (e instanceof VersionConflictEngineException) {
-                            if (retryCount < request.retryOnConflict()) {
-                                threadPool.executor(executor()).execute(new Runnable() {
+                            if (retryCount < request.request().retryOnConflict()) {
+                                threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
                                     @Override
-                                    public void run() {
+                                    protected void doRun() {
                                         shardOperation(request, listener, retryCount + 1);
                                     }
                                 });
@@ -283,6 +270,13 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 break;
             case NONE:
                 UpdateResponse update = result.action();
+                IndexService indexServiceOrNull = indicesService.indexService(request.concreteIndex());
+                if (indexServiceOrNull !=  null) {
+                    IndexShard shard = indexService.shard(request.request().shardId());
+                    if (shard != null) {
+                        shard.indexingService().noopUpdate(request.request().type());
+                    }
+                }
                 listener.onResponse(update);
                 break;
             default:

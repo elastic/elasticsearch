@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -68,6 +69,7 @@ public class StatisticalFacetParser extends AbstractComponent implements FacetPa
 
         String script = null;
         String scriptLang = null;
+        ScriptService.ScriptType scriptType = null;
         Map<String, Object> params = null;
 
         String currentFieldName = null;
@@ -92,6 +94,13 @@ public class StatisticalFacetParser extends AbstractComponent implements FacetPa
                     field = parser.text();
                 } else if ("script".equals(currentFieldName)) {
                     script = parser.text();
+                    scriptType = ScriptService.ScriptType.INLINE;
+                } else if ("script_id".equals(currentFieldName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.INDEXED;
+                } else if ("file".equals(currentFieldName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.FILE;
                 } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
                 }
@@ -125,7 +134,7 @@ public class StatisticalFacetParser extends AbstractComponent implements FacetPa
             IndexNumericFieldData indexFieldData = context.fieldData().getForField(fieldMapper);
             return new StatisticalFacetExecutor(indexFieldData, context);
         } else {
-            return new ScriptStatisticalFacetExecutor(scriptLang, script, params, context);
+            return new ScriptStatisticalFacetExecutor(scriptLang, script, scriptType, params, context);
         }
     }
 }

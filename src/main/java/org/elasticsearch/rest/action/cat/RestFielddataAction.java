@@ -29,10 +29,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
@@ -49,8 +46,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestFielddataAction extends AbstractCatAction {
 
     @Inject
-    public RestFielddataAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestFielddataAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/fielddata", this);
         controller.registerHandler(GET, "/_cat/fielddata/{fields}", this);
     }

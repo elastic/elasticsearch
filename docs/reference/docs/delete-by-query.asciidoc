@@ -20,7 +20,7 @@ $ curl -XDELETE 'http://localhost:9200/twitter/tweet/_query' -d '{
 --------------------------------------------------
 
 NOTE: The query being sent in the body must be nested in a `query` key, same as
-the <<search-search,search api>> works added[1.0.0.RC1,The query was previously the top-level object].
+the <<search-search,search api>> works
 
 Both above examples end up doing the same thing, which is delete all
 tweets from the twitter index for a certain user. The result of the
@@ -148,3 +148,9 @@ at least 2 active shards within the relevant partition (`quorum`) for
 the operation to succeed. In a N shards with 1 replica scenario, there
 will need to be a single shard active (in this case, `one` and `quorum`
 is the same).
+
+[float]
+[[limitations]]
+=== Limitations
+
+The delete by query does not support the following queries and filters: `has_child`, `has_parent` and `top_children`.

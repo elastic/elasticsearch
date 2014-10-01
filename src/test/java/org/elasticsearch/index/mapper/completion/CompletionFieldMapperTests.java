@@ -22,9 +22,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -34,7 +33,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class CompletionFieldMapperTests extends ElasticsearchTestCase {
+public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testDefaultConfiguration() throws IOException {
@@ -44,7 +43,7 @@ public class CompletionFieldMapperTests extends ElasticsearchTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         FieldMapper fieldMapper = defaultMapper.mappers().name("completion").mapper();
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
@@ -68,7 +67,7 @@ public class CompletionFieldMapperTests extends ElasticsearchTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         FieldMapper fieldMapper = defaultMapper.mappers().name("completion").mapper();
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
@@ -97,7 +96,7 @@ public class CompletionFieldMapperTests extends ElasticsearchTestCase {
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         FieldMapper fieldMapper = defaultMapper.mappers().name("completion").mapper();
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));

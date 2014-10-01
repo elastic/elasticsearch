@@ -83,7 +83,7 @@ public class ParsingTests extends ElasticsearchIntegrationTest {
     @Test(expected=SearchPhaseExecutionException.class)
     public void testInvalidAggregationName() throws Exception {
 
-        Matcher matcher = Pattern.compile("[a-zA-Z0-9\\-_]+").matcher("");
+        Matcher matcher = Pattern.compile("[^\\[\\]>]+").matcher("");
         String name;
         SecureRandom rand = new SecureRandom();
         int len = randomIntBetween(1, 5);

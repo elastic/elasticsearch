@@ -23,11 +23,11 @@ import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LongValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
@@ -113,7 +113,7 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
     class Collector extends FacetExecutor.Collector {
 
         private final Aggregator aggregator;
-        private LongValues keyValues;
+        private SortedNumericDocValues keyValues;
 
         public Collector() {
             if (script == null) {
@@ -154,7 +154,7 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
     public static class Aggregator extends LongFacetAggregatorBase {
 
         final LongObjectOpenHashMap<InternalTermsStatsLongFacet.LongEntry> entries;
-        DoubleValues valueValues;
+        SortedNumericDoubleValues valueValues;
         final ValueAggregator valueAggregator = new ValueAggregator();
 
         public Aggregator(LongObjectOpenHashMap<InternalTermsStatsLongFacet.LongEntry> entries) {

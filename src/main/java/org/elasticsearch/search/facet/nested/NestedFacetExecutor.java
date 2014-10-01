@@ -29,6 +29,7 @@ import org.elasticsearch.common.lucene.docset.ContextDocIdSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.common.lucene.search.XCollector;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -46,8 +47,8 @@ import java.util.List;
 public class NestedFacetExecutor extends FacetExecutor {
 
     private final FacetExecutor facetExecutor;
-    private final Filter parentFilter;
-    private final Filter childFilter;
+    private final FixedBitSetFilter parentFilter;
+    private final FixedBitSetFilter childFilter;
 
     public NestedFacetExecutor(FacetExecutor facetExecutor, SearchContext context, String nestedPath) {
         this.facetExecutor = facetExecutor;
@@ -62,8 +63,8 @@ public class NestedFacetExecutor extends FacetExecutor {
         if (!objectMapper.nested().isNested()) {
             throw new SearchParseException(context, "facet nested path [" + nestedPath + "] is not nested");
         }
-        parentFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
-        childFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
+        parentFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
+        childFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
     }
 
     @Override

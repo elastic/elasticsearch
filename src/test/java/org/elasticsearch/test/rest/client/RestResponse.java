@@ -44,7 +44,21 @@ public class RestResponse {
         return response.getReasonPhrase();
     }
 
-    public String getBody() {
+    /**
+     * Returns the body properly parsed depending on the content type.
+     * Might be a string or a json object parsed as a map.
+     */
+    public Object getBody() throws IOException {
+        if (isJson()) {
+            return parsedResponse().evaluate("");
+        }
+        return response.getBody();
+    }
+
+    /**
+     * Returns the body as a string
+     */
+    public String getBodyAsString() {
         return response.getBody();
     }
 
@@ -74,6 +88,11 @@ public class RestResponse {
         }
 
         return jsonPath.evaluate(path);
+    }
+
+    private boolean isJson() {
+        String contentType = response.getHeaders().get("Content-Type");
+        return contentType != null && contentType.contains("application/json");
     }
 
     private JsonPath parsedResponse() throws IOException {

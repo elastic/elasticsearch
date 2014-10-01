@@ -43,7 +43,8 @@ public class FailedNodeRoutingTests extends ElasticsearchAllocationTestCase {
 
     @Test
     public void simpleFailedNodeTest() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
@@ -103,7 +104,8 @@ public class FailedNodeRoutingTests extends ElasticsearchAllocationTestCase {
 
     @Test
     public void simpleFailedNodeTestNoReassign() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))

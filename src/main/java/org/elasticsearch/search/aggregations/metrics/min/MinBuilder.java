@@ -22,10 +22,13 @@ package org.elasticsearch.search.aggregations.metrics.min;
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
 
 /**
- *
+ * Builder for the {@link Min} aggregation.
  */
 public class MinBuilder extends ValuesSourceMetricsAggregationBuilder<MinBuilder> {
 
+    /**
+     * Sole constructor.
+     */
     public MinBuilder(String name) {
         super(name, InternalMin.TYPE.name());
     }

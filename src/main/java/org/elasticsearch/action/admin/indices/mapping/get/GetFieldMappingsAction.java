@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class GetFieldMappingsAction extends IndicesAction<GetFieldMappingsRequest, GetFieldMappingsResponse, GetFieldMappingsRequestBuilder> {
 
     public static final GetFieldMappingsAction INSTANCE = new GetFieldMappingsAction();
-    public static final String NAME = "mappings/fields/get";
+    public static final String NAME = "indices:admin/mappings/fields/get";
 
     private GetFieldMappingsAction() {
         super(NAME);

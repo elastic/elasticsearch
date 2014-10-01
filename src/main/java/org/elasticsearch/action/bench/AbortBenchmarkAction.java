@@ -28,7 +28,7 @@ import org.elasticsearch.client.Client;
 public class AbortBenchmarkAction extends ClientAction<AbortBenchmarkRequest, AbortBenchmarkResponse, AbortBenchmarkRequestBuilder> {
 
     public static final AbortBenchmarkAction INSTANCE = new AbortBenchmarkAction();
-    public static final String NAME = "benchmark/abort";
+    public static final String NAME = "indices:data/benchmark/abort";
 
     private AbortBenchmarkAction() {
         super(NAME);

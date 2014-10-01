@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.broadcast;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterService;
@@ -50,21 +51,18 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
     protected final ClusterService clusterService;
     protected final TransportService transportService;
 
-    final String transportAction;
     final String transportShardAction;
     final String executor;
 
-    protected TransportBroadcastOperationAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-        super(settings, threadPool);
+    protected TransportBroadcastOperationAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        super(settings, actionName, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
-
-        this.transportAction = transportAction();
-        this.transportShardAction = transportAction() + "/s";
+        this.transportShardAction = actionName + "[s]";
         this.executor = executor();
 
-        transportService.registerHandler(transportAction, new TransportHandler());
+        transportService.registerHandler(actionName, new TransportHandler());
         transportService.registerHandler(transportShardAction, new ShardTransportHandler());
     }
 
@@ -72,8 +70,6 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
     protected void doExecute(Request request, ActionListener<Response> listener) {
         new AsyncBroadcastAction(request, listener).start();
     }
-
-    protected abstract String transportAction();
 
     protected abstract String executor();
 
@@ -99,7 +95,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
 
-    class AsyncBroadcastAction {
+    protected class AsyncBroadcastAction {
 
         private final Request request;
         private final ActionListener<Response> listener;
@@ -110,7 +106,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         private final AtomicInteger counterOps = new AtomicInteger();
         private final AtomicReferenceArray shardsResponses;
 
-        AsyncBroadcastAction(Request request, ActionListener<Response> listener) {
+        protected AsyncBroadcastAction(Request request, ActionListener<Response> listener) {
             this.request = request;
             this.listener = listener;
 
@@ -160,7 +156,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
         }
 
-        void performOperation(final ShardIterator shardIt, final ShardRouting shard, final int shardIndex) {
+        protected void performOperation(final ShardIterator shardIt, final ShardRouting shard, final int shardIndex) {
             if (shard == null) {
                 // no more active shards... (we should not really get here, just safety)
                 onOperation(null, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
@@ -214,7 +210,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         }
 
         @SuppressWarnings({"unchecked"})
-        void onOperation(ShardRouting shard, int shardIndex, ShardResponse response) {
+        protected void onOperation(ShardRouting shard, int shardIndex, ShardResponse response) {
             shardsResponses.set(shardIndex, response);
             if (expectedOps == counterOps.incrementAndGet()) {
                 finishHim();
@@ -241,7 +237,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 if (logger.isDebugEnabled()) {
                     if (t != null) {
                         if (!TransportActions.isShardNotAvailableException(t)) {
-                            logger.debug("{}: failed to executed [{}]", t, shard != null ? shard.shortSummary() : shardIt.shardId(), request);
+                            logger.debug("{}: failed to execute [{}]", t, shard != null ? shard.shortSummary() : shardIt.shardId(), request);
                         }
                     }
                 }
@@ -251,7 +247,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
         }
 
-        void finishHim() {
+        protected void finishHim() {
             try {
                 listener.onResponse(newResponse(request, shardsResponses, clusterState));
             } catch (Throwable e) {

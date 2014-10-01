@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.broadcast;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,24 +32,30 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequest> extends ActionRequest<T> {
+public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequest> extends ActionRequest<T> implements IndicesRequest.Replaceable {
 
     protected String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
     protected BroadcastOperationRequest() {
 
+    }
+
+    protected BroadcastOperationRequest(ActionRequest originalRequest) {
+        super(originalRequest);
     }
 
     protected BroadcastOperationRequest(String[] indices) {
         this.indices = indices;
     }
 
+    @Override
     public String[] indices() {
         return indices;
     }
 
     @SuppressWarnings("unchecked")
+    @Override
     public final T indices(String... indices) {
         this.indices = indices;
         return (T) this;
@@ -59,6 +66,7 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
         return null;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

@@ -39,6 +39,9 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
     private List<AbstractAggregationBuilder> aggregations;
     private BytesReference aggregationsBinary;
 
+    /**
+     * Sole constructor, typically used by sub-classes.
+     */
     protected AggregationBuilder(String name, String type) {
         super(name, type);
     }
@@ -100,7 +103,7 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        builder.startObject(getName());
 
         builder.field(type);
         internalXContent(builder, params);

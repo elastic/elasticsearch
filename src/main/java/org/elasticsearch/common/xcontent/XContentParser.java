@@ -20,8 +20,8 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lease.Releasable;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 
@@ -35,7 +35,7 @@ import java.util.Map;
  *     XContentParser parser = xContentType.xContent().createParser("{\"key\" : \"value\"}");
  * </pre>
  */
-public interface XContentParser extends Closeable {
+public interface XContentParser extends Releasable {
 
     enum Token {
         START_OBJECT {
@@ -138,14 +138,48 @@ public interface XContentParser extends Closeable {
 
     String textOrNull() throws IOException;
 
+    /**
+     * Returns a BytesRef holding UTF-8 bytes or null if a null value is {@link Token#VALUE_NULL}.
+     * This method should be used to read text only binary content should be read through {@link #binaryValue()}
+     */
+    BytesRef utf8BytesOrNull() throws IOException;
+
+    /**
+     * Returns a BytesRef holding UTF-8 bytes.
+     * This method should be used to read text only binary content should be read through {@link #binaryValue()}
+     */
+    BytesRef utf8Bytes() throws IOException;
+
+    /**
+     * Returns a BytesRef holding UTF-8 bytes or null if a null value is {@link Token#VALUE_NULL}.
+     * This method should be used to read text only binary content should be read through {@link #binaryValue()}
+     * @deprecated  use {@link #utf8BytesOrNull()} instead
+     */
+    @Deprecated
     BytesRef bytesOrNull() throws IOException;
 
+    /**
+     * Returns a BytesRef holding UTF-8 bytes.
+     * This method should be used to read text only binary content should be read through {@link #binaryValue()}
+     * @deprecated  use {@link #utf8Bytes()} instead
+     */
+    @Deprecated
     BytesRef bytes() throws IOException;
 
     Object objectText() throws IOException;
 
     Object objectBytes() throws IOException;
 
+    /**
+     * Method that can be used to determine whether calling of textCharacters() would be the most efficient way to
+     * access textual content for the event parser currently points to.
+     *
+     * Default implementation simply returns false since only actual
+     * implementation class has knowledge of its internal buffering
+     * state.
+     *
+     * This method shouldn't be used to check if the token contains text or not.
+     */
     boolean hasTextCharacters();
 
     char[] textCharacters() throws IOException;
@@ -195,7 +229,31 @@ public interface XContentParser extends Closeable {
 
     boolean booleanValue() throws IOException;
 
+    /**
+     * Reads a plain binary value that was written via one of the following methods:
+     *
+     * <li>
+     *     <ul>{@link XContentBuilder#field(String, org.elasticsearch.common.bytes.BytesReference)}</ul>
+     *     <ul>{@link XContentBuilder#field(String, byte[], int, int)}}</ul>
+     *     <ul>{@link XContentBuilder#field(String, byte[])}}</ul>
+     * </li>
+     *
+     * as well as via their <code>XContentBuilderString</code> variants of the separated value methods.
+     * Note: Do not use this method to read values written with:
+     * <li>
+     *     <ul>{@link XContentBuilder#utf8Field(XContentBuilderString, org.apache.lucene.util.BytesRef)}</ul>
+     *     <ul>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</ul>
+     * </li>
+     *
+     * these methods write UTF-8 encoded strings and must be read through:
+     * <li>
+     *     <ul>{@link XContentParser#utf8Bytes()}</ul>
+     *     <ul>{@link XContentParser#utf8BytesOrNull()}}</ul>
+     *     <ul>{@link XContentParser#text()} ()}</ul>
+     *     <ul>{@link XContentParser#textOrNull()} ()}</ul>
+     *     <ul>{@link XContentParser#textCharacters()} ()}}</ul>
+     * </li>
+     *
+     */
     byte[] binaryValue() throws IOException;
-
-    void close();
 }

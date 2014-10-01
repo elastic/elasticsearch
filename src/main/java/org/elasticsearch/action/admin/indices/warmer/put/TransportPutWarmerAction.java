@@ -21,8 +21,10 @@ package org.elasticsearch.action.admin.indices.warmer.put;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
@@ -45,7 +47,9 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Put warmer action.
+ * Internal Actions executed on the master associating a warmer with a name in the cluster state metadata.
+ *
+ * Note: this is an internal API and should not be used / called by any client code.
  */
 public class TransportPutWarmerAction extends TransportMasterNodeOperationAction<PutWarmerRequest, PutWarmerResponse> {
 
@@ -53,19 +57,14 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
 
     @Inject
     public TransportPutWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                    TransportSearchAction searchAction) {
-        super(settings, transportService, clusterService, threadPool);
+                                    TransportSearchAction searchAction, ActionFilters actionFilters) {
+        super(settings, PutWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.searchAction = searchAction;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return PutWarmerAction.NAME;
     }
 
     @Override
@@ -87,7 +86,8 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
     @Override
     protected void masterOperation(final PutWarmerRequest request, final ClusterState state, final ActionListener<PutWarmerResponse> listener) throws ElasticsearchException {
         // first execute the search request, see that its ok...
-        searchAction.execute(request.searchRequest(), new ActionListener<SearchResponse>() {
+        SearchRequest searchRequest = new SearchRequest(request.searchRequest(), request);
+        searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 if (searchResponse.getFailedShards() > 0) {
@@ -131,21 +131,21 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                             IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
                             if (warmers == null) {
                                 logger.info("[{}] putting warmer [{}]", index, request.name());
-                                warmers = new IndexWarmersMetaData(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), source));
+                                warmers = new IndexWarmersMetaData(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), request.searchRequest().queryCache(), source));
                             } else {
                                 boolean found = false;
                                 List<IndexWarmersMetaData.Entry> entries = new ArrayList<>(warmers.entries().size() + 1);
                                 for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
                                     if (entry.name().equals(request.name())) {
                                         found = true;
-                                        entries.add(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), source));
+                                        entries.add(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), request.searchRequest().queryCache(), source));
                                     } else {
                                         entries.add(entry);
                                     }
                                 }
                                 if (!found) {
                                     logger.info("[{}] put warmer [{}]", index, request.name());
-                                    entries.add(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), source));
+                                    entries.add(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), request.searchRequest().queryCache(), source));
                                 } else {
                                     logger.info("[{}] update warmer [{}]", index, request.name());
                                 }

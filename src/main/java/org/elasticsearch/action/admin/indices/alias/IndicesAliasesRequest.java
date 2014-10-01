@@ -22,7 +22,9 @@ package org.elasticsearch.action.admin.indices.alias;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -37,10 +39,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.cluster.metadata.AliasAction.readAliasAction;
@@ -48,7 +47,7 @@ import static org.elasticsearch.cluster.metadata.AliasAction.readAliasAction;
 /**
  * A request to add/remove aliases for one or more indices.
  */
-public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> {
+public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements IndicesRequest {
 
     private List<AliasActions> allAliasActions = Lists.newArrayList();
     
@@ -135,6 +134,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }
         
         public void indices(String... indices) {
+            if (indices == null) {
+                throw new ElasticsearchIllegalArgumentException("indices must not be null");
+            }
             List<String> finalIndices = new ArrayList<>();
             for (String index : indices) {
                 if (index != null) {
@@ -310,6 +312,17 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     }
 
     @Override
+    public String[] indices() {
+        List<String> indices = Lists.newArrayList();
+        for (AliasActions aliasActions : aliasActions()) {
+            if (!CollectionUtils.isEmpty(aliasActions.indices())) {
+                Collections.addAll(indices, aliasActions.indices);
+            }
+        }
+        return indices.toArray(new String[indices.size()]);
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
@@ -329,6 +342,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         writeTimeout(out);
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
@@ -44,10 +46,10 @@ import java.io.IOException;
  */
 public class GetRequest extends SingleShardOperationRequest<GetRequest> {
 
-    protected String type;
-    protected String id;
-    protected String routing;
-    protected String preference;
+    private String type;
+    private String id;
+    private String routing;
+    private String preference;
 
     private String[] fields;
 
@@ -59,9 +61,30 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
 
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
+    private boolean ignoreErrorsOnGeneratedFields;
 
     GetRequest() {
         type = "_all";
+    }
+
+    /**
+     * Copy constructor that creates a new get request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    public GetRequest(GetRequest getRequest, ActionRequest originalRequest) {
+        super(originalRequest);
+        this.index = getRequest.index;
+        this.type = getRequest.type;
+        this.id = getRequest.id;
+        this.routing = getRequest.routing;
+        this.preference = getRequest.preference;
+        this.fields = getRequest.fields;
+        this.fetchSourceContext = getRequest.fetchSourceContext;
+        this.refresh = getRequest.refresh;
+        this.realtime = getRequest.realtime;
+        this.version = getRequest.version;
+        this.versionType = getRequest.versionType;
+        this.ignoreErrorsOnGeneratedFields = getRequest.ignoreErrorsOnGeneratedFields;
     }
 
     /**
@@ -71,6 +94,14 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
     public GetRequest(String index) {
         super(index);
         this.type = "_all";
+    }
+
+    /**
+     * Constructs a new get request starting from the provided request, meaning that it will
+     * inherit its headers and context, and against the specified index.
+     */
+    public GetRequest(ActionRequest request, String index) {
+        super(request, index);
     }
 
     /**
@@ -240,8 +271,17 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         return this;
     }
 
+    public GetRequest ignoreErrorsOnGeneratedFields(boolean ignoreErrorsOnGeneratedFields) {
+        this.ignoreErrorsOnGeneratedFields = ignoreErrorsOnGeneratedFields;
+        return this;
+    }
+
     public VersionType versionType() {
         return this.versionType;
+    }
+
+    public boolean ignoreErrorsOnGeneratedFields() {
+        return ignoreErrorsOnGeneratedFields;
     }
 
     @Override
@@ -264,6 +304,9 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
             this.realtime = false;
         } else if (realtime == 1) {
             this.realtime = true;
+        }
+        if(in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            this.ignoreErrorsOnGeneratedFields = in.readBoolean();
         }
 
         this.versionType = VersionType.fromValue(in.readByte());
@@ -291,12 +334,14 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         }
         if (realtime == null) {
             out.writeByte((byte) -1);
-        } else if (realtime == false) {
+        } else if (!realtime) {
             out.writeByte((byte) 0);
         } else {
             out.writeByte((byte) 1);
         }
-
+        if(out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            out.writeBoolean(ignoreErrorsOnGeneratedFields);
+        }
         out.writeByte(versionType.getValue());
         Versions.writeVersionWithVLongForBW(version, out);
 
@@ -305,6 +350,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
 
     @Override
     public String toString() {
-        return "[" + index + "][" + type + "][" + id + "]: routing [" + routing + "]";
+        return "get [" + index + "][" + type + "][" + id + "]: routing [" + routing + "]";
     }
+
 }

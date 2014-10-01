@@ -83,15 +83,19 @@ include::search/request-body.asciidoc[]
 
 include::search/search-template.asciidoc[]
 
-include::search/facets.asciidoc[]
+include::search/search-shards.asciidoc[]
 
 include::search/aggregations.asciidoc[]
+
+include::search/facets.asciidoc[]
 
 include::search/suggesters.asciidoc[]
 
 include::search/multi-search.asciidoc[]
 
 include::search/count.asciidoc[]
+
+include::search/exists.asciidoc[]
 
 include::search/validate.asciidoc[]
 

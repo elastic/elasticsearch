@@ -19,18 +19,41 @@
 
 package org.elasticsearch.index.analysis;
 
+import com.carrotsearch.hppc.IntObjectOpenHashMap;
+import com.google.common.collect.Maps;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  *
  */
 public class NumericDateAnalyzer extends NumericAnalyzer<NumericDateTokenizer> {
 
-    private final int precisionStep;
+    private static final Map<String, IntObjectOpenHashMap<NamedAnalyzer>> globalAnalyzers = Maps.newHashMap();
 
+    public static synchronized NamedAnalyzer buildNamedAnalyzer(FormatDateTimeFormatter formatter, int precisionStep) {
+        IntObjectOpenHashMap<NamedAnalyzer> precisionMap = globalAnalyzers.get(formatter.format());
+        if (precisionMap == null) {
+            precisionMap = new IntObjectOpenHashMap<>();
+            globalAnalyzers.put(formatter.format(), precisionMap);
+        }
+        NamedAnalyzer namedAnalyzer = precisionMap.get(precisionStep);
+        if (namedAnalyzer == null) {
+            String name = "_date/" + ((precisionStep == Integer.MAX_VALUE) ? "max" : precisionStep);
+            namedAnalyzer = new NamedAnalyzer(name, AnalyzerScope.GLOBAL, new NumericDateAnalyzer(precisionStep, formatter.parser()));
+            precisionMap.put(precisionStep, namedAnalyzer);
+        }
+        return namedAnalyzer;
+    }
+
+    private final int precisionStep;
     private final DateTimeFormatter dateTimeFormatter;
 
     public NumericDateAnalyzer(int precisionStep, DateTimeFormatter dateTimeFormatter) {

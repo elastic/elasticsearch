@@ -298,8 +298,8 @@
 # and master node is elected. Multicast discovery is the default.
 
 # Set to ensure a node sees N other master eligible nodes to be considered
-# operational within the cluster. Its recommended to set it to a higher value
-# than 1 when running more than 2 nodes in the cluster.
+# operational within the cluster. This should be set to a quorum/majority of 
+# the master-eligible nodes in the cluster.
 #
 #discovery.zen.minimum_master_nodes: 1
 
@@ -378,8 +378,8 @@
 
 ################################## Security ################################
 
-# Uncomment if you want to disable JSONP as a valid return transport on the
+# Uncomment if you want to enable JSONP as a valid return transport on the
 # http server. With this enabled, it may pose a security risk, so disabling
-# it unless you need it is recommended.
+# it unless you need it is recommended (it is disabled by default).
 #
-#http.jsonp.enable: false
+#http.jsonp.enable: true

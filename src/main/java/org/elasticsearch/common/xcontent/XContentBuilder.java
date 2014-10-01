@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -47,7 +48,7 @@ import java.util.Map;
 /**
  *
  */
-public final class XContentBuilder implements BytesStream {
+public final class XContentBuilder implements BytesStream, Releasable {
 
     public static enum FieldCaseConversion {
         /**
@@ -511,6 +512,10 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    /**
+     * Writes the binary content of the given BytesReference
+     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
+     */
     public XContentBuilder field(String name, BytesReference value) throws IOException {
         field(name);
         if (!value.hasArray()) {
@@ -520,6 +525,10 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    /**
+     * Writes the binary content of the given BytesReference
+     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
+     */
     public XContentBuilder field(XContentBuilderString name, BytesReference value) throws IOException {
         field(name);
         if (!value.hasArray()) {
@@ -529,6 +538,20 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    /**
+     * Writes the binary content of the given BytesRef as UTF-8 bytes
+     * Use {@link XContentParser#utf8Bytes()} to read the value back
+     */
+    public XContentBuilder utf8Field(String name, BytesRef value) throws IOException {
+        field(name);
+        generator.writeUTF8String(value.bytes, value.offset, value.length);
+        return this;
+    }
+
+    /**
+     * Writes the binary content of the given BytesRef as UTF-8 bytes
+     * Use {@link XContentParser#utf8Bytes()} to read the value back
+     */
     public XContentBuilder utf8Field(XContentBuilderString name, BytesRef value) throws IOException {
         field(name);
         generator.writeUTF8String(value.bytes, value.offset, value.length);
@@ -998,6 +1021,22 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    /**
+     * Writes the binary content of the given BytesRef
+     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
+     */
+    public XContentBuilder value(BytesRef value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
+        generator.writeBinary(value.bytes, value.offset, value.length);
+        return this;
+    }
+
+    /**
+     * Writes the binary content of the given BytesReference
+     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
+     */
     public XContentBuilder value(BytesReference value) throws IOException {
         if (value == null) {
             return nullValue();
@@ -1026,7 +1065,7 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
-    public XContentBuilder map(Map<String, Object> map) throws IOException {
+    public XContentBuilder map(Map<String, ?> map) throws IOException {
         if (map == null) {
             return nullValue();
         }
@@ -1104,8 +1143,6 @@ public final class XContentBuilder implements BytesStream {
 
     /**
      * Returns a string representation of the builder (only applicable for text based xcontent).
-     * <p/>
-     * <p>Only applicable when the builder is constructed with {@link FastByteArrayOutputStream}.
      */
     public String string() throws IOException {
         close();
@@ -1114,10 +1151,10 @@ public final class XContentBuilder implements BytesStream {
     }
 
 
-    private void writeMap(Map<String, Object> map) throws IOException {
+    private void writeMap(Map<String, ?> map) throws IOException {
         generator.writeStartObject();
 
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
+        for (Map.Entry<String, ?> entry : map.entrySet()) {
             field(entry.getKey());
             Object value = entry.getValue();
             if (value == null) {
@@ -1184,6 +1221,9 @@ public final class XContentBuilder implements BytesStream {
                 bytes = bytes.toBytesArray();
             }
             generator.writeBinary(bytes.array(), bytes.arrayOffset(), bytes.length());
+        } else if (value instanceof BytesRef) {
+            BytesRef bytes = (BytesRef) value;
+            generator.writeBinary(bytes.bytes, bytes.offset, bytes.length);
         } else if (value instanceof Text) {
             Text text = (Text) value;
             if (text.hasBytes() && text.bytes().hasArray()) {

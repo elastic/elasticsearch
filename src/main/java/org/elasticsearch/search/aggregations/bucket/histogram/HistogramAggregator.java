@@ -19,12 +19,12 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -53,7 +53,7 @@ public class HistogramAggregator extends BucketsAggregator {
     private final InternalHistogram.Factory histogramFactory;
 
     private final LongHash bucketOrds;
-    private LongValues values;
+    private SortedNumericDocValues values;
 
     public HistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, InternalOrder order,
                                boolean keyed, long minDocCount, @Nullable ExtendedBounds extendedBounds,
@@ -87,11 +87,12 @@ public class HistogramAggregator extends BucketsAggregator {
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        final int valuesCount = values.setDocument(doc);
+        values.setDocument(doc);
+        final int valuesCount = values.count();
 
         long previousKey = Long.MIN_VALUE;
         for (int i = 0; i < valuesCount; ++i) {
-            long value = values.nextValue();
+            long value = values.valueAt(i);
             long key = rounding.roundKey(value);
             assert key >= previousKey;
             if (key == previousKey) {

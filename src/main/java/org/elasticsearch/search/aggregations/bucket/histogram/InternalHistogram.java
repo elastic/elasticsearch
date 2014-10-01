@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
@@ -40,7 +39,6 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatterStream
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.ListIterator;
 
@@ -108,19 +106,19 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             return aggregations;
         }
 
-        <B extends Bucket> B reduce(List<B> buckets, BigArrays bigArrays) {
+        <B extends Bucket> B reduce(List<B> buckets, ReduceContext context) {
             List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
             long docCount = 0;
             for (Bucket bucket : buckets) {
                 docCount += bucket.docCount;
                 aggregations.add((InternalAggregations) bucket.getAggregations());
             }
-            InternalAggregations aggs = InternalAggregations.reduce(aggregations, bigArrays);
+            InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
             return (B) getFactory().createBucket(key, docCount, aggs, formatter);
         }
 
         void toXContent(XContentBuilder builder, Params params, boolean keyed, @Nullable ValueFormatter formatter) throws IOException {
-            if (formatter != null) {
+            if (formatter != null && formatter != ValueFormatter.RAW) {
                 Text keyTxt = new StringText(formatter.format(key));
                 if (keyed) {
                     builder.startObject(keyTxt.string());
@@ -230,7 +228,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     @Override
-    public Collection<B> getBuckets() {
+    public List<B> getBuckets() {
         return buckets;
     }
 
@@ -274,7 +272,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         List<B> reducedBuckets = new ArrayList<>((int) bucketsByKey.size());
         for (LongObjectPagedHashMap.Cursor<List<B>> cursor : bucketsByKey) {
             List<B> sameTermBuckets = cursor.value;
-            B bucket = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.bigArrays());
+            B bucket = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
             if (bucket.getDocCount() >= minDocCount) {
                 reducedBuckets.add(bucket);
             }
@@ -320,10 +318,11 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 B nextBucket = list.get(iter.nextIndex());
                 if (lastBucket != null) {
                     long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
-                    while (key != nextBucket.key) {
+                    while (key < nextBucket.key) {
                         iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
                         key = emptyBucketInfo.rounding.nextRoundingValue(key);
                     }
+                    assert key == nextBucket.key;
                 }
                 lastBucket = iter.next();
             }
@@ -391,8 +390,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject(CommonFields.BUCKETS);
         } else {
@@ -406,7 +404,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         } else {
             builder.endArray();
         }
-        return builder.endObject();
+        return builder;
     }
 
 }

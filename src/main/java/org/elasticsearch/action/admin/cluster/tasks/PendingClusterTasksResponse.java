@@ -89,10 +89,11 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
         builder.startArray(Fields.TASKS);
         for (PendingClusterTask pendingClusterTask : this) {
             builder.startObject();
-            builder.field(Fields.INSERT_ORDER, pendingClusterTask.insertOrder());
-            builder.field(Fields.PRIORITY, pendingClusterTask.priority());
-            builder.field(Fields.SOURCE, pendingClusterTask.source());
-            builder.field(Fields.TIME_IN_QUEUE_MILLIS, pendingClusterTask.timeInQueueInMillis());
+            builder.field(Fields.INSERT_ORDER, pendingClusterTask.getInsertOrder());
+            builder.field(Fields.PRIORITY, pendingClusterTask.getPriority());
+            builder.field(Fields.SOURCE, pendingClusterTask.getSource());
+            builder.field(Fields.EXECUTING, pendingClusterTask.isExecuting());
+            builder.field(Fields.TIME_IN_QUEUE_MILLIS, pendingClusterTask.getTimeInQueueInMillis());
             builder.field(Fields.TIME_IN_QUEUE, pendingClusterTask.getTimeInQueue());
             builder.endObject();
         }
@@ -103,6 +104,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
     static final class Fields {
 
         static final XContentBuilderString TASKS = new XContentBuilderString("tasks");
+        static final XContentBuilderString EXECUTING = new XContentBuilderString("executing");
         static final XContentBuilderString INSERT_ORDER = new XContentBuilderString("insert_order");
         static final XContentBuilderString PRIORITY = new XContentBuilderString("priority");
         static final XContentBuilderString SOURCE = new XContentBuilderString("source");

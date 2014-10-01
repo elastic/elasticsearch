@@ -192,7 +192,7 @@ public class AllocationService extends AbstractComponent {
 
         // elect primaries *before* allocating unassigned, so backups of primaries that failed
         // will be moved to primary state and not wait for primaries to be allocated and recovered (*from gateway*)
-        changed |= electPrimariesAndUnassignDanglingReplicas(allocation);
+        changed |= electPrimariesAndUnassignedDanglingReplicas(allocation);
 
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable());
@@ -210,13 +210,13 @@ public class AllocationService extends AbstractComponent {
 
         // elect primaries *before* allocating unassigned, so backups of primaries that failed
         // will be moved to primary state and not wait for primaries to be allocated and recovered (*from gateway*)
-        changed |= electPrimariesAndUnassignDanglingReplicas(allocation);
+        changed |= electPrimariesAndUnassignedDanglingReplicas(allocation);
 
         // now allocate all the unassigned to available nodes
         if (allocation.routingNodes().hasUnassigned()) {
             changed |= shardsAllocators.allocateUnassigned(allocation);
             // elect primaries again, in case this is needed with unassigned allocation
-            changed |= electPrimariesAndUnassignDanglingReplicas(allocation);
+            changed |= electPrimariesAndUnassignedDanglingReplicas(allocation);
         }
 
         // move shards that no longer can be allocated
@@ -261,7 +261,6 @@ public class AllocationService extends AbstractComponent {
                 if (!moved) {
                     logger.debug("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 } else {
-                    assert RoutingNodes.assertShardStats(allocation.routingNodes());
                     changed = true;
                 }
             }
@@ -269,13 +268,31 @@ public class AllocationService extends AbstractComponent {
         return changed;
     }
 
-    private boolean electPrimariesAndUnassignDanglingReplicas(RoutingAllocation allocation) {
+    private boolean electPrimariesAndUnassignedDanglingReplicas(RoutingAllocation allocation) {
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
         if (!routingNodes.hasUnassignedPrimaries()) {
             // move out if we don't have unassigned primaries
             return changed;
         }
+
+        // go over and remove dangling replicas that are initializing for primary shards
+        List<ShardRouting> shardsToFail = Lists.newArrayList();
+        for (MutableShardRouting shardEntry : routingNodes.unassigned()) {
+            if (shardEntry.primary()) {
+                for (MutableShardRouting routing : routingNodes.assignedShards(shardEntry)) {
+                    if (!routing.primary() && routing.initializing()) {
+                        shardsToFail.add(routing);
+                    }
+                }
+            }
+        }
+        for (ShardRouting shardToFail : shardsToFail) {
+           changed |= applyFailedShard(allocation, shardToFail, false);
+        }
+
+        // now, go over and elect a new primary if possible, not, from this code block on, if one is elected,
+        // routingNodes.hasUnassignedPrimaries() will potentially be false
         for (MutableShardRouting shardEntry : routingNodes.unassigned()) {
             if (shardEntry.primary()) {
                 MutableShardRouting candidate = allocation.routingNodes().activeReplica(shardEntry);
@@ -298,28 +315,6 @@ public class AllocationService extends AbstractComponent {
             }
         }
 
-        // go over and remove dangling replicas that are initializing, but we couldn't elect primary ones...
-        List<ShardRouting> shardsToFail = null;
-        if (routingNodes.hasUnassignedPrimaries()) {
-            for (MutableShardRouting shardEntry : routingNodes.unassigned()) {
-                if (shardEntry.primary()) {
-                    for (MutableShardRouting routing : routingNodes.assignedShards(shardEntry)) {
-                        if (!routing.primary()) {
-                            changed = true;
-                            if (shardsToFail == null) {
-                                shardsToFail = new ArrayList<>();
-                            }
-                            shardsToFail.add(routing);
-                        }
-                    }
-                }
-            }
-            if (shardsToFail != null) {
-                for (ShardRouting shardToFail : shardsToFail) {
-                    applyFailedShard(allocation, shardToFail, false);
-                }
-            }
-        }
         return changed;
     }
 
@@ -420,11 +415,11 @@ public class AllocationService extends AbstractComponent {
         }
 
         RoutingNodes routingNodes = allocation.routingNodes();
+        boolean dirty = false;
         if (failedShard.relocatingNodeId() != null) {
             // the shard is relocating, either in initializing (recovery from another node) or relocating (moving to another node)
             if (failedShard.state() == INITIALIZING) {
                 // the shard is initializing and recovering from another node
-                boolean dirty = false;
                 // first, we need to cancel the current node that is being initialized
                 RoutingNodes.RoutingNodeIterator initializingNode = routingNodes.routingNodeIter(failedShard.currentNodeId());
                 if (initializingNode != null) {
@@ -459,7 +454,6 @@ public class AllocationService extends AbstractComponent {
                 }
                 return dirty;
             } else if (failedShard.state() == RELOCATING) {
-                boolean dirty = false;
                 // the shard is relocating, meaning its the source the shard is relocating from
                 // first, we need to cancel the current relocation from the current node
                 // now, find the node that we are recovering from, cancel the relocation, remove it from the node
@@ -497,13 +491,11 @@ public class AllocationService extends AbstractComponent {
                 } else {
                     logger.debug("failed shard {} not found in routingNodes, ignoring it", failedShard);
                 }
-                return dirty;
             } else {
                 throw new ElasticsearchIllegalStateException("illegal state for a failed shard, relocating node id is set, but state does not match: " + failedShard);
             }
         } else {
             // the shard is not relocating, its either started, or initializing, just cancel it and move on...
-            boolean dirty = false;
             RoutingNodes.RoutingNodeIterator node = routingNodes.routingNodeIter(failedShard.currentNodeId());
             if (node != null) {
                 while (node.hasNext()) {
@@ -541,7 +533,7 @@ public class AllocationService extends AbstractComponent {
             if (!dirty) {
                 logger.debug("failed shard {} not found in routingNodes, ignoring it", failedShard);
             }
-            return dirty;
         }
+        return dirty;
     }
 }

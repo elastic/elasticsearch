@@ -20,6 +20,7 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,15 +39,11 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
     private boolean onlyCount;
     private int numberOfShards;
 
-    public PercolateShardRequest() {
+    PercolateShardRequest() {
     }
 
-    public PercolateShardRequest(String index, int shardId) {
-        super(index, shardId);
-    }
-
-    public PercolateShardRequest(String index, int shardId, int numberOfShards, PercolateRequest request) {
-        super(index, shardId, request);
+    PercolateShardRequest(ShardId shardId, int numberOfShards, PercolateRequest request) {
+        super(shardId, request);
         this.documentType = request.documentType();
         this.source = request.source();
         this.docSource = request.docSource();
@@ -54,8 +51,12 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
         this.numberOfShards = numberOfShards;
     }
 
-    public PercolateShardRequest(ShardId shardId, PercolateRequest request) {
-        super(shardId.index().name(), shardId.id());
+    PercolateShardRequest(ShardId shardId, OriginalIndices originalIndices) {
+        super(shardId, originalIndices);
+    }
+
+    PercolateShardRequest(ShardId shardId, PercolateRequest request) {
+        super(shardId, request);
         this.documentType = request.documentType();
         this.source = request.source();
         this.docSource = request.docSource();
@@ -96,6 +97,10 @@ public class PercolateShardRequest extends BroadcastShardOperationRequest {
 
     public int getNumberOfShards() {
         return numberOfShards;
+    }
+
+    OriginalIndices originalIndices() {
+        return originalIndices;
     }
 
     @Override

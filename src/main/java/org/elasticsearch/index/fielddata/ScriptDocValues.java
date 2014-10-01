@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.*;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -29,6 +32,7 @@ import org.elasticsearch.common.util.SlicedObjectList;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -37,10 +41,6 @@ import java.util.List;
  */
 public abstract class ScriptDocValues {
 
-    public static final Longs EMPTY_LONGS = new Longs(LongValues.EMPTY);
-    public static final Doubles EMPTY_DOUBLES = new Doubles(DoubleValues.EMPTY);
-    public static final GeoPoints EMPTY_GEOPOINTS = new GeoPoints(GeoPointValues.EMPTY);
-    public static final Strings EMPTY_STRINGS = new Strings(BytesValues.EMPTY);
     protected int docId;
     protected boolean listLoaded = false;
 
@@ -55,13 +55,12 @@ public abstract class ScriptDocValues {
 
     public final static class Strings extends ScriptDocValues {
 
-        private final BytesValues values;
-        private final CharsRef spare = new CharsRef();
+        private final SortedBinaryDocValues values;
         private SlicedObjectList<String> list;
 
-        public Strings(BytesValues values) {
+        public Strings(SortedBinaryDocValues values) {
             this.values = values;
-            list = new SlicedObjectList<String>(values.isMultiValued() ? new String[10] : new String[1]) {
+            list = new SlicedObjectList<String>(new String[0]) {
 
                 @Override
                 public void grow(int newLength) {
@@ -69,49 +68,48 @@ public abstract class ScriptDocValues {
                     if (values.length >= newLength) {
                         return;
                     }
-                    final String[] current = values;
-                    values = new String[ArrayUtil.oversize(newLength, RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
-                    System.arraycopy(current, 0, values, 0, current.length);
+                    values = Arrays.copyOf(values, ArrayUtil.oversize(newLength, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
                 }
             };
         }
 
         @Override
         public boolean isEmpty() {
-            return values.setDocument(docId) == 0;
+            values.setDocument(docId);
+            return values.count() == 0;
         }
 
-        public BytesValues getInternalValues() {
+        public SortedBinaryDocValues getInternalValues() {
             return this.values;
         }
 
         public BytesRef getBytesValue() {
-            int numValues = values.setDocument(docId);
-            if (numValues == 0) {
+            values.setDocument(docId);
+            if (values.count() > 0) {
+                return values.valueAt(0);
+            } else {
                 return null;
             }
-            return values.nextValue();
         }
 
         public String getValue() {
-            String value = null;
-            if (values.setDocument(docId) > 0) {
-                UnicodeUtil.UTF8toUTF16(values.nextValue(), spare);
-                value = spare.toString();
+            BytesRef value = getBytesValue();
+            if (value == null) {
+                return null;
+            } else {
+                return value.utf8ToString();
             }
-            return value;
         }
 
         public List<String> getValues() {
             if (!listLoaded) {
-                final int numValues = values.setDocument(docId);
+                values.setDocument(docId);
+                final int numValues = values.count();
                 list.offset = 0;
                 list.grow(numValues);
                 list.length = numValues;
                 for (int i = 0; i < numValues; i++) {
-                    BytesRef next = values.nextValue();
-                    UnicodeUtil.UTF8toUTF16(next, spare);
-                    list.values[i] = spare.toString();
+                    list.values[i] = values.valueAt(i).utf8ToString();
                 }
                 listLoaded = true;
             }
@@ -122,40 +120,43 @@ public abstract class ScriptDocValues {
 
     public static class Longs extends ScriptDocValues {
 
-        private final LongValues values;
+        private final SortedNumericDocValues values;
         private final MutableDateTime date = new MutableDateTime(0, DateTimeZone.UTC);
         private final SlicedLongList list;
 
-        public Longs(LongValues values) {
+        public Longs(SortedNumericDocValues values) {
             this.values = values;
-            this.list = new SlicedLongList(values.isMultiValued() ? 10 : 1);
+            this.list = new SlicedLongList(0);
         }
 
-        public LongValues getInternalValues() {
+        public SortedNumericDocValues getInternalValues() {
             return this.values;
         }
 
         @Override
         public boolean isEmpty() {
-            return values.setDocument(docId) == 0;
+            values.setDocument(docId);
+            return values.count() == 0;
         }
 
         public long getValue() {
-            int numValues = values.setDocument(docId);
+            values.setDocument(docId);
+            int numValues = values.count();
             if (numValues == 0) {
                 return 0l;
             }
-            return values.nextValue();
+            return values.valueAt(0);
         }
 
         public List<Long> getValues() {
             if (!listLoaded) {
-                final int numValues = values.setDocument(docId);
+                values.setDocument(docId);
+                final int numValues = values.count();
                 list.offset = 0;
                 list.grow(numValues);
                 list.length = numValues;
                 for (int i = 0; i < numValues; i++) {
-                    list.values[i] = values.nextValue();
+                    list.values[i] = values.valueAt(i);
                 }
                 listLoaded = true;
             }
@@ -171,41 +172,44 @@ public abstract class ScriptDocValues {
 
     public static class Doubles extends ScriptDocValues {
 
-        private final DoubleValues values;
+        private final SortedNumericDoubleValues values;
         private final SlicedDoubleList list;
 
-        public Doubles(DoubleValues values) {
+        public Doubles(SortedNumericDoubleValues values) {
             this.values = values;
-            this.list = new SlicedDoubleList(values.isMultiValued() ? 10 : 1);
+            this.list = new SlicedDoubleList(0);
 
         }
 
-        public DoubleValues getInternalValues() {
+        public SortedNumericDoubleValues getInternalValues() {
             return this.values;
         }
 
         @Override
         public boolean isEmpty() {
-            return values.setDocument(docId) == 0;
+            values.setDocument(docId);
+            return values.count() == 0;
         }
 
 
         public double getValue() {
-            int numValues = values.setDocument(docId);
+            values.setDocument(docId);
+            int numValues = values.count();
             if (numValues == 0) {
                 return 0d;
             }
-            return values.nextValue();
+            return values.valueAt(0);
         }
 
         public List<Double> getValues() {
             if (!listLoaded) {
-                int numValues = values.setDocument(docId);
+                values.setDocument(docId);
+                int numValues = values.count();
                 list.offset = 0;
                 list.grow(numValues);
                 list.length = numValues;
                 for (int i = 0; i < numValues; i++) {
-                    list.values[i] = values.nextValue();
+                    list.values[i] = values.valueAt(i);
                 }
                 listLoaded = true;
             }
@@ -215,12 +219,12 @@ public abstract class ScriptDocValues {
 
     public static class GeoPoints extends ScriptDocValues {
 
-        private final GeoPointValues values;
+        private final MultiGeoPointValues values;
         private final SlicedObjectList<GeoPoint> list;
 
-        public GeoPoints(GeoPointValues values) {
+        public GeoPoints(MultiGeoPointValues values) {
             this.values = values;
-            list = new SlicedObjectList<GeoPoint>(values.isMultiValued() ? new GeoPoint[10] : new GeoPoint[1]) {
+            list = new SlicedObjectList<GeoPoint>(new GeoPoint[0]) {
 
                 @Override
                 public void grow(int newLength) {
@@ -228,24 +232,24 @@ public abstract class ScriptDocValues {
                     if (values.length >= newLength) {
                         return;
                     }
-                    final GeoPoint[] current = values;
-                    values = new GeoPoint[ArrayUtil.oversize(newLength, RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
-                    System.arraycopy(current, 0, values, 0, current.length);
+                    values = Arrays.copyOf(values, ArrayUtil.oversize(newLength, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
                 }
             };
         }
 
         @Override
         public boolean isEmpty() {
-            return values.setDocument(docId) == 0;
+            values.setDocument(docId);
+            return values.count() == 0;
         }
 
         public GeoPoint getValue() {
-            int numValues = values.setDocument(docId);
+            values.setDocument(docId);
+            int numValues = values.count();
             if (numValues == 0) {
                 return null;
             }
-            return values.nextValue();
+            return values.valueAt(0);
         }
 
         public double getLat() {
@@ -276,12 +280,13 @@ public abstract class ScriptDocValues {
 
         public List<GeoPoint> getValues() {
             if (!listLoaded) {
-                int numValues = values.setDocument(docId);
+                values.setDocument(docId);
+                int numValues = values.count();
                 list.offset = 0;
                 list.grow(numValues);
                 list.length = numValues;
                 for (int i = 0; i < numValues; i++) {
-                    GeoPoint next = values.nextValue();
+                    GeoPoint next = values.valueAt(i);
                     GeoPoint point = list.values[i];
                     if (point == null) {
                         point = list.values[i] = new GeoPoint();

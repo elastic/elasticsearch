@@ -5,28 +5,36 @@
 data locally or not. Storing data locally basically means that shards of
 different indices are allowed to be allocated on that node. By default,
 each node is considered to be a data node, and it can be turned off by
-setting `node.data` to `false`.
+setting `node.data` to `false`.  
 
-This is a powerful setting allowing to simply create smart load
-balancers that take part in some of different API processing. Lets take
-an example:
+This is a powerful setting allowing to create 2 types of  non-data nodes: 
+dedicated master nodes and client nodes.
+
+*client nodes* are smart load
+balancers that take part in some of the processing steps. 
+Lets take an example:
 
 We can start a whole cluster of data nodes which do not even start an
 HTTP transport by setting `http.enabled` to `false`. Such nodes will
 communicate with one another using the
 <<modules-transport,transport>> module. In front
-of the cluster we can start one or more "non data" nodes which will
-start with HTTP enabled. All HTTP communication will be performed
-through these "non data" nodes.
+of the cluster we can start one or more "client" nodes which will
+start with HTTP enabled.  These client nodes will have the settings `node.data: false` 
+and `node.master: false`.  All HTTP communication will be performed 
+through these client nodes. 
 
-The benefit of using that is first the ability to create smart load
-balancers. These "non data" nodes are still part of the cluster, and
-they redirect operations exactly to the node that holds the relevant
-data. The other benefit is the fact that for scatter / gather based
-operations (such as search), these nodes will take part of the
-processing since they will start the scatter process, and perform the
-actual gather processing.
-
-This relieves the data nodes to do the heavy duty of indexing and
+These "client" nodes are still part of the cluster, and
+they can redirect operations exactly to the node that holds the relevant
+data without having to query all nodes.  However, they do not store data and also do not perform cluster
+management operations.  The other benefit is the fact that for scatter / gather based
+operations (such as search), since the client nodes will start the scatter process, they will perform the
+actual gather processing.  This relieves the data nodes to do the heavy duty of indexing and
 searching, without needing to process HTTP requests (parsing), overload
 the network, or perform the gather processing.
+
+*dedicated master nodes* are nodes with the settings `node.data: false` 
+and `node.master: true`.  We actively promote the use of dedicated master nodes in critical clusters to 
+make sure that there are 3 dedicated nodes whose only role is to be master, a lightweight operational (cluster management) 
+responsibility.  By reducing the amount of resource intensive work that these nodes do (in other words, do not send index
+or search requests to these dedicated master nodes), 
+we greatly reduce the chance of cluster instability.

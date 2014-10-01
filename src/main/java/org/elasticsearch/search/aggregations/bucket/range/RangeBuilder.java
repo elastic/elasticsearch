@@ -23,43 +23,80 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- *
+ * Builder for the {@link Range} aggregation.
  */
 public class RangeBuilder extends AbstractRangeBuilder<RangeBuilder> {
 
     private String format;
 
+    /**
+     * Sole constructor.
+     */
     public RangeBuilder(String name) {
         super(name, InternalRange.TYPE.name());
     }
 
+    /**
+     * Add a new range to this aggregation.
+     *
+     * @param key  the key to use for this range in the response
+     * @param from the lower bound on the distances, inclusive
+     * @parap to   the upper bound on the distances, exclusive
+     */
     public RangeBuilder addRange(String key, double from, double to) {
         ranges.add(new Range(key, from, to));
         return this;
     }
 
+    /**
+     * Same as {@link #addRange(String, double, double)} but the key will be
+     * automatically generated based on <code>from</code> and <code>to</code>.
+     */
     public RangeBuilder addRange(double from, double to) {
         return addRange(null, from, to);
     }
 
+    /**
+     * Add a new range with no lower bound.
+     *
+     * @param key the key to use for this range in the response
+     * @param to  the upper bound on the distances, exclusive
+     */
     public RangeBuilder addUnboundedTo(String key, double to) {
         ranges.add(new Range(key, null, to));
         return this;
     }
 
+    /**
+     * Same as {@link #addUnboundedTo(String, double)} but the key will be
+     * computed automatically.
+     */
     public RangeBuilder addUnboundedTo(double to) {
         return addUnboundedTo(null, to);
     }
 
+    /**
+     * Add a new range with no upper bound.
+     *
+     * @param key  the key to use for this range in the response
+     * @param from the lower bound on the distances, inclusive
+     */
     public RangeBuilder addUnboundedFrom(String key, double from) {
         ranges.add(new Range(key, from, null));
         return this;
     }
 
+    /**
+     * Same as {@link #addUnboundedFrom(String, double)} but the key will be
+     * computed automatically.
+     */
     public RangeBuilder addUnboundedFrom(double from) {
         return addUnboundedFrom(null, from);
     }
 
+    /**
+     * Set the format to use to display values.
+     */
     public RangeBuilder format(String format) {
         this.format = format;
         return this;

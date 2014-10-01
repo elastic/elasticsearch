@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
@@ -555,6 +556,7 @@ public class RecoveryState implements ToXContent, Streamable {
         public List<File> fileDetails() {
             return fileDetails;
         }
+
         public List<File> reusedFileDetails() {
             return reusedFileDetails;
         }
@@ -618,13 +620,6 @@ public class RecoveryState implements ToXContent, Streamable {
             return this.version;
         }
 
-        public void files(int totalFileCount, long totalByteCount, int reusedFileCount, long reusedByteCount) {
-            this.totalFileCount = totalFileCount;
-            this.totalByteCount = totalByteCount;
-            this.reusedFileCount = reusedFileCount;
-            this.reusedByteCount = reusedByteCount;
-        }
-
         public int totalFileCount() {
             return totalFileCount;
         }
@@ -645,21 +640,17 @@ public class RecoveryState implements ToXContent, Streamable {
             this.recoveredFileCount.addAndGet(updatedCount);
         }
 
-        public float percentFilesRecovered(int numberRecovered) {
+        public float percentFilesRecovered() {
             if (totalFileCount == 0) {      // indicates we are still in init phase
                 return 0.0f;
             }
-            if ((totalFileCount - reusedFileCount) == 0) {
+            final int filesRecovered = recoveredFileCount.get();
+            if ((totalFileCount - filesRecovered) == 0) {
                 return 100.0f;
             } else {
-                int d = totalFileCount - reusedFileCount;
-                float result = 100.0f * (numberRecovered / (float) d);
+                float result = 100.0f * (filesRecovered / (float)totalFileCount);
                 return result;
             }
-        }
-
-        public float percentFilesRecovered() {
-            return percentFilesRecovered(recoveredFileCount.get());
         }
 
         public int numberOfRecoveredFiles() {
@@ -690,25 +681,25 @@ public class RecoveryState implements ToXContent, Streamable {
             return recoveredByteCount.get() - reusedByteCount;
         }
 
-        public float percentBytesRecovered(long numberRecovered) {
+        public float percentBytesRecovered() {
             if (totalByteCount == 0) {      // indicates we are still in init phase
                 return 0.0f;
             }
-            if ((totalByteCount - reusedByteCount) == 0) {
+            final long recByteCount = recoveredByteCount.get();
+            if ((totalByteCount - recByteCount) == 0) {
                 return 100.0f;
             } else {
-                long d = totalByteCount - reusedByteCount;
-                float result = 100.0f * (numberRecovered / (float) d);
+                float result = 100.0f * (recByteCount / (float) totalByteCount);
                 return result;
             }
         }
 
-        public float percentBytesRecovered() {
-            return percentBytesRecovered(recoveredByteCount.get());
-        }
-
         public int reusedFileCount() {
             return reusedFileCount;
+        }
+
+        public void reusedFileCount(int reusedFileCount) {
+            this.reusedFileCount = reusedFileCount;
         }
 
         public long reusedByteCount() {
@@ -789,7 +780,7 @@ public class RecoveryState implements ToXContent, Streamable {
             builder.field(Fields.TOTAL, totalFileCount);
             builder.field(Fields.REUSED, reusedFileCount);
             builder.field(Fields.RECOVERED, filesRecovered);
-            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", percentFilesRecovered(filesRecovered)));
+            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", percentFilesRecovered()));
             if (detailed) {
                 builder.startArray(Fields.DETAILS);
                 for (File file : fileDetails) {
@@ -806,11 +797,25 @@ public class RecoveryState implements ToXContent, Streamable {
             builder.field(Fields.TOTAL, totalByteCount);
             builder.field(Fields.REUSED, reusedByteCount);
             builder.field(Fields.RECOVERED, bytesRecovered);
-            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", percentBytesRecovered(bytesRecovered)));
+            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", percentBytesRecovered()));
             builder.endObject();
             builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time);
 
             return builder;
         }
+
+        @Override
+        public String toString() {
+            try {
+                XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+                builder.startObject();
+                toXContent(builder, EMPTY_PARAMS);
+                builder.endObject();
+                return builder.string();
+            } catch (IOException e) {
+                return "{ \"error\" : \"" + e.getMessage() + "\"}";
+            }
+        }
+
     }
 }

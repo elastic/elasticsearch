@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.el.GreekLowerCaseFilter;
+import org.apache.lucene.analysis.ga.IrishLowerCaseFilter;
 import org.apache.lucene.analysis.tr.TurkishLowerCaseFilter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
@@ -31,7 +32,13 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- *
+ * Factory for {@link LowerCaseFilter} and some language-specific variants
+ * supported by the {@code language} parameter:
+ * <ul>
+ *   <li>greek: {@link GreekLowerCaseFilter}
+ *   <li>irish: {@link IrishLowerCaseFilter}
+ *   <li>turkish: {@link TurkishLowerCaseFilter}
+ * </ul>
  */
 public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory {
 
@@ -49,6 +56,8 @@ public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory {
             return new LowerCaseFilter(version, tokenStream);
         } else if (lang.equalsIgnoreCase("greek")) {
             return new GreekLowerCaseFilter(version, tokenStream);
+        } else if (lang.equalsIgnoreCase("irish")) {
+            return new IrishLowerCaseFilter(tokenStream);
         } else if (lang.equalsIgnoreCase("turkish")) {
             return new TurkishLowerCaseFilter(tokenStream);
         } else {

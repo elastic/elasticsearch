@@ -19,10 +19,13 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.index.fielddata.*;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -366,6 +369,48 @@ public enum GeoDistance {
         @Override
         public double calculate(double targetLatitude, double targetLongitude) {
             return SLOPPY_ARC.calculate(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude, unit);
+        }
+    }
+
+
+    /**
+     * Return a {@link SortedNumericDoubleValues} instance that returns the distances to a list of geo-points for each document.
+     */
+    public static SortedNumericDoubleValues distanceValues(final MultiGeoPointValues geoPointValues, final FixedSourceDistance... distances) {
+        final GeoPointValues singleValues = FieldData.unwrapSingleton(geoPointValues);
+        if (singleValues != null && distances.length == 1) {
+            final Bits docsWithField = FieldData.unwrapSingletonBits(geoPointValues);
+            return FieldData.singleton(new NumericDoubleValues() {
+
+                @Override
+                public double get(int docID) {
+                    if (docsWithField != null && !docsWithField.get(docID)) {
+                        return 0d;
+                    }
+                    final GeoPoint point = singleValues.get(docID);
+                    return distances[0].calculate(point.lat(), point.lon());
+                }
+
+            }, docsWithField);
+        } else {
+            return new SortingNumericDoubleValues() {
+
+                @Override
+                public void setDocument(int doc) {
+                    geoPointValues.setDocument(doc);
+                    count = geoPointValues.count() * distances.length;
+                    grow();
+                    int valueCounter = 0;
+                    for (FixedSourceDistance distance : distances) {
+                        for (int i = 0; i < geoPointValues.count(); ++i) {
+                            final GeoPoint point = geoPointValues.valueAt(i);
+                            values[valueCounter] = distance.calculate(point.lat(), point.lon());
+                            valueCounter++;
+                        }
+                    }
+                    sort();
+                }
+            };
         }
     }
 }

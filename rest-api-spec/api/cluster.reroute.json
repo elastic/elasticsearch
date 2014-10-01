@@ -16,9 +16,10 @@
           "type" : "boolean",
           "description" : "Return an explanation of why the commands can or cannot be executed"
         },
-        "filter_metadata": {
-          "type" : "boolean",
-          "description" : "Don't return cluster state metadata (default: false)"
+        "metric": {
+          "type": "list",
+          "options": ["_all", "blocks", "metadata", "nodes", "routing_table", "master_node", "version"],
+          "description": "Limit the information returned to the specified metrics. Defaults to all but metadata"
         },
         "master_timeout": {
           "type" : "time",

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 
 /**
  */
@@ -27,6 +28,6 @@ public class FSTPackedBytesStringFieldDataTests extends AbstractStringFieldDataT
 
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("string", ImmutableSettings.builder().put("format", "fst"));
+        return new FieldDataType("string", ImmutableSettings.builder().put("format", "fst").put(OrdinalsBuilder.FORCE_MULTI_ORDINALS, randomBoolean()));
     }
 }

@@ -20,8 +20,10 @@
 package org.elasticsearch.action.admin.indices.warmer.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,9 +33,12 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to put a search warmer.
+ * A request that associates a {@link SearchRequest} with a name in the cluster that is
+ * in-turn used to warm up indices before they are available for search.
+ *
+ * Note: neither the search request nor the name must be <code>null</code>
  */
-public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> {
+public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> implements IndicesRequest.Replaceable {
 
     private String name;
 
@@ -95,6 +100,31 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> {
             validationException = addValidationError("name is missing", validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public String[] indices() {
+        if (searchRequest == null) {
+            throw new IllegalStateException("unable to retrieve indices, search request is null");
+        }
+        return searchRequest.indices();
+    }
+
+    @Override
+    public IndicesRequest indices(String[] indices) {
+        if (searchRequest == null) {
+            throw new IllegalStateException("unable to set indices, search request is null");
+        }
+        searchRequest.indices(indices);
+        return this;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        if (searchRequest == null) {
+            throw new IllegalStateException("unable to retrieve indices options, search request is null");
+        }
+        return searchRequest.indicesOptions();
     }
 
     @Override

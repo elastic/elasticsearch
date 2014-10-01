@@ -21,6 +21,7 @@ package org.elasticsearch.search.facet.range;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -39,9 +40,9 @@ public class ScriptRangeFacetExecutor extends FacetExecutor {
 
     private final RangeFacet.Entry[] entries;
 
-    public ScriptRangeFacetExecutor(String scriptLang, String keyScript, String valueScript, Map<String, Object> params, RangeFacet.Entry[] entries, SearchContext context) {
-        this.keyScript = context.scriptService().search(context.lookup(), scriptLang, keyScript, params);
-        this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
+    public ScriptRangeFacetExecutor(String scriptLang, String keyScript, ScriptService.ScriptType keyScriptType, String valueScript, ScriptService.ScriptType valueScriptType, Map<String, Object> params, RangeFacet.Entry[] entries, SearchContext context) {
+        this.keyScript = context.scriptService().search(context.lookup(), scriptLang, keyScript, keyScriptType, params);
+        this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, valueScriptType, params);
         this.entries = entries;
     }
 

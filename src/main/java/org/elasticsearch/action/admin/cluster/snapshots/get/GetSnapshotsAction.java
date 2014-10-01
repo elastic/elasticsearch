@@ -28,7 +28,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class GetSnapshotsAction extends ClusterAction<GetSnapshotsRequest, GetSnapshotsResponse, GetSnapshotsRequestBuilder> {
 
     public static final GetSnapshotsAction INSTANCE = new GetSnapshotsAction();
-    public static final String NAME = "cluster/snapshot/get";
+    public static final String NAME = "cluster:admin/snapshot/get";
 
     private GetSnapshotsAction() {
         super(NAME);

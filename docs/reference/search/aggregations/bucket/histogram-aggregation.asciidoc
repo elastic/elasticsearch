@@ -142,7 +142,7 @@ Example:
 --------------------------------------------------
 {
     "query" : {
-        "filtered" : { "range" : { "price" : { "to" : "500" } } }
+        "filtered" : { "filter": { "range" : { "price" : { "to" : "500" } } } }
     },
     "aggs" : {
         "prices" : {

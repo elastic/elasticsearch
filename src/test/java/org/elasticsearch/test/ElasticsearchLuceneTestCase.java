@@ -45,6 +45,13 @@ public abstract class ElasticsearchLuceneTestCase extends LuceneTestCase {
     private static final Codec DEFAULT_CODEC = Codec.getDefault();
 
     /**
+     * Returns the lucene default codec without any randomization
+     */
+    public static Codec actualDefaultCodec() {
+        return DEFAULT_CODEC;
+    }
+
+    /**
      * Forcefully reset the default codec
      */
     public static void forceDefaultCodec() {

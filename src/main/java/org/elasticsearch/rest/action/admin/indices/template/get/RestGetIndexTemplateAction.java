@@ -43,8 +43,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     @Inject
-    public RestGetIndexTemplateAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestGetIndexTemplateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         controller.registerHandler(GET, "/_template", this);
         controller.registerHandler(GET, "/_template/{name}", this);

@@ -20,13 +20,15 @@
 package org.elasticsearch.index.translog.fs;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.TranslogStream;
+import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -38,6 +40,8 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
     private final long id;
     private final ShardId shardId;
     private final RafReference raf;
+    private final TranslogStream translogStream;
+    private final int headerSize;
 
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -59,6 +63,11 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
         this.raf = raf;
         this.buffer = new byte[bufferSize];
         raf.raf().setLength(0);
+        this.translogStream = TranslogStreams.translogStreamFor(this.raf.file());
+        this.headerSize = this.translogStream.writeHeader(raf.channel());
+        this.lastPosition += headerSize;
+        this.lastWrittenPosition += headerSize;
+        this.lastSyncPosition += headerSize;
     }
 
     public long id() {
@@ -104,7 +113,8 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
         if (bufferCount > 0) {
             // we use the channel to write, since on windows, writing to the RAF might not be reflected
             // when reading through the channel
-            raf.channel().write(ByteBuffer.wrap(buffer, 0, bufferCount));
+            Channels.writeToChannel(buffer, 0, bufferCount, raf.channel());
+
             lastWrittenPosition += bufferCount;
             bufferCount = 0;
         }
@@ -122,30 +132,45 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
         } finally {
             rwl.readLock().unlock();
         }
-        ByteBuffer buffer = ByteBuffer.allocate(location.size);
-        raf.channel().read(buffer, location.translogLocation);
-        return buffer.array();
+        // we don't have to have a read lock here because we only write ahead to the file, so all writes has been complete
+        // for the requested location.
+        return Channels.readFromFileChannel(raf.channel(), location.translogLocation, location.size);
     }
 
     @Override
     public FsChannelSnapshot snapshot() throws TranslogException {
-        rwl.writeLock().lock();
-        try {
-            flushBuffer();
-            if (!raf.increaseRefCount()) {
-                return null;
+        if (raf.increaseRefCount()) {
+            boolean success = false;
+            try {
+                rwl.writeLock().lock();
+                try {
+                    flushBuffer();
+                    FsChannelSnapshot snapshot = new FsChannelSnapshot(this.id, raf, lastWrittenPosition, operationCounter);
+                    snapshot.seekTo(this.headerSize);
+                    success = true;
+                    return snapshot;
+                } catch (Exception e) {
+                    throw new TranslogException(shardId, "exception while creating snapshot", e);
+                } finally {
+                    rwl.writeLock().unlock();
+                }
+            } finally {
+                if (!success) {
+                    raf.decreaseRefCount(false);
+                }
             }
-            return new FsChannelSnapshot(this.id, raf, lastWrittenPosition, operationCounter);
-        } catch (IOException e) {
-            throw new TranslogException(shardId, "failed to flush", e);
-        } finally {
-            rwl.writeLock().unlock();
         }
+        return null;
     }
 
     @Override
     public boolean syncNeeded() {
         return lastPosition != lastSyncPosition;
+    }
+
+    @Override
+    public TranslogStream getStream() {
+        return this.translogStream;
     }
 
     @Override

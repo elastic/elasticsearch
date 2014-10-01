@@ -36,6 +36,7 @@ public abstract class AbstractTermsParametersParser {
     public static final ParseField MIN_DOC_COUNT_FIELD_NAME = new ParseField("min_doc_count");
     public static final ParseField SHARD_MIN_DOC_COUNT_FIELD_NAME = new ParseField("shard_min_doc_count");
     public static final ParseField REQUIRED_SIZE_FIELD_NAME = new ParseField("size");
+    public static final ParseField SHOW_TERM_DOC_COUNT_ERROR = new ParseField("show_term_doc_count_error");
     
 
     //These are the results of the parsing.
@@ -63,7 +64,6 @@ public abstract class AbstractTermsParametersParser {
     public SubAggCollectionMode getCollectionMode() {
         return collectMode;
     }
-
 
     public void parse(String aggregationName, XContentParser parser, SearchContext context, ValuesSourceParser vsParser, IncludeExclude.Parser incExcParser) throws IOException {
         bucketCountThresholds = getDefaultBucketCountThresholds();

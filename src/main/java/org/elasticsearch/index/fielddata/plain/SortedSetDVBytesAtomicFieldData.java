@@ -20,26 +20,43 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
+import org.elasticsearch.index.fielddata.FieldData;
+
+import java.io.IOException;
 
 /**
  * An {@link AtomicFieldData} implementation that uses Lucene {@link org.apache.lucene.index.SortedSetDocValues}.
  */
-public final class SortedSetDVBytesAtomicFieldData extends SortedSetDVAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
+public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
-    /* NOTE: This class inherits the methods getBytesValues() and getHashedBytesValues()
-     * from SortedSetDVAtomicFieldData. This can cause confusion since the are
-     * part of the interface this class implements.*/
+    private final AtomicReader reader;
+    private final String field;
 
     SortedSetDVBytesAtomicFieldData(AtomicReader reader, String field) {
-        super(reader, field);
+        this.reader = reader;
+        this.field = field;
     }
 
     @Override
-    public Strings getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues());
+    public RandomAccessOrds getOrdinalsValues() {
+        try {
+            return FieldData.maybeSlowRandomAccessOrds(DocValues.getSortedSet(reader, field));
+        } catch (IOException e) {
+            throw new ElasticsearchIllegalStateException("cannot load docvalues", e);
+        }
+    }
+
+    @Override
+    public void close() {
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return -1; // unknown
     }
 
 }

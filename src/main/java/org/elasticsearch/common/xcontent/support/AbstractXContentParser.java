@@ -196,11 +196,11 @@ public abstract class AbstractXContentParser implements XContentParser {
 
 
     @Override
-    public BytesRef bytesOrNull() throws IOException {
+    public BytesRef utf8BytesOrNull() throws IOException {
         if (currentToken() == Token.VALUE_NULL) {
             return null;
         }
-        return bytes();
+        return utf8Bytes();
     }
 
     @Override
@@ -312,5 +312,15 @@ public abstract class AbstractXContentParser implements XContentParser {
             return parser.binaryValue();
         }
         return null;
+    }
+
+    @Override
+    public final BytesRef bytes() throws IOException {
+        return utf8Bytes();
+    }
+
+    @Override
+    public final BytesRef bytesOrNull() throws IOException {
+        return utf8BytesOrNull();
     }
 }

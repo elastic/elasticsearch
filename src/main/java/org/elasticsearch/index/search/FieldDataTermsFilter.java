@@ -22,12 +22,16 @@ import com.carrotsearch.hppc.DoubleOpenHashSet;
 import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.io.IOException;
 
@@ -129,13 +133,14 @@ public abstract class FieldDataTermsFilter extends Filter {
             // make sure there are terms to filter on
             if (terms == null || terms.isEmpty()) return null;
 
-            final BytesValues values = fieldData.load(context).getBytesValues(); // load fielddata
+            final SortedBinaryDocValues values = fieldData.load(context).getBytesValues(); // load fielddata
             return new MatchDocIdSet(context.reader().maxDoc(), acceptDocs) {
                 @Override
                 protected boolean matchDoc(int doc) {
-                    final int numVals = values.setDocument(doc);
+                    values.setDocument(doc);
+                    final int numVals = values.count();
                     for (int i = 0; i < numVals; i++) {
-                        if (terms.contains(values.nextValue())) {
+                        if (terms.contains(values.valueAt(i))) {
                             return true;
                         }
                     }
@@ -182,13 +187,14 @@ public abstract class FieldDataTermsFilter extends Filter {
 
             IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             if (!numericFieldData.getNumericType().isFloatingPoint()) {
-                final LongValues values = numericFieldData.load(context).getLongValues(); // load fielddata
+                final SortedNumericDocValues values = numericFieldData.load(context).getLongValues(); // load fielddata
                 return new MatchDocIdSet(context.reader().maxDoc(), acceptDocs) {
                     @Override
                     protected boolean matchDoc(int doc) {
-                        final int numVals = values.setDocument(doc);
+                        values.setDocument(doc);
+                        final int numVals = values.count();
                         for (int i = 0; i < numVals; i++) {
-                            if (terms.contains(values.nextValue())) {
+                            if (terms.contains(values.valueAt(i))) {
                                 return true;
                             }
                         }
@@ -241,14 +247,15 @@ public abstract class FieldDataTermsFilter extends Filter {
             // verify we have a floating point numeric fielddata
             IndexNumericFieldData indexNumericFieldData = (IndexNumericFieldData) fieldData;
             if (indexNumericFieldData.getNumericType().isFloatingPoint()) {
-                final DoubleValues values = indexNumericFieldData.load(context).getDoubleValues(); // load fielddata
+                final SortedNumericDoubleValues values = indexNumericFieldData.load(context).getDoubleValues(); // load fielddata
                 return new MatchDocIdSet(context.reader().maxDoc(), acceptDocs) {
                     @Override
                     protected boolean matchDoc(int doc) {
-                        final int numVals = values.setDocument(doc);
+                        values.setDocument(doc);
+                        final int numVals = values.count();
 
                         for (int i = 0; i < numVals; i++) {
-                            if (terms.contains(values.nextValue())) {
+                            if (terms.contains(values.valueAt(i))) {
                                 return true;
                             }
                         }

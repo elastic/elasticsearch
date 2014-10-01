@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -32,7 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.util.Set;
+import java.util.EnumSet;
 
 
 /**
@@ -43,9 +44,8 @@ public class RestClusterStateAction extends BaseRestHandler {
     private final SettingsFilter settingsFilter;
 
     @Inject
-    public RestClusterStateAction(Settings settings, Client client, RestController controller,
-                                  SettingsFilter settingsFilter) {
-        super(settings, client);
+    public RestClusterStateAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
+        super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/state", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/state/{metric}/{indices}", this);
@@ -66,13 +66,13 @@ public class RestClusterStateAction extends BaseRestHandler {
             clusterStateRequest.indices(indices);
         }
 
-        Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
-        boolean isAllMetricsOnly = metrics.size() == 1 && metrics.contains("_all");
-        if (!isAllMetricsOnly) {
-            clusterStateRequest.nodes(metrics.contains("nodes") || metrics.contains("master_node"));
-            clusterStateRequest.routingTable(metrics.contains("routing_table"));
-            clusterStateRequest.metaData(metrics.contains("metadata"));
-            clusterStateRequest.blocks(metrics.contains("blocks"));
+        if (request.hasParam("metric")) {
+            EnumSet<ClusterState.Metric> metrics = ClusterState.Metric.parseString(request.param("metric"), true);
+            // do not ask for what we do not need.
+            clusterStateRequest.nodes(metrics.contains(ClusterState.Metric.NODES) || metrics.contains(ClusterState.Metric.MASTER_NODE));
+            clusterStateRequest.routingTable(metrics.contains(ClusterState.Metric.ROUTING_TABLE));
+            clusterStateRequest.metaData(metrics.contains(ClusterState.Metric.METADATA));
+            clusterStateRequest.blocks(metrics.contains(ClusterState.Metric.BLOCKS));
         }
 
         client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {

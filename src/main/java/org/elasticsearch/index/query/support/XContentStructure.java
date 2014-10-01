@@ -127,13 +127,14 @@ public abstract class XContentStructure {
      */
     public static class InnerQuery extends XContentStructure {
         private Query query = null;
-
+        private boolean queryParsed = false;
         public InnerQuery(QueryParseContext parseContext1, @Nullable String... types) throws IOException {
             super(parseContext1);
             if (types != null) {
                 String[] origTypes = QueryParseContext.setTypesWithPrevious(types);
                 try {
                     query = parseContext1.parseInnerQuery();
+                    queryParsed = true;
                 } finally {
                     QueryParseContext.setTypes(origTypes);
                 }
@@ -150,7 +151,7 @@ public abstract class XContentStructure {
          */
         @Override
         public Query asQuery(String... types) throws IOException {
-            if (this.query == null) {
+            if (!queryParsed) { // query can be null
                 this.query = super.asQuery(types);
             }
             return this.query;
@@ -164,6 +165,8 @@ public abstract class XContentStructure {
      */
     public static class InnerFilter extends XContentStructure {
         private Query query = null;
+        private boolean queryParsed = false;
+
 
         public InnerFilter(QueryParseContext parseContext1, @Nullable String... types) throws IOException {
             super(parseContext1);
@@ -172,6 +175,7 @@ public abstract class XContentStructure {
                 try {
                     Filter innerFilter = parseContext1.parseInnerFilter();
                     query = new XConstantScoreQuery(innerFilter);
+                    queryParsed = true;
                 } finally {
                     QueryParseContext.setTypes(origTypes);
                 }
@@ -190,7 +194,7 @@ public abstract class XContentStructure {
          */
         @Override
         public Query asFilter(String... types) throws IOException {
-            if (this.query == null) {
+            if (!queryParsed) { // query can be null
                 this.query = super.asFilter(types);
             }
             return this.query;

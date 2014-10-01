@@ -21,10 +21,12 @@ package org.elasticsearch.search.facet.terms.strings;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -90,7 +92,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
 
         private final HashedAggregator aggregator;
         private final boolean allTerms;
-        private BytesValues values;
+        private SortedBinaryDocValues values;
 
         Collector(HashedAggregator aggregator, boolean allTerms) {
             this.aggregator = aggregator;
@@ -128,20 +130,21 @@ public class TermsStringFacetExecutor extends FacetExecutor {
 
         for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
             int maxDoc = readerContext.reader().maxDoc();
-            if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
-                BytesValues.WithOrdinals values = ((IndexFieldData.WithOrdinals) indexFieldData).load(readerContext).getBytesValues();
+            if (indexFieldData instanceof IndexOrdinalsFieldData) {
+                RandomAccessOrds values = ((IndexOrdinalsFieldData) indexFieldData).load(readerContext).getOrdinalsValues();
                 // 0 = docs with no value for field, so start from 1 instead
-                for (long ord = BytesValues.WithOrdinals.MIN_ORDINAL; ord < values.getMaxOrd(); ord++) {
-                    BytesRef value = values.getValueByOrd(ord);
-                    aggregator.addValue(value, value.hashCode(), values);
+                for (long ord = 0; ord < values.getValueCount(); ord++) {
+                    BytesRef value = values.lookupOrd(ord);
+                    aggregator.addValue(value, value.hashCode());
                 }
             } else {
-                BytesValues values = indexFieldData.load(readerContext).getBytesValues();
+                SortedBinaryDocValues values = indexFieldData.load(readerContext).getBytesValues();
                 for (int docId = 0; docId < maxDoc; docId++) {
-                    final int size = values.setDocument(docId);
+                    values.setDocument(docId);
+                    final int size = values.count();
                     for (int i = 0; i < size; i++) {
-                        final BytesRef value = values.nextValue();
-                        aggregator.addValue(value, value.hashCode(), values);
+                        final BytesRef value = values.valueAt(i);
+                        aggregator.addValue(value, value.hashCode());
                     }
                 }
             }

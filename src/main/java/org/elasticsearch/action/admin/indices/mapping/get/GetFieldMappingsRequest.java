@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -31,7 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 
 /** Request the mappings of specific fields */
-public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsRequest> {
+public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsRequest> implements IndicesRequest.Replaceable {
 
     protected boolean local = false;
 
@@ -70,6 +71,7 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
         return local;
     }
 
+    @Override
     public GetFieldMappingsRequest indices(String... indices) {
         this.indices = indices;
         return this;
@@ -85,6 +87,7 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
         return this;
     }
 
+    @Override
     public String[] indices() {
         return indices;
     }
@@ -93,6 +96,7 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
         return types;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

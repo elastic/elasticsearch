@@ -30,9 +30,4 @@ public interface ListenableActionFuture<T> extends ActionFuture<T> {
      * Add an action listener to be invoked when a response has received.
      */
     void addListener(final ActionListener<T> listener);
-
-    /**
-     * Add an action listener (runnable) to be invoked when a response has received.
-     */
-    void addListener(final Runnable listener);
 }

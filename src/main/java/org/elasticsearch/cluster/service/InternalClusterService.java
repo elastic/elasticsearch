@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -28,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
@@ -47,10 +49,7 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.*;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -60,6 +59,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  */
 public class InternalClusterService extends AbstractLifecycleComponent<ClusterService> implements ClusterService {
 
+    public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     private final ThreadPool threadPool;
 
     private final DiscoveryService discoveryService;
@@ -69,6 +69,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private final TransportService transportService;
 
     private final NodeSettingsService nodeSettingsService;
+    private final DiscoveryNodeService discoveryNodeService;
+    private final Version version;
 
     private final TimeValue reconnectInterval;
 
@@ -83,19 +85,23 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private volatile ClusterState clusterState;
 
-    private final ClusterBlocks.Builder initialBlocks = ClusterBlocks.builder().addGlobalBlock(Discovery.NO_MASTER_BLOCK);
+    private final ClusterBlocks.Builder initialBlocks;
 
     private volatile ScheduledFuture reconnectToNodes;
 
     @Inject
     public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService,
-                                  NodeSettingsService nodeSettingsService, ThreadPool threadPool, ClusterName clusterName) {
+                                  NodeSettingsService nodeSettingsService, ThreadPool threadPool, ClusterName clusterName, DiscoveryNodeService discoveryNodeService, Version version) {
         super(settings);
         this.operationRouting = operationRouting;
         this.transportService = transportService;
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
         this.nodeSettingsService = nodeSettingsService;
+        this.discoveryNodeService = discoveryNodeService;
+        this.version = version;
+
+        // will be replaced on doStart.
         this.clusterState = ClusterState.builder(clusterName).build();
 
         this.nodeSettingsService.setClusterService(this);
@@ -103,6 +109,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         this.reconnectInterval = componentSettings.getAsTime("reconnect_interval", TimeValue.timeValueSeconds(10));
 
         localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
+
+        initialBlocks = ClusterBlocks.builder().addGlobalBlock(discoveryService.getNoMasterBlock());
     }
 
     public NodeSettingsService settingsService() {
@@ -128,8 +136,15 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     protected void doStart() throws ElasticsearchException {
         add(localNodeMasterListeners);
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
-        this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(daemonThreadFactory(settings, "clusterService#updateTask"));
+        this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(daemonThreadFactory(settings, UPDATE_THREAD_NAME));
         this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ReconnectToNodes());
+        Map<String, String> nodeAttributes = discoveryNodeService.buildAttributes();
+        // note, we rely on the fact that its a new id each time we start, see FD and "kill -9" handling
+        final String nodeId = DiscoveryService.generateNodeId(settings);
+        DiscoveryNode localNode = new DiscoveryNode(settings.get("name"), nodeId, transportService.boundAddress().publishAddress(), nodeAttributes, version);
+        DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder().put(localNode).localNodeId(localNode.id());
+        this.clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).blocks(initialBlocks).build();
+
     }
 
     @Override
@@ -154,7 +169,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Override
     public DiscoveryNode localNode() {
-        return discoveryService.localNode();
+        return clusterState.getNodes().localNode();
     }
 
     @Override
@@ -279,7 +294,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 timeInQueue = -1;
             }
 
-            pendingClusterTasks.add(new PendingClusterTask(pending.insertionOrder, pending.priority, new StringText(source), timeInQueue));
+            pendingClusterTasks.add(new PendingClusterTask(pending.insertionOrder, pending.priority, new StringText(source), timeInQueue, pending.executing));
         }
         return pendingClusterTasks;
     }
@@ -304,6 +319,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             }
             logger.debug("processing [{}]: execute", source);
             ClusterState previousClusterState = clusterState;
+            if (!previousClusterState.nodes().localNodeMaster() && updateTask.runOnlyOnMaster()) {
+                logger.debug("failing [{}]: local node is no longer master", source);
+                updateTask.onNoLongerMaster(source);
+                return;
+            }
             ClusterState newClusterState;
             try {
                 newClusterState = updateTask.execute(previousClusterState);
@@ -359,20 +379,6 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                                 ackedUpdateTask.onAckTimeout();
                             }
                         }
-                    }
-                } else {
-                    if (previousClusterState.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK) && !newClusterState.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
-                        // force an update, its a fresh update from the master as we transition from a start of not having a master to having one
-                        // have a fresh instances of routing and metadata to remove the chance that version might be the same
-                        Builder builder = ClusterState.builder(newClusterState);
-                        builder.routingTable(RoutingTable.builder(newClusterState.routingTable()));
-                        builder.metaData(MetaData.builder(newClusterState.metaData()));
-                        newClusterState = builder.build();
-                        logger.debug("got first state from fresh master [{}]", newClusterState.nodes().masterNodeId());
-                    } else if (newClusterState.version() < previousClusterState.version()) {
-                        // we got a cluster state with older version, when we are *not* the master, let it in since it might be valid
-                        // we check on version where applicable, like at ZenDiscovery#handleNewClusterStateFromMaster
-                        logger.debug("got smaller cluster state when not master [" + newClusterState.version() + "<" + previousClusterState.version() + "] from source [" + source + "]");
                     }
                 }
 
@@ -431,15 +437,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     listener.clusterChanged(clusterChangedEvent);
                 }
 
-                if (!nodesDelta.removedNodes().isEmpty()) {
-                    threadPool.generic().execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            for (DiscoveryNode node : nodesDelta.removedNodes()) {
-                                transportService.disconnectFromNode(node);
-                            }
-                        }
-                    });
+                for (DiscoveryNode node : nodesDelta.removedNodes()) {
+                    try {
+                        transportService.disconnectFromNode(node);
+                    } catch (Throwable e) {
+                        logger.warn("failed to disconnect to node [" + node + "]", e);
+                    }
                 }
 
                 newClusterState.status(ClusterState.ClusterStateStatus.APPLIED);
@@ -447,7 +450,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 //manual ack only from the master at the end of the publish
                 if (newClusterState.nodes().localNodeMaster()) {
                     try {
-                        ackListener.onNodeAck(localNode(), null);
+                        ackListener.onNodeAck(newClusterState.nodes().localNode(), null);
                     } catch (Throwable t) {
                         logger.debug("error while processing ack for master node [{}]", t, newClusterState.nodes().localNode());
                     }
@@ -701,5 +704,4 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             }
         }
     }
-
 }

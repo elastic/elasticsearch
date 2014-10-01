@@ -1,7 +1,7 @@
 [[search-request-fielddata-fields]]
 === Field Data Fields
 
-Allows to return the field data representiation of a field for each hit, for
+Allows to return the field data representation of a field for each hit, for
 example:
 
 [source,js]

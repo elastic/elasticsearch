@@ -24,11 +24,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.util.BigArrays;
@@ -36,6 +36,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -123,7 +124,7 @@ public class PercolateContext extends SearchContext {
         this.types = new String[]{request.documentType()};
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
-        this.bigArrays = bigArrays;
+        this.bigArrays = bigArrays.withCircuitBreaking();
         this.querySearchResult = new QuerySearchResult(0, searchShardTarget);
         this.engineSearcher = indexShard.acquireSearcher("percolate");
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
@@ -210,13 +211,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     protected void doClose() {
-        try (Releasable releasable = Releasables.wrap(engineSearcher, docSearcher)) {
-            if (docSearcher != null) {
-                IndexReader indexReader = docSearcher.reader();
-                fieldDataService.clear(indexReader);
-                indexService.cache().clear(indexReader);
-            }
-        }
+        Releasables.close(engineSearcher, docSearcher);
     }
 
     @Override
@@ -348,7 +343,7 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public long nowInMillis() {
+    protected long nowInMillisImpl() {
         throw new UnsupportedOperationException();
     }
 
@@ -478,6 +473,11 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
+    public FixedBitSetFilterCache fixedBitSetFilterCache() {
+        return indexService.fixedBitSetFilterCache();
+    }
+
+    @Override
     public DocSetCache docSetCache() {
         return indexService.cache().docSet();
     }
@@ -489,6 +489,16 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public void timeoutInMillis(long timeoutInMillis) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int terminateAfter() {
+        return DEFAULT_TERMINATE_AFTER;
+    }
+
+    @Override
+    public void terminateAfter(int terminateAfter) {
         throw new UnsupportedOperationException();
     }
 
@@ -703,6 +713,11 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public SearchContext useSlowScroll(boolean useSlowScroll) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Counter timeEstimateCounter() {
         throw new UnsupportedOperationException();
     }
 

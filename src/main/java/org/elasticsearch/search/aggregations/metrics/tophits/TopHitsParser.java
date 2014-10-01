@@ -70,6 +70,10 @@ public class TopHitsParser implements Aggregator.Parser {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
+                } else if ("sort".equals(currentFieldName)) {
+                    sortParseElement.parse(parser, topHitsContext);
+                } else if ("_source".equals(currentFieldName)) {
+                    sourceParseElement.parse(parser, topHitsContext);
                 } else if (token.isValue()) {
                     switch (currentFieldName) {
                         case "from":
@@ -77,9 +81,6 @@ public class TopHitsParser implements Aggregator.Parser {
                             break;
                         case "size":
                             topHitsContext.size(parser.intValue());
-                            break;
-                        case "sort":
-                            sortParseElement.parse(parser, topHitsContext);
                             break;
                         case "track_scores":
                         case "trackScores":
@@ -96,12 +97,6 @@ public class TopHitsParser implements Aggregator.Parser {
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     switch (currentFieldName) {
-                        case "sort":
-                            sortParseElement.parse(parser, topHitsContext);
-                            break;
-                        case "_source":
-                            sourceParseElement.parse(parser, topHitsContext);
-                            break;
                         case "highlight":
                             highlighterParseElement.parse(parser, topHitsContext);
                             break;
@@ -114,9 +109,6 @@ public class TopHitsParser implements Aggregator.Parser {
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     switch (currentFieldName) {
-                        case "sort":
-                            sortParseElement.parse(parser, topHitsContext);
-                            break;
                         case "fielddataFields":
                         case "fielddata_fields":
                             fieldDataFieldsParseElement.parse(parser, topHitsContext);

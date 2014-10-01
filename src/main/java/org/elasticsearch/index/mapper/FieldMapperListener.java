@@ -38,7 +38,7 @@ public abstract class FieldMapperListener {
 
     public abstract void fieldMapper(FieldMapper fieldMapper);
 
-    public void fieldMappers(Iterable<FieldMapper>  fieldMappers) {
+    public void fieldMappers(List<FieldMapper>  fieldMappers) {
         for (FieldMapper mapper : fieldMappers) {
             fieldMapper(mapper);
         }

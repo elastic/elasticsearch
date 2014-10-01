@@ -21,8 +21,12 @@ package org.elasticsearch.action.bench;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,19 +42,19 @@ public class TransportBenchmarkStatusAction extends TransportMasterNodeOperation
 
     @Inject
     public TransportBenchmarkStatusAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, BenchmarkService service) {
-        super(settings, transportService, clusterService, threadPool);
+                                          ThreadPool threadPool, BenchmarkService service, ActionFilters actionFilters) {
+        super(settings, BenchmarkStatusAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.service = service;
-    }
-
-    @Override
-    protected String transportAction() {
-        return BenchmarkStatusAction.NAME;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(BenchmarkStatusRequest request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
     }
 
     @Override

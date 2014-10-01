@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -57,24 +58,40 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
  */
 public class MetaData implements Iterable<IndexMetaData> {
 
+    public static final String ALL = "_all";
+
+    public enum XContentContext {
+        /* Custom metadata should be returns as part of API call */
+        API,
+
+        /* Custom metadata should be stored as part of the persistent cluster state */
+        GATEWAY,
+
+        /* Custom metadata should be stored as part of a snapshot */
+        SNAPSHOT;
+    }
+
+    public static EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
+    public static EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
+    public static EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
+
     public interface Custom {
 
-        interface Factory<T extends Custom> {
+        abstract class Factory<T extends Custom> {
 
-            String type();
+            public abstract String type();
 
-            T readFrom(StreamInput in) throws IOException;
+            public abstract T readFrom(StreamInput in) throws IOException;
 
-            void writeTo(T customIndexMetaData, StreamOutput out) throws IOException;
+            public abstract void writeTo(T customIndexMetaData, StreamOutput out) throws IOException;
 
-            T fromXContent(XContentParser parser) throws IOException;
+            public abstract T fromXContent(XContentParser parser) throws IOException;
 
-            void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException;
+            public abstract void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException;
 
-            /**
-             * Returns true if this custom metadata should be persisted as part of global cluster state
-             */
-            boolean isPersistent();
+            public EnumSet<XContentContext> context() {
+                return API_ONLY;
+            }
         }
     }
 
@@ -115,9 +132,11 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public static final MetaData EMPTY_META_DATA = builder().build();
 
-    public static final String GLOBAL_ONLY_PARAM = "global_only";
+    public static final String CONTEXT_MODE_PARAM = "context_mode";
 
-    public static final String PERSISTENT_ONLY_PARAM = "persistent_only";
+    public static final String CONTEXT_MODE_SNAPSHOT = XContentContext.SNAPSHOT.toString();
+
+    public static final String CONTEXT_MODE_GATEWAY = XContentContext.GATEWAY.toString();
 
     private final String uuid;
     private final long version;
@@ -635,6 +654,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     /**
      * Translates the provided indices or aliases, eventually containing wildcard expressions, into actual indices.
+     *
      * @param indicesOptions how the aliases or indices need to be resolved to concrete indices
      * @param aliasesOrIndices the aliases or indices to be resolved to concrete indices
      * @return the obtained concrete indices
@@ -645,7 +665,6 @@ public class MetaData implements Iterable<IndexMetaData> {
      * indices options don't allow such a case.
      */
     public String[] concreteIndices(IndicesOptions indicesOptions, String... aliasesOrIndices) throws IndexMissingException, ElasticsearchIllegalArgumentException {
-
         if (indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed()) {
             if (isAllIndices(aliasesOrIndices)) {
                 String[] concreteIndices;
@@ -665,27 +684,44 @@ public class MetaData implements Iterable<IndexMetaData> {
 
             aliasesOrIndices = convertFromWildcards(aliasesOrIndices, indicesOptions);
         }
+        boolean failClosed = indicesOptions.forbidClosedIndices() && !indicesOptions.ignoreUnavailable();
 
         // optimize for single element index (common case)
         if (aliasesOrIndices.length == 1) {
-            return concreteIndices(aliasesOrIndices[0], indicesOptions.allowNoIndices(), indicesOptions.allowAliasesToMultipleIndices());
+            return concreteIndices(aliasesOrIndices[0], indicesOptions.allowNoIndices(), failClosed, indicesOptions.allowAliasesToMultipleIndices());
         }
 
         // check if its a possible aliased index, if not, just return the passed array
         boolean possiblyAliased = false;
+        boolean closedIndices = false;
         for (String index : aliasesOrIndices) {
-            if (!this.indices.containsKey(index)) {
+            IndexMetaData indexMetaData = indices.get(index);
+            if (indexMetaData == null) {
                 possiblyAliased = true;
                 break;
+            } else {
+                if (indicesOptions.forbidClosedIndices() && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                    if (failClosed) {
+                        throw new IndexClosedException(new Index(index));
+                    } else {
+                        closedIndices = true;
+                    }
+                }
             }
         }
         if (!possiblyAliased) {
-            return aliasesOrIndices;
+            if (closedIndices) {
+                Set<String> actualIndices = new HashSet<>(Arrays.asList(aliasesOrIndices));
+                actualIndices.retainAll(new HashSet<Object>(Arrays.asList(allOpenIndices)));
+                return actualIndices.toArray(new String[actualIndices.size()]);
+            } else {
+                return aliasesOrIndices;
+            }
         }
 
         Set<String> actualIndices = new HashSet<>();
         for (String aliasOrIndex : aliasesOrIndices) {
-            String[] indices = concreteIndices(aliasOrIndex, indicesOptions.ignoreUnavailable(), indicesOptions.allowAliasesToMultipleIndices());
+            String[] indices = concreteIndices(aliasOrIndex, indicesOptions.ignoreUnavailable(), failClosed, indicesOptions.allowAliasesToMultipleIndices());
             Collections.addAll(actualIndices, indices);
         }
 
@@ -695,16 +731,36 @@ public class MetaData implements Iterable<IndexMetaData> {
         return actualIndices.toArray(new String[actualIndices.size()]);
     }
 
-    public String concreteSingleIndex(String indexOrAlias) throws IndexMissingException, ElasticsearchIllegalArgumentException {
-        String[] indices = concreteIndices(IndicesOptions.strictSingleIndexNoExpand(), indexOrAlias);
-        assert indices.length == 1 : "expected an exception to be thrown otherwise";
+    /**
+     *
+     * Utility method that allows to resolve an index or alias to its corresponding single concrete index.
+     * Callers should make sure they provide proper {@link org.elasticsearch.action.support.IndicesOptions}
+     * that require a single index as a result. The indices resolution must in fact return a single index when
+     * using this method, an {@link org.elasticsearch.ElasticsearchIllegalArgumentException} gets thrown otherwise.
+     *
+     * @param indexOrAlias the index or alias to be resolved to concrete index
+     * @param indicesOptions the indices options to be used for the index resolution
+     * @return the concrete index obtained as a result of the index resolution
+     * @throws IndexMissingException if the index or alias provided doesn't exist
+     * @throws ElasticsearchIllegalArgumentException if the index resolution lead to more than one index
+     */
+    public String concreteSingleIndex(String indexOrAlias, IndicesOptions indicesOptions) throws IndexMissingException, ElasticsearchIllegalArgumentException {
+        String[] indices = concreteIndices(indicesOptions, indexOrAlias);
+        if (indices.length != 1) {
+            throw new ElasticsearchIllegalArgumentException("unable to return a single index as the index and options provided got resolved to multiple indices");
+        }
         return indices[0];
     }
 
-    private String[] concreteIndices(String aliasOrIndex, boolean allowNoIndices, boolean allowMultipleIndices) throws IndexMissingException, ElasticsearchIllegalArgumentException {
+    private String[] concreteIndices(String aliasOrIndex, boolean allowNoIndices, boolean failClosed, boolean allowMultipleIndices) throws IndexMissingException, ElasticsearchIllegalArgumentException {
         // a quick check, if this is an actual index, if so, return it
-        if (indices.containsKey(aliasOrIndex)) {
-            return new String[]{aliasOrIndex};
+        IndexMetaData indexMetaData = indices.get(aliasOrIndex);
+        if (indexMetaData != null) {
+            if (indexMetaData.getState() == IndexMetaData.State.CLOSE && failClosed) {
+               throw new IndexClosedException(new Index(aliasOrIndex));
+            } else {
+               return new String[]{aliasOrIndex};
+            }
         }
         // not an actual index, fetch from an alias
         String[] indices = aliasAndIndexToIndexMap.getOrDefault(aliasOrIndex, Strings.EMPTY_ARRAY);
@@ -713,6 +769,11 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
         if (indices.length > 1 && !allowMultipleIndices) {
             throw new ElasticsearchIllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one indices associated with it [" + Arrays.toString(indices) + "], can't execute a single index op");
+        }
+
+        indexMetaData = this.indices.get(aliasOrIndex);
+        if (indexMetaData != null && indexMetaData.getState() == IndexMetaData.State.CLOSE && failClosed) {
+            throw new IndexClosedException(new Index(aliasOrIndex));
         }
         return indices;
     }
@@ -956,7 +1017,7 @@ public class MetaData implements Iterable<IndexMetaData> {
      * @param aliasesOrIndices the array containing index names
      * @return true if the provided array maps to all indices, false otherwise
      */
-    public boolean isAllIndices(String[] aliasesOrIndices) {
+    public static boolean isAllIndices(String[] aliasesOrIndices) {
         return aliasesOrIndices == null || aliasesOrIndices.length == 0 || isExplicitAllPattern(aliasesOrIndices);
     }
     
@@ -978,8 +1039,8 @@ public class MetaData implements Iterable<IndexMetaData> {
      * @param aliasesOrIndices the array containing index names
      * @return true if the provided array explicitly maps to all indices, false otherwise
      */
-    public boolean isExplicitAllPattern(String[] aliasesOrIndices) {
-        return aliasesOrIndices != null && aliasesOrIndices.length == 1 && "_all".equals(aliasesOrIndices[0]);
+    public static boolean isExplicitAllPattern(String[] aliasesOrIndices) {
+        return aliasesOrIndices != null && aliasesOrIndices.length == 1 && ALL.equals(aliasesOrIndices[0]);
     }
 
     /**
@@ -1040,14 +1101,14 @@ public class MetaData implements Iterable<IndexMetaData> {
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metaData1.customs) {
-            if (customFactories.get(cursor.key).isPersistent()) {
+            if (customFactories.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
                 if (!cursor.value.equals(metaData2.custom(cursor.key))) return false;
                 customCount1++;
             }
         }
         int customCount2 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metaData2.customs) {
-            if (customFactories.get(cursor.key).isPersistent()) {
+            if (customFactories.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
                 customCount2++;
             }
         }
@@ -1226,8 +1287,8 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            boolean globalOnly = params.paramAsBoolean(GLOBAL_ONLY_PARAM, false);
-            boolean persistentOnly = params.paramAsBoolean(PERSISTENT_ONLY_PARAM, false);
+            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, "API"));
+
             builder.startObject("meta-data");
 
             builder.field("version", metaData.version());
@@ -1241,7 +1302,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 builder.endObject();
             }
 
-            if (!persistentOnly && !metaData.transientSettings().getAsMap().isEmpty()) {
+            if (context == XContentContext.API && !metaData.transientSettings().getAsMap().isEmpty()) {
                 builder.startObject("transient_settings");
                 for (Map.Entry<String, String> entry : metaData.transientSettings().getAsMap().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());
@@ -1255,7 +1316,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             builder.endObject();
 
-            if (!globalOnly && !metaData.indices().isEmpty()) {
+            if (context == XContentContext.API && !metaData.indices().isEmpty()) {
                 builder.startObject("indices");
                 for (IndexMetaData indexMetaData : metaData) {
                     IndexMetaData.Builder.toXContent(indexMetaData, builder, params);
@@ -1265,13 +1326,12 @@ public class MetaData implements Iterable<IndexMetaData> {
 
             for (ObjectObjectCursor<String, Custom> cursor : metaData.customs()) {
                 Custom.Factory factory = lookupFactorySafe(cursor.key);
-                if (!persistentOnly || factory.isPersistent()) {
+                if(factory.context().contains(context)) {
                     builder.startObject(cursor.key);
                     factory.toXContent(cursor.value, builder, params);
                     builder.endObject();
                 }
             }
-
             builder.endObject();
         }
 

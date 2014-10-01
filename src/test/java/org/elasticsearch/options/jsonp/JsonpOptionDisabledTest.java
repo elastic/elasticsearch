@@ -19,14 +19,17 @@
 
 package org.elasticsearch.options.jsonp;
 
+import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.rest.helper.HttpClient;
-import org.elasticsearch.rest.helper.HttpClientResponse;
+import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.containsString;
@@ -39,9 +42,17 @@ public class JsonpOptionDisabledTest extends ElasticsearchIntegrationTest {
     // Build our cluster settings
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        // false is the default!
+        if (randomBoolean()) {
+            logger.info("using default jsonp settings (should be false)");
+            return ImmutableSettings.settingsBuilder()
+                    .put(super.nodeSettings(nodeOrdinal))
+                    .put(InternalNode.HTTP_ENABLED, true).build();
+        }
         return ImmutableSettings.settingsBuilder()
-                .put("http.jsonp.enable", false)
                 .put(super.nodeSettings(nodeOrdinal))
+                .put(InternalNode.HTTP_ENABLED, true)
+                .put(RestController.HTTP_JSON_ENABLE, false)
                 .build();
     }
 
@@ -49,11 +60,12 @@ public class JsonpOptionDisabledTest extends ElasticsearchIntegrationTest {
     @Test
     public void testThatJSONPisDisabled() throws Exception {
         // Make the HTTP request
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        HttpClient httpClient = new HttpClient(httpServerTransport.boundAddress().publishAddress());
-        HttpClientResponse response = httpClient.request("/?callback=DisabledJSONPCallback");
-        assertThat(response.getHeader("Content-Type"), is("application/javascript"));
-        assertThat(response.response(), containsString("DisabledJSONPCallback("));
-        assertThat(response.response(), containsString("JSONP is disabled"));
+        HttpResponse response = new HttpRequestBuilder(HttpClients.createDefault()).httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
+                .path("/")
+                .addParam("callback", "DisabledJSONPCallback").execute();
+
+        assertThat(response.getHeaders().get("Content-Type"), is("application/javascript"));
+        assertThat(response.getBody(), containsString("DisabledJSONPCallback("));
+        assertThat(response.getBody(), containsString("JSONP is disabled"));
     }
 }

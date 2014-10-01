@@ -19,14 +19,16 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
+import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude.LongFilter;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
@@ -44,13 +46,17 @@ public class LongTermsAggregator extends TermsAggregator {
     protected final ValuesSource.Numeric valuesSource;
     protected final @Nullable ValueFormatter formatter;
     protected final LongHash bucketOrds;
-    private LongValues values;
+    private boolean showTermDocCountError;
+    private SortedNumericDocValues values;
+    private LongFilter longFilter;
 
     public LongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
-                               InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode) {
+            Terms.Order order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter) {
         super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds, order, subAggCollectMode);
         this.valuesSource = valuesSource;
+        this.showTermDocCountError = showTermDocCountError;
         this.formatter = format != null ? format.formatter() : null;
+        this.longFilter = longFilter;
         bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
     }
     
@@ -61,25 +67,36 @@ public class LongTermsAggregator extends TermsAggregator {
         return true;
     }
 
+    protected SortedNumericDocValues getValues(ValuesSource.Numeric valuesSource) {
+        return valuesSource.longValues();
+    }
+
     @Override
     public void setNextReader(AtomicReaderContext reader) {
-        values = valuesSource.longValues();
+        values = getValues(valuesSource);
     }
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        final int valuesCount = values.setDocument(doc);
+        values.setDocument(doc);
+        final int valuesCount = values.count();
 
+        long previous = Long.MAX_VALUE;
         for (int i = 0; i < valuesCount; ++i) {
-            final long val = values.nextValue();
-            long bucketOrdinal = bucketOrds.add(val);
-            if (bucketOrdinal < 0) { // already seen
-                bucketOrdinal = - 1 - bucketOrdinal;
-                collectExistingBucket(doc, bucketOrdinal);
+            final long val = values.valueAt(i);
+            if (previous != val || i == 0) {
+                if ((longFilter == null) || (longFilter.accept(val))) {
+                    long bucketOrdinal = bucketOrds.add(val);
+                    if (bucketOrdinal < 0) { // already seen
+                        bucketOrdinal = - 1 - bucketOrdinal;
+                        collectExistingBucket(doc, bucketOrdinal);
+                    } else {
+                        collectBucket(doc, bucketOrdinal);
+                    }                       
+                }
                 
-            } else {
-                collectBucket(doc, bucketOrdinal);
+                previous = val;
             }
         }
     }
@@ -92,11 +109,12 @@ public class LongTermsAggregator extends TermsAggregator {
             // we need to fill-in the blanks
             for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
                 context.setNextReader(ctx);
-                final LongValues values = valuesSource.longValues();
+                final SortedNumericDocValues values = getValues(valuesSource);
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                    final int valueCount = values.setDocument(docId);
+                    values.setDocument(docId);
+                    final int valueCount = values.count();
                     for (int i = 0; i < valueCount; ++i) {
-                        bucketOrds.add(values.nextValue());
+                        bucketOrds.add(values.valueAt(i));
                     }
                 }
             }
@@ -108,7 +126,7 @@ public class LongTermsAggregator extends TermsAggregator {
         LongTerms.Bucket spare = null;
         for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
-                spare = new LongTerms.Bucket(0, 0, null);
+                spare = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0);
             }
             spare.term = bucketOrds.get(i);
             spare.docCount = bucketDocCount(i);
@@ -117,9 +135,7 @@ public class LongTermsAggregator extends TermsAggregator {
                 spare = (LongTerms.Bucket) ordered.insertWithOverflow(spare);
             }
         }
-        
-        
-        
+
         // Get the top buckets
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
         long survivingBucketOrds[] = new long[ordered.size()];
@@ -134,14 +150,16 @@ public class LongTermsAggregator extends TermsAggregator {
         //Now build the aggs
         for (int i = 0; i < list.length; i++) {
           list[i].aggregations = bucketAggregations(list[i].bucketOrd);
+          list[i].docCountError = 0;
         }
-        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
+        
+        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0);
     }
     
     
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());
+        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), showTermDocCountError, 0);
     }
 
     @Override

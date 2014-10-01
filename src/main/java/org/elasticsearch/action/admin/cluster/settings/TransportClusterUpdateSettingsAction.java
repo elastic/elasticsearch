@@ -21,10 +21,13 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -55,8 +58,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
 
     @Inject
     public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                AllocationService allocationService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
-        super(settings, transportService, clusterService, threadPool);
+                                                AllocationService allocationService, @ClusterDynamicSettings DynamicSettings dynamicSettings, ActionFilters actionFilters) {
+        super(settings, ClusterUpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.allocationService = allocationService;
         this.dynamicSettings = dynamicSettings;
     }
@@ -67,9 +70,15 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
     }
 
     @Override
-    protected String transportAction() {
-        return ClusterUpdateSettingsAction.NAME;
+    protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
+        // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
+        if ((request.transientSettings().getAsMap().isEmpty() && request.persistentSettings().getAsMap().size() == 1 && request.persistentSettings().get(MetaData.SETTING_READ_ONLY) != null) ||
+                request.persistentSettings().getAsMap().isEmpty() && request.transientSettings().getAsMap().size() == 1 && request.transientSettings().get(MetaData.SETTING_READ_ONLY) != null) {
+            return null;
+        }
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
     }
+
 
     @Override
     protected ClusterUpdateSettingsRequest newRequest() {
@@ -139,6 +148,12 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                     //we return when the cluster reroute is acked or it times out but the acknowledged flag depends on whether the update settings was acknowledged
                     protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
                         return new ClusterUpdateSettingsResponse(updateSettingsAcked && acknowledged, transientUpdates.build(), persistentUpdates.build());
+                    }
+
+                    @Override
+                    public void onNoLongerMaster(String source) {
+                        logger.debug("failed to preform reroute after cluster settings were updated - current node is no longer a master");
+                        listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, transientUpdates.build(), persistentUpdates.build()));
                     }
 
                     @Override

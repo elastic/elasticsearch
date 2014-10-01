@@ -55,12 +55,25 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 public class ImmutableSettings implements Settings {
 
     public static final Settings EMPTY = new Builder().build();
+    public static final String FLAT_SETTINGS_KEY = "flat_settings";
 
     private ImmutableMap<String, String> settings;
+    private final ImmutableMap<String, String> forcedUnderscoreSettings;
     private transient ClassLoader classLoader;
 
     ImmutableSettings(Map<String, String> settings, ClassLoader classLoader) {
         this.settings = ImmutableMap.copyOf(settings);
+        Map<String, String> forcedUnderscoreSettings = null;
+        for (Map.Entry<String, String> entry : settings.entrySet()) {
+            String toUnderscoreCase = Strings.toUnderscoreCase(entry.getKey());
+            if (!toUnderscoreCase.equals(entry.getKey())) {
+                if (forcedUnderscoreSettings == null) {
+                    forcedUnderscoreSettings = new HashMap<>();
+                }
+                forcedUnderscoreSettings.put(toUnderscoreCase, entry.getValue());
+            }
+        }
+        this.forcedUnderscoreSettings = forcedUnderscoreSettings == null ? ImmutableMap.<String, String>of() : ImmutableMap.copyOf(forcedUnderscoreSettings);
         this.classLoader = classLoader;
     }
 
@@ -207,23 +220,23 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public Settings getAsSettings(String setting) {
+        return getByPrefix(setting + ".");
+    }
+
+    @Override
     public String get(String setting) {
         String retVal = settings.get(setting);
         if (retVal != null) {
             return retVal;
         }
-        // try camel case version
-        return settings.get(toCamelCase(setting));
+        return forcedUnderscoreSettings.get(setting);
     }
 
     @Override
     public String get(String[] settings) {
         for (String setting : settings) {
-            String retVal = this.settings.get(setting);
-            if (retVal != null) {
-                return retVal;
-            }
-            retVal = this.settings.get(toCamelCase(setting));
+            String retVal = get(setting);
             if (retVal != null) {
                 return retVal;
             }
@@ -557,6 +570,20 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public Set<String> names() {
+        Set<String> names = new HashSet<>();
+        for (String key : settings.keySet()) {
+            int i = key.indexOf(".");
+            if (i < 0) {
+                names.add(key);
+            } else {
+                names.add(key.substring(0, i));
+            }
+        }
+        return names;
+    }
+
+    @Override
     public String toDelimitedString(char delimiter) {
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<String, String> entry : settings.entrySet()) {
@@ -615,7 +642,7 @@ public class ImmutableSettings implements Settings {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (!params.paramAsBoolean("flat_settings", false)) {
+        if (!params.paramAsBoolean(FLAT_SETTINGS_KEY, false)) {
             for (Map.Entry<String, Object> entry : getAsStructuredMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }

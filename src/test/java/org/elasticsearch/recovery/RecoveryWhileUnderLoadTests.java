@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -43,7 +44,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
@@ -255,7 +255,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
                 allowNodes = 2 / allowNodes;
                 allowNodes("test", allowNodes);
                 logger.info("--> waiting for GREEN health status ...");
-                assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus());
+                ensureGreen(TimeValue.timeValueMinutes(5));
             }
 
             logger.info("--> marking and waiting for indexing threads to stop ...");
@@ -265,7 +265,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
             logger.info("--> bump up number of replicas to 1 and allow all nodes to hold the index");
             allowNodes("test", 3);
             assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("number_of_replicas", 1)).get());
-            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus());
+            ensureGreen(TimeValue.timeValueMinutes(5));
 
             logger.info("--> refreshing the index");
             refreshAndAssert();

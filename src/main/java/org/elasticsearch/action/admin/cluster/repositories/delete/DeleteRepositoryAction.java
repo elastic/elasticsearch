@@ -28,7 +28,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class DeleteRepositoryAction extends ClusterAction<DeleteRepositoryRequest, DeleteRepositoryResponse, DeleteRepositoryRequestBuilder> {
 
     public static final DeleteRepositoryAction INSTANCE = new DeleteRepositoryAction();
-    public static final String NAME = "cluster/repository/delete";
+    public static final String NAME = "cluster:admin/repository/delete";
 
     private DeleteRepositoryAction() {
         super(NAME);

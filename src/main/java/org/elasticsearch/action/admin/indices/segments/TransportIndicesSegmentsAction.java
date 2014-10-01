@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
@@ -32,16 +33,14 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.service.InternalIndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -56,19 +55,14 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
 
     @Inject
     public TransportIndicesSegmentsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                          IndicesService indicesService) {
-        super(settings, threadPool, clusterService, transportService);
+                                          IndicesService indicesService, ActionFilters actionFilters) {
+        super(settings, IndicesSegmentsAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return IndicesSegmentsAction.NAME;
     }
 
     @Override
@@ -125,7 +119,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
 
     @Override
     protected IndexShardSegmentRequest newShardRequest(int numShards, ShardRouting shard, IndicesSegmentsRequest request) {
-        return new IndexShardSegmentRequest(shard.index(), shard.id(), request);
+        return new IndexShardSegmentRequest(shard.shardId(), request);
     }
 
     @Override
@@ -135,28 +129,18 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
 
     @Override
     protected ShardSegments shardOperation(IndexShardSegmentRequest request) throws ElasticsearchException {
-        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.shardId().getIndex());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
         return new ShardSegments(indexShard.routingEntry(), indexShard.engine().segments());
     }
 
-    public static class IndexShardSegmentRequest extends BroadcastShardOperationRequest {
+    static class IndexShardSegmentRequest extends BroadcastShardOperationRequest {
 
         IndexShardSegmentRequest() {
         }
 
-        IndexShardSegmentRequest(String index, int shardId, IndicesSegmentsRequest request) {
-            super(index, shardId, request);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+        IndexShardSegmentRequest(ShardId shardId, IndicesSegmentsRequest request) {
+            super(shardId, request);
         }
     }
 }

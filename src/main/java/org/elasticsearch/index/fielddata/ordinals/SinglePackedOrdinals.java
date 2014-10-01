@@ -19,11 +19,12 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.BytesValues.WithOrdinals;
 
 /**
  */
@@ -31,73 +32,52 @@ public class SinglePackedOrdinals extends Ordinals {
 
     // ordinals with value 0 indicates no value
     private final PackedInts.Reader reader;
-    private final long maxOrd;
-
-    private long size = -1;
+    private final int valueCount;
 
     public SinglePackedOrdinals(OrdinalsBuilder builder, float acceptableOverheadRatio) {
         assert builder.getNumMultiValuesDocs() == 0;
-        this.maxOrd = builder.getMaxOrd();
+        this.valueCount = (int) builder.getValueCount();
         // We don't reuse the builder as-is because it might have been built with a higher overhead ratio
-        final PackedInts.Mutable reader = PackedInts.getMutable(builder.maxDoc(), PackedInts.bitsRequired(maxOrd), acceptableOverheadRatio);
+        final PackedInts.Mutable reader = PackedInts.getMutable(builder.maxDoc(), PackedInts.bitsRequired(valueCount), acceptableOverheadRatio);
         PackedInts.copy(builder.getFirstOrdinals(), 0, reader, 0, builder.maxDoc(), 8 * 1024);
         this.reader = reader;
     }
 
     @Override
     public long ramBytesUsed() {
-        if (size == -1) {
-            size = RamUsageEstimator.NUM_BYTES_OBJECT_REF + reader.ramBytesUsed();
-        }
-        return size;
+        return RamUsageEstimator.NUM_BYTES_OBJECT_REF + reader.ramBytesUsed();
     }
 
     @Override
-    public WithOrdinals ordinals(ValuesHolder values) {
-        return new Docs(this, values);
+    public RandomAccessOrds ordinals(ValuesHolder values) {
+        return (RandomAccessOrds) DocValues.singleton(new Docs(this, values));
     }
 
-    private static class Docs extends BytesValues.WithOrdinals {
+    private static class Docs extends SortedDocValues {
 
-        private final long maxOrd;
+        private final int maxOrd;
         private final PackedInts.Reader reader;
         private final ValuesHolder values;
 
-        private long currentOrdinal;
-
         public Docs(SinglePackedOrdinals parent, ValuesHolder values) {
-            super(false);
-            this.maxOrd = parent.maxOrd;
+            this.maxOrd = parent.valueCount;
             this.reader = parent.reader;
             this.values = values;
         }
 
         @Override
-        public long getMaxOrd() {
+        public int getValueCount() {
             return maxOrd;
         }
 
         @Override
-        public long getOrd(int docId) {
-            return currentOrdinal = reader.get(docId) - 1;
+        public BytesRef lookupOrd(int ord) {
+            return values.lookupOrd(ord);
         }
 
         @Override
-        public long nextOrd() {
-            assert currentOrdinal >= MIN_ORDINAL;
-            return currentOrdinal;
-        }
-
-        @Override
-        public int setDocument(int docId) {
-            currentOrdinal = reader.get(docId) - 1;
-            // either this is > 1 or 0 - in any case it prevents a branch!
-            return 1 + (int) Math.min(currentOrdinal, 0);
-        }
-
-        @Override
-        public BytesRef getValueByOrd(long ord) {
-            return values.getValueByOrd(ord);
+        public int getOrd(int docID) {
+            return (int) (reader.get(docID) - 1);
         }
     }
 }

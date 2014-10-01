@@ -19,17 +19,16 @@
 package org.elasticsearch.watcher;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ScheduledFuture;
-
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * Generic resource watcher service
@@ -41,22 +40,53 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  */
 public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceWatcherService> {
 
-    private final List<ResourceWatcher> watchers = new CopyOnWriteArrayList<>();
+    public static enum Frequency {
 
-    private volatile ScheduledFuture scheduledFuture;
+        /**
+         * Defaults to 5 seconds
+         */
+        HIGH(TimeValue.timeValueSeconds(5)),
+
+        /**
+         * Defaults to 30 seconds
+         */
+        MEDIUM(TimeValue.timeValueSeconds(25)),
+
+        /**
+         * Defaults to 60 seconds
+         */
+        LOW(TimeValue.timeValueSeconds(60));
+
+        final TimeValue interval;
+
+        private Frequency(TimeValue interval) {
+            this.interval = interval;
+        }
+    }
 
     private final boolean enabled;
-
-    private final TimeValue interval;
-
     private final ThreadPool threadPool;
+
+    final ResourceMonitor lowMonitor;
+    final ResourceMonitor mediumMonitor;
+    final ResourceMonitor highMonitor;
+
+    private volatile ScheduledFuture lowFuture;
+    private volatile ScheduledFuture mediumFuture;
+    private volatile ScheduledFuture highFuture;
 
     @Inject
     public ResourceWatcherService(Settings settings, ThreadPool threadPool) {
         super(settings);
         this.enabled = componentSettings.getAsBoolean("enabled", true);
-        this.interval = componentSettings.getAsTime("interval", timeValueSeconds(60));
         this.threadPool = threadPool;
+
+        TimeValue interval = componentSettings.getAsTime("interval.low", Frequency.LOW.interval);
+        lowMonitor = new ResourceMonitor(interval, Frequency.LOW);
+        interval = componentSettings.getAsTime("interval.medium", componentSettings.getAsTime("interval", Frequency.MEDIUM.interval));
+        mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);
+        interval = componentSettings.getAsTime("interval.high", Frequency.HIGH.interval);
+        highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
     }
 
     @Override
@@ -64,7 +94,9 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         if (!enabled) {
             return;
         }
-        scheduledFuture = threadPool.scheduleWithFixedDelay(new ResourceMonitor(), interval);
+        lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval);
+        mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval);
+        highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval);
     }
 
     @Override
@@ -72,7 +104,9 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         if (!enabled) {
             return;
         }
-        scheduledFuture.cancel(true);
+        lowFuture.cancel(true);
+        mediumFuture.cancel(true);
+        highFuture.cancel(true);
     }
 
     @Override
@@ -80,21 +114,45 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     }
 
     /**
-     * Register new resource watcher
+     * Register new resource watcher that will be checked in default {@link Frequency#MEDIUM MEDIUM} frequency
      */
-    public void add(ResourceWatcher watcher) {
-        watcher.init();
-        watchers.add(watcher);
+    public <W extends ResourceWatcher> WatcherHandle<W> add(W watcher) {
+        return add(watcher, Frequency.MEDIUM);
     }
 
     /**
-     * Unregister a resource watcher
+     * Register new resource watcher that will be checked in the given frequency
      */
-    public void remove(ResourceWatcher watcher) {
-        watchers.remove(watcher);
+    public <W extends ResourceWatcher> WatcherHandle<W> add(W watcher, Frequency frequency) {
+        watcher.init();
+        switch (frequency) {
+            case LOW:
+                return lowMonitor.add(watcher);
+            case MEDIUM:
+                return mediumMonitor.add(watcher);
+            case HIGH:
+                return highMonitor.add(watcher);
+            default:
+                throw new ElasticsearchIllegalArgumentException("Unknown frequency [" + frequency + "]");
+        }
     }
 
-    private class ResourceMonitor implements Runnable {
+    static class ResourceMonitor implements Runnable {
+
+        final TimeValue interval;
+        final Frequency frequency;
+
+        final Set<ResourceWatcher> watchers = new CopyOnWriteArraySet<>();
+
+        private ResourceMonitor(TimeValue interval, Frequency frequency) {
+            this.interval = interval;
+            this.frequency = frequency;
+        }
+
+        private <W extends ResourceWatcher> WatcherHandle<W> add(W watcher) {
+            watchers.add(watcher);
+            return new WatcherHandle<>(this, watcher);
+        }
 
         @Override
         public void run() {

@@ -30,10 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -43,8 +40,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestShardsAction extends AbstractCatAction {
 
     @Inject
-    public RestShardsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestShardsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/shards", this);
         controller.registerHandler(GET, "/_cat/shards/{index}", this);
     }
@@ -145,6 +142,10 @@ public class RestShardsAction extends AbstractCatAction {
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
+        table.addCell("segments.index_writer_memory", "alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
+        table.addCell("segments.index_writer_max_memory", "alias:siwmx,segmentsIndexWriterMaxMemory;default:false;text-align:right;desc:maximum memory index writer may use before it must write buffered documents to a new segment");
+        table.addCell("segments.version_map_memory", "alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
+        table.addCell("segments.fixed_bitset_memory", "alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields");
 
         table.addCell("warmer.current", "alias:wc,warmerCurrent;default:false;text-align:right;desc:current warmer ops");
         table.addCell("warmer.total", "alias:wto,warmerTotal;default:false;text-align:right;desc:total warmer ops");
@@ -242,6 +243,10 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(shardStats == null ? null : shardStats.getSegments().getCount());
             table.addCell(shardStats == null ? null : shardStats.getSegments().getMemory());
+            table.addCell(shardStats == null ? null : shardStats.getSegments().getIndexWriterMemory());
+            table.addCell(shardStats == null ? null : shardStats.getSegments().getIndexWriterMaxMemory());
+            table.addCell(shardStats == null ? null : shardStats.getSegments().getVersionMapMemory());
+            table.addCell(shardStats == null ? null : shardStats.getSegments().getFixedBitSetMemory());
 
             table.addCell(shardStats == null ? null : shardStats.getWarmer().current());
             table.addCell(shardStats == null ? null : shardStats.getWarmer().total());

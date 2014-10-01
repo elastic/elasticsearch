@@ -213,7 +213,7 @@ For example:
 
 The match family of queries does not go through a "query parsing"
 process. It does not support field name prefixes, wildcard characters,
-or other "advance" features. For this reason, chances of it failing are
+or other "advanced" features. For this reason, chances of it failing are
 very small / non existent, and it provides an excellent behavior when it
 comes to just analyze and run that text as a query behavior (which is
 usually what a text search box does). Also, the `phrase_prefix` type can

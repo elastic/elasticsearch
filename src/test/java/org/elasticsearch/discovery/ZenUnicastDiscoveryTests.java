@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -27,34 +26,75 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.junit.Before;
 import org.junit.Test;
+
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope=Scope.TEST, numDataNodes =2)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
+
+    private ClusterDiscoveryConfiguration discoveryConfig;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
-                .put("discovery.zen.ping.multicast.enabled", false)
-                .put("discovery.zen.ping.unicast.hosts", "localhost")
-                .put("transport.tcp.port", "25300-25400") // Need to use custom tcp port range otherwise we collide with the shared cluster
-                .put(super.nodeSettings(nodeOrdinal)).build();
+        return discoveryConfig.node(nodeOrdinal);
     }
-    
+
+    @Before
+    public void clearConfig() {
+        discoveryConfig = null;
+    }
+
     @Test
-    public void testUnicastDiscovery() {
-        for (Client client : clients()) {
-            ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
-            //client nodes might be added randomly
-            int dataNodes = 0;
-            for (DiscoveryNode discoveryNode : state.nodes()) {
-                if (discoveryNode.isDataNode()) {
-                    dataNodes++;
-                }
+    public void testNormalClusterForming() throws ExecutionException, InterruptedException {
+        int currentNumNodes = randomIntBetween(3, 5);
+
+        // use explicit unicast hosts so we can start those first
+        int[] unicastHostOrdinals = new int[randomIntBetween(1, currentNumNodes)];
+        for (int i = 0; i < unicastHostOrdinals.length; i++) {
+            unicastHostOrdinals[i] = i;
+        }
+        discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, unicastHostOrdinals);
+
+        // start the unicast hosts
+        internalCluster().startNodesAsync(unicastHostOrdinals.length).get();
+
+        // start the rest of the cluster
+        internalCluster().startNodesAsync(currentNumNodes - unicastHostOrdinals.length).get();
+
+        if (client().admin().cluster().prepareHealth().setWaitForNodes("" + currentNumNodes).get().isTimedOut()) {
+            logger.info("cluster forming timed out, cluster state:\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint());
+            fail("timed out waiting for cluster to form with [" + currentNumNodes + "] nodes");
+        }
+    }
+
+    @Test
+    // Without the 'include temporalResponses responses to nodesToConnect' improvement in UnicastZenPing#sendPings this
+    // test fails, because 2 nodes elect themselves as master and the health request times out b/c waiting_for_nodes=N
+    // can't be satisfied.
+    public void testMinimumMasterNodes() throws Exception {
+        int currentNumNodes = randomIntBetween(3, 5);
+        int currentNumOfUnicastHosts = randomIntBetween(1, currentNumNodes);
+        final Settings settings = ImmutableSettings.settingsBuilder().put("discovery.zen.minimum_master_nodes", currentNumNodes / 2 + 1).build();
+        discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, currentNumOfUnicastHosts, settings);
+
+        List<String> nodes = internalCluster().startNodesAsync(currentNumNodes).get();
+
+        ensureGreen();
+
+        DiscoveryNode masterDiscoNode = null;
+        for (String node : nodes) {
+            ClusterState state = internalCluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            assertThat(state.nodes().size(), equalTo(currentNumNodes));
+            if (masterDiscoNode == null) {
+                masterDiscoNode = state.nodes().masterNode();
+            } else {
+                assertThat(masterDiscoNode.equals(state.nodes().masterNode()), equalTo(true));
             }
-            assertThat(dataNodes, equalTo(2));
         }
     }
 }

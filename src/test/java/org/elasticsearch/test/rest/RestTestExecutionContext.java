@@ -19,8 +19,10 @@
 package org.elasticsearch.test.rest;
 
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.rest.client.RestClient;
 import org.elasticsearch.test.rest.client.RestException;
@@ -33,6 +35,7 @@ import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Execution context passed across the REST tests.
@@ -52,7 +55,7 @@ public class RestTestExecutionContext implements Closeable {
 
     private RestResponse response;
 
-    public RestTestExecutionContext(RestSpec restSpec) throws RestException, IOException {
+    public RestTestExecutionContext(RestSpec restSpec) {
         this.restSpec = restSpec;
     }
 
@@ -115,13 +118,20 @@ public class RestTestExecutionContext implements Closeable {
     }
 
     /**
-     * Recreates the embedded REST client which will point to the given addresses
+     * Creates or updates the embedded REST client when needed. Needs to be called before each test.
      */
-    public void resetClient(InetSocketAddress[] addresses) throws IOException, RestException {
+    public void resetClient(InetSocketAddress[] addresses, Settings settings) throws IOException, RestException {
         if (restClient == null) {
-            restClient = new RestClient(addresses, restSpec);
+            restClient = new RestClient(restSpec, settings, addresses);
         } else {
-            restClient.updateAddresses(addresses);
+            //re-initialize the REST client if the addresses have changed
+            //happens if there's a failure since we restart the global cluster due to that
+            Set<InetSocketAddress> newAddresses = Sets.newHashSet(addresses);
+            Set<InetSocketAddress> previousAddresses = Sets.newHashSet(restClient.httpAddresses());
+            if (!newAddresses.equals(previousAddresses)) {
+                restClient.close();
+                restClient = new RestClient(restSpec, settings, addresses);
+            }
         }
     }
 
@@ -149,6 +159,8 @@ public class RestTestExecutionContext implements Closeable {
      * Closes the execution context and releases the underlying resources
      */
     public void close() {
-        this.restClient.close();
+        if (restClient != null) {
+            restClient.close();
+        }
     }
 }

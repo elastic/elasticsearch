@@ -170,7 +170,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                 } else if (Fields.MAX_INPUT_LENGTH.match(fieldName)) {
                     builder.maxInputLength(Integer.parseInt(fieldNode.toString()));
                 } else if ("fields".equals(fieldName) || "path".equals(fieldName)) {
-                    parseMultiField(builder, name, node, parserContext, fieldName, fieldNode);
+                    parseMultiField(builder, name, parserContext, fieldName, fieldNode);
                 } else if (fieldName.equals(Fields.CONTEXT)) {
                     builder.contextMapping(ContextBuilder.loadMappings(fieldNode));
                 } else {
@@ -284,7 +284,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                         payload = payloadBuilder.bytes().toBytesRef();
                         payloadBuilder.close();
                     } else if (token.isValue()) {
-                        payload = parser.bytesOrNull();
+                        payload = parser.utf8BytesOrNull();
                     } else {
                         throw new MapperException("payload doesn't support type " + token);
                     }
@@ -448,6 +448,11 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
     @Override
     public boolean hasDocValues() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsNullValue() {
         return false;
     }
 

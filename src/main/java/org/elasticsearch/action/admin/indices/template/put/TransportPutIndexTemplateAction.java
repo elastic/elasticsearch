@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,8 +41,8 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
 
     @Inject
     public TransportPutIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                           ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService) {
-        super(settings, transportService, clusterService, threadPool);
+                                           ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService, ActionFilters actionFilters) {
+        super(settings, PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -49,11 +50,6 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
     protected String executor() {
         // we go async right away...
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected String transportAction() {
-        return PutIndexTemplateAction.NAME;
     }
 
     @Override

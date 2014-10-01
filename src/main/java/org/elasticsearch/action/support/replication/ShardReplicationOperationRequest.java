@@ -22,7 +22,9 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,7 +37,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *
  */
-public abstract class ShardReplicationOperationRequest<T extends ShardReplicationOperationRequest> extends ActionRequest<T> {
+public abstract class ShardReplicationOperationRequest<T extends ShardReplicationOperationRequest> extends ActionRequest<T> implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -46,18 +48,32 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     private boolean threadedOperation = true;
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
-    private boolean canHaveDuplicates = false;
+    private volatile boolean canHaveDuplicates = false;
 
     protected ShardReplicationOperationRequest() {
 
     }
 
-    public ShardReplicationOperationRequest(ActionRequest request) {
+    /**
+     * Creates a new request that inherits headers and context from the request provided as argument.
+     */
+    protected ShardReplicationOperationRequest(ActionRequest request) {
         super(request);
     }
 
-    public ShardReplicationOperationRequest(T request) {
-        super(request);
+    /**
+     * Copy constructor that creates a new request that is a copy of the one provided as an argument.
+     */
+    protected ShardReplicationOperationRequest(T request) {
+        this(request, request);
+    }
+
+    /**
+     * Copy constructor that creates a new request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    protected ShardReplicationOperationRequest(T request, ActionRequest originalRequest) {
+        super(originalRequest);
         this.timeout = request.timeout();
         this.index = request.index();
         this.threadedOperation = request.operationThreaded();
@@ -121,6 +137,16 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     public final T index(String index) {
         this.index = index;
         return (T) this;
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[]{index};
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     /**

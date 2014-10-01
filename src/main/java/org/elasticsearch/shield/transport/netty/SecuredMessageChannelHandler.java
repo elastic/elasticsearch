@@ -30,12 +30,15 @@ public class SecuredMessageChannelHandler extends MessageChannelHandler {
             @Override
             public void operationComplete(ChannelFuture future) throws Exception {
                 if (future.isSuccess()) {
-                    logger.debug("SSL / TLS handshake completed for channel", ctx.getName());
+                    logger.debug("SSL / TLS handshake completed for channel");
                     ctx.sendUpstream(e);
                 } else {
-                    logger.error("SSL / TLS handshake failed, closing channel", ctx.getName());
+                    if (logger.isDebugEnabled()) {
+                        logger.error("SSL / TLS handshake failed, closing channel: {}", future.getCause(), future.getCause().getMessage());
+                    } else {
+                        logger.error("SSL / TLS handshake failed, closing channel: {}", future.getCause().getMessage());
+                    }
                     future.getChannel().close();
-                    throw new ElasticsearchSSLException("SSL / TLS handshake failed, closing the channel", future.getCause());
                 }
             }
         });

@@ -39,7 +39,7 @@ disables dynamic field creation for a `tweet`:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/tweet/_mapping' -d '
+$ curl -XPUT 'http://localhost:9200/twitter/_mapping/tweet' -d '
 {
     "tweet" : {
         "dynamic": "strict",

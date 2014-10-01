@@ -47,6 +47,8 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
             ProfileQuery pQuery = (ProfileQuery) apply(clause.getQuery());
             newQuery.add(pQuery, clause.getOccur());
         }
+        newQuery.setBoost(booleanQuery.getBoost());
+        newQuery.setMinimumNumberShouldMatch(booleanQuery.getMinimumNumberShouldMatch());
 
         return new ProfileQuery(newQuery);
     }
@@ -56,13 +58,16 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
         ProfileFilter pFilter = (ProfileFilter) apply(query.getFilter());
 
         XFilteredQuery newQuery = new XFilteredQuery(pQuery, pFilter);
+        newQuery.setBoost(query.getBoost());
         return new ProfileQuery(newQuery);
     }
 
     public ProfileQuery visit(XConstantScoreQuery query) {
         ProfileFilter pFilter = (ProfileFilter) apply(query.getFilter());
 
-        return new ProfileQuery(new XConstantScoreQuery(pFilter));
+        XConstantScoreQuery newQuery = new XConstantScoreQuery(pFilter);
+        newQuery.setBoost(query.getBoost());
+        return new ProfileQuery(newQuery);
     }
 
 
@@ -72,10 +77,14 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
 
         if (q != null) {
             ProfileQuery pQuery = (ProfileQuery) apply(q);
-            return new ProfileQuery(new ConstantScoreQuery(pQuery));
+            ConstantScoreQuery newQuery = new ConstantScoreQuery(pQuery);
+            newQuery.setBoost(query.getBoost());
+            return new ProfileQuery(newQuery);
         } else {
             ProfileFilter pFilter = (ProfileFilter) apply(query.getFilter());
-            return new ProfileQuery(new ConstantScoreQuery(pFilter));
+            ConstantScoreQuery newQuery = new ConstantScoreQuery(pFilter);
+            newQuery.setBoost(query.getBoost());
+            return new ProfileQuery(newQuery);
         }
 
     }
@@ -88,6 +97,7 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
             newDis.add(pQuery);
         }
 
+        newDis.setBoost(query.getBoost());
         return new ProfileQuery(newDis);
     }
 
@@ -137,7 +147,9 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
         ProfileFilter parentsFilter = (ProfileFilter) apply(parentsFilterField.get(query));
         ScoreMode scoreMode = (ScoreMode) scoreModeField.get(query);
 
-        return new ProfileQuery(new ToParentBlockJoinQuery(innerQuery, parentsFilter, scoreMode));
+        ToParentBlockJoinQuery newQuery = new ToParentBlockJoinQuery(innerQuery, parentsFilter, scoreMode);
+        newQuery.setBoost(query.getBoost());
+        return new ProfileQuery(newQuery);
     }
 
     public ProfileQuery visit(Query query) {

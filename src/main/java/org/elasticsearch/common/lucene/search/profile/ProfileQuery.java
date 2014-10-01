@@ -93,6 +93,15 @@ public class ProfileQuery extends Query implements ProfileComponent {
         this.details = details;
     }
 
+    @Override
+    public void setBoost(float b) {
+        this.subQuery.setBoost(b);
+    }
+
+    public float getBoost() {
+        return this.subQuery.getBoost();
+    }
+
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {

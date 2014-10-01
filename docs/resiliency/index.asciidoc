@@ -105,14 +105,14 @@ Today, when a node holding a primary shard receives an index request, it checks 
 [float]
 === Jepsen Test Failures (STATUS: ONGOING)
 
-As has been noted, Elasticsearch fails with a split-brain condition (as described in issue {GIT}2488[#2488]) in some corner cases as revealed by Jepsen testing. You can check on the progress we are making on this issue in the section above or by checking in https://github.com/dakrone/elasticsearch/compare/elasticsearch:feature/improve_zen%E2%80%A6feature/zen/add-jepsen-test[directly on GitHub]. It is possible that Jepsen testing will highlight some other potential issues, and we are continuing our investigation.
+As has been noted, Elasticsearch fails with a split-brain condition (as described in issue {GIT}2488[#2488]) in some corner cases as revealed by Jepsen testing. You can check on the progress we are making on this issue in the section above or by checking in https://github.com/dakrone/elasticsearch/compare/feature/zen/add-jepsen-test[directly on GitHub]. It is possible that Jepsen testing will highlight some other potential issues, and we are continuing our investigation.
 
-Our current plan is to finalize the work on the https://github.com/elasticsearch/elasticsearch/tree/feature/improve_zen[improve_zen branch], run Jepsen against it, and make sure that each Jepsen test has a corresponding test in our new transport test infrastructure, with a documented PASS/FAIL status against it.
+Our current plan is to run Jepsen against the recent changes in master, and make sure that each Jepsen test has a corresponding test in our new transport test infrastructure, with a documented PASS/FAIL status against it.
 
 [float]
 === Document guarantees and handling of failure (STATUS: ONGOING)
 
-This status page is a start, but we can do a better job of explicitly documenting the processes at work in Elasticsearch, and what happens in the case of each type of failure. The plan is to work on the https://github.com/elasticsearch/elasticsearch/tree/feature/improve_zen[improve_zen branch] (and beyond), and have a test case that validates each behavior under simulated conditions. Every test will document the expected results, the associated test code and an explicit PASS or FAIL status for each simulated case.
+This status page is a start, but we can do a better job of explicitly documenting the processes at work in Elasticsearch, and what happens in the case of each type of failure. The plan is to have a test case that validates each behavior under simulated conditions. Every test will document the expected results, the associated test code and an explicit PASS or FAIL status for each simulated case.
 
 == Completed
 
@@ -129,11 +129,11 @@ A hash collision makes it possible for two different files to have the same leng
 [float]
 === Fix ''Split Brain can occur even with minimum_master_nodes'' (STATUS: DONE, v1.4.0.Beta)
 
-Even when minimum master nodes is set, split brain can still occur under certain conditions, e.g. disconnection between master eligible nodes, which can lead to data loss. The scenario is described in detail in {GIT}2488[issue 2488]. The work to fix this issue has mostly been done on the https://github.com/elasticsearch/elasticsearch/tree/feature/improve_zen[improve_zen branch], although some independent fixes have been made in master and the 1.x branches directly:
+Even when minimum master nodes is set, split brain can still occur under certain conditions, e.g. disconnection between master eligible nodes, which can lead to data loss. The scenario is described in detail in {GIT}2488[issue 2488]:
 
 * Introduce a new testing infrastructure to simulate different types of node disconnections, including loss of network connection, lost messages, message delays, etc. See {GIT}5631[MockTransportService] support and {GIT}6505[service disruption] for more details. (STATUS: DONE, v1.4.0.Beta).
 * Added tests that simulated the bug described in issue 2488. You can take a look at the https://github.com/elasticsearch/elasticsearch/commit/7bf3ffe73c44f1208d1f7a78b0629eb48836e726[original commit] of a reproduction on master. (STATUS: DONE, v1.2.0)
-* The bug described in {GIT}2488[issue 2488] is caused by an issue in our zen discovery gossip protocol. This specific issue has been fixed in the https://github.com/elasticsearch/elasticsearch/tree/feature/improve_zen[improve_zen branch] followed up by more work to make the algorithm more resilient. (STATUS: DONE, v1.4.0.Beta)
+* The bug described in {GIT}2488[issue 2488] is caused by an issue in our zen discovery gossip protocol. This specific issue has been fixed, and work has been done to make the algorithm more resilient. (STATUS: DONE, v1.4.0.Beta)
 
 [float]
 === Translog Entry Checksum (STATUS: DONE, v1.4.0.Beta)

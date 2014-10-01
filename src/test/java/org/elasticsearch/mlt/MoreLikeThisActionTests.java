@@ -607,8 +607,12 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "alex k working on it")
     public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
+        logger.info("Creating the index ...");
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", "text", "type=string,analyzer=whitespace", "date", "type=date"));
+        ensureGreen("test");
+
         logger.info("Creating an index with a single document ...");
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
                 .startObject()

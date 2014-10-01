@@ -36,7 +36,7 @@
     <properties>
         <lucene.version>4.10.1</lucene.version>
         <lucene.maven.version>4.10.1-snapshot-1627368</lucene.maven.version>
-        <elasticsearch.version>1.4.0.Beta-SNAPSHOT</elasticsearch.version>
+        <elasticsearch.version>1.4.0.Beta1-SNAPSHOT</elasticsearch.version>
 
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>

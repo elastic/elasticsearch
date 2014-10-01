@@ -298,8 +298,8 @@ public class RestIndicesAction extends AbstractCatAction {
             IndexMetaData.State state = indexMetaData.getState();
 
             table.startRow();
-            table.addCell(state == IndexMetaData.State.OPEN ? (indexHealth == null ? "red*" : indexHealth.getStatus().toString().toLowerCase(Locale.getDefault())) : null);
-            table.addCell(state.toString().toLowerCase(Locale.getDefault()));
+            table.addCell(state == IndexMetaData.State.OPEN ? (indexHealth == null ? "red*" : indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)) : null);
+            table.addCell(state.toString().toLowerCase(Locale.ROOT));
             table.addCell(index);
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfShards());
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfReplicas());

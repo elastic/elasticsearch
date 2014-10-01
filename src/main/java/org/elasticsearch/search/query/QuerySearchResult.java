@@ -187,7 +187,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         if (in.readBoolean()) {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
-        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
             if (in.readBoolean()) {
                 profile = Profile.readProfile(in);
             }
@@ -228,7 +228,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             out.writeBoolean(true);
             suggest.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
             if (profile == null) {
                 out.writeBoolean(false);
             } else {

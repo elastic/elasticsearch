@@ -139,7 +139,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         if (in.readBoolean()) {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
-        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
             if (in.readBoolean()) {
                 profile = Profile.readProfile(in);
             }
@@ -172,7 +172,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             out.writeBoolean(true);
             suggest.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
             if (profile == null) {
                 out.writeBoolean(false);
             } else {

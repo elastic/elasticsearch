@@ -537,8 +537,10 @@ public class ScriptService extends AbstractComponent {
         @Override
         public void onFileDeleted(File file) {
             Tuple<String, String> scriptNameExt = scriptNameExt(file);
-            logger.info("removing script file [{}]", file.getAbsolutePath());
-            staticCache.remove(scriptNameExt.v1());
+            if (scriptNameExt != null) {
+                logger.info("removing script file [{}]", file.getAbsolutePath());
+                staticCache.remove(scriptNameExt.v1());
+            }
         }
 
         @Override

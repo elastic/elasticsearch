@@ -26,6 +26,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
@@ -36,7 +37,7 @@ import static org.hamcrest.Matchers.is;
 public class PluginManagerUnitTests extends ElasticsearchTestCase {
 
     @Test
-    public void testThatConfigDirectoryCanBeOutsideOfElasticsearchHomeDirectory() {
+    public void testThatConfigDirectoryCanBeOutsideOfElasticsearchHomeDirectory() throws IOException {
         String pluginName = randomAsciiOfLength(10);
         File homeFolder = newTempDir();
         File genericConfigFolder = newTempDir();
@@ -48,9 +49,8 @@ public class PluginManagerUnitTests extends ElasticsearchTestCase {
         Environment environment = new Environment(settings);
 
         PluginManager.PluginHandle pluginHandle = new PluginManager.PluginHandle(pluginName, "version", "user", "repo");
-
-        String configDirPath = Files.simplifyPath(pluginHandle.configDir(environment).getAbsolutePath());
-        String expectedDirPath = Files.simplifyPath(new File(genericConfigFolder, pluginName).getAbsolutePath());
+        String configDirPath = Files.simplifyPath(pluginHandle.configDir(environment).getCanonicalPath());
+        String expectedDirPath = Files.simplifyPath(new File(genericConfigFolder, pluginName).getCanonicalPath());
 
         assertThat(configDirPath, is(expectedDirPath));
     }

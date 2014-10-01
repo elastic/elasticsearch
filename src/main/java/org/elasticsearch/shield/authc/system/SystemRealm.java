@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.shield.authc.system;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
+import org.elasticsearch.shield.support.AbstractShieldModule;
 import org.elasticsearch.transport.TransportMessage;
 
 /**
@@ -26,6 +27,11 @@ public class SystemRealm implements Realm<AuthenticationToken> {
         @Override
         public Object credentials() {
             return null;
+        }
+
+        @Override
+        public void clearCredentials() {
+
         }
     };
 
@@ -58,9 +64,14 @@ public class SystemRealm implements Realm<AuthenticationToken> {
         return token == TOKEN ? User.SYSTEM : null;
     }
 
-    public static class Module extends AbstractModule {
+    public static class Module extends AbstractShieldModule.Node {
+
+        public Module(Settings settings) {
+            super(settings);
+        }
+
         @Override
-        protected void configure() {
+        protected void configureNode() {
             bind(SystemRealm.class).asEagerSingleton();
         }
     }

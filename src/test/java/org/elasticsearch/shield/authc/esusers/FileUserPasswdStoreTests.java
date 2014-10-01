@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.support.Hasher;
+import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -82,20 +83,20 @@ public class FileUserPasswdStoreTests extends ElasticsearchTestCase {
                 }
             });
 
-            assertTrue(store.verifyPassword("bcrypt", "test123".toCharArray()));
+            assertTrue(store.verifyPassword("bcrypt", SecuredStringTests.build("test123")));
 
             watcherService.start();
 
             try (BufferedWriter writer = Files.newBufferedWriter(tmp, Charsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.newLine();
-                writer.append("foobar:" + new String(Hasher.HTPASSWD.hash("barfoo".toCharArray())));
+                writer.append("foobar:" + new String(Hasher.HTPASSWD.hash(SecuredStringTests.build("barfoo"))));
             }
 
             if (!latch.await(5, TimeUnit.SECONDS)) {
                 fail("Waited too long for the updated file to be picked up");
             }
 
-            assertTrue(store.verifyPassword("foobar", "barfoo".toCharArray()));
+            assertTrue(store.verifyPassword("foobar", SecuredStringTests.build("barfoo")));
 
         } finally {
             if (watcherService != null) {

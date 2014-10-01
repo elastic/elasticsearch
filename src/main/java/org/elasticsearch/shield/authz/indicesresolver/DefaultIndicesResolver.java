@@ -28,7 +28,7 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
     public Set<String> resolve(TransportRequest request, MetaData metaData) {
 
         boolean isIndicesRequest = request instanceof CompositeIndicesRequest || request instanceof IndicesRequest;
-        assert isIndicesRequest : "the only requests passing the action matcher should be IndicesRequests";
+        assert isIndicesRequest : "Request [" + request + "] is not an Indices request. The only requests passing the action matcher should be IndicesRequests";
 
         // if for some reason we are missing an action... just for safety we'll reject
         if (!isIndicesRequest) {

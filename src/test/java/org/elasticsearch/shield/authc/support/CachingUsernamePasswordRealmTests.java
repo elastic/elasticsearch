@@ -7,15 +7,16 @@ package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.shield.User;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
 
-public class CachingUsernamePasswordRealmTests {
-    public static class AlwaysAuthenticateCachingRealm extends CachingUsernamePasswordRealm {
+public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
+
+    static class AlwaysAuthenticateCachingRealm extends CachingUsernamePasswordRealm {
         public AlwaysAuthenticateCachingRealm() {
             super(ImmutableSettings.EMPTY);
         }
@@ -28,11 +29,10 @@ public class CachingUsernamePasswordRealmTests {
         @Override public String type() { return "test"; }
     }
 
-
     @Test
     public void testCache(){
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm();
-        char[] pass = "pass".toCharArray();
+        SecuredString pass = SecuredStringTests.build("pass");
         realm.authenticate(new UsernamePasswordToken("a", pass));
         realm.authenticate(new UsernamePasswordToken("b", pass));
         realm.authenticate(new UsernamePasswordToken("c", pass));
@@ -50,8 +50,8 @@ public class CachingUsernamePasswordRealmTests {
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm();
 
         String user = "testUser";
-        char[] pass1 = "pass".toCharArray();
-        char[] pass2 = "password".toCharArray();
+        SecuredString pass1 = SecuredStringTests.build("pass");
+        SecuredString pass2 = SecuredStringTests.build("password");
 
         realm.authenticate(new UsernamePasswordToken(user, pass1));
         realm.authenticate(new UsernamePasswordToken(user, pass1));

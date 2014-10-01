@@ -116,12 +116,12 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
     public static class UserWithHash {
         User user;
         char[] hash;
-        public UserWithHash(User user, char[] password){
+        public UserWithHash(User user, SecuredString password){
             this.user = user;
             this.hash = Hasher.HTPASSWD.hash(password);
         }
 
-        public boolean verify(char[] password){
+        public boolean verify(SecuredString password){
             return Hasher.HTPASSWD.verify(password, hash);
         }
     }

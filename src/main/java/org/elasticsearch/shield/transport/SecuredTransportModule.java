@@ -6,12 +6,13 @@
 package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.PreProcessModule;
-import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.SecurityFilter;
-import org.elasticsearch.shield.plugin.SecurityPlugin;
+import org.elasticsearch.shield.plugin.ShieldPlugin;
+import org.elasticsearch.shield.support.AbstractShieldModule;
 import org.elasticsearch.shield.transport.n2n.IPFilteringN2NAuthenticator;
 import org.elasticsearch.shield.transport.netty.N2NNettyUpstreamHandler;
 import org.elasticsearch.shield.transport.netty.NettySecuredHttpServerTransportModule;
@@ -21,28 +22,46 @@ import org.elasticsearch.transport.TransportModule;
 /**
  *
  */
-public class SecuredTransportModule extends AbstractModule implements SpawnModules, PreProcessModule {
+public class SecuredTransportModule extends AbstractShieldModule.Spawn implements PreProcessModule {
+
+    public SecuredTransportModule(Settings settings) {
+        super(settings);
+    }
 
     @Override
-    public Iterable<? extends Module> spawnModules() {
+    public Iterable<? extends Module> spawnModules(boolean clientMode) {
 
-        //todo we only need to spawn http module if we're not within the transport client context
+        if (clientMode) {
+            return ImmutableList.of(new NettySecuredTransportModule(settings));
+        }
+
         return ImmutableList.of(
-                new NettySecuredHttpServerTransportModule(),
-                new NettySecuredTransportModule());
+                new NettySecuredHttpServerTransportModule(settings),
+                new NettySecuredTransportModule(settings));
     }
 
     @Override
     public void processModule(Module module) {
         if (module instanceof TransportModule) {
-            ((TransportModule) module).setTransportService(SecuredTransportService.class, SecurityPlugin.NAME);
+            ((TransportModule) module).setTransportService(SecuredTransportService.class, ShieldPlugin.NAME);
         }
     }
 
     @Override
-    protected void configure() {
+    protected void configure(boolean clientMode) {
+
+        if (clientMode) {
+            // no ip filtering on the client
+            bind(N2NNettyUpstreamHandler.class).toProvider(Providers.<N2NNettyUpstreamHandler>of(null));
+            return;
+        }
+
         bind(TransportFilter.class).to(SecurityFilter.Transport.class).asEagerSingleton();
-        bind(IPFilteringN2NAuthenticator.class).asEagerSingleton();
-        bind(N2NNettyUpstreamHandler.class).asEagerSingleton();
+        if (settings.getAsBoolean("shield.transport.n2n.ip_filter.enabled", true)) {
+            bind(IPFilteringN2NAuthenticator.class).asEagerSingleton();
+            bind(N2NNettyUpstreamHandler.class).asEagerSingleton();
+        } else {
+            bind(N2NNettyUpstreamHandler.class).toProvider(Providers.<N2NNettyUpstreamHandler>of(null));
+        }
     }
 }

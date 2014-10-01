@@ -30,6 +30,7 @@ import org.apache.directory.server.i18n.I18n;
 import org.apache.directory.server.ldap.LdapServer;
 import org.apache.directory.server.protocol.shared.store.LdifFileLoader;
 import org.apache.directory.server.protocol.shared.transport.TcpTransport;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.net.URISyntaxException;
@@ -40,17 +41,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Helper Class to start up an Apache DS LDAP server for testing.  Here is a typical use example in tests:
- * <pre>
- * static ApacheDsEmbedded ldap = new ApacheDsEmbedded("o=sevenSeas", "seven-seas.ldif");
+ * Helper Class to start up an Apache DS LDAP server for testing.
  *
- * @BeforeClass public static void startServer() throws Exception {
- * ldap.startServer();
- * }
- * @AfterClass public static void stopServer() throws Exception {
- * ldap.stopAndCleanup();
- * }
- * </pre>
+ * Use ApacheDsRule instead of this class in tests
  */
 public class ApacheDsEmbedded {
     /**
@@ -78,8 +71,8 @@ public class ApacheDsEmbedded {
      *
      * @throws Exception If something went wrong
      */
-    public ApacheDsEmbedded(String baseDN, String ldifFileName, String testName) {
-        this.workDir = new File(System.getProperty("java.io.tmpdir") + "/server-work/" + testName);
+    public ApacheDsEmbedded(String baseDN, String ldifFileName, File workDir) {
+        this.workDir = workDir;
         this.baseDN = baseDN;
         this.ldifFileName = ldifFileName;
         this.port = 10389 + CHILD_JVM_ID;
@@ -118,7 +111,6 @@ public class ApacheDsEmbedded {
     public void stopAndCleanup() throws Exception {
         if (server != null) server.stop();
         if (service != null) service.shutdown();
-        workDir.delete();
     }
 
 
@@ -262,8 +254,6 @@ public class ApacheDsEmbedded {
             entryApache.add("dc", "Apache");
             service.getAdminSession().add(entryApache);
         }
-
-        // We are all done !
     }
 
     private void loadSchema(String ldifFileName) throws URISyntaxException {
@@ -273,31 +263,5 @@ public class ApacheDsEmbedded {
         File ldifFile = new File(dir_url.toURI());
         LdifFileLoader ldifLoader = new LdifFileLoader(service.getAdminSession(), ldifFile, Collections.EMPTY_LIST);
         ldifLoader.execute();
-    }
-
-    /**
-     * Main class.
-     *
-     * @param args Not used.
-     */
-    public static void main(String[] args) {
-        try {
-            String baseDir = "o=sevenSeas";
-            String ldifImport = "seven-seas.ldif";
-            // Create the server
-            ApacheDsEmbedded ads = new ApacheDsEmbedded(baseDir, ldifImport, "test");
-            ads.startServer();
-            // Read an entry
-            Entry result = ads.service.getAdminSession().lookup(new Dn(baseDir));
-
-            // And print it if available
-            System.out.println("Found entry : " + result);
-
-            // optionally we can start a server too
-            ads.stopAndCleanup();
-        } catch (Exception e) {
-            // Ok, we have something wrong going on ...
-            e.printStackTrace();
-        }
     }
 }

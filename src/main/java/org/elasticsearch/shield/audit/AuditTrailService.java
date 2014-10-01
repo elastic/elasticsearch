@@ -8,9 +8,11 @@ package org.elasticsearch.shield.audit;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.util.Set;
 
@@ -34,37 +36,57 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
 
     @Override
     public void anonymousAccess(String action, TransportMessage<?> message) {
-        for (int i = 0; i < auditTrails.length; i++) {
-            auditTrails[i].anonymousAccess(action, message);
+        for (AuditTrail auditTrail : auditTrails) {
+            auditTrail.anonymousAccess(action, message);
         }
     }
 
     @Override
     public void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message) {
-        for (int i = 0; i < auditTrails.length; i++) {
-            auditTrails[i].authenticationFailed(token, action, message);
+        for (AuditTrail auditTrail : auditTrails) {
+            auditTrail.authenticationFailed(token, action, message);
         }
     }
 
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage<?> message) {
-        for (int i = 0; i < auditTrails.length; i++) {
-            auditTrails[i].authenticationFailed(realm, token, action, message);
+        for (AuditTrail auditTrail : auditTrails) {
+            auditTrail.authenticationFailed(realm, token, action, message);
+        }
+    }
+
+    @Override
+    public void authenticationFailed(AuthenticationToken token, RestRequest request) {
+        for (AuditTrail auditTrail : auditTrails) {
+            auditTrail.authenticationFailed(token, request);
+        }
+    }
+
+    @Override
+    public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
+        for (AuditTrail auditTrail : auditTrails) {
+            auditTrail.authenticationFailed(realm, token, request);
         }
     }
 
     @Override
     public void accessGranted(User user, String action, TransportMessage<?> message) {
-        for (int i = 0; i < auditTrails.length; i++) {
-            auditTrails[i].accessGranted(user, action, message);
+        for (AuditTrail auditTrail : auditTrails) {
+            auditTrail.accessGranted(user, action, message);
         }
     }
 
     @Override
     public void accessDenied(User user, String action, TransportMessage<?> message) {
-        for (int i = 0; i < auditTrails.length; i++) {
-            auditTrails[i].accessDenied(user, action, message);
+        for (AuditTrail auditTrail : auditTrails) {
+            auditTrail.accessDenied(user, action, message);
         }
     }
 
+    @Override
+    public void tamperedRequest(User user, String action, TransportRequest request) {
+        for (AuditTrail auditTrail : auditTrails) {
+            auditTrail.tamperedRequest(user, action, request);
+        }
+    }
 }

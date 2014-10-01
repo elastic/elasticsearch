@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authc;
 
+import org.elasticsearch.common.ContextHolder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
@@ -35,12 +36,12 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     }
 
     @Override
-    public void extractAndRegisterToken(RestRequest request) throws AuthenticationException {
+    public AuthenticationToken token(RestRequest request) throws AuthenticationException {
         for (Realm realm : realms) {
             AuthenticationToken token = realm.token(request);
             if (token != null) {
                 request.putInContext(TOKEN_CTX_KEY, token);
-                return;
+                return token;
             }
         }
         throw new AuthenticationException("Missing authentication token");
@@ -97,24 +98,52 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     @SuppressWarnings("unchecked")
     public User authenticate(String action, TransportMessage<?> message, AuthenticationToken token) throws AuthenticationException {
         assert token != null : "cannot authenticate null tokens";
-        User user = (User) message.getContext().get(USER_CTX_KEY);
-        if (user != null) {
-            return user;
-        }
-        for (Realm realm : realms) {
-            if (realm.supports(token)) {
-                user = realm.authenticate(token);
-                if (user != null) {
-                    message.putInContext(USER_CTX_KEY, user);
-                    return user;
-                } else if (auditTrail != null) {
-                    auditTrail.authenticationFailed(realm.type(), token, action, message);
+        try {
+            User user = (User) message.getContext().get(USER_CTX_KEY);
+            if (user != null) {
+                return user;
+            }
+            for (Realm realm : realms) {
+                if (realm.supports(token)) {
+                    user = realm.authenticate(token);
+                    if (user != null) {
+                        message.putInContext(USER_CTX_KEY, user);
+                        return user;
+                    } else if (auditTrail != null) {
+                        auditTrail.authenticationFailed(realm.type(), token, action, message);
+                    }
                 }
             }
+            if (auditTrail != null) {
+                auditTrail.authenticationFailed(token, action, message);
+            }
+            throw new AuthenticationException("Unable to authenticate user for request");
+        } finally {
+            token.clearCredentials();
         }
-        if (auditTrail != null) {
-            auditTrail.authenticationFailed(token, action, message);
+    }
+
+    @Override
+    public User authenticate(RestRequest request, AuthenticationToken token) throws AuthenticationException {
+        assert token != null : "cannot authenticate null tokens";
+        try {
+            for (Realm realm : realms) {
+                if (realm.supports(token)) {
+                    User user = realm.authenticate(token);
+                    if (user != null) {
+                        request.putInContext(USER_CTX_KEY, user);
+                        return user;
+                    } else if (auditTrail != null) {
+                        auditTrail.authenticationFailed(realm.type(), token, request);
+                    }
+                }
+            }
+            if (auditTrail != null) {
+                auditTrail.authenticationFailed(token, request);
+            }
+            throw new AuthenticationException("Unable to authenticate user for request");
+        } finally {
+            token.clearCredentials();
         }
-        throw new AuthenticationException("Unable to authenticate user for request");
     }
 }

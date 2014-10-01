@@ -7,15 +7,18 @@ package org.elasticsearch.shield.plugin;
 
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.shield.SecurityModule;
+import org.elasticsearch.shield.ShieldModule;
 
+import java.io.File;
+import java.nio.file.Path;
 import java.util.Collection;
 
 /**
  *
  */
-public class SecurityPlugin extends AbstractPlugin {
+public class ShieldPlugin extends AbstractPlugin {
 
     public static final String NAME = "shield";
 
@@ -31,7 +34,15 @@ public class SecurityPlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends Module>> modules() {
-        return ImmutableList.<Class<? extends Module>>of(SecurityModule.class);
+        return ImmutableList.<Class<? extends Module>>of(ShieldModule.class);
+    }
+
+    public static Path configDir(Environment env) {
+        return new File(env.configFile(), NAME).toPath();
+    }
+
+    public static Path resolveConfigFile(Environment env, String name) {
+        return configDir(env).resolve(name);
     }
 
 }

@@ -7,27 +7,28 @@ package org.elasticsearch.shield.audit;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.Sets;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.shield.support.AbstractShieldModule;
 
 import java.util.Set;
 
 /**
  *
  */
-public class AuditTrailModule extends AbstractModule {
+public class AuditTrailModule extends AbstractShieldModule.Node {
 
-    private final Settings settings;
+    private final boolean enabled;
 
     public AuditTrailModule(Settings settings) {
-        this.settings = settings;
+        super(settings);
+        enabled = settings.getAsBoolean("shield.audit.enabled", false);
     }
 
     @Override
-    protected void configure() {
-        if (!settings.getAsBoolean("shield.audit.enabled", false)) {
+    protected void configureNode() {
+        if (!enabled) {
             bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
             return;
         }

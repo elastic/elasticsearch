@@ -4,12 +4,12 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 package org.elasticsearch.shield.authc.ldap;
-
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
 
 import java.util.List;
@@ -17,23 +17,11 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 
-public class LdapConnectionTests extends ElasticsearchTestCase {
-    public static String SETTINGS_PREFIX = LdapRealm.class.getPackage().getName().substring("com.elasticsearch.".length()) + '.';
-
-    static ApacheDsEmbedded ldap = new ApacheDsEmbedded("o=sevenSeas", "seven-seas.ldif", LdapConnectionTests.class.getName());
-
-    @BeforeClass
-    public static void startServer() throws Exception {
-        ldap.startServer();
-    }
-    @AfterClass
-    public static void stopServer() throws Exception {
-        ldap.stopAndCleanup();
-    }
+public class LdapConnectionTests extends LdapTest {
 
     @Test
     public void testBindWithTemplates() {
-        String[] ldapUrls = new String[]{ldap.getUrl()};
+        String[] ldapUrls = new String[]{apacheDsRule.getUrl()};
         String groupSearchBase = "o=sevenSeas";
         boolean isSubTreeSearch = true;
         String[] userTemplates = new String[]{
@@ -45,17 +33,18 @@ public class LdapConnectionTests extends ElasticsearchTestCase {
                 buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, isSubTreeSearch));
 
         String user = "Horatio Hornblower";
-        char[] userPass = "pass".toCharArray();
+        SecuredString userPass = SecuredStringTests.build("pass");
 
         LdapConnection ldap = connectionFactory.bind(user, userPass);
         Map<String, String[]> attrs = ldap.getUserAttrs(ldap.getAuthenticatedUserDn());
 
-        assertThat( attrs, hasKey("uid"));
+        assertThat(attrs, hasKey("uid"));
         assertThat( attrs.get("uid"), arrayContaining("hhornblo"));
     }
-    @Test
+
+    @Test(expected = LdapException.class)
     public void testBindWithBogusTemplates() {
-        String[] ldapUrl = new String[]{ldap.getUrl()};
+        String[] ldapUrl = new String[]{apacheDsRule.getUrl()};
         String groupSearchBase = "o=sevenSeas";
         boolean isSubTreeSearch = true;
         String[] userTemplates = new String[]{
@@ -67,15 +56,8 @@ public class LdapConnectionTests extends ElasticsearchTestCase {
                 buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, isSubTreeSearch));
 
         String user = "Horatio Hornblower";
-        char[] userPass = "pass".toCharArray();
-
-        try {
-            LdapConnection ldap = ldapFac.bind(user, userPass);
-            fail("bindWithUserTemplates should have failed");
-        } catch (LdapException le) {
-
-        }
-
+        SecuredString userPass = SecuredStringTests.build("pass");
+        LdapConnection ldap = ldapFac.bind(user, userPass);
     }
 
     @Test
@@ -85,10 +67,10 @@ public class LdapConnectionTests extends ElasticsearchTestCase {
 
         boolean isSubTreeSearch = true;
         StandardLdapConnectionFactory ldapFac = new StandardLdapConnectionFactory(
-                buildLdapSettings(ldap.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
+                buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
 
         String user = "Horatio Hornblower";
-        char[] userPass = "pass".toCharArray();
+        SecuredString userPass = SecuredStringTests.build("pass");
 
         LdapConnection ldap = ldapFac.bind(user, userPass);
         List<String> groups = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
@@ -102,26 +84,13 @@ public class LdapConnectionTests extends ElasticsearchTestCase {
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
         boolean isSubTreeSearch = false;
         StandardLdapConnectionFactory ldapFac = new StandardLdapConnectionFactory(
-                buildLdapSettings(ldap.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
+                buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
 
         String user = "Horatio Hornblower";
-        LdapConnection ldap = ldapFac.bind(user, "pass".toCharArray());
+        LdapConnection ldap = ldapFac.bind(user, SecuredStringTests.build("pass"));
 
         List<String> groups = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
         System.out.println("groups:"+groups);
         assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
     }
-
-    public static Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, boolean isSubTreeSearch) {
-        return buildLdapSettings( new String[]{ldapUrl}, new String[]{userTemplate}, groupSearchBase, isSubTreeSearch );
-    }
-
-    public static Settings buildLdapSettings(String[] ldapUrl, String[] userTemplate, String groupSearchBase, boolean isSubTreeSearch) {
-        return ImmutableSettings.builder()
-                .putArray(SETTINGS_PREFIX + StandardLdapConnectionFactory.URLS_SETTING, ldapUrl)
-                .putArray(SETTINGS_PREFIX + StandardLdapConnectionFactory.USER_DN_TEMPLATES_SETTING, userTemplate)
-                .put(SETTINGS_PREFIX + StandardLdapConnectionFactory.GROUP_SEARCH_BASEDN_SETTING, groupSearchBase)
-                .put(SETTINGS_PREFIX + StandardLdapConnectionFactory.GROUP_SEARCH_SUBTREE_SETTING, isSubTreeSearch).build();
-    }
-
 }

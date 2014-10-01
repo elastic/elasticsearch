@@ -22,8 +22,7 @@ import java.util.Arrays;
 public class SSLConfig {
 
     private static final ESLogger logger = Loggers.getLogger(SSLConfig.class);
-    // TODO removing the second one results in fails, need to verify the differences, maybe per JVM?
-    static final String[] DEFAULT_CIPHERS = new String[] { "TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA" };
+    static final String[] DEFAULT_CIPHERS = new String[] { "TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA", "TLS_DHE_RSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA" };
     private final boolean clientAuth;
 
     private SSLContext sslContext;

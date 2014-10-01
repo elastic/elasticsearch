@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.shield.authc;
 
+import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
@@ -15,6 +17,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import java.util.Map;
 
 import static org.elasticsearch.shield.test.ShieldAssertions.assertContainsWWWAuthenticateHeader;
 import static org.hamcrest.Matchers.*;
@@ -41,7 +45,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     public void init() throws Exception {
         token = mock(AuthenticationToken.class);
         message = new InternalMessage();
-        restRequest = mock(RestRequest.class);
+        restRequest = new InternalRestRequest();
         firstRealm = mock(Realm.class);
         when(firstRealm.type()).thenReturn("first");
         secondRealm = mock(Realm.class);
@@ -161,24 +165,93 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testExtractAndRegisterToken_Exists() throws Exception {
+    public void testToken_Rest_Exists() throws Exception {
         AuthenticationToken token = mock(AuthenticationToken.class);
         when(firstRealm.token(restRequest)).thenReturn(null);
         when(secondRealm.token(restRequest)).thenReturn(token);
-        service.extractAndRegisterToken(restRequest);
+        AuthenticationToken foundToken = service.token(restRequest);
+        assertThat(foundToken, is(token));
         assertThat(restRequest.getFromContext(InternalAuthenticationService.TOKEN_CTX_KEY), equalTo((Object) token));
     }
 
     @Test
-    public void testVerifyToken_Missing() throws Exception {
+    public void testToken_Rest_Missing() throws Exception {
         thrown.expect(AuthenticationException.class);
         thrown.expectMessage("Missing authentication token");
         when(firstRealm.token(restRequest)).thenReturn(null);
         when(secondRealm.token(restRequest)).thenReturn(null);
-        service.extractAndRegisterToken(restRequest);
+        service.token(restRequest);
     }
 
     private static class InternalMessage extends TransportMessage<InternalMessage> {
+    }
+
+    private static class InternalRestRequest extends RestRequest {
+
+        @Override
+        public Method method() {
+            return null;
+        }
+
+        @Override
+        public String uri() {
+            return "_uri";
+        }
+
+        @Override
+        public String rawPath() {
+            return "_path";
+        }
+
+        @Override
+        public boolean hasContent() {
+            return false;
+        }
+
+        @Override
+        public boolean contentUnsafe() {
+            return false;
+        }
+
+        @Override
+        public BytesReference content() {
+            return null;
+        }
+
+        @Override
+        public String header(String name) {
+            return null;
+        }
+
+        @Override
+        public Iterable<Map.Entry<String, String>> headers() {
+            return ImmutableMap.<String, String>of().entrySet();
+        }
+
+        @Override
+        public boolean hasParam(String key) {
+            return false;
+        }
+
+        @Override
+        public String param(String key) {
+            return null;
+        }
+
+        @Override
+        public Map<String, String> params() {
+            return ImmutableMap.of();
+        }
+
+        @Override
+        public String param(String key, String defaultValue) {
+            return null;
+        }
+
+        @Override
+        public String toString() {
+            return "rest_request";
+        }
     }
 
 }

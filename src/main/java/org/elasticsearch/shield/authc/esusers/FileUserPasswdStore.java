@@ -15,8 +15,9 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.support.Hasher;
+import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UserPasswdStore;
-import org.elasticsearch.shield.plugin.SecurityPlugin;
+import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -61,7 +62,7 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
     }
 
     @Override
-    public boolean verifyPassword(String username, char[] password) {
+    public boolean verifyPassword(String username, SecuredString password) {
         if (esUsers == null) {
             return false;
         }
@@ -75,8 +76,7 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
     public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("shield.authc.esusers.files.users");
         if (location == null) {
-            File shieldDirectory = new File(env.configFile(), SecurityPlugin.NAME);
-            return shieldDirectory.toPath().resolve(".users");
+            return ShieldPlugin.resolveConfigFile(env, ".users");
         }
         return Paths.get(location);
     }
@@ -86,6 +86,9 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
      * empty map is returned
      */
     public static ImmutableMap<String, char[]> parseFile(Path path, @Nullable ESLogger logger) {
+        if (logger != null) {
+            logger.trace("Reading users file located at [{}]", path);
+        }
         if (!Files.exists(path)) {
             return ImmutableMap.of();
         }

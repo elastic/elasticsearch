@@ -7,6 +7,7 @@ package org.elasticsearch.shield.audit;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -17,6 +18,7 @@ import org.junit.Test;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -29,6 +31,7 @@ public class AuditTrailServiceTests extends ElasticsearchTestCase {
 
     private AuthenticationToken token;
     private TransportMessage message;
+    private RestRequest restRequest;
 
     @Before
     public void init() throws Exception {
@@ -40,6 +43,7 @@ public class AuditTrailServiceTests extends ElasticsearchTestCase {
         service = new AuditTrailService(ImmutableSettings.EMPTY, auditTrails);
         token = mock(AuthenticationToken.class);
         message = mock(TransportMessage.class);
+        restRequest = mock(RestRequest.class);
     }
 
     @Test
@@ -51,10 +55,26 @@ public class AuditTrailServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testAuthenticationFailed_Rest() throws Exception {
+        service.authenticationFailed(token, restRequest);
+        for (AuditTrail auditTrail : auditTrails) {
+            verify(auditTrail).authenticationFailed(token, restRequest);
+        }
+    }
+
+    @Test
     public void testAuthenticationFailed_Realm() throws Exception {
         service.authenticationFailed("_realm", token, "_action", message);
         for (AuditTrail auditTrail : auditTrails) {
             verify(auditTrail).authenticationFailed("_realm", token, "_action", message);
+        }
+    }
+
+    @Test
+    public void testAuthenticationFailed_Rest_Realm() throws Exception {
+        service.authenticationFailed("_realm", token, restRequest);
+        for (AuditTrail auditTrail : auditTrails) {
+            verify(auditTrail).authenticationFailed("_realm", token, restRequest);
         }
     }
 

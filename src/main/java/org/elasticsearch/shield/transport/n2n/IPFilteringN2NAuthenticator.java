@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.shield.plugin.SecurityPlugin;
+import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -60,8 +60,7 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
     private Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("ip_filter.file");
         if (location == null) {
-            File shieldDirectory = new File(env.configFile(), SecurityPlugin.NAME);
-            return shieldDirectory.toPath().resolve(DEFAULT_FILE);
+            return ShieldPlugin.resolveConfigFile(env, DEFAULT_FILE);
         }
         return Paths.get(location);
     }

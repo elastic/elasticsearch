@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.netty.channel.ChannelPipeline;
 import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
@@ -27,7 +28,7 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
 
     @Inject
     public NettySecuredHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                           N2NNettyUpstreamHandler shieldUpstreamHandler) {
+                                           @Nullable N2NNettyUpstreamHandler shieldUpstreamHandler) {
         super(settings, networkService, bigArrays);
         this.ssl = settings.getAsBoolean("shield.http.ssl", false);
         this.shieldUpstreamHandler = shieldUpstreamHandler;
@@ -56,13 +57,13 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            if (settings.getAsBoolean("shield.transport.n2n.ip_filter.enabled", true)) {
-                pipeline.addFirst("ipfilter", shieldUpstreamHandler);
-            }
             if (ssl) {
                 SSLEngine engine = sslConfig.createSSLEngine();
                 engine.setUseClientMode(false);
                 pipeline.addFirst("ssl", new SslHandler(engine));
+            }
+            if (shieldUpstreamHandler != null) {
+                pipeline.addFirst("ipfilter", shieldUpstreamHandler);
             }
             return pipeline;
         }

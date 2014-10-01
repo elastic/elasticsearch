@@ -9,13 +9,15 @@ import com.google.common.base.Charsets;
 import com.google.common.net.InetAddresses;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.shield.plugin.SecurityPlugin;
+import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.transport.Transport;
@@ -61,11 +63,11 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
         File folder = newFolder();
 
         ImmutableSettings.Builder builder = ImmutableSettings.builder()
-                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword().toCharArray()))
+                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.type", "zen")
                 .put("node.mode", "network")
-                .put("plugin.types", SecurityPlugin.class.getName())
+                .put("plugin.types", ShieldPlugin.class.getName())
                 .put("shield.authc.esusers.files.users", writeFile(folder, "users", CONFIG_STANDARD_USER))
                 .put("shield.authc.esusers.files.users_roles", writeFile(folder, "users_roles", CONFIG_STANDARD_USER_ROLES))
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", CONFIG_ROLE_ALLOW_ALL))
@@ -84,7 +86,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     @Override
     protected Settings transportClientSettings() {
         return ImmutableSettings.builder()
-                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword().toCharArray()))
+                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put("node.mode", "network")
@@ -93,9 +95,13 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     }
 
     protected String writeFile(File folder, String name, String content) {
+        return writeFile(folder, name, content.getBytes(Charsets.UTF_8));
+    }
+
+    protected String writeFile(File folder, String name, byte[] content) {
         Path file = folder.toPath().resolve(name);
         try {
-            com.google.common.io.Files.write(content.getBytes(Charsets.UTF_8), file.toFile());
+            Streams.copy(content, file.toFile());
         } catch (IOException e) {
             throw new ElasticsearchException("Error writing file in test", e);
         }
@@ -113,8 +119,8 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
         return DEFAULT_USER_NAME;
     }
 
-    protected String getClientPassword() {
-        return DEFAULT_PASSWORD;
+    protected SecuredString getClientPassword() {
+        return new SecuredString(DEFAULT_PASSWORD.toCharArray());
     }
 
     protected Settings getSSLSettingsForStore(String resourcePathToStore, String password) {

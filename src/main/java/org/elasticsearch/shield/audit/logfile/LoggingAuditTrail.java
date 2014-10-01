@@ -9,10 +9,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.transport.TransportRequest;
 
 /**
  *
@@ -56,9 +58,25 @@ public class LoggingAuditTrail implements AuditTrail {
     }
 
     @Override
+    public void authenticationFailed(AuthenticationToken token, RestRequest request) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("AUTHENTICATION_FAILED\thost=[{}], URI=[{}], principal=[{}], request=[{}]", request.getRemoteAddress(), request.uri(), token.principal(), request);
+        } else {
+            logger.error("AUTHENTICATION_FAILED\thost=[{}], URI=[{}], principal=[{}]", request.getRemoteAddress(), request.uri(), token.principal());
+        }
+    }
+
+    @Override
     public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage<?> message) {
         if (logger.isTraceEnabled()) {
             logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], action=[{}], principal=[{}], request=[{}]", realm, message.remoteAddress(), action, token.principal(), message);
+        }
+    }
+
+    @Override
+    public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], URI=[{}], principal=[{}], request=[{}]", realm, request.getRemoteAddress(), request.uri(), token.principal(), request);
         }
     }
 
@@ -80,4 +98,12 @@ public class LoggingAuditTrail implements AuditTrail {
         }
     }
 
+    @Override
+    public void tamperedRequest(User user, String action, TransportRequest request) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("TAMPERED REQUEST\thost=[{}], action=[{}], principal=[{}], request=[{}]", request.remoteAddress(), action, user.principal(), request);
+        } else {
+            logger.error("TAMPERED REQUEST\thost=[{}], action=[{}], principal=[{}]", request.remoteAddress(), action, user.principal());
+        }
+    }
 }

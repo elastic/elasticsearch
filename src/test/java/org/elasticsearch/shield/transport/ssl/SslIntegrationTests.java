@@ -13,12 +13,14 @@ import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.net.InetAddresses;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.test.ShieldIntegrationTest;
@@ -39,6 +41,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 import static org.hamcrest.Matchers.*;
 
 public class SslIntegrationTests extends ShieldIntegrationTest {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put(InternalNode.HTTP_ENABLED, true).build();
+    }
 
     @Test
     public void testThatInternallyCreatedTransportClientCanConnect() throws Exception {
@@ -89,7 +97,7 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
                 .put("name", "programmatic_node")
                 .put("cluster.name", internalCluster().getClusterName())
 
-                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword().toCharArray()))
+                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
 
@@ -114,7 +122,7 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
                 .put("discovery.type", "zen")
                 .putArray("discovery.zen.ping.unicast.hosts", getUnicastHostAddress())
 
-                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword().toCharArray()))
+                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put("shield.transport.n2n.ip_filter.file", writeFile(newFolder(), "ip_filter.yml", ShieldIntegrationTest.CONFIG_IPFILTER_ALLOW_ALL))
@@ -165,7 +173,7 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
         String url = String.format(Locale.ROOT, "https://%s:%s/", InetAddresses.toUriString(inetSocketTransportAddress.address().getAddress()), inetSocketTransportAddress.address().getPort());
 
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-        connection.setRequestProperty("Authorization", UsernamePasswordToken.basicAuthHeaderValue(DEFAULT_USER_NAME, DEFAULT_PASSWORD.toCharArray()));
+        connection.setRequestProperty("Authorization", UsernamePasswordToken.basicAuthHeaderValue(getClientUsername(), getClientPassword()));
         connection.connect();
 
         assertThat(connection.getResponseCode(), is(200));

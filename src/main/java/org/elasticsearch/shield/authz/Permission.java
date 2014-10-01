@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authz;
 
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.collect.ImmutableList;
@@ -187,11 +188,22 @@ public interface Permission {
 
         @Override @SuppressWarnings("unchecked")
         public boolean check(String action, TransportRequest request, MetaData metaData) {
-            Set<String> indices = Collections.emptySet();
-            for (IndicesResolver resolver : indicesResolvers) {
-                if (resolver.requestType().isInstance(request)) {
-                    indices = resolver.resolve(request, metaData);
-                    break;
+
+            // some APIs are indices requests that are not actually associated with indices. For example,
+            // search scroll request, is categorized under the indices context, but doesn't hold indices names
+            // (in this case, the security check on the indices was done on the search request that initialized
+            // the scroll... and we rely on the signed scroll id to provide security over this request).
+            //
+            // so we only check indices if indeed the request is an actual IndicesRequest, if it's not, we only
+            // perform the check on the action name.
+            Set<String> indices = null;
+            if (request instanceof IndicesRequest) {
+                indices = Collections.emptySet();
+                for (IndicesResolver resolver : indicesResolvers) {
+                    if (resolver.requestType().isInstance(request)) {
+                        indices = resolver.resolve(request, metaData);
+                        break;
+                    }
                 }
             }
 
@@ -232,9 +244,11 @@ public interface Permission {
                     return false;
                 }
 
-                for (String index : indices) {
-                    if (!indexNameMatcher.apply(index)) {
-                        return false;
+                if (indices != null) {
+                    for (String index : indices) {
+                        if (!indexNameMatcher.apply(index)) {
+                            return false;
+                        }
                     }
                 }
 

@@ -13,39 +13,54 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.shield.SecurityFilter;
 import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authc.support.UserPasswdStore;
-import org.elasticsearch.shield.authc.support.UserRolesStore;
-import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
+import org.elasticsearch.shield.authc.support.*;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  *
  */
 public class ESUsersRealmTests extends ElasticsearchTestCase {
 
+    private RestController restController;
+    private Client client;
+    private AdminClient adminClient;
+    @Before
+    public void init() throws Exception {
+        client = mock(Client.class);
+        adminClient = mock(AdminClient.class);
+        restController = mock(RestController.class);
+    }
+
+    @Test
+    public void testRestHeaderRegistration() {
+        new ESUsersRealm(ImmutableSettings.EMPTY, mock(UserPasswdStore.class), mock(UserRolesStore.class), restController);
+        verify(restController).registerRelevantHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
+    }
+
     @Test
     public void testAuthenticate() throws Exception {
         Settings settings = ImmutableSettings.builder().build();
         MockUserPasswdStore userPasswdStore = new MockUserPasswdStore("user1", "test123");
         MockUserRolesStore userRolesStore = new MockUserRolesStore("user1", "role1", "role2");
-        ESUsersRealm realm = new ESUsersRealm(settings, userPasswdStore, userRolesStore);
-        User user = realm.authenticate(new UsernamePasswordToken("user1", "test123".toCharArray()));
+        ESUsersRealm realm = new ESUsersRealm(settings, userPasswdStore, userRolesStore, restController);
+        User user = realm.authenticate(new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
         assertTrue(userPasswdStore.called);
         assertTrue(userRolesStore.called);
         assertThat(user, notNullValue());
@@ -60,16 +75,16 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
         Settings settings = ImmutableSettings.builder().build();
         MockUserPasswdStore userPasswdStore = new MockUserPasswdStore("user1", "test123");
         MockUserRolesStore userRolesStore = new MockUserRolesStore("user1", "role1", "role2");
-        ESUsersRealm realm = new ESUsersRealm(settings, userPasswdStore, userRolesStore);
+        ESUsersRealm realm = new ESUsersRealm(settings, userPasswdStore, userRolesStore, restController);
 
         TransportRequest request = new TransportRequest() {};
-        UsernamePasswordToken.putTokenHeader(request, new UsernamePasswordToken("user1", "test123".toCharArray()));
+        UsernamePasswordToken.putTokenHeader(request, new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
 
         UsernamePasswordToken token = realm.token(request);
         assertThat(token, notNullValue());
         assertThat(token.principal(), equalTo("user1"));
         assertThat(token.credentials(), notNullValue());
-        assertThat(new String(token.credentials()), equalTo("test123"));
+        assertThat(new String(token.credentials().internalChars()), equalTo("test123"));
     }
 
 
@@ -85,10 +100,10 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public boolean verifyPassword(String username, char[] password) {
+        public boolean verifyPassword(String username, SecuredString password) {
             called = true;
             assertThat(username, equalTo(this.username));
-            assertThat(new String(password), equalTo(this.password));
+            assertThat(new String(password.internalChars()), equalTo(this.password));
             return true;
         }
     }
@@ -116,9 +131,8 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
     @Test @SuppressWarnings("unchecked")
     public void testRestHeadersAreCopied() throws Exception {
         // the required header will be registered only if ESUsersRealm is actually used.
-        new ESUsersRealm(ImmutableSettings.EMPTY, null, null);
-        Client client = mock(Client.class);
-        AdminClient adminClient = mock(AdminClient.class);
+        new ESUsersRealm(ImmutableSettings.EMPTY, null, null, restController);
+        when(restController.relevantHeaders()).thenReturn(ImmutableSet.of(UsernamePasswordToken.BASIC_AUTH_HEADER));
         when(client.admin()).thenReturn(adminClient);
         when(adminClient.cluster()).thenReturn(mock(ClusterAdminClient.class));
         when(adminClient.indices()).thenReturn(mock(IndicesAdminClient.class));
@@ -128,15 +142,16 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
                 return null;
             }
         };
+        RestRequest restRequest = mock(RestRequest.class);
         final Action action = mock(Action.class);
         final ActionListener listener = mock(ActionListener.class);
-        BaseRestHandler handler = new BaseRestHandler(ImmutableSettings.EMPTY, client) {
+        BaseRestHandler handler = new BaseRestHandler(ImmutableSettings.EMPTY, restController, client) {
             @Override
             protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
                 client.execute(action, request, listener);
             }
         };
-        RestRequest restRequest = mock(RestRequest.class);
+
         when(restRequest.header(UsernamePasswordToken.BASIC_AUTH_HEADER)).thenReturn("foobar");
         RestChannel channel = mock(RestChannel.class);
         handler.handleRequest(restRequest, channel);

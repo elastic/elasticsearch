@@ -10,6 +10,8 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.ShieldException;
+import org.elasticsearch.shield.authc.support.SecuredString;
 
 import javax.naming.Context;
 import javax.naming.NamingEnumeration;
@@ -42,7 +44,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
         super(settings);
         domainName = componentSettings.get(AD_DOMAIN_NAME_SETTING);
         if (domainName == null) {
-            throw new org.elasticsearch.shield.SecurityException("Missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
+            throw new ShieldException("Missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
         }
         userSearchDN = componentSettings.get(AD_USER_SEARCH_BASEDN_SETTING, buildDnFromDomain(domainName));
         int port = componentSettings.getAsInt(AD_PORT, 389);
@@ -62,13 +64,12 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
      * @return An authenticated
      */
     @Override
-    public LdapConnection bind(String userName, char[] password) {
+    public LdapConnection bind(String userName, SecuredString password) {
         String userPrincipal = userName + "@" + this.domainName;
-
         Hashtable<String, Serializable> ldapEnv = new Hashtable<>(this.sharedLdapEnv);
         ldapEnv.put(Context.SECURITY_AUTHENTICATION, "simple");
         ldapEnv.put(Context.SECURITY_PRINCIPAL, userPrincipal);
-        ldapEnv.put(Context.SECURITY_CREDENTIALS, password);
+        ldapEnv.put(Context.SECURITY_CREDENTIALS, password.internalChars());
 
         try {
             DirContext ctx = new InitialDirContext(ldapEnv);

@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.shield.audit;
 
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.transport.TransportRequest;
 
 /**
  *
@@ -32,7 +34,15 @@ public interface AuditTrail {
         }
 
         @Override
+        public void authenticationFailed(AuthenticationToken token, RestRequest request) {
+        }
+
+        @Override
         public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage<?> message) {
+        }
+
+        @Override
+        public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
         }
 
         @Override
@@ -42,6 +52,10 @@ public interface AuditTrail {
         @Override
         public void accessDenied(User user, String action, TransportMessage<?> message) {
         }
+
+        @Override
+        public void tamperedRequest(User user, String action, TransportRequest request) {
+        }
     };
 
     String name();
@@ -50,10 +64,16 @@ public interface AuditTrail {
 
     void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message);
 
+    void authenticationFailed(AuthenticationToken token, RestRequest request);
+
     void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage<?> message);
+
+    void authenticationFailed(String realm, AuthenticationToken token, RestRequest request);
 
     void accessGranted(User user, String action, TransportMessage<?> message);
 
     void accessDenied(User user, String action, TransportMessage<?> message);
+
+    void tamperedRequest(User user, String action, TransportRequest request);
 
 }

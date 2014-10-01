@@ -7,6 +7,7 @@ package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.netty.channel.ChannelPipeline;
 import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
@@ -29,7 +30,7 @@ public class NettySecuredTransport extends NettyTransport {
 
     @Inject
     public NettySecuredTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-                                 N2NNettyUpstreamHandler shieldUpstreamHandler) {
+                                 @Nullable N2NNettyUpstreamHandler shieldUpstreamHandler) {
         super(settings, threadPool, networkService, bigArrays, version);
         this.shieldUpstreamHandler = shieldUpstreamHandler;
         this.ssl = settings.getAsBoolean("shield.transport.ssl", false);
@@ -63,15 +64,15 @@ public class NettySecuredTransport extends NettyTransport {
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            if (settings.getAsBoolean("shield.transport.n2n.ip_filter.enabled", true)) {
-                pipeline.addFirst("ipfilter", shieldUpstreamHandler);
-            }
             if (ssl) {
                 SSLEngine serverEngine = sslConfig.createSSLEngine();
                 serverEngine.setUseClientMode(false);
 
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
                 pipeline.replace("dispatcher", "dispatcher", new SecuredMessageChannelHandler(nettyTransport, logger));
+            }
+            if (shieldUpstreamHandler != null) {
+                pipeline.addFirst("ipfilter", shieldUpstreamHandler);
             }
             return pipeline;
         }

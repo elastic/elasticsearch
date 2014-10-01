@@ -30,8 +30,9 @@
     </repositories>
 
     <properties>
-        <lucene.version>4.10.0</lucene.version>
-        <elasticsearch.version>1.4.0-SNAPSHOT</elasticsearch.version>
+        <lucene.version>4.10.1</lucene.version>
+        <lucene.maven.version>4.10.1</lucene.maven.version>
+        <elasticsearch.version>1.4.0.Beta1-SNAPSHOT</elasticsearch.version>
 
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
@@ -42,6 +43,7 @@
         <tests.heap.size>512m</tests.heap.size>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
+        <tests.rest>false</tests.rest>
     </properties>
 
     <dependencies>
@@ -49,7 +51,7 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-test-framework</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -117,6 +119,18 @@
             <groupId>org.objenesis</groupId>
             <artifactId>objenesis</artifactId>
             <version>2.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.3.5</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <version>2.3.2</version>
             <scope>test</scope>
         </dependency>
 

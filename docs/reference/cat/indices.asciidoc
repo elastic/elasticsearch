@@ -16,6 +16,9 @@ We can tell quickly how many shards make up an index, the number of
 docs, deleted docs, primary store size, and total store size (all
 shards including replicas).
 
+Note: docs.count includes the count of nested documents. So if you have a single
+document with 2 associated nested documents, the docs.count will show 3.
+
 [float]
 [[pri-flag]]
 === Primaries

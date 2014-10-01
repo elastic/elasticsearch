@@ -2700,4 +2700,24 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Test // see #7686.
+    public void testIdsQueryWithInvalidValues() throws Exception {
+        createIndex("test");
+        indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("body", "foo"));
+        try {
+            client().prepareSearch("test")
+                    .setTypes("type")
+                    .setQuery("{\n" +
+                            "  \"ids\": {\n" +
+                            "    \"values\": [[\"1\"]]\n" +
+                            "  }\n" +
+                            "}")
+                    .get();
+            fail("query is invalid and should have produced a parse exception");
+        } catch (Exception e) {
+            assertThat("query could not be parsed due to bad format: " + e.getMessage(),
+                    e.getMessage().contains("Illegal value for id, expecting a string or number, got: START_ARRAY"),
+                    equalTo(true));
+        }
+    }
 }

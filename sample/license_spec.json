@@ -1,0 +1,14 @@
+{
+    "licenses": [
+        {
+            "type": "internal",
+            "subscription_type": "none",
+            "issued_to": "issuedTo",
+            "issuer": "issuer",
+            "issue_date": "2014-09-29",
+            "expiry_date": "2015-08-29",
+            "feature": "shield",
+            "max_nodes": 1
+        }
+    ]
+}

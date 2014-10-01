@@ -114,9 +114,13 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             suggest.toXContent(builder, params);
         }
         if (profile != null) {
-            builder.startArray("profile");
-            profile.toXContent(builder, params);
-            builder.endArray();
+            builder.startObject("profile");
+                builder.startObject("query");
+                    builder.startObject("all_shards");
+                    profile.toXContent(builder, params);
+                    builder.endObject();
+                builder.endObject();
+            builder.endObject();
         }
         return builder;
     }

@@ -58,6 +58,8 @@ public class Profile implements Streamable, ToXContent {
     // Total time of the entire Profile tree.  Provided by the parent, used to calculate relative timing
     private long totalTime;
 
+    private boolean topProfile = false;
+
     public Profile(ProfileQuery pQuery) {
         this();
         components.add(Profile.collapse(pQuery));
@@ -105,8 +107,9 @@ public class Profile implements Streamable, ToXContent {
 
     public void setTotalTime(long time) { this.totalTime = time; }
 
-    public void finalizeTotalTime() {
+    public void makeTopLevelProfile() {
         this.totalTime = this.time;
+        this.topProfile = true;
     }
 
     /**
@@ -170,9 +173,6 @@ public class Profile implements Streamable, ToXContent {
             }
         }
 
-        // finalProfile cannot be null here, since we abort earlier if profiles.len == 0
-        finalProfile.setTotalTime(finalProfile.time());
-
         return finalProfile;
     }
 
@@ -185,7 +185,10 @@ public class Profile implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
-        builder.startObject();
+        if (!this.topProfile) {
+            builder.startObject();
+        }
+
         builder.field("type", className);
         builder.field("time", time);
         builder.field("relative", String.format("%.5g%%", ((float) time / (float)totalTime)*100f));
@@ -199,7 +202,10 @@ public class Profile implements Streamable, ToXContent {
             }
             builder.endArray();
         }
-        builder.endObject();
+
+        if (!this.topProfile) {
+            builder.endObject();
+        }
 
         return builder;
     }

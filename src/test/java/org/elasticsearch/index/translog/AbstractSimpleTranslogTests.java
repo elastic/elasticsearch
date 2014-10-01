@@ -409,7 +409,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "corrupting size can cause OOME")
+    @LuceneTestCase.BadApple(bugUrl = "corrupting size can cause OOME")
     public void testTranslogChecksums() throws Exception {
         List<Translog.Location> locations = newArrayList();
 

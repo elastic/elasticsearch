@@ -13,14 +13,15 @@ import net.nicholaswilliams.java.licensing.exception.KeyNotFoundException;
 import net.nicholaswilliams.java.licensing.licensor.LicenseCreator;
 import net.nicholaswilliams.java.licensing.licensor.LicenseCreatorProperties;
 import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.io.FileUtils;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseBuilders;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Random;
 
 import static org.elasticsearch.license.core.ESLicenses.ESLicense;
@@ -51,10 +52,10 @@ public class ESLicenseSigner {
         LicenseCreatorProperties.setPrivateKeyDataProvider(new PrivateKeyDataProvider() {
             @Override
             public byte[] getEncryptedPrivateKeyData() throws KeyNotFoundException {
-                File privateKeyFile = new File(options.privateKeyPath);
-                assert privateKeyFile.exists();
+                Path privateKeyFile = Paths.get(options.privateKeyPath);
+                assert privateKeyFile.toFile().exists();
                 try {
-                    return FileUtils.readFileToByteArray(privateKeyFile);
+                    return Files.readAllBytes(privateKeyFile);
                 } catch (IOException e) {
                     e.printStackTrace();
                     throw new IllegalStateException(e);
@@ -107,7 +108,7 @@ public class ESLicenseSigner {
         random.nextBytes(magic);
         final byte[] licenseSignature = licenseCreator.signAndSerializeLicense(license);
         final byte[] hash = Hasher.hash(Base64.encodeBase64String(
-                        FileUtils.readFileToByteArray(new File(options.publicKeyPath)))
+                        Files.readAllBytes(Paths.get(options.publicKeyPath)))
         ).getBytes(Charset.forName("UTF-8"));
         int headerLength = MAGIC_LENGTH + hash.length + 4 + 4;
         byte[] bytes = new byte[headerLength + licenseSignature.length];

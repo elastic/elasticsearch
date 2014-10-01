@@ -12,7 +12,6 @@ import net.nicholaswilliams.java.licensing.encryption.PasswordProvider;
 import net.nicholaswilliams.java.licensing.exception.ExpiredLicenseException;
 import net.nicholaswilliams.java.licensing.exception.InvalidLicenseException;
 import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.io.FileUtils;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseBuilders;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
@@ -20,6 +19,8 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
@@ -103,7 +104,7 @@ public class ESLicenseManager {
         byteBuffer.get(hash);
 
         final byte[] computedHash = Hasher.hash(Base64.encodeBase64String(
-                        FileUtils.readFileToByteArray(publicKeyDataProvider.getPublicKeyFile()))
+                        Files.readAllBytes(Paths.get(publicKeyDataProvider.getPublicKeyFile().getAbsolutePath())))
         ).getBytes(Charset.forName("UTF-8"));
 
         if (!Arrays.equals(hash, computedHash)) {

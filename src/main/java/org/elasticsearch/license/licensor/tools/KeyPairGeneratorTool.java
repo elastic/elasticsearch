@@ -11,10 +11,7 @@ import net.nicholaswilliams.java.licensing.exception.InappropriateKeyException;
 import net.nicholaswilliams.java.licensing.exception.InappropriateKeySpecificationException;
 import net.nicholaswilliams.java.licensing.exception.RSA2048NotSupportedException;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintWriter;
+import java.io.*;
 import java.security.KeyPair;
 
 public class KeyPairGeneratorTool {
@@ -69,7 +66,7 @@ public class KeyPairGeneratorTool {
     }
 
     public static void run(String[] args, OutputStream out) throws IOException {
-        PrintWriter printWriter = new PrintWriter(out);
+        PrintStream printStream = new PrintStream(out);
 
         Options options = parse(args);
 
@@ -81,7 +78,8 @@ public class KeyPairGeneratorTool {
 
         KeyPair keyPair = generateKeyPair(options.privateKeyFilePath, options.publicKeyFilePath, options.keyPass);
         if (keyPair != null) {
-            printWriter.println("Successfully generated new keyPair [publicKey: " + options.publicKeyFilePath + ", privateKey: " + options.privateKeyFilePath + "]");
+            printStream.println("Successfully generated new keyPair [publicKey: " + options.publicKeyFilePath + ", privateKey: " + options.privateKeyFilePath + "]");
+            printStream.flush();
         }
     }
 
@@ -97,7 +95,7 @@ public class KeyPairGeneratorTool {
         try {
             keyPair = generator.generateKeyPair();
         } catch (RSA2048NotSupportedException e) {
-            return null;
+            throw new IllegalStateException(e);
         }
 
         try {

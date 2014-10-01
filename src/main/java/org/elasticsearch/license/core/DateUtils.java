@@ -13,13 +13,13 @@ import java.util.Date;
 import java.util.TimeZone;
 
 public class DateUtils {
-    public static final DateFormat DATE_FORMAT;
     public static final TimeZone TIME_ZONE = TimeZone.getTimeZone("UTC");
 
-    static {
-        DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
-        DATE_FORMAT.setTimeZone(DateUtils.TIME_ZONE);
-        DATE_FORMAT.setLenient(false);
+    private static DateFormat getDateFormat() {
+        DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+        dateFormat.setTimeZone(TIME_ZONE);
+        dateFormat.setLenient(false);
+        return dateFormat;
     }
 
     public static long longExpiryDateFromDate(long date) {
@@ -38,7 +38,7 @@ public class DateUtils {
     }
 
     public static long longFromDateString(String dateStr) throws ParseException {
-        Date dateObj = DATE_FORMAT.parse(dateStr);
+        Date dateObj = getDateFormat().parse(dateStr);
         Calendar calendar = Calendar.getInstance();
         calendar.clear();
         calendar.setTimeZone(TIME_ZONE);
@@ -56,6 +56,6 @@ public class DateUtils {
         calendar.clear();
         calendar.setTimeZone(TIME_ZONE);
         calendar.setTimeInMillis(dateObj.getTime());
-        return DATE_FORMAT.format(calendar.getTime());
+        return getDateFormat().format(calendar.getTime());
     }
 }

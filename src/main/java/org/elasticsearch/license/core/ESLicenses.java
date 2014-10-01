@@ -36,37 +36,18 @@ public interface ESLicenses extends Iterable<ESLicenses.ESLicense> {
      * Enum for License Type
      */
     public enum Type {
-        TRIAL((byte) 0, "trial"),
-        SUBSCRIPTION((byte) 1, "subscription"),
-        INTERNAL((byte) 2, "internal");
+        TRIAL("trial"),
+        SUBSCRIPTION("subscription"),
+        INTERNAL("internal");
 
-        private final byte id;
         private final String name;
 
-        private Type(byte id, String name) {
-            this.id = id;
+        private Type(String name) {
             this.name = name;
         }
 
         public String string() {
             return name;
-        }
-
-        public byte id() {
-            return id;
-        }
-
-        public static Type fromId(byte id) {
-            switch (id) {
-                case 0:
-                    return TRIAL;
-                case 1:
-                    return SUBSCRIPTION;
-                case 2:
-                    return INTERNAL;
-                default:
-                    throw new IllegalArgumentException("Invalid Type id=" + id);
-            }
         }
 
         public static Type fromString(String type) {
@@ -87,47 +68,23 @@ public interface ESLicenses extends Iterable<ESLicenses.ESLicense> {
      * Enum for License Subscription Type
      */
     public enum SubscriptionType {
-        NONE((byte) 0, "none"),
-        DEVELOPMENT((byte) 1, "development"),
-        SILVER((byte) 2, "silver"),
-        GOLD((byte) 3, "gold"),
-        PLATINUM((byte) 4, "platinum");
+        NONE("none"),
+        DEVELOPMENT("development"),
+        SILVER("silver"),
+        GOLD("gold"),
+        PLATINUM("platinum");
 
         public static SubscriptionType DEFAULT = NONE;
 
-        private final byte id;
         private final String name;
 
-        private SubscriptionType(byte id, String name) {
-            this.id = id;
+        private SubscriptionType(String name) {
             this.name = name;
         }
 
         public String string() {
             return name;
         }
-
-        public byte id() {
-            return id;
-        }
-
-        public static SubscriptionType fromId(byte id) {
-            switch (id) {
-                case 0:
-                    return NONE;
-                case 1:
-                    return DEVELOPMENT;
-                case 2:
-                    return SILVER;
-                case 3:
-                    return GOLD;
-                case 4:
-                    return PLATINUM;
-                default:
-                    throw new IllegalArgumentException("Invalid SubscriptionType id=" + id);
-            }
-        }
-
 
         public static SubscriptionType fromString(String subscriptionType) {
             if (subscriptionType.equalsIgnoreCase(NONE.string())) {
@@ -150,35 +107,17 @@ public interface ESLicenses extends Iterable<ESLicenses.ESLicense> {
      * Enum for License FeatureType
      */
     public enum FeatureType {
-        SHIELD((byte) 0, "shield"),
-        MARVEL((byte) 1, "marvel");
-
-        private final byte id;
+        SHIELD("shield"),
+        MARVEL("marvel");
 
         private final String name;
 
-        private FeatureType(byte id, String name) {
-            this.id = id;
+        private FeatureType(String name) {
             this.name = name;
         }
 
         public String string() {
             return name;
-        }
-
-        public byte id() {
-            return id;
-        }
-
-        public static FeatureType fromId(byte id) {
-            switch (id) {
-                case 0:
-                    return SHIELD;
-                case 1:
-                    return MARVEL;
-                default:
-                    throw new IllegalArgumentException("Invalid FeatureType id=" + id);
-            }
         }
 
         public static FeatureType fromString(String featureType) {

@@ -129,14 +129,14 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
     public boolean authenticate(@Nullable Principal peerPrincipal, InetAddress peerAddress, int peerPort) {
         for (IpFilterRule rule : rules) {
             if (rule.contains(peerAddress)) {
-                boolean isAllowed =  rule.isAllowRule();
+                boolean isAllowed = rule.isAllowRule();
                 logger.trace("Authentication rule matched for host [{}]: {}", peerAddress, isAllowed);
                 return isAllowed;
             }
         }
 
-        logger.trace("Rejecting host {}", peerAddress);
-        return false;
+        logger.trace("Allowing host {}", peerAddress);
+        return true;
     }
 
     private class FileListener extends FileChangesListener {

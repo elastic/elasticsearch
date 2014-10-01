@@ -71,10 +71,13 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatIpV6AddressesCanBeProcessed() throws Exception {
-        writeConfigFile("allow: 2001:0db8:1234::/48\ndeny: 1234:0db8:85a3:0000:0000:8a2e:0370:7334");
+        // you have to use the shortest possible notation in order to match, so
+        // 1234:0db8:85a3:0000:0000:8a2e:0370:7334 becomes 1234:db8:85a3:0:0:8a2e:370:7334
+        writeConfigFile("allow: 2001:0db8:1234::/48\ndeny: 1234:db8:85a3:0:0:8a2e:370:7334\ndeny: 4321:db8:1234::/48");
 
         assertAddressIsAllowed("2001:0db8:1234:0000:0000:8a2e:0370:7334");
         assertAddressIsDenied("1234:0db8:85a3:0000:0000:8a2e:0370:7334");
+        assertAddressIsDenied("4321:0db8:1234:0000:0000:8a2e:0370:7334");
     }
 
     @Test
@@ -82,20 +85,20 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
         writeConfigFile("allow: localhost\ndeny: '*.google.com'");
 
         assertAddressIsAllowed("127.0.0.1");
-        assertAddressIsDenied("173.194.70.100");
+        assertAddressIsDenied("8.8.8.8");
     }
 
     @Test
     public void testThatFileDeletionResultsInAllowingAll() throws Exception {
-        writeConfigFile("allow: 127.0.0.1");
+        writeConfigFile("deny: 127.0.0.1");
 
-        assertAddressIsAllowed("127.0.0.1");
+        assertAddressIsDenied("127.0.0.1");
 
         configFile.delete();
         assertThat(configFile.exists(), is(false));
 
         sleep(250);
-        assertAddressIsDenied("127.0.0.1");
+        assertAddressIsAllowed("127.0.0.1");
     }
 
     @Test
@@ -133,7 +136,7 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
     public void testThatEmptyFileDoesNotLeadIntoLoop() throws Exception {
         writeConfigFile("# \n\n");
 
-        assertAddressIsDenied("127.0.0.1");
+        assertAddressIsAllowed("127.0.0.1");
     }
 
     @Test(expected = ElasticsearchParseException.class)

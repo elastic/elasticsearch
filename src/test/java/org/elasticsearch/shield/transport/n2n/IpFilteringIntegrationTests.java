@@ -39,13 +39,9 @@ public class IpFilteringIntegrationTests extends ShieldIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         ImmutableSettings.Builder builder = settingsBuilder().put(super.nodeSettings(nodeOrdinal));
         builder.put(InternalNode.HTTP_ENABLED, true);
-        // either deny all or do not have a configuration file, as this denies by default
-        if (getRandom().nextBoolean()) {
-            File folder = newFolder();
-            builder.put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", CONFIG_IPFILTER_DENY_ALL));
-        } else {
-            builder.remove("shield.transport.n2n.ip_filter.file");
-        }
+
+        File folder = newFolder();
+        builder.put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", CONFIG_IPFILTER_DENY_ALL));
 
         return builder.build();
     }

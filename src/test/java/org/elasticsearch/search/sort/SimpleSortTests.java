@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.*;
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "simon is working on this")
+    @LuceneTestCase.BadApple(bugUrl = "simon is working on this")
     public void testIssue6614() throws ExecutionException, InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         boolean strictTimeBasedIndices = randomBoolean();

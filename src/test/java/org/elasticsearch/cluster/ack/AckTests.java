@@ -94,7 +94,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
     @Test
     public void testPutWarmerAcknowledgement() {
         createIndex("test");
-        ensureGreen();
+        // make sure one shard is started so the search during put warmer will not fail
+        index("test", "type", "1", "f", 1);
 
         assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));
@@ -112,7 +113,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
     @Test
     public void testPutWarmerNoAcknowledgement() throws InterruptedException {
         createIndex("test");
-        ensureGreen();
+        // make sure one shard is started so the search during put warmer will not fail
+        index("test", "type", "1", "f", 1);
 
         PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer").setTimeout("0s")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
@@ -139,7 +141,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDeleteWarmerAcknowledgement() {
         createIndex("test");
-        ensureGreen();
+        // make sure one shard is started so the search during put warmer will not fail
+        index("test", "type", "1", "f", 1);
 
         assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));
@@ -155,7 +158,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDeleteWarmerNoAcknowledgement() throws InterruptedException {
         createIndex("test");
-        ensureGreen();
+        // make sure one shard is started so the search during put warmer will not fail
+        index("test", "type", "1", "f", 1);
 
         assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));

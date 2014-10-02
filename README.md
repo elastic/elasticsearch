@@ -30,7 +30,6 @@ plugin --install analysis-smartcn \
 ```
 
 ## User guide
->>>>>>> bb823d1... Docs: make the welcome page more obvious
 
 The plugin includes the `smartcn` analyzer and `smartcn_tokenizer` tokenizer.
 

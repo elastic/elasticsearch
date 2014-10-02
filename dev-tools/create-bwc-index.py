@@ -61,7 +61,8 @@ def index_documents(es, index_name, type, num_docs):
   for id in range(0, num_docs):
     es.index(index=index_name, doc_type=type, id=id, body={'string': str(random.randint(0, 100)),
                                                            'long_sort': random.randint(0, 100),
-                                                           'double_sort' : float(random.randint(0, 100))})
+                                                           'double_sort' : float(random.randint(0, 100)),
+                                                           'bool' : random.choice([True, False])})
     if rarely():
       es.indices.refresh(index=index_name)
     if rarely():

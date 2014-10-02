@@ -24,13 +24,38 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 
 /**
  */
 public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericFieldData> {
 
     public static enum NumericType {
+        BOOLEAN(1, false, SortField.Type.INT, 0, 1) {
+            @Override
+            public long toLong(BytesRef indexForm) {
+                if (indexForm.equals(BooleanFieldMapper.Values.FALSE)) {
+                    return 0;
+                } else if (indexForm.equals(BooleanFieldMapper.Values.TRUE)) {
+                    return 1;
+                } else {
+                    throw new ElasticsearchIllegalArgumentException("Cannot convert " + indexForm + " to a boolean");
+                }
+            }
+
+            @Override
+            public void toIndexForm(Number number, BytesRefBuilder bytes) {
+                bytes.append(number.intValue() != 0 ? BooleanFieldMapper.Values.TRUE : BooleanFieldMapper.Values.FALSE);
+            }
+
+            @Override
+            public Number toNumber(BytesRef indexForm) {
+                return toLong(indexForm);
+            }
+
+        },
         BYTE(8, false, SortField.Type.INT, Byte.MIN_VALUE, Byte.MAX_VALUE) {
             @Override
             public long toLong(BytesRef indexForm) {
@@ -174,7 +199,9 @@ public interface IndexNumericFieldData extends IndexFieldData<AtomicNumericField
         public abstract Number toNumber(BytesRef indexForm);
 
         public final TermsEnum wrapTermsEnum(TermsEnum termsEnum) {
-            if (requiredBits() > 32) {
+            if (requiredBits() == 1) { // boolean, no prefix-terms
+                return termsEnum;
+            } else if (requiredBits() > 32) {
                 return OrdinalsBuilder.wrapNumeric64Bit(termsEnum);
             } else {
                 return OrdinalsBuilder.wrapNumeric32Bit(termsEnum);

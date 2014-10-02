@@ -410,14 +410,17 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
     }
 
     /**
-     * Test the we do not loose document whose indexing request was successful, under a randomly selected disruption scheme
+     * Test that we do not loose document whose indexing request was successful, under a randomly selected disruption scheme
      * We also collect & report the type of indexing failures that occur.
+     *
+     * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
      */
     @Test
     // NOTE: if you remove the awaitFix, make sure to port the test to the 1.x branch
     @LuceneTestCase.AwaitsFix(bugUrl = "needs some more work to stabilize")
     @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void testAckedIndexing() throws Exception {
+        // TODO: add node count randomizaion
         final List<String> nodes = startCluster(3);
 
         assertAcked(prepareCreate("test")
@@ -874,6 +877,7 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
     }
 
     private ServiceDisruptionScheme addRandomDisruptionScheme() {
+        // TODO: add partial partitions
         List<ServiceDisruptionScheme> list = Arrays.asList(
                 new NetworkUnresponsivePartition(getRandom()),
                 new NetworkDelaysPartition(getRandom()),

@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-@Ignore("Enable once maven is setup properly; now it throws invalid signature error for all the tests when the tests always pass in intellij")
 public class LicenseVerificationToolTests {
 
     private static String pubKeyPath = null;

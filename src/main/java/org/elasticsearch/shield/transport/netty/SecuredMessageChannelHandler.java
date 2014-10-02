@@ -34,7 +34,7 @@ public class SecuredMessageChannelHandler extends MessageChannelHandler {
                     ctx.sendUpstream(e);
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.error("SSL / TLS handshake failed, closing channel: {}", future.getCause(), future.getCause().getMessage());
+                        logger.debug("SSL / TLS handshake failed, closing channel: {}", future.getCause(), future.getCause().getMessage());
                     } else {
                         logger.error("SSL / TLS handshake failed, closing channel: {}", future.getCause().getMessage());
                     }

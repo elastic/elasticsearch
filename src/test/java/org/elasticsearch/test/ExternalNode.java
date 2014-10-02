@@ -128,6 +128,7 @@ final class ExternalNode implements Closeable {
         }
 
         params.add("-Des.path.home=" + new File("").getAbsolutePath());
+        params.add("-Des.path.conf=" + path + "/config");
 
         ProcessBuilder builder = new ProcessBuilder(params);
         builder.directory(path);

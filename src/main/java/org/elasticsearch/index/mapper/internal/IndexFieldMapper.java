@@ -19,13 +19,23 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import com.google.common.base.Charsets;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermFilter;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.PrefixFilter;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,8 +44,11 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -58,7 +71,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setIndexed(false);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
@@ -155,6 +168,62 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         }
         return value.toString();
     }
+
+    @Override
+    public Filter termsFilter(List values, @Nullable QueryParseContext context) {
+        if (fieldType.indexed() || context == null){
+            super.termsFilter(values, context);
+        }
+        for (Object value : values) {
+            if (isSameIndex(value, context)) {
+                return Queries.MATCH_ALL_FILTER;
+            }
+        }
+        return Queries.MATCH_NO_FILTER;
+    }
+
+
+    /**
+     * This termQuery impl looks at the context to determine the index that is being queried and
+     * then creates returns a MATCH_ALL_FILTER or MATCH_NO_FILTER if the value matches this index
+     * this can be useful if aliases or wildcards are used but the aim is to restrict the query to specific indices
+     */
+    @Override
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        if (fieldType.indexed() || context == null) {
+            return super.termQuery(value, context);
+        }
+        if (isSameIndex(value, context)) {
+            return new XConstantScoreQuery(Queries.MATCH_ALL_FILTER);
+        } else {
+            return new XConstantScoreQuery(Queries.MATCH_NO_FILTER);
+        }
+
+    }
+
+    private boolean isSameIndex(Object value, QueryParseContext context) {
+        if (value instanceof BytesRef) {
+            BytesRef indexNameRef = new BytesRef(context.index().getName().getBytes(Charsets.UTF_8));
+            return (indexNameRef.bytesEquals((BytesRef) value));
+        } else if (value instanceof String) {
+            return context.index().getName().equals(value);
+        } else {
+            return context.index().getName().equals(value.toString());
+        }
+    }
+
+    @Override
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        if (fieldType.indexed() || context == null) {
+            return new TermFilter(names().createIndexNameTerm(BytesRefs.toBytesRef(value)));
+        }
+        if (isSameIndex(value, context)) {
+            return Queries.MATCH_ALL_FILTER;
+        } else {
+            return Queries.MATCH_NO_FILTER;
+        }
+    }
+
 
     @Override
     public void preParse(ParseContext context) throws IOException {

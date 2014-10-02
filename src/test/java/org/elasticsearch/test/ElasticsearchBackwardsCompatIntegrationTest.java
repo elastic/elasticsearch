@@ -34,6 +34,7 @@ import org.junit.Before;
 import org.junit.Ignore;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
@@ -78,21 +79,56 @@ import static org.hamcrest.Matchers.is;
 @ElasticsearchIntegrationTest.ClusterScope(minNumDataNodes = 0, maxNumDataNodes = 2, scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
 @Ignore
 public abstract class ElasticsearchBackwardsCompatIntegrationTest extends ElasticsearchIntegrationTest {
+    
+    protected static Version bwcVersion;
 
     private static File backwardsCompatibilityPath() {
         String path = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_PATH);
+        if (path == null || path.isEmpty()) {
+            throw new IllegalArgumentException("Invalid Backwards tests location path:" + path);
+        }
+        File dir = new File(path);
+        if (!dir.isDirectory() || !dir.exists()) {
+            throw new IllegalArgumentException("Backwards tests must exist and be a directory: " + path);
+        }
+        return dir;
+    }
+    
+    private static Version backwardsCompatibilityVersion(File bwcDir) {
         String version = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
-        if (path == null || path.isEmpty() || version == null || version.isEmpty()) {
-            throw new IllegalArgumentException("Invalid Backwards tests location path:" + path + " version: " + version);
+
+        if (version == null || version.isEmpty()) {
+            // choose a random version
+            // TODO: how can we put the version selected in the repeat test command?
+            File[] subdirs = bwcDir.listFiles(new FileFilter() {
+                @Override
+                public boolean accept(File file) {
+                    return file.getName().startsWith("elasticsearch-") && file.isDirectory();
+                }
+            });
+            if (subdirs == null || subdirs.length == 0) {
+                throw new IllegalArgumentException("Backwards dir does not contain any elasticsearch releases: " + bwcDir.getPath());
+            }
+            version = subdirs[randomInt(subdirs.length - 1)].getName().substring("elasticsearch-".length());
+        } else {
+            File dir = new File(bwcDir, "elasticsearch-" + version);
+            if (!dir.exists()) {
+                throw new IllegalArgumentException("Backwards tests location is missing: " + dir.getAbsolutePath());
+            }
+            if (!dir.isDirectory()) {
+                throw new IllegalArgumentException("Backwards tests location is not a directory: " + dir.getAbsolutePath());
+            }
         }
-        File file = new File(path, "elasticsearch-" + version);
-        if (!file.exists()) {
-            throw new IllegalArgumentException("Backwards tests location is missing: " + file.getAbsolutePath());
+        
+        Version v = Version.fromString(version);
+        if (v == null) {
+            throw new IllegalArgumentException("Backcompat elasticsearch version could not be parsed: " + version);
         }
-        if (!file.isDirectory()) {
-            throw new IllegalArgumentException("Backwards tests location is not a directory: " + file.getAbsolutePath());
+        if (v.major != Version.CURRENT.major) {
+            throw new IllegalArgumentException("Backcompat elasticsearch version must be same major version as current. " +
+                                               "backcompat: " + version + ", current: " + Version.CURRENT.toString());
         }
-        return file;
+        return v;
     }
 
     public CompositeTestCluster backwardsCluster() {
@@ -101,7 +137,10 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
     protected TestCluster buildTestCluster(Scope scope) throws IOException {
         TestCluster cluster = super.buildTestCluster(scope);
-        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new SettingsSource() {
+        File bwcDir = backwardsCompatibilityPath();
+        bwcVersion = backwardsCompatibilityVersion(bwcDir);
+        File oldVersionDir = new File(bwcDir, "elasticsearch-" + bwcVersion.toString());
+        ExternalNode externalNode = new ExternalNode(oldVersionDir, randomLong(), new SettingsSource() {
             @Override
             public Settings node(int nodeOrdinal) {
                 return externalNodeSettings(nodeOrdinal);

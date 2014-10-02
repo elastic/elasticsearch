@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.cn.smart.HMMChineseTokenizer;
 import org.apache.lucene.analysis.cn.smart.SmartChineseAnalyzer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
@@ -45,7 +44,7 @@ public class SmartChineseIndicesAnalysis extends AbstractComponent {
         super(settings);
 
         // Register smartcn analyzer
-        indicesAnalysisService.analyzerProviderFactories().put("smartcn", new PreBuiltAnalyzerProviderFactory("smartcn", AnalyzerScope.INDICES, new SmartChineseAnalyzer(Lucene.ANALYZER_VERSION)));
+        indicesAnalysisService.analyzerProviderFactories().put("smartcn", new PreBuiltAnalyzerProviderFactory("smartcn", AnalyzerScope.INDICES, new SmartChineseAnalyzer()));
 
         // Register smartcn_tokenizer tokenizer
         indicesAnalysisService.tokenizerFactories().put("smartcn_tokenizer", new PreBuiltTokenizerFactoryFactory(new TokenizerFactory() {

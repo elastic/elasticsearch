@@ -67,7 +67,6 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
 
     public static IpFilterRule[] parseFile(Path path, ESLogger logger) {
         if (!Files.exists(path)) {
-            logger.info("No IP filtering rules loaded, as file {} does not exist. Rejecting all incoming connections!", path);
             return NO_RULES;
         }
 
@@ -105,7 +104,6 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
         }
 
         if (rules.size() == 0) {
-            logger.info("No IP filtering rules loaded. Rejecting all incoming connections!");
             return NO_RULES;
         }
 

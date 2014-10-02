@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authz;
 
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
@@ -197,7 +198,7 @@ public interface Permission {
             // so we only check indices if indeed the request is an actual IndicesRequest, if it's not, we only
             // perform the check on the action name.
             Set<String> indices = null;
-            if (request instanceof IndicesRequest) {
+            if (request instanceof IndicesRequest || request instanceof CompositeIndicesRequest) {
                 indices = Collections.emptySet();
                 for (IndicesResolver resolver : indicesResolvers) {
                     if (resolver.requestType().isInstance(request)) {

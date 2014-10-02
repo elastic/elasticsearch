@@ -549,7 +549,7 @@ def ensure_checkout_is_clean(branchName):
     raise RuntimeError('git diff --shortstat is non-empty: got:\n%s' % s)
 
   # Make sure no untracked files:
-  s = subprocess.check_output('git status', shell=True)
+  s = subprocess.check_output('git status', shell=True).decode('utf-8', errors='replace')
   if 'Untracked files:' in s:
     raise RuntimeError('git status shows untracked files: got:\n%s' % s)
 

@@ -347,7 +347,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                 .setSource(TEXT_FIELD, gb, CLASS_FIELD, "0"));
         indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "7")
                 .setSource(TEXT_FIELD, "0", CLASS_FIELD, "0"));
-        indexRandom(true, indexRequestBuilderList);
+        indexRandom(true, false, indexRequestBuilderList);
     }
 
     @Test
@@ -413,6 +413,6 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
             indexRequestBuilders.add(client().prepareIndex("test", "doc", "" + i)
                     .setSource("class", parts[0], "text", parts[1]));
         }
-        indexRandom(true, indexRequestBuilders);
+        indexRandom(true, false, indexRequestBuilders);
     }
 }

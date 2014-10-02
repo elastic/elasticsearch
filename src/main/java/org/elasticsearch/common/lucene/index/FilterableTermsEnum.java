@@ -71,7 +71,7 @@ public class FilterableTermsEnum extends TermsEnum {
         }
         this.docsEnumFlag = docsEnumFlag;
         if (filter == null) {
-            numDocs = reader.numDocs();
+            numDocs = reader.maxDoc();
         }
         ApplyAcceptedDocsFilter acceptedDocsFilter = filter == null ? null : new ApplyAcceptedDocsFilter(filter);
         List<AtomicReaderContext> leaves = reader.leaves();

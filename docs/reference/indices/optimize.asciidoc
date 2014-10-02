@@ -37,9 +37,7 @@ deletes. Defaults to `false`.  Note that this won't override the
 to `true`. Note, a merge can potentially be a very heavy operation, so
 it might make sense to run it set to `false`.
 
-`force`:: deprecated[1.4.0, Use `upgrade`]
-
-`upgrade`:: Upgrade any segments not written with the current index format.
+`force`:: deprecated[1.4.0, Use the upgrade API]
 
 [float]
 [[optimize-multi-index]]

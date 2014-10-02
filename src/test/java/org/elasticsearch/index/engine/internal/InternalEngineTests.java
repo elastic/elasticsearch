@@ -422,18 +422,12 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         // we could have multiple underlying merges, so the generation may increase more than once
         assertTrue(store.readLastCommittedSegmentsInfo().getGeneration() > gen1);
 
-        // forcing an optimize will merge this single segment shard
-        final boolean force = randomBoolean();
-        if (force) {
-            waitTillMerge.set(new CountDownLatch(1));
-            waitForMerge.set(new CountDownLatch(1));
-        }
         final boolean flush = randomBoolean();
         final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
-        engine.optimize(new Engine.Optimize().flush(flush).maxNumSegments(1).force(force).waitForMerge(false));
+        engine.optimize(new Engine.Optimize().flush(flush).maxNumSegments(1).waitForMerge(false));
         waitTillMerge.get().await();
         for (Segment segment : engine.segments()) {
-            assertThat(segment.getMergeId(), force ? notNullValue() : nullValue());
+            assertThat(segment.getMergeId(), nullValue());
         }
         waitForMerge.get().countDown();
         

@@ -62,14 +62,15 @@ ignored. For example, setting `from` to `2012-01-01T00:00:00+01:00` with `"time_
 The `execution` option controls how the range filter internally executes. The `execution` option accepts the following values:
 
 [horizontal]
-`index`::       Uses field's inverted index in order to determine of documents fall with in the range filter's from and to range
-`fielddata`::   Uses field data in order to determine of documents fall with in the range filter's from and to range.
+`index`::       Uses the field's inverted index in order to determine whether documents fall within the specified range.
+`fielddata`::   Uses fielddata in order to determine whether documents fall within the specified range.
 
 In general for small ranges the `index` execution is faster and for longer ranges the `fielddata` execution is faster.
 
-The `fielddata` execution, as the name suggests, uses field data and therefore requires more memory, so make sure you have
-sufficient memory on your nodes in order to use this execution mode. It usually makes sense to use it on fields  you're
-already aggregating or sorting by.
+The `fielddata` execution, as the name suggests, uses field data and therefore
+requires more memory, so make sure you have sufficient memory on your nodes in
+order to use this execution mode. It usually makes sense to use it on fields
+you're already aggregating or sorting by.
 
 [float]
 ==== Caching

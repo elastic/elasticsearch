@@ -60,24 +60,38 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public static final String ALL = "_all";
 
+    public enum XContentContext {
+        /* Custom metadata should be returns as part of API call */
+        API,
+
+        /* Custom metadata should be stored as part of the persistent cluster state */
+        GATEWAY,
+
+        /* Custom metadata should be stored as part of a snapshot */
+        SNAPSHOT;
+    }
+
+    public static EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
+    public static EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
+    public static EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
+
     public interface Custom {
 
-        interface Factory<T extends Custom> {
+        abstract class Factory<T extends Custom> {
 
-            String type();
+            public abstract String type();
 
-            T readFrom(StreamInput in) throws IOException;
+            public abstract T readFrom(StreamInput in) throws IOException;
 
-            void writeTo(T customIndexMetaData, StreamOutput out) throws IOException;
+            public abstract void writeTo(T customIndexMetaData, StreamOutput out) throws IOException;
 
-            T fromXContent(XContentParser parser) throws IOException;
+            public abstract T fromXContent(XContentParser parser) throws IOException;
 
-            void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException;
+            public abstract void toXContent(T customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException;
 
-            /**
-             * Returns true if this custom metadata should be persisted as part of global cluster state
-             */
-            boolean isPersistent();
+            public EnumSet<XContentContext> context() {
+                return API_ONLY;
+            }
         }
     }
 
@@ -118,9 +132,11 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public static final MetaData EMPTY_META_DATA = builder().build();
 
-    public static final String GLOBAL_ONLY_PARAM = "global_only";
+    public static final String CONTEXT_MODE_PARAM = "context_mode";
 
-    public static final String PERSISTENT_ONLY_PARAM = "persistent_only";
+    public static final String CONTEXT_MODE_SNAPSHOT = XContentContext.SNAPSHOT.toString();
+
+    public static final String CONTEXT_MODE_GATEWAY = XContentContext.GATEWAY.toString();
 
     private final String uuid;
     private final long version;
@@ -1076,14 +1092,14 @@ public class MetaData implements Iterable<IndexMetaData> {
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metaData1.customs) {
-            if (customFactories.get(cursor.key).isPersistent()) {
+            if (customFactories.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
                 if (!cursor.value.equals(metaData2.custom(cursor.key))) return false;
                 customCount1++;
             }
         }
         int customCount2 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metaData2.customs) {
-            if (customFactories.get(cursor.key).isPersistent()) {
+            if (customFactories.get(cursor.key).context().contains(XContentContext.GATEWAY)) {
                 customCount2++;
             }
         }
@@ -1262,8 +1278,8 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            boolean globalOnly = params.paramAsBoolean(GLOBAL_ONLY_PARAM, false);
-            boolean persistentOnly = params.paramAsBoolean(PERSISTENT_ONLY_PARAM, false);
+            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, "API"));
+
             builder.startObject("meta-data");
 
             builder.field("version", metaData.version());
@@ -1277,7 +1293,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 builder.endObject();
             }
 
-            if (!persistentOnly && !metaData.transientSettings().getAsMap().isEmpty()) {
+            if (context == XContentContext.API && !metaData.transientSettings().getAsMap().isEmpty()) {
                 builder.startObject("transient_settings");
                 for (Map.Entry<String, String> entry : metaData.transientSettings().getAsMap().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());
@@ -1291,7 +1307,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             builder.endObject();
 
-            if (!globalOnly && !metaData.indices().isEmpty()) {
+            if (context == XContentContext.API && !metaData.indices().isEmpty()) {
                 builder.startObject("indices");
                 for (IndexMetaData indexMetaData : metaData) {
                     IndexMetaData.Builder.toXContent(indexMetaData, builder, params);
@@ -1301,13 +1317,12 @@ public class MetaData implements Iterable<IndexMetaData> {
 
             for (ObjectObjectCursor<String, Custom> cursor : metaData.customs()) {
                 Custom.Factory factory = lookupFactorySafe(cursor.key);
-                if (!persistentOnly || factory.isPersistent()) {
+                if(factory.context().contains(context)) {
                     builder.startObject(cursor.key);
                     factory.toXContent(cursor.value, builder, params);
                     builder.endObject();
                 }
             }
-
             builder.endObject();
         }
 

@@ -448,8 +448,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     private UnicastPingResponse handlePingRequest(final UnicastPingRequest request) {
-        if (lifecycle.stoppedOrClosed()) {
-            throw new ElasticsearchIllegalStateException("received ping request while stopped/closed");
+        if (!lifecycle.started()) {
+            throw new ElasticsearchIllegalStateException("received ping request while not started");
         }
         temporalResponses.add(request.pingResponse);
         threadPool.schedule(TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME, new Runnable() {

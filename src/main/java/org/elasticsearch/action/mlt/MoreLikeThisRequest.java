@@ -237,7 +237,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
      */
     @Deprecated
     public MoreLikeThisRequest percentTermsToMatch(float percentTermsToMatch) {
-        return minimumShouldMatch((int) (percentTermsToMatch * 100) + "%");
+        return minimumShouldMatch(Math.round(percentTermsToMatch * 100) + "%");
     }
 
     /**

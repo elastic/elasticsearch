@@ -199,7 +199,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
      */
     @Deprecated
     public MoreLikeThisQueryBuilder percentTermsToMatch(float percentTermsToMatch) {
-        return minimumShouldMatch((int) (percentTermsToMatch * 100) + "%");
+        return minimumShouldMatch(Math.round(percentTermsToMatch * 100) + "%");
     }
 
     /**

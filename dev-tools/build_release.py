@@ -99,14 +99,12 @@ except KeyError:
 
 
 try:
-  MVN='mvn'
   # make sure mvn3 is used if mvn3 is available
   # some systems use maven 2 as default
-  run('mvn3 --version', quiet=True)
-  MVN='mvn3'
-except RuntimeError:
-  pass
-
+  subprocess.check_output('mvn3 --version', shell=True, stderr=subprocess.STDOUT)
+  MVN = 'mvn3'
+except subprocess.CalledProcessError:
+  MVN = 'mvn'
 
 def java_exe():
   path = JAVA_HOME

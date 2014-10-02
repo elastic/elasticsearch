@@ -27,7 +27,6 @@ import static org.elasticsearch.license.core.ESLicenses.FeatureType;
 import static org.elasticsearch.license.core.LicenseUtils.readLicensesFromString;
 import static org.junit.Assert.*;
 
-@Ignore("Enable once maven is setup properly; now it throws invalid signature error for all the tests when the tests always pass in intellij")
 public class LicenseVerificationTests {
 
     private static String pubKeyPath = null;

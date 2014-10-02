@@ -154,7 +154,7 @@ Fielddata is one of the largest consumers of heap memory, and thus one of the pr
 
 By benchmarking and profiling both Lucene and Elasticsearch, we identified the bottlenecks and have made a series of improvements to improve the performance of doc values. They are now almost as fast as the in-memory option.
 
-See {GIT}6967[#6967], {GIT}6908[#6908], {GIT}458[#458], {GIT}3829[#3829], {GIT}4518[#4518], {GIT}5669[#5669], {JIRA}5748[LUCENE-5748], {JIRA}5703[LUCENE-5703], {JIRA}5750[LUCENE-5750], {JIRA}5721[LUCENE-5721], {JIRA}5799[LUCENE-5799].
+See {GIT}6967[#6967], {GIT}6908[#6908], {GIT}4548[#4548], {GIT}3829[#3829], {GIT}4518[#4518], {GIT}5669[#5669], {JIRA}5748[LUCENE-5748], {JIRA}5703[LUCENE-5703], {JIRA}5750[LUCENE-5750], {JIRA}5721[LUCENE-5721], {JIRA}5799[LUCENE-5799].
 
 [float]
 === Index corruption when upgrading Lucene 3.x indices (STATUS: DONE, v1.4.0.Beta)

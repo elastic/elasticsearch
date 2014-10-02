@@ -105,9 +105,7 @@ Today, when a node holding a primary shard receives an index request, it checks 
 [float]
 === Jepsen Test Failures (STATUS: ONGOING)
 
-As has been noted, Elasticsearch fails with a split-brain condition (as described in issue {GIT}2488[#2488]) in some corner cases as revealed by Jepsen testing. You can check on the progress we are making on this issue in the section above or by checking in https://github.com/dakrone/elasticsearch/compare/feature/zen/add-jepsen-test[directly on GitHub]. It is possible that Jepsen testing will highlight some other potential issues, and we are continuing our investigation.
-
-Our current plan is to run Jepsen against the recent changes in master, and make sure that each Jepsen test has a corresponding test in our new transport test infrastructure, with a documented PASS/FAIL status against it.
+We have increased our test coverage to include scenarios tested by Jepsen. We make heavy use of randomization to expand on the scenarios that can be tested and to introduce new error conditions. You can follow the work on the master branch of the https://github.com/elasticsearch/elasticsearch/blob/master/src/test/java/org/elasticsearch/discovery/DiscoveryWithServiceDisruptions.java[`DiscoveryWithServiceDisruptions` class], where we will add more tests as time progresses.
 
 [float]
 === Document guarantees and handling of failure (STATUS: ONGOING)

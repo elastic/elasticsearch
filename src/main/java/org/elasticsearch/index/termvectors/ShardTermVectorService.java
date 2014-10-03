@@ -114,8 +114,8 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
                     selectedFields = getFieldsToGenerate(request.perFieldAnalyzer(), termVectorsByField);
                 }
                 // fields without term vectors
-                if (request.selectedFields() != null) {
-                    termVectorsByField = addGeneratedTermVectors(get, termVectorsByField, request);
+                if (selectedFields != null) {
+                    termVectorsByField = addGeneratedTermVectors(get, termVectorsByField, request, selectedFields);
                 }
                 termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields);
                 termVectorResponse.setDocVersion(docIdAndVersion.version);
@@ -152,10 +152,10 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return true;
     }
 
-    private Fields addGeneratedTermVectors(Engine.GetResult get, Fields termVectorsByField, TermVectorRequest request) throws IOException {
+    private Fields addGeneratedTermVectors(Engine.GetResult get, Fields termVectorsByField, TermVectorRequest request, Set<String> selectedFields) throws IOException {
         /* only keep valid fields */
         Set<String> validFields = new HashSet<>();
-        for (String field : request.selectedFields()) {
+        for (String field : selectedFields) {
             FieldMapper fieldMapper = indexShard.mapperService().smartNameFieldMapper(field);
             if (!isValidField(fieldMapper)) {
                 continue;
@@ -185,7 +185,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         }
     }
 
-    private Analyzer getAnalyzerAtField(String field, @Nullable Map<String, Object> perFieldAnalyzer) {
+    private Analyzer getAnalyzerAtField(String field, @Nullable Map<String, String> perFieldAnalyzer) {
         MapperService mapperService = indexShard.mapperService();
         Analyzer analyzer;
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
@@ -199,7 +199,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return analyzer;
     }
 
-    private Set<String> getFieldsToGenerate(Map<String, Object> perAnalyzerField, Fields fieldsObject) {
+    private Set<String> getFieldsToGenerate(Map<String, String> perAnalyzerField, Fields fieldsObject) {
         Set<String> selectedFields = new HashSet<>();
         for (String fieldName : fieldsObject) {
             if (perAnalyzerField.containsKey(fieldName)) {
@@ -209,7 +209,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return selectedFields;
     }
 
-    private Fields generateTermVectors(Collection<GetField> getFields, boolean withOffsets, @Nullable Map<String, Object> perFieldAnalyzer)
+    private Fields generateTermVectors(Collection<GetField> getFields, boolean withOffsets, @Nullable Map<String, String> perFieldAnalyzer)
             throws IOException {
         /* store document in memory index */
         MemoryIndex index = new MemoryIndex(withOffsets);

@@ -21,6 +21,7 @@ package org.elasticsearch.action.termvector;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -66,7 +67,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
 
     Boolean realtime;
 
-    private Map<String, Object> perFieldAnalyzer;
+    private Map<String, String> perFieldAnalyzer;
 
     private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
             Flag.FieldStatistics);
@@ -320,14 +321,14 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     /**
      * Return the overridden analyzers at each field
      */
-    public Map<String, Object> perFieldAnalyzer() {
+    public Map<String, String> perFieldAnalyzer() {
         return perFieldAnalyzer;
     }
 
     /**
      * Override the analyzer used at each field when generating term vectors
      */
-    public TermVectorRequest perFieldAnalyzer(Map<String, Object> perFieldAnalyzer) {
+    public TermVectorRequest perFieldAnalyzer(Map<String, String> perFieldAnalyzer) {
         this.perFieldAnalyzer = perFieldAnalyzer != null && perFieldAnalyzer.size() != 0 ? Maps.newHashMap(perFieldAnalyzer) : null;
         return this;
     }
@@ -398,7 +399,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
 
         if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             if (in.readBoolean()) {
-                perFieldAnalyzer = in.readMap();
+                perFieldAnalyzer = readPerFieldAnalyzer(in.readMap());
             }
         }
     }
@@ -441,7 +442,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeBoolean(perFieldAnalyzer != null);
             if (perFieldAnalyzer != null) {
-                out.writeMap(perFieldAnalyzer);
+                out.writeGenericValue(perFieldAnalyzer);
             }
         }
     }
@@ -483,7 +484,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                 } else if (currentFieldName.equals("field_statistics") || currentFieldName.equals("fieldStatistics")) {
                     termVectorRequest.fieldStatistics(parser.booleanValue());
                 } else if (currentFieldName.equals("per_field_analyzer") || currentFieldName.equals("perFieldAnalyzer")) {
-                    termVectorRequest.perFieldAnalyzer(parser.map());
+                    termVectorRequest.perFieldAnalyzer(readPerFieldAnalyzer(parser.map()));
                 } else if ("_index".equals(currentFieldName)) { // the following is important for multi request parsing.
                     termVectorRequest.index = parser.text();
                 } else if ("_type".equals(currentFieldName)) {
@@ -510,5 +511,18 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
             String[] fieldsAsArray = new String[fields.size()];
             termVectorRequest.selectedFields(fields.toArray(fieldsAsArray));
         }
+    }
+
+    private static Map<String, String> readPerFieldAnalyzer(Map<String, Object> map) {
+        Map<String, String> mapStrStr = new HashMap<>();
+        for (Map.Entry<String, Object> e : map.entrySet()) {
+            if (e.getValue() instanceof String) {
+                mapStrStr.put(e.getKey(), (String) e.getValue());
+            } else {
+                throw new ElasticsearchException(
+                        "The analyzer at " + e.getKey() + " should be of type String, but got a " + e.getValue().getClass() + "!");
+            }
+        }
+        return mapStrStr;
     }
 }

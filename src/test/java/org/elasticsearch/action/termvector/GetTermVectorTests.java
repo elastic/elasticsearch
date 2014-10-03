@@ -959,7 +959,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         refresh();
 
         // create random per_field_analyzer and selected fields
-        Map<String, Object> perFieldAnalyzer = new HashMap<>();
+        Map<String, String> perFieldAnalyzer = new HashMap<>();
         Set<String> selectedFields = new HashSet<>();
         for (int i = 0; i < numFields; i++) {
             if (randomBoolean()) {
@@ -994,7 +994,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         checkAnalyzedFields(response.getFields(), selectedFields, perFieldAnalyzer);
     }
 
-    private void checkAnalyzedFields(Fields fieldsObject, Set<String> fieldNames, Map<String,Object> perFieldAnalyzer) throws IOException {
+    private void checkAnalyzedFields(Fields fieldsObject, Set<String> fieldNames, Map<String, String> perFieldAnalyzer) throws IOException {
         Set<String> validFields = new HashSet<>();
         for (String fieldName : fieldNames){
             if (fieldName.startsWith("non_existing")) {

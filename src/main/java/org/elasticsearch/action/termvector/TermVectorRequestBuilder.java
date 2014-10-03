@@ -133,7 +133,7 @@ public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorReq
         return this;
     }
 
-    public TermVectorRequestBuilder setPerFieldAnalyzer(Map<String, Object> perFieldAnalyzer) {
+    public TermVectorRequestBuilder setPerFieldAnalyzer(Map<String, String> perFieldAnalyzer) {
         request.perFieldAnalyzer(perFieldAnalyzer);
         return this;
     }

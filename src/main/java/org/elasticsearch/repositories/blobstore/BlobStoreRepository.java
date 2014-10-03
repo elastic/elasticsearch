@@ -44,6 +44,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
@@ -262,7 +263,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     @Override
     public void deleteSnapshot(SnapshotId snapshotId) {
         Snapshot snapshot = readSnapshot(snapshotId);
-        MetaData metaData = readSnapshotMetaData(snapshotId, snapshot.indices(), true);
+        MetaData metaData = null;
+        try {
+            metaData = readSnapshotMetaData(snapshotId, snapshot.indices(), true);
+        } catch (SnapshotException ex) {
+            logger.warn("cannot read metadata for snapshot [{}]", ex, snapshotId);
+        }
         try {
             String blobName = snapshotBlobName(snapshotId);
             // Delete snapshot file first so we wouldn't end up with partially deleted snapshot that looks OK
@@ -289,10 +295,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 } catch (IOException ex) {
                     logger.warn("[{}] failed to delete metadata for index [{}]", ex, snapshotId, index);
                 }
-                IndexMetaData indexMetaData = metaData.index(index);
-                if (indexMetaData != null) {
-                    for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
-                        indexShardRepository.delete(snapshotId, new ShardId(index, i));
+                if (metaData != null) {
+                    IndexMetaData indexMetaData = metaData.index(index);
+                    if (indexMetaData != null) {
+                        for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
+                            ShardId shardId = new ShardId(index, i);
+                            try {
+                                indexShardRepository.delete(snapshotId, shardId);
+                            } catch (IndexShardException | SnapshotException ex) {
+                                logger.warn("[{}] failed to delete shard data for shard [{}]", ex, snapshotId, shardId);
+                            }
+                        }
                     }
                 }
             }

@@ -34,8 +34,8 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
-import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -67,7 +67,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         new AsyncAction(request, scrollId, listener).start();
     }
 
-    private class AsyncAction {
+    private class AsyncAction extends AbstractAsyncAction {
 
         private final SearchScrollRequest request;
 
@@ -84,8 +84,6 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         private volatile ScoreDoc[] sortedShardList;
 
         private final AtomicInteger successfulOps;
-
-        private final long startTime = System.currentTimeMillis();
 
         private volatile boolean useSlowScroll;
 
@@ -258,7 +256,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                 scrollId = request.scrollId();
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
-                    System.currentTimeMillis() - startTime, buildShardFailures()));
+                    buildTookInMillis(), buildShardFailures()));
         }
     }
 }

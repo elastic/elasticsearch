@@ -64,7 +64,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
         new AsyncAction(request, scrollId, listener).start();
     }
 
-    private class AsyncAction {
+    private class AsyncAction extends AbstractAsyncAction {
 
         private final SearchScrollRequest request;
         private volatile boolean useSlowScroll;
@@ -80,8 +80,6 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
 
         private final AtomicInteger successfulOps;
         private final AtomicInteger counter;
-
-        private final long startTime = System.currentTimeMillis();
 
         private AsyncAction(SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
             this.request = request;
@@ -205,7 +203,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                 scrollId = request.scrollId();
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
-                    System.currentTimeMillis() - startTime, buildShardFailures()));
+                    buildTookInMillis(), buildShardFailures()));
         }
     }
 }

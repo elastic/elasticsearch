@@ -394,13 +394,10 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
             }
         }
         if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-            this.realtime = in.readBoolean();
-        }
-
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             if (in.readBoolean()) {
                 perFieldAnalyzer = readPerFieldAnalyzer(in.readMap());
             }
+            this.realtime = in.readBoolean();
         }
     }
 
@@ -436,14 +433,11 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
             out.writeVInt(0);
         }
         if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            out.writeBoolean(realtime());
-        }
-
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeBoolean(perFieldAnalyzer != null);
             if (perFieldAnalyzer != null) {
                 out.writeGenericValue(perFieldAnalyzer);
             }
+            out.writeBoolean(realtime());
         }
     }
 

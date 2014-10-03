@@ -188,6 +188,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         executeBulk(bulkRequest, startTime, listener, new AtomicArray<BulkItemResponse>(bulkRequest.requests.size()));
     }
 
+    private final long buildTookInMillis(long startTime) {
+        // protect ourselves against time going backwards
+        return Math.max(1, System.currentTimeMillis() - startTime);
+    }
+
     private void executeBulk(final BulkRequest bulkRequest, final long startTime, final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses ) {
         final ClusterState clusterState = clusterService.state();
         // TODO use timeout to wait here if its blocked...
@@ -284,7 +289,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         if (requestsByShard.isEmpty()) {
-            listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), System.currentTimeMillis() - startTime));
+            listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime)));
             return;
         }
 
@@ -333,7 +338,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
 
                 private void finishHim() {
-                    listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), System.currentTimeMillis() - startTime));
+                    listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime)));
                 }
             });
         }

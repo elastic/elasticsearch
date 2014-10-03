@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregationBuilder;
 
 import java.io.IOException;
@@ -187,51 +188,51 @@ public class ScriptedMetricBuilder extends MetricsAggregationBuilder {
         }
         
         if (initScript != null) {
-            builder.field(ScriptedMetricParser.INIT_SCRIPT_FIELD.getPreferredName(), initScript);
+            builder.field(ScriptedMetricParser.INIT_SCRIPT, initScript);
         }
         
         if (mapScript != null) {
-            builder.field(ScriptedMetricParser.MAP_SCRIPT_FIELD.getPreferredName(), mapScript);
+            builder.field(ScriptedMetricParser.MAP_SCRIPT, mapScript);
         }
         
         if (combineScript != null) {
-            builder.field(ScriptedMetricParser.COMBINE_SCRIPT_FIELD.getPreferredName(), combineScript);
+            builder.field(ScriptedMetricParser.COMBINE_SCRIPT, combineScript);
         }
         
         if (reduceScript != null) {
-            builder.field(ScriptedMetricParser.REDUCE_SCRIPT_FIELD.getPreferredName(), reduceScript);
+            builder.field(ScriptedMetricParser.REDUCE_SCRIPT, reduceScript);
         }
         
         if (initScriptFile != null) {
-            builder.field(ScriptedMetricParser.INIT_SCRIPT_FILE_FIELD.getPreferredName(), initScriptFile);
+            builder.field(ScriptedMetricParser.INIT_SCRIPT + ScriptParameterParser.FILE_SUFFIX, initScriptFile);
         }
         
         if (mapScriptFile != null) {
-            builder.field(ScriptedMetricParser.MAP_SCRIPT_FILE_FIELD.getPreferredName(), mapScriptFile);
+            builder.field(ScriptedMetricParser.MAP_SCRIPT + ScriptParameterParser.FILE_SUFFIX, mapScriptFile);
         }
         
         if (combineScriptFile != null) {
-            builder.field(ScriptedMetricParser.COMBINE_SCRIPT_FILE_FIELD.getPreferredName(), combineScriptFile);
+            builder.field(ScriptedMetricParser.COMBINE_SCRIPT + ScriptParameterParser.FILE_SUFFIX, combineScriptFile);
         }
         
         if (reduceScriptFile != null) {
-            builder.field(ScriptedMetricParser.REDUCE_SCRIPT_FILE_FIELD.getPreferredName(), reduceScriptFile);
+            builder.field(ScriptedMetricParser.REDUCE_SCRIPT + ScriptParameterParser.FILE_SUFFIX, reduceScriptFile);
         }
         
         if (initScriptId != null) {
-            builder.field(ScriptedMetricParser.INIT_SCRIPT_ID_FIELD.getPreferredName(), initScriptId);
+            builder.field(ScriptedMetricParser.INIT_SCRIPT + ScriptParameterParser.INDEXED_SUFFIX, initScriptId);
         }
         
         if (mapScriptId != null) {
-            builder.field(ScriptedMetricParser.MAP_SCRIPT_ID_FIELD.getPreferredName(), mapScriptId);
+            builder.field(ScriptedMetricParser.MAP_SCRIPT + ScriptParameterParser.INDEXED_SUFFIX, mapScriptId);
         }
         
         if (combineScriptId != null) {
-            builder.field(ScriptedMetricParser.COMBINE_SCRIPT_ID_FIELD.getPreferredName(), combineScriptId);
+            builder.field(ScriptedMetricParser.COMBINE_SCRIPT + ScriptParameterParser.INDEXED_SUFFIX, combineScriptId);
         }
         
         if (reduceScriptId != null) {
-            builder.field(ScriptedMetricParser.REDUCE_SCRIPT_ID_FIELD.getPreferredName(), reduceScriptId);
+            builder.field(ScriptedMetricParser.REDUCE_SCRIPT + ScriptParameterParser.INDEXED_SUFFIX, reduceScriptId);
         }
         
         if (lang != null) {

@@ -31,8 +31,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.util.*;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 
 public class ExistsMissingTests extends ElasticsearchIntegrationTest {
@@ -75,20 +74,20 @@ public class ExistsMissingTests extends ElasticsearchIntegrationTest {
             .endObject();
 
         assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", mapping));
-            @SuppressWarnings("unchecked")
-            Map<String, Object>[] sources = new Map[] {
-                    // simple property
-                    ImmutableMap.of("foo", "bar"),
-                    // object fields
-                    ImmutableMap.of("bar", ImmutableMap.of("foo", "bar", "bar", ImmutableMap.of("bar", "foo"))),
-                    ImmutableMap.of("bar", ImmutableMap.of("baz", 42)),
-                    // empty doc
-                    ImmutableMap.of()
-            };
-            List<IndexRequestBuilder> reqs = new ArrayList<IndexRequestBuilder>();
-            for (Map<String, Object> source : sources) {
-                reqs.add(client().prepareIndex("idx", "type").setSource(source));
-            }
+        @SuppressWarnings("unchecked")
+        final Map<String, Object>[] sources = new Map[] {
+                // simple property
+                ImmutableMap.of("foo", "bar"),
+                // object fields
+                ImmutableMap.of("bar", ImmutableMap.of("foo", "bar", "bar", ImmutableMap.of("bar", "foo"))),
+                ImmutableMap.of("bar", ImmutableMap.of("baz", 42)),
+                // empty doc
+                ImmutableMap.of()
+        };
+        List<IndexRequestBuilder> reqs = new ArrayList<IndexRequestBuilder>();
+        for (Map<String, Object> source : sources) {
+            reqs.add(client().prepareIndex("idx", "type").setSource(source));
+        }
         indexRandom(true, reqs);
 
         final Map<String, Integer> expected = new LinkedHashMap<String, Integer>();
@@ -102,20 +101,23 @@ public class ExistsMissingTests extends ElasticsearchIntegrationTest {
         expected.put("baz", 1);
         expected.put("foobar", 0);
 
-        final long numDocs = client().prepareSearch("idx").execute().actionGet().getHits().totalHits();
         ensureYellow("idx");
+        final long numDocs = sources.length;
+        SearchResponse resp = client().prepareSearch("idx").get();
+        assertSearchResponse(resp);
+        assertHitCount(resp, numDocs);
         for (Map.Entry<String, Integer> entry : expected.entrySet()) {
             final String fieldName = entry.getKey();
             final int count = entry.getValue();
             // exists
-            SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.existsFilter(fieldName))).execute().actionGet();
+            resp = client().prepareSearch("idx").setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.existsFilter(fieldName))).execute().actionGet();
             assertSearchResponse(resp);
-            assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s", fieldName, count, mapping.string()), count, resp.getHits().totalHits());
+            assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count, mapping.string(), resp), count, resp.getHits().totalHits());
 
             // missing
             resp = client().prepareSearch("idx").setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.missingFilter(fieldName))).execute().actionGet();
             assertSearchResponse(resp);
-            assertEquals(String.format(Locale.ROOT, "missing(%s, %d) mapping: %s", fieldName, count, mapping.string()), numDocs - count, resp.getHits().totalHits());
+            assertEquals(String.format(Locale.ROOT, "missing(%s, %d) mapping: %s response: %s", fieldName, count, mapping.string(), resp), numDocs - count, resp.getHits().totalHits());
         }
     }
 

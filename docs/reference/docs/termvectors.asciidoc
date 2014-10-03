@@ -3,9 +3,9 @@
 
 Returns information and statistics on terms in the fields of a particular
 document. The document could be stored in the index or artificially provided
-by the user Note that for documents stored in the index, this
-is a near realtime API as the term vectors are not available until the next
-refresh.
+by the user coming[1.4.0]. Term vectors are now <<realtime,realtime>>, as opposed to
+previously near realtime coming[1.5.0]. The functionality is disabled by setting
+`realtime` parameter to `false`.
 
 [source,js]
 --------------------------------------------------

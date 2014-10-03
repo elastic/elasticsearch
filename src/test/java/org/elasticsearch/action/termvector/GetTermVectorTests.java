@@ -32,8 +32,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.indices.IndicesService;
 import org.junit.Test;
 
 import java.io.IOException;

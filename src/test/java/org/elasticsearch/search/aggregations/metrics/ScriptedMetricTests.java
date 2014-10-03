@@ -24,7 +24,6 @@ import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetric;
@@ -508,8 +507,8 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        scriptedMetric("scripted").params(params).scriptType(ScriptType.INDEXED).initScript("initScript_indexed")
-                                .mapScript("mapScript_indexed").combineScript("combineScript_indexed").reduceScript("reduceScript_indexed"))
+                        scriptedMetric("scripted").params(params).initScriptId("initScript_indexed")
+                                .mapScriptId("mapScript_indexed").combineScriptId("combineScript_indexed").reduceScriptId("reduceScript_indexed"))
                 .execute().actionGet();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits(), equalTo(numDocs));
@@ -542,9 +541,8 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
                 .prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        scriptedMetric("scripted").params(params).scriptType(ScriptType.FILE).initScript("init_script")
-                                .mapScript("map_script").combineScript("combine_script").reduceScript("reduce_script"))
-                .execute().actionGet();
+                        scriptedMetric("scripted").params(params).initScriptFile("init_script").mapScriptFile("map_script")
+                                .combineScriptFile("combine_script").reduceScriptFile("reduce_script")).execute().actionGet();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits(), equalTo(numDocs));
 

@@ -929,6 +929,22 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
                 .get();
     }
 
+    @Test
+    public void testNullIndexOnAlias() throws Exception {
+        logger.info("--> creating index [test]");
+        createIndex("test");
+        ensureGreen();
+
+        logger.info("--> aliasing index [null] with [empty-alias]");
+
+        try {
+            assertAcked(admin().indices().prepareAliases().addAlias((String) null, "empty-alias"));
+            fail("create alias should have failed due to null index");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Validation Failed: 1: Alias action [add]: [index] may not be null;"));
+        }
+    }
+    
     private void checkAliases() {
         GetAliasesResponse getAliasesResponse = admin().indices().prepareGetAliases("alias1").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));

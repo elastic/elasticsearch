@@ -306,6 +306,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                                 + "]: [index] may not be empty string", validationException);
                     }
                 }
+            } else {
+                validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH)
+                        + "]: [index] may not be null", validationException);
             }
         }
         return validationException;

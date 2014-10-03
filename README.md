@@ -113,7 +113,7 @@ EC2 discovery requires making a call to the EC2 service. You'll want to setup an
             ]
         }
     ],
-    "Version": "2014-09-03"
+    "Version": "2012-10-17"
 }
 ```
 

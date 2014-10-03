@@ -11,21 +11,24 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.service.LicensesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportPutLicenseAction extends TransportMasterNodeOperationAction<PutLicenseRequest, PutLicenseResponse> {
 
-    //private final RepositoriesService repositoriesService
+    private final LicensesService licensesService;
 
     @Inject
     public TransportPutLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                        ThreadPool threadPool, ActionFilters actionFilters) {
+                                     LicensesService licensesService, ThreadPool threadPool, ActionFilters actionFilters) {
         super(settings, PutLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        this.licensesService = licensesService;
     }
 
 
@@ -52,8 +55,20 @@ public class TransportPutLicenseAction extends TransportMasterNodeOperationActio
     @Override
     protected void masterOperation(final PutLicenseRequest request, ClusterState state, final ActionListener<PutLicenseResponse> listener) throws ElasticsearchException {
         //TODO
+        licensesService.registerLicenses("put_licenses []",request, new ActionListener<ClusterStateUpdateResponse>() {
+            @Override
+            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                listener.onResponse(new PutLicenseResponse(clusterStateUpdateResponse.isAcknowledged()));
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                listener.onFailure(e);
+            }
+        });
+
         /*
-        repositoriesService.registerRepository(new RepositoriesService.RegisterRepositoryRequest("put_repository [" + request.name() + "]", request.name(), request.type())
+        repositoriesService.registerLicenses(new RepositoriesService.RegisterRepositoryRequest("put_repository [" + request.name() + "]", request.name(), request.type())
                 .settings(request.settings())
                 .masterNodeTimeout(request.masterNodeTimeout())
                 .ackTimeout(request.timeout()), new ActionListener<ClusterStateUpdateResponse>() {

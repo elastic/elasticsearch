@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.cluster.LicensesMetaData;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -52,31 +53,8 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadOperationA
 
     @Override
     protected void masterOperation(final GetLicenseRequest request, ClusterState state, final ActionListener<GetLicenseResponse> listener) throws ElasticsearchException {
-        //TODO: impl after custom metadata impl
-        /*
         MetaData metaData = state.metaData();
-        RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
-        if (request.repositories().length == 0 || (request.repositories().length == 1 && "_all".equals(request.repositories()[0]))) {
-            if (repositories != null) {
-                listener.onResponse(new GetRepositoriesResponse(repositories.repositories()));
-            } else {
-                listener.onResponse(new GetRepositoriesResponse(ImmutableList.<RepositoryMetaData>of()));
-            }
-        } else {
-            if (repositories != null) {
-                ImmutableList.Builder<RepositoryMetaData> repositoryListBuilder = ImmutableList.builder();
-                for (String repository : request.repositories()) {
-                    RepositoryMetaData repositoryMetaData = repositories.repository(repository);
-                    if (repositoryMetaData == null) {
-                        listener.onFailure(new RepositoryMissingException(repository));
-                        return;
-                    }
-                    repositoryListBuilder.add(repositoryMetaData);
-                }
-                listener.onResponse(new GetRepositoriesResponse(repositoryListBuilder.build()));
-            } else {
-                listener.onFailure(new RepositoryMissingException(request.repositories()[0]));
-            }
-        }*/
+        LicensesMetaData licenses = metaData.custom(LicensesMetaData.TYPE);
+        listener.onResponse(new GetLicenseResponse(licenses));
     }
 }

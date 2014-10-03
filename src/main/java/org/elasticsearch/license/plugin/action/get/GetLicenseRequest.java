@@ -16,19 +16,12 @@ import java.io.IOException;
 
 public class GetLicenseRequest extends MasterNodeReadOperationRequest<GetLicenseRequest> {
 
-    GetLicenseRequest() {
+    public GetLicenseRequest() {
     }
-
 
     @Override
     public ActionRequestValidationException validate() {
         return null;
-        /*ActionRequestValidationException validationException = null;
-        if (repositories == null) {
-            validationException = addValidationError("repositories is null", validationException);
-        }
-        return validationException;
-        */
     }
 
     @Override

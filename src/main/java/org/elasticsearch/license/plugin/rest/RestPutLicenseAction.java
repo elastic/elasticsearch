@@ -35,7 +35,6 @@ public class RestPutLicenseAction extends BaseRestHandler {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest();
         putLicenseRequest.listenerThreaded(false);
         putLicenseRequest.license(request.content().toUtf8());
-        //TODO hookup new action
         client.admin().cluster().execute(PutLicenseAction.INSTANCE, putLicenseRequest, new AcknowledgedRestListener<PutLicenseResponse>(channel));
     }
 }

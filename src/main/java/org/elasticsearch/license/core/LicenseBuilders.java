@@ -50,7 +50,7 @@ public class LicenseBuilders {
     }
 
     public static class LicensesBuilder {
-        private Map<FeatureType, ESLicense> licenseMap;
+        private Map<FeatureType, ESLicense> licenseMap = new HashMap<>();
 
         public LicensesBuilder() {
         }
@@ -60,8 +60,12 @@ public class LicenseBuilders {
         }
 
         public LicensesBuilder license(ESLicense license) {
-            initLicenses();
             putIfAppropriate(license);
+            return this;
+        }
+
+        public LicensesBuilder licenseAsIs(ESLicense license) {
+            licenseMap.put(license.feature(), license);
             return this;
         }
 
@@ -98,12 +102,6 @@ public class LicenseBuilders {
                     return licenseMap.values().iterator();
                 }
             };
-        }
-
-        private void initLicenses() {
-            if (licenseMap == null) {
-                licenseMap = new HashMap<>();
-            }
         }
 
         /**

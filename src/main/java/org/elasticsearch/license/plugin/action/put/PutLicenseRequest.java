@@ -15,6 +15,9 @@ import org.elasticsearch.license.core.LicenseUtils;
 
 import java.io.IOException;
 
+import static org.elasticsearch.license.plugin.action.Utils.readLicensesFrom;
+import static org.elasticsearch.license.plugin.action.Utils.writeLicensesTo;
+
 public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
 
     private ESLicenses license;
@@ -61,14 +64,14 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        license = LicenseUtils.readLicenseFromInputStream(in);
+        license = readLicensesFrom(in);
         readTimeout(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        LicenseUtils.dumpLicenseAsJson(license, out);
+        writeLicensesTo(license, out);
         writeTimeout(out);
     }
 }

@@ -12,9 +12,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.core.ESLicenses;
+import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
+import org.elasticsearch.license.plugin.action.get.GetLicenseRequest;
+import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.client.Requests.getRepositoryRequest;
+import static org.elasticsearch.license.plugin.action.Utils.licenseAsMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 
@@ -28,23 +35,20 @@ public class RestGetLicenseAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        final String[] repositories = request.paramAsStringArray("repository", Strings.EMPTY_ARRAY);
-        //TODO: implement after custom metadata impl
-        /*
-        GetRepositoriesRequest getRepositoriesRequest = getRepositoryRequest(repositories);
-        getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
-        getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
-        client.admin().cluster().getRepositories(getRepositoriesRequest, new RestBuilderListener<GetRepositoriesResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetRepositoriesResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                for (RepositoryMetaData repositoryMetaData : response.repositories()) {
-                    RepositoriesMetaData.FACTORY.toXContent(repositoryMetaData, builder, request);
-                }
-                builder.endObject();
+        GetLicenseRequest getLicenseRequest = new GetLicenseRequest();
 
+        client.admin().cluster().execute(GetLicenseAction.INSTANCE, getLicenseRequest, new RestBuilderListener<GetLicenseResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(GetLicenseResponse getLicenseResponse, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                builder.startArray("licenses");
+                for (ESLicenses.ESLicense license : getLicenseResponse.licenses()) {
+                    builder.map(licenseAsMap(license));
+                }
+                builder.endArray();
+                builder.endObject();
                 return new BytesRestResponse(OK, builder);
             }
-        });*/
+        });
     }
 }

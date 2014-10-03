@@ -143,6 +143,9 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
+                    if (propNode == null) {
+                        throw new MapperParsingException("Property [null_value] cannot be null.");
+                    }
                     builder.nullValue(propNode.toString());
                 }
             }

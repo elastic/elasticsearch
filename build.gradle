@@ -24,7 +24,6 @@ dependencies {
 	}
 
 	hadoop2("org.apache.hadoop:hadoop-client:$hadoop2Version") {
-		exclude module: "commons-cli"
 		exclude group: "com.sun.jersey"
 		exclude group: "com.sun.jersey.contribs"
 		exclude group: "com.sun.jersey.jersey-test-framework"

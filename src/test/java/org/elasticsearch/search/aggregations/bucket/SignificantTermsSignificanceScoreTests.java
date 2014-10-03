@@ -262,6 +262,49 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         assertThat(responseBuilder.string(), equalTo(result));
 
     }
+    
+    @Test
+    public void testDeletesIssue7951() throws Exception {
+        String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
+        String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"string\",\"index\":\"not_analyzed\"}}}}";
+        assertAcked(prepareCreate(INDEX_NAME).setSettings(settings).addMapping("doc", mappings));
+        String[] cat1v1 = {"constant", "one"};
+        String[] cat1v2 = {"constant", "uno"};
+        String[] cat2v1 = {"constant", "two"};
+        String[] cat2v2 = {"constant", "duo"};
+        List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1")
+                .setSource(TEXT_FIELD, cat1v1, CLASS_FIELD, "1"));
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "2")
+                .setSource(TEXT_FIELD, cat1v2, CLASS_FIELD, "1"));
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "3")
+                .setSource(TEXT_FIELD, cat2v1, CLASS_FIELD, "2"));
+        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "4")
+                .setSource(TEXT_FIELD, cat2v2, CLASS_FIELD, "2"));
+        indexRandom(true, false, indexRequestBuilderList);
+        
+        // Now create some holes in the index with selective deletes caused by updates.
+        // This is the scenario that caused this issue https://github.com/elasticsearch/elasticsearch/issues/7951
+        // Scoring algorithms throw exceptions if term docFreqs exceed the reported size of the index 
+        // from which they are taken so need to make sure this doesn't happen.
+        String[] text = cat1v1;
+        indexRequestBuilderList.clear();
+        for (int i = 0; i < 50; i++) {
+            text = text == cat1v2 ? cat1v1 : cat1v2;
+            indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1").setSource(TEXT_FIELD, text, CLASS_FIELD, "1"));
+        }
+        indexRandom(true, false, indexRequestBuilderList);
+        
+        SearchResponse response1 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
+                .addAggregation(new TermsBuilder("class")
+                        .field(CLASS_FIELD)
+                        .subAggregation(
+                                new SignificantTermsBuilder("sig_terms")
+                                        .field(TEXT_FIELD)
+                                        .minDocCount(1)))
+                .execute()
+                .actionGet();
+    }    
 
     @Test
     public void testBackgroundVsSeparateSet() throws Exception {

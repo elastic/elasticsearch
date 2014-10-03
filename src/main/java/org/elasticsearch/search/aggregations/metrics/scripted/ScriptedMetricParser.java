@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 
 public class ScriptedMetricParser implements Aggregator.Parser {
@@ -39,8 +38,15 @@ public class ScriptedMetricParser implements Aggregator.Parser {
     public static final ParseField MAP_SCRIPT_FIELD = new ParseField("map_script");
     public static final ParseField COMBINE_SCRIPT_FIELD = new ParseField("combine_script");
     public static final ParseField REDUCE_SCRIPT_FIELD = new ParseField("reduce_script");
+    public static final ParseField INIT_SCRIPT_FILE_FIELD = new ParseField("init_script_file");
+    public static final ParseField MAP_SCRIPT_FILE_FIELD = new ParseField("map_script_file");
+    public static final ParseField COMBINE_SCRIPT_FILE_FIELD = new ParseField("combine_script_file");
+    public static final ParseField REDUCE_SCRIPT_FILE_FIELD = new ParseField("reduce_script_file");
+    public static final ParseField INIT_SCRIPT_ID_FIELD = new ParseField("init_script_id");
+    public static final ParseField MAP_SCRIPT_ID_FIELD = new ParseField("map_script_id");
+    public static final ParseField COMBINE_SCRIPT_ID_FIELD = new ParseField("combine_script_id");
+    public static final ParseField REDUCE_SCRIPT_ID_FIELD = new ParseField("reduce_script_id");
     public static final ParseField LANG_FIELD = new ParseField("lang");
-    public static final ParseField SCRIPT_TYPE_FIELD = new ParseField("script_type");
 
     @Override
     public String type() {
@@ -54,7 +60,10 @@ public class ScriptedMetricParser implements Aggregator.Parser {
         String combineScript = null;
         String reduceScript = null;
         String scriptLang = null;
-        ScriptType scriptType = ScriptType.INLINE;
+        ScriptType initScriptType = ScriptType.INLINE;
+        ScriptType mapScriptType = ScriptType.INLINE;
+        ScriptType combineScriptType = ScriptType.INLINE;
+        ScriptType reduceScriptType = ScriptType.INLINE;
         Map<String, Object> params = null;
         Map<String, Object> reduceParams = null;
         XContentParser.Token token;
@@ -73,17 +82,79 @@ public class ScriptedMetricParser implements Aggregator.Parser {
                 }
             } else if (token.isValue()) {
                 if (INIT_SCRIPT_FIELD.match(currentFieldName)) {
+                    if (initScript != null) {
+                        throw new SearchParseException(context, "Only one of [init_script, init_script_file, init_script_id] is allowed in [" + aggregationName + "].");
+                    }
                     initScript = parser.text();
+                    initScriptType = ScriptType.INLINE;
                 } else if (MAP_SCRIPT_FIELD.match(currentFieldName)) {
+                    if (mapScript != null) {
+                        throw new SearchParseException(context, "Only one of [map_script, map_script_file, map_script_id] is allowed in [" + aggregationName + "].");
+                    }
                     mapScript = parser.text();
+                    mapScriptType = ScriptType.INLINE;
                 } else if (COMBINE_SCRIPT_FIELD.match(currentFieldName)) {
+                    if (combineScript != null) {
+                        throw new SearchParseException(context, "Only one of [combine_script, combine_script_file, combine_script_id] is allowed in [" + aggregationName + "].");
+                    }
                     combineScript = parser.text();
+                    combineScriptType = ScriptType.INLINE;
                 } else if (REDUCE_SCRIPT_FIELD.match(currentFieldName)) {
+                    if (reduceScript != null) {
+                        throw new SearchParseException(context, "Only one of [reduce_script, reduce_script_file, reduce_script_id] is allowed in [" + aggregationName + "].");
+                    }
                     reduceScript = parser.text();
+                    reduceScriptType = ScriptType.INLINE;
+                } else if (INIT_SCRIPT_FILE_FIELD.match(currentFieldName)) {
+                    if (initScript != null) {
+                        throw new SearchParseException(context, "Only one of [init_script, init_script_file, init_script_id] is allowed in [" + aggregationName + "].");
+                    }
+                    initScript = parser.text();
+                    initScriptType = ScriptType.FILE;
+                } else if (MAP_SCRIPT_FILE_FIELD.match(currentFieldName)) {
+                    if (mapScript != null) {
+                        throw new SearchParseException(context, "Only one of [map_script, map_script_file, map_script_id] is allowed in [" + aggregationName + "].");
+                    }
+                    mapScript = parser.text();
+                    mapScriptType = ScriptType.FILE;
+                } else if (COMBINE_SCRIPT_FILE_FIELD.match(currentFieldName)) {
+                    if (combineScript != null) {
+                        throw new SearchParseException(context, "Only one of [combine_script, combine_script_file, combine_script_id] is allowed in [" + aggregationName + "].");
+                    }
+                    combineScript = parser.text();
+                    combineScriptType = ScriptType.FILE;
+                } else if (REDUCE_SCRIPT_FILE_FIELD.match(currentFieldName)) {
+                    if (reduceScript != null) {
+                        throw new SearchParseException(context, "Only one of [reduce_script, reduce_script_file, reduce_script_id] is allowed in [" + aggregationName + "].");
+                    }
+                    reduceScript = parser.text();
+                    reduceScriptType = ScriptType.FILE;
+                } else if (INIT_SCRIPT_ID_FIELD.match(currentFieldName)) {
+                    if (initScript != null) {
+                        throw new SearchParseException(context, "Only one of [init_script, init_script_file, init_script_id] is allowed in [" + aggregationName + "].");
+                    }
+                    initScript = parser.text();
+                    initScriptType = ScriptType.INDEXED;
+                } else if (MAP_SCRIPT_ID_FIELD.match(currentFieldName)) {
+                    if (mapScript != null) {
+                        throw new SearchParseException(context, "Only one of [map_script, map_script_file, map_script_id] is allowed in [" + aggregationName + "].");
+                    }
+                    mapScript = parser.text();
+                    mapScriptType = ScriptType.INDEXED;
+                } else if (COMBINE_SCRIPT_ID_FIELD.match(currentFieldName)) {
+                    if (combineScript != null) {
+                        throw new SearchParseException(context, "Only one of [combine_script, combine_script_file, combine_script_id] is allowed in [" + aggregationName + "].");
+                    }
+                    combineScript = parser.text();
+                    combineScriptType = ScriptType.INDEXED;
+                } else if (REDUCE_SCRIPT_ID_FIELD.match(currentFieldName)) {
+                    if (reduceScript != null) {
+                        throw new SearchParseException(context, "Only one of [reduce_script, reduce_script_file, reduce_script_id] is allowed in [" + aggregationName + "].");
+                    }
+                    reduceScript = parser.text();
+                    reduceScriptType = ScriptType.INDEXED;
                 } else if (LANG_FIELD.match(currentFieldName)) {
                     scriptLang = parser.text();
-                } else if (SCRIPT_TYPE_FIELD.match(currentFieldName)) {
-                    scriptType = ScriptType.valueOf(parser.text().toUpperCase(Locale.getDefault()));
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -94,7 +165,8 @@ public class ScriptedMetricParser implements Aggregator.Parser {
         if (mapScript == null) {
             throw new SearchParseException(context, "map_script field is required in [" + aggregationName + "].");
         }
-        return new ScriptedMetricAggregator.Factory(aggregationName, scriptLang, scriptType, initScript, mapScript, combineScript, reduceScript, params, reduceParams);
+        return new ScriptedMetricAggregator.Factory(aggregationName, scriptLang, initScriptType, initScript, mapScriptType, mapScript,
+                combineScriptType, combineScript, reduceScriptType, reduceScript, params, reduceParams);
     }
 
 }

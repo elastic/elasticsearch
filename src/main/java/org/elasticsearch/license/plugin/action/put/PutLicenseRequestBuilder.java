@@ -11,12 +11,12 @@ import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.license.core.ESLicenses;
 
 /**
- * Register repository request builder
+ * Register license request builder
  */
 public class PutLicenseRequestBuilder extends AcknowledgedRequestBuilder<PutLicenseRequest, PutLicenseResponse, PutLicenseRequestBuilder, ClusterAdminClient> {
 
     /**
-     * Constructs register repository request
+     * Constructs register license request
      *
      * @param clusterAdminClient cluster admin client
      */

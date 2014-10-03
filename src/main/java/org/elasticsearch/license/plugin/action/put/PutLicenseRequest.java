@@ -28,16 +28,6 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
     @Override
     public ActionRequestValidationException validate() {
         return null;
-        /*
-        ActionRequestValidationException validationException = null;
-        if (name == null) {
-            validationException = addValidationError("name is missing", validationException);
-        }
-        if (type == null) {
-            validationException = addValidationError("type is missing", validationException);
-        }
-        return validationException;
-        */
     }
 
     /**

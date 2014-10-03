@@ -48,6 +48,7 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadOperationA
 
     @Override
     protected ClusterBlockException checkBlock(GetLicenseRequest request, ClusterState state) {
+        //TODO: do the right checkBlock
         return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
     }
 

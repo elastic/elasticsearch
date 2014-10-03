@@ -66,23 +66,6 @@ public class TransportPutLicenseAction extends TransportMasterNodeOperationActio
                 listener.onFailure(e);
             }
         });
-
-        /*
-        repositoriesService.registerLicenses(new RepositoriesService.RegisterRepositoryRequest("put_repository [" + request.name() + "]", request.name(), request.type())
-                .settings(request.settings())
-                .masterNodeTimeout(request.masterNodeTimeout())
-                .ackTimeout(request.timeout()), new ActionListener<ClusterStateUpdateResponse>() {
-
-            @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new PutRepositoryResponse(response.isAcknowledged()));
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                listener.onFailure(e);
-            }
-        });*/
     }
 
 }

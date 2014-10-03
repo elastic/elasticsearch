@@ -21,7 +21,11 @@ import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.license.plugin.cluster.LicensesMetaData;
 
 /**
- * Service responsible for maintaining and providing access to snapshot repositories on nodes.
+ * Service responsible for maintaining and providing access to licenses on nodes.
+ *
+ * TODO: Work in progress:
+ *  - implement logic in clusterChanged
+ *  - interface with LicenseManager
  */
 public class LicensesService extends AbstractComponent implements ClusterStateListener {
 

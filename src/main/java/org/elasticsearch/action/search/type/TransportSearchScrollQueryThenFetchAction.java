@@ -21,8 +21,6 @@ package org.elasticsearch.action.search.type;
 
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
@@ -33,7 +31,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
@@ -70,7 +67,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         new AsyncAction(request, scrollId, listener).start();
     }
 
-    private class AsyncAction {
+    private class AsyncAction extends AbstractAsyncAction {
 
         private final SearchScrollRequest request;
 
@@ -87,8 +84,6 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         private volatile ScoreDoc[] sortedShardList;
 
         private final AtomicInteger successfulOps;
-
-        private final long startTime = System.currentTimeMillis();
 
         private volatile boolean useSlowScroll;
 
@@ -261,7 +256,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                 scrollId = request.scrollId();
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
-                    System.currentTimeMillis() - startTime, buildShardFailures()));
+                    buildTookInMillis(), buildShardFailures()));
         }
     }
 }

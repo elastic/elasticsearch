@@ -586,16 +586,18 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             clearDisruptionScheme();
             final Scope currentClusterScope = getCurrentClusterScope();
             try {
-                if (currentClusterScope != Scope.TEST) {
-                    MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
-                    assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
+                if (cluster() != null) {
+                    if (currentClusterScope != Scope.TEST) {
+                        MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
+                        assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
                             .persistentSettings().getAsMap().size(), equalTo(0));
-                    assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
+                        assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
                             .transientSettings().getAsMap().size(), equalTo(0));
+                    }
+                    ensureClusterSizeConsistency();
+                    cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
+                    cluster().assertAfterTest();
                 }
-                ensureClusterSizeConsistency();
-                cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
-                cluster().assertAfterTest();
             } finally {
                 if (currentClusterScope == Scope.TEST) {
                     clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST

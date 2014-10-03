@@ -46,6 +46,8 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
@@ -301,18 +303,19 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     @SuppressWarnings("unchecked")
     private void parseTransform(DocumentMapper.Builder docBuilder, Map<String, Object> transformConfig) {
-        String script = (String) transformConfig.remove("script_file");
-        ScriptType scriptType = ScriptType.FILE;
-        if (script == null) {
-            script = (String) transformConfig.remove("script_id");
-            scriptType = ScriptType.INDEXED;
+        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
+        scriptParameterParser.parseConfig(transformConfig, true);
+        
+        String script = null;
+        ScriptType scriptType = null;
+        ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+        if (scriptValue != null) {
+            script = scriptValue.script();
+            scriptType = scriptValue.scriptType();
         }
-        if (script == null) {
-            script = (String) transformConfig.remove("script");
-            scriptType = ScriptType.INLINE;
-        }
+        
         if (script != null) {
-            String scriptLang = (String) transformConfig.remove("lang");
+            String scriptLang = scriptParameterParser.lang();
             Map<String, Object> params = (Map<String, Object>)transformConfig.remove("params");
             docBuilder.transform(scriptService, script, scriptType, scriptLang, params);
         }

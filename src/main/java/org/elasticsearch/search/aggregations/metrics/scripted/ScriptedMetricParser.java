@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -28,24 +30,18 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class ScriptedMetricParser implements Aggregator.Parser {
-
+    
+    public static final String INIT_SCRIPT = "init_script";
+    public static final String MAP_SCRIPT = "map_script";
+    public static final String COMBINE_SCRIPT = "combine_script";
+    public static final String REDUCE_SCRIPT = "reduce_script";
     public static final ParseField PARAMS_FIELD = new ParseField("params");
     public static final ParseField REDUCE_PARAMS_FIELD = new ParseField("reduce_params");
-    public static final ParseField INIT_SCRIPT_FIELD = new ParseField("init_script");
-    public static final ParseField MAP_SCRIPT_FIELD = new ParseField("map_script");
-    public static final ParseField COMBINE_SCRIPT_FIELD = new ParseField("combine_script");
-    public static final ParseField REDUCE_SCRIPT_FIELD = new ParseField("reduce_script");
-    public static final ParseField INIT_SCRIPT_FILE_FIELD = new ParseField("init_script_file");
-    public static final ParseField MAP_SCRIPT_FILE_FIELD = new ParseField("map_script_file");
-    public static final ParseField COMBINE_SCRIPT_FILE_FIELD = new ParseField("combine_script_file");
-    public static final ParseField REDUCE_SCRIPT_FILE_FIELD = new ParseField("reduce_script_file");
-    public static final ParseField INIT_SCRIPT_ID_FIELD = new ParseField("init_script_id");
-    public static final ParseField MAP_SCRIPT_ID_FIELD = new ParseField("map_script_id");
-    public static final ParseField COMBINE_SCRIPT_ID_FIELD = new ParseField("combine_script_id");
-    public static final ParseField REDUCE_SCRIPT_ID_FIELD = new ParseField("reduce_script_id");
     public static final ParseField LANG_FIELD = new ParseField("lang");
 
     @Override
@@ -55,19 +51,17 @@ public class ScriptedMetricParser implements Aggregator.Parser {
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-        String initScript = null;
-        String mapScript = null;
-        String combineScript = null;
-        String reduceScript = null;
         String scriptLang = null;
-        ScriptType initScriptType = ScriptType.INLINE;
-        ScriptType mapScriptType = ScriptType.INLINE;
-        ScriptType combineScriptType = ScriptType.INLINE;
-        ScriptType reduceScriptType = ScriptType.INLINE;
         Map<String, Object> params = null;
         Map<String, Object> reduceParams = null;
         XContentParser.Token token;
         String currentFieldName = null;
+        Set<String> scriptParameters = new HashSet<>();
+        scriptParameters.add(INIT_SCRIPT);
+        scriptParameters.add(MAP_SCRIPT);
+        scriptParameters.add(COMBINE_SCRIPT);
+        scriptParameters.add(REDUCE_SCRIPT);
+        ScriptParameterParser scriptParameterParser = new ScriptParameterParser(scriptParameters);
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -81,87 +75,44 @@ public class ScriptedMetricParser implements Aggregator.Parser {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token.isValue()) {
-                if (INIT_SCRIPT_FIELD.match(currentFieldName)) {
-                    if (initScript != null) {
-                        throw new SearchParseException(context, "Only one of [init_script, init_script_file, init_script_id] is allowed in [" + aggregationName + "].");
-                    }
-                    initScript = parser.text();
-                    initScriptType = ScriptType.INLINE;
-                } else if (MAP_SCRIPT_FIELD.match(currentFieldName)) {
-                    if (mapScript != null) {
-                        throw new SearchParseException(context, "Only one of [map_script, map_script_file, map_script_id] is allowed in [" + aggregationName + "].");
-                    }
-                    mapScript = parser.text();
-                    mapScriptType = ScriptType.INLINE;
-                } else if (COMBINE_SCRIPT_FIELD.match(currentFieldName)) {
-                    if (combineScript != null) {
-                        throw new SearchParseException(context, "Only one of [combine_script, combine_script_file, combine_script_id] is allowed in [" + aggregationName + "].");
-                    }
-                    combineScript = parser.text();
-                    combineScriptType = ScriptType.INLINE;
-                } else if (REDUCE_SCRIPT_FIELD.match(currentFieldName)) {
-                    if (reduceScript != null) {
-                        throw new SearchParseException(context, "Only one of [reduce_script, reduce_script_file, reduce_script_id] is allowed in [" + aggregationName + "].");
-                    }
-                    reduceScript = parser.text();
-                    reduceScriptType = ScriptType.INLINE;
-                } else if (INIT_SCRIPT_FILE_FIELD.match(currentFieldName)) {
-                    if (initScript != null) {
-                        throw new SearchParseException(context, "Only one of [init_script, init_script_file, init_script_id] is allowed in [" + aggregationName + "].");
-                    }
-                    initScript = parser.text();
-                    initScriptType = ScriptType.FILE;
-                } else if (MAP_SCRIPT_FILE_FIELD.match(currentFieldName)) {
-                    if (mapScript != null) {
-                        throw new SearchParseException(context, "Only one of [map_script, map_script_file, map_script_id] is allowed in [" + aggregationName + "].");
-                    }
-                    mapScript = parser.text();
-                    mapScriptType = ScriptType.FILE;
-                } else if (COMBINE_SCRIPT_FILE_FIELD.match(currentFieldName)) {
-                    if (combineScript != null) {
-                        throw new SearchParseException(context, "Only one of [combine_script, combine_script_file, combine_script_id] is allowed in [" + aggregationName + "].");
-                    }
-                    combineScript = parser.text();
-                    combineScriptType = ScriptType.FILE;
-                } else if (REDUCE_SCRIPT_FILE_FIELD.match(currentFieldName)) {
-                    if (reduceScript != null) {
-                        throw new SearchParseException(context, "Only one of [reduce_script, reduce_script_file, reduce_script_id] is allowed in [" + aggregationName + "].");
-                    }
-                    reduceScript = parser.text();
-                    reduceScriptType = ScriptType.FILE;
-                } else if (INIT_SCRIPT_ID_FIELD.match(currentFieldName)) {
-                    if (initScript != null) {
-                        throw new SearchParseException(context, "Only one of [init_script, init_script_file, init_script_id] is allowed in [" + aggregationName + "].");
-                    }
-                    initScript = parser.text();
-                    initScriptType = ScriptType.INDEXED;
-                } else if (MAP_SCRIPT_ID_FIELD.match(currentFieldName)) {
-                    if (mapScript != null) {
-                        throw new SearchParseException(context, "Only one of [map_script, map_script_file, map_script_id] is allowed in [" + aggregationName + "].");
-                    }
-                    mapScript = parser.text();
-                    mapScriptType = ScriptType.INDEXED;
-                } else if (COMBINE_SCRIPT_ID_FIELD.match(currentFieldName)) {
-                    if (combineScript != null) {
-                        throw new SearchParseException(context, "Only one of [combine_script, combine_script_file, combine_script_id] is allowed in [" + aggregationName + "].");
-                    }
-                    combineScript = parser.text();
-                    combineScriptType = ScriptType.INDEXED;
-                } else if (REDUCE_SCRIPT_ID_FIELD.match(currentFieldName)) {
-                    if (reduceScript != null) {
-                        throw new SearchParseException(context, "Only one of [reduce_script, reduce_script_file, reduce_script_id] is allowed in [" + aggregationName + "].");
-                    }
-                    reduceScript = parser.text();
-                    reduceScriptType = ScriptType.INDEXED;
-                } else if (LANG_FIELD.match(currentFieldName)) {
-                    scriptLang = parser.text();
-                } else {
+                if (!scriptParameterParser.token(currentFieldName, token, parser)) {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
+        
+        ScriptParameterValue initScriptValue = scriptParameterParser.getScriptParameterValue(INIT_SCRIPT);
+        String initScript = null;
+        ScriptType initScriptType = null;
+        if (initScriptValue != null) {
+            initScript = initScriptValue.script();
+            initScriptType = initScriptValue.scriptType();
+        }
+        ScriptParameterValue mapScriptValue = scriptParameterParser.getScriptParameterValue(MAP_SCRIPT);
+        String mapScript = null;
+        ScriptType mapScriptType = null;
+        if (mapScriptValue != null) {
+            mapScript = mapScriptValue.script();
+            mapScriptType = mapScriptValue.scriptType();
+        }
+        ScriptParameterValue combineScriptValue = scriptParameterParser.getScriptParameterValue(COMBINE_SCRIPT);
+        String combineScript = null;
+        ScriptType combineScriptType = null;
+        if (combineScriptValue != null) {
+            combineScript = combineScriptValue.script();
+            combineScriptType = combineScriptValue.scriptType();
+        }
+        ScriptParameterValue reduceScriptValue = scriptParameterParser.getScriptParameterValue(REDUCE_SCRIPT);
+        String reduceScript = null;
+        ScriptType reduceScriptType = null;
+        if (reduceScriptValue != null) {
+            reduceScript = reduceScriptValue.script();
+            reduceScriptType = reduceScriptValue.scriptType();
+        }
+        scriptLang = scriptParameterParser.lang();
+        
         if (mapScript == null) {
             throw new SearchParseException(context, "map_script field is required in [" + aggregationName + "].");
         }

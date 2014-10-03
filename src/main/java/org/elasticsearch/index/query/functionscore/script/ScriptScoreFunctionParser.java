@@ -28,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 
@@ -52,7 +54,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
 
     @Override
     public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
-
+        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         String script = null;
         String scriptLang = null;
         Map<String, Object> vars = null;
@@ -69,21 +71,18 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
                     throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("script".equals(currentFieldName)) {
-                    script = parser.text();
-                } else if ("script_id".equals(currentFieldName)) {
-                    script = parser.text();
-                    scriptType = ScriptService.ScriptType.INDEXED;
-                } else if ("file".equals(currentFieldName)) {
-                    script = parser.text();
-                    scriptType = ScriptService.ScriptType.FILE;
-                } else if ("lang".equals(currentFieldName)) {
-                    scriptLang = parser.text();
-                } else {
+                if (!scriptParameterParser.token(currentFieldName, token, parser)) {
                     throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
             }
         }
+
+        ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+        if (scriptValue != null) {
+            script = scriptValue.script();
+            scriptType = scriptValue.scriptType();
+        }
+        scriptLang = scriptParameterParser.lang();
 
         if (script == null) {
             throw new QueryParsingException(parseContext.index(), NAMES[0] + " requires 'script' field");

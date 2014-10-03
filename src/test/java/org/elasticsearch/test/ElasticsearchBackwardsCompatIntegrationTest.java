@@ -81,9 +81,16 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
     private static File backwardsCompatibilityPath() {
         String path = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_PATH);
+        if (path == null || path.isEmpty()) {
+            throw new IllegalArgumentException("Invalid Backwards tests location path:" + path);
+        }
         String version = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
-        if (path == null || path.isEmpty() || version == null || version.isEmpty()) {
-            throw new IllegalArgumentException("Invalid Backwards tests location path:" + path + " version: " + version);
+        if (version == null || version.isEmpty()) {
+            throw new IllegalArgumentException("Invalid Backwards tests version:" + version);
+        }
+        if (Version.fromString(version).before(Version.CURRENT.minimumCompatibilityVersion())) {
+            throw new IllegalArgumentException("Backcompat elasticsearch version must be same major version as current. " +
+                "backcompat: " + version + ", current: " + Version.CURRENT.toString());
         }
         File file = new File(path, "elasticsearch-" + version);
         if (!file.exists()) {

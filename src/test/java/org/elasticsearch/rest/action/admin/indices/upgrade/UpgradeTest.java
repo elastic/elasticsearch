@@ -48,6 +48,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
 
+    @Override
+    protected int minExternalNodes() {
+        return 2;
+    }
+
     public void testUpgrade() throws Exception {
         if (backwardsCluster().numNewDataNodes() == 0) {
             backwardsCluster().startNewNode();
@@ -68,7 +73,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
                 .build();
 
             assertAcked(prepareCreate(indexName).setSettings(settings));
-            ensureYellow(indexName);
+            ensureGreen(indexName);
             assertAllShardsOnNodes(indexName, backwardsCluster().backwardsNodePattern());
 
             int numDocs = scaledRandomIntBetween(100, 1000);
@@ -78,11 +83,12 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
                 builder.add(client().prepareIndex(indexName, "type1", id).setSource("text", "sometext"));
             }
             indexRandom(true, builder);
-            ensureYellow(indexName);
+            ensureGreen(indexName);
             flushAndRefresh();
         }
+        backwardsCluster().allowOnAllNodes(indexNames);
         backwardsCluster().upgradeAllNodes();
-        ensureYellow();
+        ensureGreen();
 
         checkNotUpgraded("/_upgrade");
         final String indexToUpgrade = "test" + randomInt(numIndexes - 1);

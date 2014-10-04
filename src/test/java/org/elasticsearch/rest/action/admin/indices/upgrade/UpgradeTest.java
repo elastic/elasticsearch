@@ -19,84 +19,173 @@
 
 package org.elasticsearch.rest.action.admin.indices.upgrade;
 
+import com.google.common.base.Predicate;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.lucene.index.NoMergePolicy;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.lucene.util.Version;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
-import org.elasticsearch.index.merge.policy.MergePolicyModule;
-import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.store.Store;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.rest.client.RestResponse;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
+import org.elasticsearch.test.rest.json.JsonPath;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
 
     public void testUpgrade() throws Exception {
-        int numIndexes = randomIntBetween(5, 10);
+        if (backwardsCluster().numNewDataNodes() == 0) {
+            backwardsCluster().startNewNode();
+        }
+        
+        int numIndexes = randomIntBetween(2, 4);
+        String[] indexNames = new String[numIndexes];
         for (int i = 0; i < numIndexes; ++i) {
-            assertAcked(prepareCreate("test" + i).setSettings(ImmutableSettings.builder()
+            String indexName = "test" + i;
+            indexNames[i] = indexName;
+            
+            Settings settings = ImmutableSettings.builder()
+                .put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern())
                 // don't allow any merges so that we can check segments are upgraded
                 // by the upgrader, and not just regular merging
-                .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)));
+                .put("index.merge.policy.segments_per_tier", 1000000f)
+                .put(indexSettings())
+                .build();
+
+            assertAcked(prepareCreate(indexName).setSettings(settings));
+            ensureYellow(indexName);
+            assertAllShardsOnNodes(indexName, backwardsCluster().backwardsNodePattern());
+
             int numDocs = scaledRandomIntBetween(100, 1000);
             List<IndexRequestBuilder> builder = new ArrayList<>();
             for (int j = 0; j < numDocs; ++j) {
                 String id = Integer.toString(j);
-                builder.add(client().prepareIndex("test", "type1", id).setSource("text", "sometext"));
+                builder.add(client().prepareIndex(indexName, "type1", id).setSource("text", "sometext"));
             }
             indexRandom(true, builder);
+            ensureYellow(indexName);
+            flushAndRefresh();
         }
         backwardsCluster().upgradeAllNodes();
-        ensureGreen();
+        ensureYellow();
+
+        checkNotUpgraded("/_upgrade");
+        final String indexToUpgrade = "test" + randomInt(numIndexes - 1);
         
-        HttpResponse rsp = httpClient().method("GET").path("/_upgrade").execute();
-        System.out.println(rsp.toString());
-        fail();
-
-        // TODO:
-        // - use GET /_upgrade to find which indexes need upgrading
-        // - randomly select an index to upgrade, using wait_for_completion=false
-        // - wait on upgrade with GET api
-        // - confirm other indexes are still not upgraded
-        // - check upgrade status with segments api
-        // - upgrade the rest of the indexes, using wait_for_completion=true
-        // - check upgrade status with segments api
-        // - confirm GET shows all indexes upgraded
-
-    }
-
-    HttpRequestBuilder httpClient() {
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        InetSocketAddress address = ((InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress()).address();
-        return new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
+        runUpgrade("/" + indexToUpgrade + "/_upgrade");
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                try {
+                    return isUpgraded("/" + indexToUpgrade + "/_upgrade");
+                } catch (Exception e) {
+                    throw ExceptionsHelper.convertToRuntime(e);
+                }
+            }
+        });
+        
+        runUpgrade("/_upgrade", "wait_for_completion", "true");
+        checkUpgraded("/_upgrade");
     }
     
-
-    public static class NoMergePolicyProvider extends AbstractMergePolicyProvider<NoMergePolicy> {
-        @Inject
-        public NoMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
-            super(store);
+    void checkNotUpgraded(String path) throws Exception {
+        for (UpgradeStatus status : getUpgradeStatus(path)) {
+            assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
+            assertTrue("total bytes must be >= upgrade bytes", status.totalBytes >= status.toUpgradeBytes);
+            assertEquals("index " + status.indexName + " should need upgrading",
+                         status.totalBytes, status.toUpgradeBytes);
         }
+    }
 
-        @Override
-        public NoMergePolicy getMergePolicy() {
-            return (NoMergePolicy) NoMergePolicy.INSTANCE;
+    void checkUpgraded(String path) throws Exception {
+        for (UpgradeStatus status : getUpgradeStatus(path)) {
+            assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
+            assertTrue("total bytes must be >= upgrade bytes", status.totalBytes >= status.toUpgradeBytes);
+            assertEquals("index " + status.indexName + " should need upgrading",
+                0, status.toUpgradeBytes);
         }
+    }
+    
+    boolean isUpgraded(String path) throws Exception {
+        int toUpgrade = 0;
+        for (UpgradeStatus status : getUpgradeStatus(path)) {
+            logger.info("Index: " + status.indexName + ", total: " + status.totalBytes + ", toUpgrade: " + status.toUpgradeBytes);
+            toUpgrade += status.toUpgradeBytes;
+        }
+        return toUpgrade == 0;
+    }
 
-        @Override
-        public void close() throws ElasticsearchException {
+    class UpgradeStatus {
+        public final String indexName;
+        public final int totalBytes;
+        public final int toUpgradeBytes;
+        
+        public UpgradeStatus(String indexName, int totalBytes, int toUpgradeBytes) {
+            this.indexName = indexName;
+            this.totalBytes = totalBytes;
+            this.toUpgradeBytes = toUpgradeBytes;
         }
+    }
+    
+    void runUpgrade(String path, String... params) throws Exception {
+        assert params.length % 2 == 0;
+        HttpRequestBuilder builder = httpClient().method("POST").path(path);
+        for (int i = 0; i < params.length; i += 2) {
+            builder.addParam(params[i], params[i + 1]);
+        }
+        HttpResponse rsp = builder.execute();
+        assertNotNull(rsp);
+        assertEquals(200, rsp.getStatusCode());
+    }
+
+    List<UpgradeStatus> getUpgradeStatus(String path) throws Exception {
+        HttpResponse rsp = httpClient().method("GET").path(path).execute();
+        Map<String,Object> data = validateAndParse(rsp);
+        List<UpgradeStatus> ret = new ArrayList<>();
+        for (String index : data.keySet()) {
+            Map<String, Object> status = (Map<String,Object>)data.get(index);
+            assertTrue("missing key size_in_bytes for index " + index, status.containsKey("size_in_bytes"));
+            Object totalBytes = status.get("size_in_bytes");
+            assertTrue("size_in_bytes for index " + index + " is not an integer", totalBytes instanceof Integer);
+            assertTrue("missing key size_to_upgrade_in_bytes for index " + index, status.containsKey("size_to_upgrade_in_bytes"));
+            Object toUpgradeBytes = status.get("size_to_upgrade_in_bytes");
+            assertTrue("size_to_upgrade_in_bytes for index " + index + " is not an integer", toUpgradeBytes instanceof Integer);
+            ret.add(new UpgradeStatus(index, ((Integer)totalBytes).intValue(), ((Integer)toUpgradeBytes).intValue()));
+        }
+        return ret;
+    }
+    
+    Map<String, Object> validateAndParse(HttpResponse rsp) throws Exception {
+        assertNotNull(rsp);
+        assertEquals(200, rsp.getStatusCode());
+        assertTrue(rsp.hasBody());
+        return (Map<String,Object>)new JsonPath(rsp.getBody()).evaluate("");
+    }
+    
+    HttpRequestBuilder httpClient() {
+        InetSocketAddress[] addresses = cluster().httpAddresses();
+        InetSocketAddress address = addresses[randomInt(addresses.length - 1)];
+        return new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(InternalNode.HTTP_ENABLED, true).build();
     }
 }

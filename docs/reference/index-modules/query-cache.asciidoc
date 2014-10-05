@@ -80,7 +80,7 @@ caching on a *per-query* basis.  If set, it overrides the index-level setting:
 
 [source,json]
 -----------------------------
-curl localhost:9200/my_index/_search?search_type=count&query_cache=true -d'
+curl 'localhost:9200/my_index/_search?search_type=count&query_cache=true' -d'
 {
   "aggs": {
     "popular_colors": {
@@ -132,12 +132,12 @@ by index, with the <<indices-stats,`indices-stats`>> API:
 
 [source,json]
 ------------------------
-curl -XPOST 'localhost:9200/_stats/query_cache?pretty&human'
+curl 'localhost:9200/_stats/query_cache?pretty&human'
 ------------------------
 
 or by node with the <<cluster-nodes-stats,`nodes-stats`>> API:
 
 [source,json]
 ------------------------
-curl -XPOST 'localhost:9200/_nodes/stats/indices/query_cache?pretty&human'
+curl 'localhost:9200/_nodes/stats/indices/query_cache?pretty&human'
 ------------------------

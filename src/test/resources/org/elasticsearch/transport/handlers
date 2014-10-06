@@ -68,6 +68,11 @@ internal:discovery/zen/publish
 internal:discovery/zen/rejoin
 internal:discovery/zen/unicast
 internal:discovery/zen/unicast_gte_1_4
+internal:gateway/local/allocate_dangled
+internal:gateway/local/meta_state
+internal:gateway/local/meta_state[n]
+internal:gateway/local/started_shards
+internal:gateway/local/started_shards[n]
 internal:index/shard/exists
 internal:index/shard/recovery/clean_files
 internal:index/shard/recovery/file_chunk

@@ -14,19 +14,23 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.shield.authz.AuthorizationException;
-import org.elasticsearch.shield.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldSettingsSource;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.CoreMatchers.*;
 
+@ClusterScope(scope = Scope.SUITE)
 public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
 
     @Override
-    protected String configRole() {
-        return DEFAULT_ROLE + ":\n" +
+    protected String configRoles() {
+        return ShieldSettingsSource.DEFAULT_ROLE + ":\n" +
                 "  cluster: ALL\n" +
                 "  indices:\n" +
                 "    '*': manage,write\n" +
@@ -195,7 +199,7 @@ public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
             actionRequestBuilder.get();
             fail("search should fail due to attempt to access non authorized indices");
         } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("is unauthorized for user [test_trans_client_user]"));
+            assertThat(e.getMessage(), containsString("is unauthorized for user ["));
         }
     }
 

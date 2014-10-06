@@ -6,12 +6,14 @@
 package org.elasticsearch.shield.transport.n2n;
 
 import com.google.common.base.Charsets;
+import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.shield.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.transport.Transport;
 import org.junit.Test;
 
@@ -21,23 +23,21 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-// no client nodes, no transport nodes, as they all get rejected on network connections
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-shield/issues/378")
+// no client nodes, no transport clients, as they all get rejected on network connections
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0)
 public class IpFilteringIntegrationTests extends ShieldIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
+        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(InternalNode.HTTP_ENABLED, true)
-                .put("shield.transport.filter.deny", "_all")
-                .build();
+                .put("shield.transport.filter.deny", "_all").build();
     }
 
     @Test(expected = SocketException.class)

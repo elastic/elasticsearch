@@ -55,7 +55,7 @@ public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testAutheticateContract() throws Exception {
+    public void testAuthenticateContract() throws Exception {
         Realm<UsernamePasswordToken> realm = new FailingAuthenticationRealm(ImmutableSettings.EMPTY);
         User user = realm.authenticate(new UsernamePasswordToken("user", SecuredStringTests.build("pass")));
         assertThat(user , nullValue());

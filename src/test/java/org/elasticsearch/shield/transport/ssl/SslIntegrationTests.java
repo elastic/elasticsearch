@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.transport.ssl;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.io.Streams;
@@ -16,65 +15,38 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.shield.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.transport.Transport;
 import org.junit.Test;
 
 import javax.net.ssl.*;
-import java.io.File;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.*;
 
+@ClusterScope(scope = Scope.SUITE)
 public class SslIntegrationTests extends ShieldIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(InternalNode.HTTP_ENABLED, true).build();
-    }
-
-    @Test
-    public void testThatInternallyCreatedTransportClientCanConnect() throws Exception {
-        Client transportClient = internalCluster().transportClient();
-        assertGreenClusterState(transportClient);
-    }
-
-    @Test
-    public void testThatProgrammaticallyCreatedTransportClientCanConnect() throws Exception {
-        Settings settings = settingsBuilder()
-                .put(transportClientSettings())
-                .put("name", "programmatic_transport_client_")
-                .put("cluster.name", internalCluster().getClusterName())
-                .build();
-
-        try (TransportClient transportClient = new TransportClient(settings, false)) {
-            TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
-            transportClient.addTransportAddress(transportAddress);
-            assertGreenClusterState(transportClient);
-        }
-
-        try (TransportClient transportClient = new TransportClient(settings, true)) {
-            TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
-            transportClient.addTransportAddress(transportAddress);
-            assertGreenClusterState(transportClient);
-        }
+                .put(InternalNode.HTTP_ENABLED, true)
+                .put("shield.http.ssl", true).build();
     }
 
     // no SSL exception as this is the exception is returned when connecting
     @Test(expected = NoNodeAvailableException.class)
-    public void testThatUnconfiguredCipchersAreRejected() {
-        try (TransportClient transportClient = new TransportClient(settingsBuilder()
+    public void testThatUnconfiguredCiphersAreRejected() {
+        try(TransportClient transportClient = new TransportClient(settingsBuilder()
+
                 .put(transportClientSettings())
                 .put("name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
@@ -85,59 +57,6 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
             transportClient.addTransportAddress(transportAddress);
 
             transportClient.admin().cluster().prepareHealth().get();
-        }
-    }
-
-    @Test
-    public void testConnectNodeWorks() throws Exception {
-        File folder = newFolder();
-        Settings settings = settingsBuilder()
-                .put("name", "programmatic_node")
-                .put("cluster.name", internalCluster().getClusterName())
-
-                .put("shield.authc.esusers.files.users", writeFile(folder, "users", configUsers()))
-                .put("shield.authc.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
-                .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRole()))
-
-                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
-
-                .put(getSSLSettingsForStore("certs/simple/testclient.jks", "testclient"))
-                .build();
-
-        try (Node node = NodeBuilder.nodeBuilder().settings(settings).node()) {
-            try (Client client = node.client()) {
-                assertGreenClusterState(client);
-            }
-        }
-    }
-
-    @Test
-    public void testConnectNodeClientWorks() throws Exception {
-        File folder = newFolder();
-        Settings settings = settingsBuilder()
-                .put("name", "programmatic_node_client")
-                .put("cluster.name", internalCluster().getClusterName())
-                .put("node.mode", "network")
-
-                .put("shield.authc.esusers.files.users", writeFile(folder, "users", configUsers()))
-                .put("shield.authc.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
-                .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRole()))
-
-                .put("discovery.zen.ping.multicast.enabled", false)
-                .put("discovery.type", "zen")
-                .putArray("discovery.zen.ping.unicast.hosts", getUnicastHostAddress())
-
-                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
-
-                .put(getSSLSettingsForStore("certs/simple/testclient.jks", "testclient"))
-                .build();
-
-        try (Node node = NodeBuilder.nodeBuilder().settings(settings).client(true).node()) {
-            try (Client client = node.client()) {
-                assertGreenClusterState(client);
-            }
         }
     }
 
@@ -177,7 +96,7 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
         String url = String.format(Locale.ROOT, "https://%s:%s/", InetAddresses.toUriString(inetSocketTransportAddress.address().getAddress()), inetSocketTransportAddress.address().getPort());
 
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-        connection.setRequestProperty("Authorization", UsernamePasswordToken.basicAuthHeaderValue(getClientUsername(), getClientPassword()));
+        connection.setRequestProperty(UsernamePasswordToken.BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
         connection.connect();
 
         assertThat(connection.getResponseCode(), is(200));

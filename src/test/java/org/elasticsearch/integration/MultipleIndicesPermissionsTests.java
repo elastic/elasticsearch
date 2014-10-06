@@ -12,62 +12,54 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.AuthorizationException;
-import org.elasticsearch.shield.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldSettingsSource;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
+@ClusterScope(scope = Scope.SUITE)
 public class MultipleIndicesPermissionsTests extends ShieldIntegrationTest {
 
-    public static final String ROLES =
-            DEFAULT_ROLE + ":\n" +
-            "  cluster: all\n" +
-            "  indices:\n" +
-            "    '*': manage\n" +
-            "    '/.*/': write\n" +
-            "    'test': read\n" +
-            "    'test1': read\n" +
-            "\n" +
-            "role_a:\n" +
-            "  indices:\n" +
-            "    'a': all\n" +
-            "\n" +
-            "role_b:\n" +
-            "  indices:\n" +
-            "    'b': all\n";
-
-    public static final String USERS =
-            CONFIG_STANDARD_USER +
-            "user_a:{plain}passwd\n" +
-            "user_b:{plain}passwd\n";
-
-    public static final String USERS_ROLES =
-            CONFIG_STANDARD_USER_ROLES +
-            "role_a:user_a,user_b\n" +
-            "role_b:user_b\n";
-
     @Override
-    protected String configRole() {
-        return ROLES;
+    protected String configRoles() {
+        return ShieldSettingsSource.DEFAULT_ROLE + ":\n" +
+                "  cluster: all\n" +
+                "  indices:\n" +
+                "    '*': manage\n" +
+                "    '/.*/': write\n" +
+                "    'test': read\n" +
+                "    'test1': read\n" +
+                "\n" +
+                "role_a:\n" +
+                "  indices:\n" +
+                "    'a': all\n" +
+                "\n" +
+                "role_b:\n" +
+                "  indices:\n" +
+                "    'b': all\n";
     }
 
     @Override
     protected String configUsers() {
-        return USERS;
+        return ShieldSettingsSource.CONFIG_STANDARD_USER +
+                "user_a:{plain}passwd\n" +
+                "user_ab:{plain}passwd\n";
     }
 
     @Override
     protected String configUsersRoles() {
-        return USERS_ROLES;
+        return ShieldSettingsSource.CONFIG_STANDARD_USER_ROLES +
+                "role_a:user_a,user_ab\n" +
+                "role_b:user_ab\n";
     }
 
     @Test
@@ -191,14 +183,14 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegrationTest {
         }
 
         response = client.prepareSearch("b")
-                .putHeader(BASIC_AUTH_HEADER, userHeader("user_b", "passwd"))
+                .putHeader(BASIC_AUTH_HEADER, userHeader("user_ab", "passwd"))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
         indices = randomBoolean() ? new String[] { "a", "b" } : new String[] { "b", "a" };
         response = client.prepareSearch(indices)
-                .putHeader(BASIC_AUTH_HEADER, userHeader("user_b", "passwd"))
+                .putHeader(BASIC_AUTH_HEADER, userHeader("user_ab", "passwd"))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -208,7 +200,7 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegrationTest {
                 new String[] { "*" } :
                 new String[] {};
         response = client.prepareSearch(indices)
-                .putHeader(BASIC_AUTH_HEADER, userHeader("user_b", "passwd"))
+                .putHeader(BASIC_AUTH_HEADER, userHeader("user_ab", "passwd"))
                 .get();
         assertNoFailures(response);
         assertHitCount(response, 2);

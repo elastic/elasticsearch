@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Callback;
-import org.elasticsearch.shield.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegrationTest;
 import org.junit.BeforeClass;
 import org.junit.Test;
 

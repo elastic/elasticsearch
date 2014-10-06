@@ -8,21 +8,16 @@ package org.elasticsearch.integration;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authz.AuthorizationException;
-import org.elasticsearch.shield.signature.InternalSignatureService;
 import org.elasticsearch.shield.signature.SignatureService;
-import org.elasticsearch.shield.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -30,14 +25,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ScrollIdSigningTests extends ShieldIntegrationTest {
 
     private SignatureService signatureService;
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(InternalSignatureService.FILE_SETTING, writeFile(newFolder(), "system_key", generateKey()))
-                .build();
-    }
 
     @Before
     public void init() throws Exception {
@@ -56,17 +43,14 @@ public class ScrollIdSigningTests extends ShieldIntegrationTest {
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .setSize(randomIntBetween(1, 10)).get();
 
-        assertHitCount(response, docs.length);
-        int hits = response.getHits().hits().length;
-
+        int hits = 0;
         try {
-            assertSigned(response.getScrollId());
             while (true) {
-                response = client().prepareSearchScroll(response.getScrollId())
-                        .setScroll(TimeValue.timeValueMinutes(2)).get();
                 assertSigned(response.getScrollId());
                 assertHitCount(response, docs.length);
                 hits += response.getHits().hits().length;
+                response = client().prepareSearchScroll(response.getScrollId())
+                        .setScroll(TimeValue.timeValueMinutes(2)).get();
                 if (response.getHits().getHits().length == 0) {
                     break;
                 }
@@ -125,14 +109,5 @@ public class ScrollIdSigningTests extends ShieldIntegrationTest {
 
     private void assertSigned(String scrollId) {
         assertThat(signatureService.signed(scrollId), is(true));
-    }
-
-    private static byte[] generateKey() {
-        try {
-            return InternalSignatureService.generateKey();
-        } catch (Exception e) {
-            fail("failed to generate key");
-            return null;
-        }
     }
 }

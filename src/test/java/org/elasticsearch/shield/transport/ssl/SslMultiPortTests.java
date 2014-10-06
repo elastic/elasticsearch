@@ -11,44 +11,27 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.shield.test.ShieldIntegrationTest;
-import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
+import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportModule;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.File;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.hamcrest.CoreMatchers.is;
 
-/**
- *
- */
+@ClusterScope(scope = Scope.SUITE)
 public class SslMultiPortTests extends ShieldIntegrationTest {
 
-    private ImmutableSettings.Builder builder;
     private static int randomClientPort;
 
     @BeforeClass
     public static void getRandomPort() {
         randomClientPort = randomIntBetween(49000, 65500); // ephemeral port
-    }
-
-    @Before
-    public void setupBuilder() {
-        builder = settingsBuilder()
-                // we have to set the user with the Authorization header as shield.user only works when
-                // shield is installed on the client as a plugin
-                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
-                .put("node.mode", "network")
-                .put("cluster.name", internalCluster().getClusterName());
     }
 
     @Override
@@ -65,33 +48,31 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
 
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                // settings for default key profile
-                .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 // client set up here
                 .put("transport.profiles.client.port", randomClientPortRange)
                 .put("transport.profiles.client.bind_host", "localhost") // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
                 .put("transport.profiles.client.shield.truststore.path", store.getAbsolutePath()) // settings for client truststore
                 .put("transport.profiles.client.shield.truststore.password", "testnode-client-profile")
-                .put("shield.audit.enabled", false )
-
                 .build();
+    }
+
+    private TransportClient createTransportClient(Settings additionalSettings) {
+        Settings settings = ImmutableSettings.builder().put(transportClientSettings())
+                .put("name", "programmatic_transport_client")
+                .put("cluster.name", internalCluster().getClusterName())
+                .put(additionalSettings)
+                .build();
+        return new TransportClient(settings, false);
     }
 
     @Test
     public void  testThatStandardTransportClientCanConnectToDefaultProfile() throws Exception {
-        builder.put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient"));
-        try (TransportClient transportClient = new TransportClient(builder, false)) {
-            TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
-            transportClient.addTransportAddress(transportAddress);
-            assertGreenClusterState(transportClient);
-
-        }
+        assertGreenClusterState(internalCluster().transportClient());
     }
 
     @Test(expected = NoNodeAvailableException.class)
     public void  testThatStandardTransportClientCannotConnectToClientProfile() throws Exception {
-        builder.put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient"));
-        try (TransportClient transportClient = new TransportClient(builder, false)) {
+        try(TransportClient transportClient = createTransportClient(ImmutableSettings.EMPTY)) {
             transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", randomClientPort));
             transportClient.admin().cluster().prepareHealth().get();
         }
@@ -99,8 +80,8 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
 
     @Test
     public void  testThatProfileTransportClientCanConnectToClientProfile() throws Exception {
-        builder.put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile"));
-        try (TransportClient transportClient = new TransportClient(builder, false)) {
+        Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
+        try (TransportClient transportClient = createTransportClient(settings)) {
             transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", randomClientPort));
             assertGreenClusterState(transportClient);
         }
@@ -108,8 +89,8 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
 
     @Test(expected = NoNodeAvailableException.class)
     public void  testThatProfileTransportClientCannotConnectToDefaultProfile() throws Exception {
-        builder.put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile"));
-        try (TransportClient transportClient = new TransportClient(builder, false)) {
+        Settings settings = ShieldSettingsSource.getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
+        try (TransportClient transportClient = createTransportClient(settings)) {
             TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
             transportClient.addTransportAddress(transportAddress);
             transportClient.admin().cluster().prepareHealth().get();

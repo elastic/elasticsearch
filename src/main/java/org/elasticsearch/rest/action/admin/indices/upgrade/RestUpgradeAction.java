@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.segments.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -74,10 +75,10 @@ public class RestUpgradeAction extends BaseRestHandler {
                 
                 // TODO: getIndices().values() is what IndecesSegmentsResponse uses, but this will produce different orders with jdk8?
                 for (IndexSegments indexSegments : response.getIndices().values()) {
-                    UpgradeSummary summary = new UpgradeSummary(indexSegments);
+                    Tuple<Long, Long> summary = calculateUpgradeStatus(indexSegments);
                     builder.startObject(indexSegments.getIndex());
-                    builder.byteSizeField(SIZE_IN_BYTES, SIZE, summary.total_bytes);
-                    builder.byteSizeField(SIZE_TO_UPGRADE_IN_BYTES, SIZE_TO_UPGRADE, summary.to_upgrade_bytes);
+                    builder.byteSizeField(SIZE_IN_BYTES, SIZE, summary.v1());
+                    builder.byteSizeField(SIZE_TO_UPGRADE_IN_BYTES, SIZE_TO_UPGRADE, summary.v2());
                     builder.endObject();
                 }
                 
@@ -104,6 +105,24 @@ public class RestUpgradeAction extends BaseRestHandler {
         });
     }
     
+    Tuple<Long, Long> calculateUpgradeStatus(IndexSegments indexSegments) {
+        long total_bytes = 0;
+        long to_upgrade_bytes = 0;
+        for (IndexShardSegments shard : indexSegments) {
+            for (ShardSegments segs : shard.getShards()) {
+                for (Segment seg : segs.getSegments()) {
+                    total_bytes += seg.sizeInBytes;
+                    if (seg.version.minor != Version.CURRENT.luceneVersion.minor) {
+                        // TODO: this comparison is bogus! it would cause us to upgrade even with the same format
+                        // instead, we should check if the codec has changed
+                        to_upgrade_bytes += seg.sizeInBytes;
+                    }
+                }
+            }
+        }
+        return new Tuple<>(total_bytes, to_upgrade_bytes);
+    }
+    
     // this is a silly class which should just be a standalone function, but java doesn't even have a standard Pair that could
     // be used to return 2 values from a function...
     static class UpgradeSummary {
@@ -111,18 +130,7 @@ public class RestUpgradeAction extends BaseRestHandler {
         public long to_upgrade_bytes;
         
         UpgradeSummary(IndexSegments indexSegments) {
-            for (IndexShardSegments shard : indexSegments) {
-                for (ShardSegments segs : shard.getShards()) {
-                    for (Segment seg : segs.getSegments()) {
-                        total_bytes += seg.sizeInBytes;
-                        if (seg.version.minor != Version.CURRENT.luceneVersion.minor) {
-                            // TODO: this comparison is bogus! it would cause us to upgrade even with the same format
-                            // instead, we should check if the codec has changed
-                            to_upgrade_bytes += seg.sizeInBytes;
-                        }
-                    }
-                }
-            }
+            
         }
     }
 

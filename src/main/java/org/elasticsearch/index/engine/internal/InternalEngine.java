@@ -1035,9 +1035,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                  * thread for optimize, and the 'optimizeMutex' guarding this code, and (3) ConcurrentMergeScheduler
                  * syncs calls to findForcedMerges.
                  */
-                assert writer.getConfig().getMergePolicy() instanceof ElasticsearchMergePolicy;
+                MergePolicy mp = writer.getConfig().getMergePolicy();
+                assert mp instanceof ElasticsearchMergePolicy : "MergePolicy is " + mp.getClass().getName();
                 if (optimize.upgrade()) {
-                    ((ElasticsearchMergePolicy)writer.getConfig().getMergePolicy()).setNextForceIsUpgrade(true);
+                    ((ElasticsearchMergePolicy)mp).setNextForceIsUpgrade(true);
                 }
                 
                 if (optimize.onlyExpungeDeletes()) {

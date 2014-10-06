@@ -187,11 +187,6 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
                 failureReason[0] = reason;
                 notified.countDown();
             }
-
-            @Override
-            public void notListedOnMaster() {
-
-            }
         });
         // will raise a disconnect on A
         serviceB.stop();

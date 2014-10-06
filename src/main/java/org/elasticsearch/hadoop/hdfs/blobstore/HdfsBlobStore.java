@@ -23,9 +23,9 @@ import java.util.concurrent.Executor;
 
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -73,8 +73,8 @@ public class HdfsBlobStore extends AbstractComponent implements BlobStore {
     }
 
     @Override
-    public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
-        return new HdfsImmutableBlobContainer(path, this, buildHdfsPath(path));
+    public BlobContainer blobContainer(BlobPath path) {
+        return new HdfsBlobContainer(path, this, buildHdfsPath(path));
     }
 
     @Override

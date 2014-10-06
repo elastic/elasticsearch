@@ -43,12 +43,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.hadoop.hdfs.blobstore.HdfsBlobStore;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-public class HdfsRepository extends BlobStoreRepository implements Repository {
+public class HdfsRepository extends BlobStoreRepository {
 
     public final static String TYPE = "hdfs";
 

@@ -19,8 +19,9 @@
 package org.elasticsearch.hadoop.hdfs.blobstore;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
@@ -31,12 +32,12 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
 
-public class AbstractHdfsBlobContainer extends AbstractBlobContainer {
+public class HdfsBlobContainer extends AbstractBlobContainer {
 
     protected final HdfsBlobStore blobStore;
     protected final Path path;
 
-    public AbstractHdfsBlobContainer(BlobPath blobPath, HdfsBlobStore blobStore, Path path) {
+    public HdfsBlobContainer(BlobPath blobPath, HdfsBlobStore blobStore, Path path) {
         super(blobPath);
         this.blobStore = blobStore;
         this.path = path;
@@ -56,36 +57,18 @@ public class AbstractHdfsBlobContainer extends AbstractBlobContainer {
         return blobStore.fileSystem().delete(new Path(path, blobName), true);
     }
 
-    @Override
-    public void readBlob(final String blobName, final ReadBlobListener listener) {
-        blobStore.executor().execute(new Runnable() {
-            @Override
-            public void run() {
-                byte[] buffer = new byte[blobStore.bufferSizeInBytes()];
 
-                FSDataInputStream fileStream;
-                try {
-                    fileStream = blobStore.fileSystem().open(new Path(path, blobName));
-                } catch (Throwable th) {
-                    listener.onFailure(th);
-                    return;
-                }
-                try {
-                    int bytesRead;
-                    while ((bytesRead = fileStream.read(buffer)) != -1) {
-                        listener.onPartial(buffer, 0, bytesRead);
-                    }
-                    listener.onCompleted();
-                } catch (Throwable th) {
-                    try {
-                        fileStream.close();
-                    } catch (Throwable t) {
-                        // ignore
-                    }
-                    listener.onFailure(th);
-                }
-            }
-        });
+    @Override
+    public InputStream openInput(String blobName) throws IOException {
+        // FSDataInputStream does buffering internally
+        return blobStore.fileSystem().open(new Path(path, blobName), blobStore.bufferSizeInBytes());
+    }
+
+    @Override
+    public OutputStream createOutput(String blobName) throws IOException {
+        Path file = new Path(path, blobName);
+        // FSDataOutputStream does buffering internally
+        return blobStore.fileSystem().create(file, true, blobStore.bufferSizeInBytes());
     }
 
     @Override

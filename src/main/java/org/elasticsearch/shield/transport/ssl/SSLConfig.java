@@ -28,10 +28,10 @@ public class SSLConfig {
     private SSLContext sslContext;
     private String[] ciphers;
 
-    public SSLConfig(Settings componentSettings, Settings defaultSettings) {
+    public SSLConfig(Settings componentSettings, Settings defaultSettings, boolean defaultRequireClientAuth) {
         SSLTrustConfig sslTrustConfig = new SSLTrustConfig(componentSettings, defaultSettings);
 
-        this.clientAuth = componentSettings.getAsBoolean("require.client.auth", defaultSettings.getAsBoolean("require.client.auth", true));
+        this.clientAuth = componentSettings.getAsBoolean("require.client.auth", defaultSettings.getAsBoolean("require.client.auth", defaultRequireClientAuth));
         String keyStore = componentSettings.get("keystore", defaultSettings.get("keystore", System.getProperty("javax.net.ssl.keyStore")));
         String keyStorePassword = componentSettings.get("keystore_password", defaultSettings.get("keystore_password", System.getProperty("javax.net.ssl.keyStorePassword")));
         String keyStoreAlgorithm = componentSettings.get("keystore_algorithm", defaultSettings.get("keystore_algorithm", System.getProperty("ssl.KeyManagerFactory.algorithm")));

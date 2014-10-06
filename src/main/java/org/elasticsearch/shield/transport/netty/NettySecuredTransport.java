@@ -53,7 +53,7 @@ public class NettySecuredTransport extends NettyTransport {
         public SslServerChannelPipelineFactory(NettyTransport nettyTransport) {
             super(nettyTransport);
             if (ssl) {
-                sslConfig = new SSLConfig(settings.getByPrefix("shield.transport.ssl."), settings.getByPrefix("shield.ssl."));
+                sslConfig = new SSLConfig(settings.getByPrefix("shield.transport.ssl."), settings.getByPrefix("shield.ssl."), true);
                 // try to create an SSL engine, so that exceptions lead to early exit
                 sslConfig.createSSLEngine();
             } else {
@@ -85,7 +85,7 @@ public class NettySecuredTransport extends NettyTransport {
         public SslClientChannelPipelineFactory(NettyTransport transport) {
             super(transport);
             if (ssl) {
-                sslConfig = new SSLConfig(settings.getByPrefix("shield.transport.ssl."), settings.getByPrefix("shield.ssl."));
+                sslConfig = new SSLConfig(settings.getByPrefix("shield.transport.ssl."), settings.getByPrefix("shield.ssl."), true);
                 // try to create an SSL engine, so that exceptions lead to early exit
                 sslConfig.createSSLEngine();
             } else {

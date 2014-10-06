@@ -38,7 +38,7 @@ public class SSLConfigTests extends ElasticsearchTestCase {
                             .put("keystore_password", "testnode")
                             .put("truststore", testnodeStore.getPath())
                             .put("truststore_password", "testnode")
-                        .build());
+                        .build(), false);
         } catch (ElasticsearchSSLException e) {
             assertThat(e.getRootCause(), instanceOf(NoSuchAlgorithmException.class));
         }
@@ -59,7 +59,7 @@ public class SSLConfigTests extends ElasticsearchTestCase {
                 .put("shield.ssl.truststore_password", "testnode")
                 .build();
 
-        SSLConfig sslConfig = new SSLConfig(concreteSettings, genericSettings.getByPrefix("shield.ssl."));
+        SSLConfig sslConfig = new SSLConfig(concreteSettings, genericSettings.getByPrefix("shield.ssl."), false);
         SSLEngine sslEngine = sslConfig.createSSLEngine();
         assertThat(sslEngine.getEnabledCipherSuites().length, is(1));
     }

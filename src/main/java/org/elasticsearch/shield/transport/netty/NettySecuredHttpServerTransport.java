@@ -46,7 +46,7 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
         public HttpSslChannelPipelineFactory(NettyHttpServerTransport transport) {
             super(transport);
             if (ssl) {
-                sslConfig = new SSLConfig(settings.getByPrefix("shield.http.ssl."), settings.getByPrefix("shield.ssl."));
+                sslConfig = new SSLConfig(settings.getByPrefix("shield.http.ssl."), settings.getByPrefix("shield.ssl."), false);
                 // try to create an SSL engine, so that exceptions lead to early exit
                 sslConfig.createSSLEngine();
             } else {

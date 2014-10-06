@@ -140,7 +140,6 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                 .put("shield.transport.ssl.truststore", store.getPath())
                 .put("shield.transport.ssl.truststore_password", password)
                 .put("shield.http.ssl", true)
-                .put("shield.http.ssl.require.client.auth", false)
                 .put("shield.http.ssl.keystore", store.getPath())
                 .put("shield.http.ssl.keystore_password", password)
                 .put("shield.http.ssl.truststore", store.getPath())

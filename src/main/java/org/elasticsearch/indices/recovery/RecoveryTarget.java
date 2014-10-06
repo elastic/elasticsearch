@@ -48,6 +48,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -346,16 +347,32 @@ public class RecoveryTarget extends AbstractComponent {
         // just mark it as canceled as well, just in case there are in flight requests
         // coming from the recovery target
         status.cancel();
-        // clean open index outputs
-        Set<Entry<String, IndexOutput>> entrySet = status.cancelAndClearOpenIndexInputs();
-        Iterator<Entry<String, IndexOutput>> iterator = entrySet.iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<String, IndexOutput> entry = iterator.next();
-            synchronized (entry.getValue()) {
-                IOUtils.closeWhileHandlingException(entry.getValue());
+        final Store store = status.indexShard.store();
+        store.incRef();
+        try {
+            // clean open index outputs
+            Set<Entry<String, IndexOutput>> entrySet = status.cancelAndClearOpenIndexInputs();
+            Iterator<Entry<String, IndexOutput>> iterator = entrySet.iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, IndexOutput> entry = iterator.next();
+                synchronized (entry.getValue()) {
+                    IOUtils.closeWhileHandlingException(entry.getValue());
+                }
+                iterator.remove();
             }
-            iterator.remove();
-
+            // trash temporary files
+            try {
+                for (String file : store.directory().listAll()) {
+                    if (file.startsWith("recovery.")) {
+                        logger.trace("cleaning temporary file [{}]", file);
+                        store.deleteQuiet(file);
+                    }
+                }
+            } catch (IOException e) {
+                logger.debug("error while cleaning up temporary recovery files", e);
+            }
+        } finally {
+            store.decRef();
         }
         status.legacyChecksums.clear();
     }

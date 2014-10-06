@@ -1,0 +1,33 @@
+{
+  "defaults": {
+    "plugins": [ "lmenezes/elasticsearch-kopf", { "name": "shield", "path" : "file:./target/releases/elasticsearch-shield-1.0.0-SNAPSHOT.zip" } ],
+    "config" : {
+      "cluster": { "name": "shield" },
+      "discovery" : {
+        "type" : "zen",
+        "zen.ping.multicast.enabled": false,
+        "zen.ping.unicast.hosts" : [ "localhost:9300", "localhost:9301" ]
+      },
+      "shield" : {
+        "audit.enabled" : false,
+        "transport.ssl": true,
+        "http.ssl": true,
+        "ssl" : {
+          "keystore" : "src/test/resources/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks",
+          "keystore_password" : "testnode",
+          "truststore" : "src/test/resources/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks",
+          "truststore_password" : "testnode"
+        }
+      }
+    }
+  },
+  "clusters": {
+    "shield": {
+      "version": "1.4",
+      "nodes": [
+        { "node": { "name": "node01" } },
+        { "node": { "name": "node02" } }
+      ]
+    }
+  }
+}

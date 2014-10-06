@@ -119,7 +119,7 @@ settings API:
     * `none` - No shard allocation is allowed.
 
 `index.routing.allocation.total_shards_per_node`::
-    Controls the total number of shards allowed to be allocated on a single node. Defaults to unbounded (`-1`).
+    Controls the total number of shards (replicas and primaries) allowed to be allocated on a single node. Defaults to unbounded (`-1`).
 
 `index.recovery.initial_shards`::
     When using local gateway a particular shard is recovered only if there can be allocated quorum shards in the cluster. It can be set to:

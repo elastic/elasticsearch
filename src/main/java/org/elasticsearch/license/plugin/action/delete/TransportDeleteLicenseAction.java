@@ -1,0 +1,76 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.license.plugin.action.delete;
+
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.core.LicensesMetaData;
+import org.elasticsearch.license.plugin.core.LicensesService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+
+public class TransportDeleteLicenseAction extends TransportMasterNodeOperationAction<DeleteLicenseRequest, DeleteLicenseResponse> {
+
+    private final LicensesService licensesService;
+
+    @Inject
+    public TransportDeleteLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService, LicensesService licensesService,
+                                        ThreadPool threadPool, ActionFilters actionFilters) {
+        super(settings, DeleteLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        this.licensesService = licensesService;
+    }
+
+    @Override
+    protected String executor() {
+        return ThreadPool.Names.MANAGEMENT;
+    }
+
+    @Override
+    protected DeleteLicenseRequest newRequest() {
+        return new DeleteLicenseRequest();
+    }
+
+    @Override
+    protected DeleteLicenseResponse newResponse() {
+        return new DeleteLicenseResponse();
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(DeleteLicenseRequest request, ClusterState state) {
+        //TODO: do the right checkBlock
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
+    }
+
+    @Override
+    protected void masterOperation(final DeleteLicenseRequest request, ClusterState state, final ActionListener<DeleteLicenseResponse> listener) throws ElasticsearchException {
+        MetaData metaData = state.metaData();
+        LicensesMetaData licenses = metaData.custom(LicensesMetaData.TYPE);
+        //listener.onResponse(new DeleteLicenseResponse(licenses));
+
+        //TODO:: add features of the license to be deleted
+        licensesService.unregisteredLicenses("delete_licenses []", request, new ActionListener<ClusterStateUpdateResponse>() {
+            @Override
+            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+                listener.onResponse(new DeleteLicenseResponse(clusterStateUpdateResponse.isAcknowledged()));
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+}

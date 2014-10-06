@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.plugin.cluster.LicensesMetaData;
 
 import java.io.IOException;
 

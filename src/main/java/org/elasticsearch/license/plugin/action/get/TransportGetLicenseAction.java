@@ -14,12 +14,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.cluster.LicensesMetaData;
-import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 

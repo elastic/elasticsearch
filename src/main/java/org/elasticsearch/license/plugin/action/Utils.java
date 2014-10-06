@@ -46,10 +46,10 @@ public class Utils {
     public static Map<String, Object> licenseAsMap(ESLicense esLicense) {
         ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
         builder.put(LicenseFields.UID, esLicense.uid());
-        builder.put(LicenseFields.TYPE, esLicense.type());
-        builder.put(LicenseFields.SUBSCRIPTION_TYPE, esLicense.subscriptionType());
+        builder.put(LicenseFields.TYPE, esLicense.type().string());
+        builder.put(LicenseFields.SUBSCRIPTION_TYPE, esLicense.subscriptionType().string());
         builder.put(LicenseFields.ISSUE_DATE, esLicense.issueDate());
-        builder.put(LicenseFields.FEATURE, esLicense.feature());
+        builder.put(LicenseFields.FEATURE, esLicense.feature().string());
         builder.put(LicenseFields.EXPIRY_DATE, esLicense.expiryDate());
         builder.put(LicenseFields.MAX_NODES, esLicense.maxNodes());
         builder.put(LicenseFields.ISSUED_TO, esLicense.issuedTo());
@@ -60,12 +60,12 @@ public class Utils {
     public static ESLicense licenseFromMap(Map<String, Object> map) {
         return LicenseBuilders.licenseBuilder(false)
                 .uid((String) map.get(LicenseFields.UID))
-                .type((Type) map.get(LicenseFields.TYPE))
-                .subscriptionType((SubscriptionType) map.get(LicenseFields.SUBSCRIPTION_TYPE))
-                .issueDate((Long) map.get(LicenseFields.ISSUE_DATE))
-                .feature((FeatureType) map.get(LicenseFields.FEATURE))
-                .expiryDate((Long) map.get(LicenseFields.EXPIRY_DATE))
-                .maxNodes((Integer) map.get(LicenseFields.MAX_NODES))
+                .type(Type.fromString((String) map.get(LicenseFields.TYPE)))
+                .subscriptionType(SubscriptionType.fromString((String) map.get(LicenseFields.SUBSCRIPTION_TYPE)))
+                .issueDate((long) map.get(LicenseFields.ISSUE_DATE))
+                .feature(FeatureType.fromString((String) map.get(LicenseFields.FEATURE)))
+                .expiryDate((long) map.get(LicenseFields.EXPIRY_DATE))
+                .maxNodes((int) map.get(LicenseFields.MAX_NODES))
                 .issuedTo((String) map.get(LicenseFields.ISSUED_TO))
                 .signature((String) map.get(LicenseFields.SIGNATURE))
                 .build();

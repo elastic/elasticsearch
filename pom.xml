@@ -48,6 +48,68 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- compile deps -->
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-core</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-analyzers-common</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-queries</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>jakarta-regexp</groupId>
+                    <artifactId>jakarta-regexp</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-memory</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-highlighter</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-queryparser</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>jakarta-regexp</groupId>
+                    <artifactId>jakarta-regexp</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-suggest</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-join</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
+
         <!-- actual deps -->
         <dependency>
             <groupId>net.nicholaswilliams.java.licensing</groupId>
@@ -165,122 +227,6 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>com.carrotsearch.randomizedtesting</groupId>
-                <artifactId>junit4-maven-plugin</artifactId>
-                <version>2.1.2</version>
-                <executions>
-                    <execution>
-                        <id>tests</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>junit4</goal>
-                        </goals>
-                        <configuration>
-                            <heartbeat>20</heartbeat>
-                            <jvmOutputAction>pipe,warn</jvmOutputAction>
-                            <leaveTemporary>true</leaveTemporary>
-                            <listeners>
-                                <report-ant-xml mavenExtensions="true"
-                                                dir="${project.build.directory}/surefire-reports"/>
-                                <report-text
-                                        showThrowable="true"
-                                        showStackTraces="true"
-                                        showOutput="${tests.output}"
-                                        showStatusOk="false"
-                                        showStatusError="true"
-                                        showStatusFailure="true"
-                                        showStatusIgnored="true"
-                                        showSuiteSummary="true"
-                                        timestamps="false"/>
-                                <report-execution-times historyLength="20" file="${basedir}/${execution.hint.file}"/>
-                            </listeners>
-                            <assertions>
-                                <enable/>
-                                <disable package="${tests.assertion.disabled}"/>
-                                <!-- pass org.elasticsearch to run without assertions -->
-                            </assertions>
-                            <parallelism>${tests.jvms}</parallelism>
-                            <balancers>
-                                <execution-times>
-                                    <fileset dir="${basedir}" includes="${execution.hint.file}"/>
-                                </execution-times>
-                            </balancers>
-                            <includes>
-                                <include>**/*Tests.class</include>
-                                <include>**/*Test.class</include>
-                            </includes>
-                            <excludes>
-                                <exclude>**/Abstract*.class</exclude>
-                                <exclude>**/*StressTest.class</exclude>
-                            </excludes>
-                            <jvmArgs>
-                                <param>-Xmx${tests.heap.size}</param>
-                                <param>-Xms${tests.heap.size}</param>
-                                <param>-Xss256k</param>
-                                <param>-XX:MaxPermSize=128m</param>
-                                <param>-XX:MaxDirectMemorySize=512m</param>
-                                <param>-Des.logger.prefix=</param>
-                                <param>-XX:+HeapDumpOnOutOfMemoryError</param>
-                                <param>-XX:HeapDumpPath=${tests.heapdump.path}</param>
-                            </jvmArgs>
-                            <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
-                            <sysouts>${tests.verbose}</sysouts>
-                            <seed>${tests.seed}</seed>
-                            <haltOnFailure>${tests.failfast}</haltOnFailure>
-                            <uniqueSuiteNames>false</uniqueSuiteNames>
-                            <systemProperties>
-                                <java.io.tmpdir>.</java.io.tmpdir>
-                                <!-- we use '.' since this is different per JVM-->
-                                <!-- RandomizedTesting library system properties -->
-                                <tests.bwc>${tests.bwc}</tests.bwc>
-                                <tests.bwc.path>${tests.bwc.path}</tests.bwc.path>
-                                <tests.bwc.version>${tests.bwc.version}</tests.bwc.version>
-                                <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
-                                <tests.processors>${tests.processors}</tests.processors>
-                                <tests.appendseed>${tests.appendseed}</tests.appendseed>
-                                <tests.iters>${tests.iters}</tests.iters>
-                                <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
-                                <tests.failfast>${tests.failfast}</tests.failfast>
-                                <tests.class>${tests.class}</tests.class>
-                                <tests.method>${tests.method}</tests.method>
-                                <tests.nightly>${tests.nightly}</tests.nightly>
-                                <tests.verbose>${tests.verbose}</tests.verbose>
-                                <tests.badapples>${tests.badapples}</tests.badapples>
-                                <tests.weekly>${tests.weekly}</tests.weekly>
-                                <tests.slow>${tests.slow}</tests.slow>
-                                <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
-                                <tests.slow>${tests.slow}</tests.slow>
-                                <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
-                                <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
-                                <tests.integration>${tests.integration}</tests.integration>
-                                <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
-                                <tests.enable_mock_modules>${tests.enable_mock_modules}</tests.enable_mock_modules>
-                                <tests.assertion.disabled>${tests.assertion.disabled}</tests.assertion.disabled>
-                                <tests.rest>${tests.rest}</tests.rest>
-                                <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
-                                <tests.rest.blacklist>${tests.rest.blacklist}</tests.rest.blacklist>
-                                <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
-                                <tests.network>${tests.network}</tests.network>
-                                <tests.cluster>${tests.cluster}</tests.cluster>
-                                <tests.heap.size>${tests.heap.size}</tests.heap.size>
-                                <tests.filter>${tests.filter}</tests.filter>
-                                <tests.version>${project.version}</tests.version>
-                                <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
-                                <es.node.mode>${es.node.mode}</es.node.mode>
-                                <es.logger.level>${es.logger.level}</es.logger.level>
-                                <tests.security.manager>${tests.security.manager}</tests.security.manager>
-                                <tests.compatibility>${tests.compatibility}</tests.compatibility>
-                                <java.awt.headless>true</java.awt.headless>
-                                <!-- everything below is for security manager / test.policy -->
-                                <junit4.tempDir>${project.build.directory}</junit4.tempDir>
-                                <java.security.policy>${basedir}/dev-tools/tests.policy</java.security.policy>
-                            </systemProperties>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
     </build>
-
 </project>

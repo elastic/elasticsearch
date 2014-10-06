@@ -40,7 +40,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -144,19 +143,15 @@ public class TransportRecoveryAction extends
 
         InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.shardId().getIndex());
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
-        ShardRouting shardRouting = indexShard.routingEntry();
         ShardRecoveryResponse shardRecoveryResponse = new ShardRecoveryResponse(request.shardId());
 
-        RecoveryState state;
-        RecoveryStatus recoveryStatus = indexShard.recoveryStatus();
+        RecoveryState state = indexShard.recoveryState();
 
-        if (recoveryStatus == null) {
-            recoveryStatus = recoveryTarget.recoveryStatus(indexShard);
+        if (state == null) {
+            state = recoveryTarget.recoveryState(indexShard);
         }
 
-        if (recoveryStatus != null) {
-            state = recoveryStatus.recoveryState();
-        } else {
+        if (state == null) {
             IndexShardGatewayService gatewayService =
                     indexService.shardInjector(request.shardId().id()).getInstance(IndexShardGatewayService.class);
             state = gatewayService.recoveryState();
@@ -183,7 +178,8 @@ public class TransportRecoveryAction extends
 
     static class ShardRecoveryRequest extends BroadcastShardOperationRequest {
 
-        ShardRecoveryRequest() { }
+        ShardRecoveryRequest() {
+        }
 
         ShardRecoveryRequest(ShardId shardId, RecoveryRequest request) {
             super(shardId, request);

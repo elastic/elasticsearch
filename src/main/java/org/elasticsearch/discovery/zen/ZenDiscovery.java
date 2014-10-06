@@ -1161,17 +1161,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         public void onMasterFailure(DiscoveryNode masterNode, String reason) {
             handleMasterGone(masterNode, reason);
         }
-
-        @Override
-        public void notListedOnMaster() {
-            // got disconnected from the master, send a join request
-            DiscoveryNodes nodes = nodes();
-            try {
-                membership.sendJoinRequest(nodes.masterNode(), nodes.localNode());
-            } catch (Exception e) {
-                logger.warn("failed to send join request on disconnection from master [{}]", nodes.masterNode());
-            }
-        }
     }
 
     boolean isRejoinOnMasterGone() {

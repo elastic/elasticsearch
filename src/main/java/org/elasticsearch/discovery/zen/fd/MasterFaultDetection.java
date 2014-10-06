@@ -54,8 +54,6 @@ public class MasterFaultDetection extends FaultDetection {
         /** called when pinging the master failed, like a timeout, transport disconnects etc */
         void onMasterFailure(DiscoveryNode masterNode, String reason);
 
-        /** called when the current nodes is not part of the disco nodes on the master */
-        void notListedOnMaster();
     }
 
     private final ClusterService clusterService;
@@ -189,17 +187,6 @@ public class MasterFaultDetection extends FaultDetection {
         }
     }
 
-    private void notifyNotListedOnMaster() {
-        threadPool.generic().execute(new Runnable() {
-            @Override
-            public void run() {
-                for (Listener listener : listeners) {
-                    listener.notListedOnMaster();
-                }
-            }
-        });
-    }
-
     private void notifyMasterFailure(final DiscoveryNode masterNode, final String reason) {
         if (notifiedMasterFailure.compareAndSet(false, true)) {
             threadPool.generic().execute(new Runnable() {
@@ -252,10 +239,6 @@ public class MasterFaultDetection extends FaultDetection {
                             MasterFaultDetection.this.retryCount = 0;
                             // check if the master node did not get switched on us..., if it did, we simply return with no reschedule
                             if (masterToPing.equals(MasterFaultDetection.this.masterNode())) {
-                                if (!response.listedOnMaster) {
-                                    logger.trace("[master] [{}] does not have us registered with it...", masterToPing);
-                                    notifyNotListedOnMaster();
-                                }
                                 // we don't stop on disconnection from master, we keep pinging it
                                 threadPool.schedule(pingInterval, ThreadPool.Names.SAME, MasterPinger.this);
                             }
@@ -368,7 +351,6 @@ public class MasterFaultDetection extends FaultDetection {
             // all processing is finished.
             //
 
-
             if (!nodes.localNodeMaster() || !nodes.nodeExists(request.nodeId)) {
                 logger.trace("checking ping from [{}] under a cluster state thread", request.nodeId);
                 clusterService.submitStateUpdateTask("master ping (from: [" + request.nodeId + "])", new ProcessedClusterStateNonMasterUpdateTask() {
@@ -401,7 +383,7 @@ public class MasterFaultDetection extends FaultDetection {
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                         try {
-                            channel.sendResponse(new MasterPingResponseResponse(true));
+                            channel.sendResponse(new MasterPingResponseResponse());
                         } catch (IOException e) {
                             logger.warn("error while sending ping response", e);
                         }
@@ -409,7 +391,7 @@ public class MasterFaultDetection extends FaultDetection {
                 });
             } else {
                 // send a response, and note if we are connected to the master or not
-                channel.sendResponse(new MasterPingResponseResponse(true));
+                channel.sendResponse(new MasterPingResponseResponse());
             }
         }
 
@@ -459,25 +441,25 @@ public class MasterFaultDetection extends FaultDetection {
 
     private static class MasterPingResponseResponse extends TransportResponse {
 
-        private boolean listedOnMaster;
-
         private MasterPingResponseResponse() {
-        }
-
-        private MasterPingResponseResponse(boolean listedOnMaster) {
-            this.listedOnMaster = listedOnMaster;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            listedOnMaster = in.readBoolean();
+            if (in.getVersion().onOrBefore(Version.V_1_4_0_Beta1)) {
+                // old listedOnMaster
+                in.readBoolean();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(listedOnMaster);
+            if (out.getVersion().onOrBefore(Version.V_1_4_0_Beta1)) {
+                // old listedOnMaster
+                out.writeBoolean(true);
+            }
         }
     }
 }

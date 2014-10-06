@@ -114,6 +114,10 @@ public class RestAllocationAction extends AbstractCatAction {
 
         for (NodeStats nodeStats : stats.getNodes()) {
             DiscoveryNode node = nodeStats.getNode();
+            // if node is marked as non data, don't add a row
+            if (!node.isDataNode()) {
+                continue;
+            }
 
             int shardCount = 0;
             if (allocs.containsKey(node.id())) {

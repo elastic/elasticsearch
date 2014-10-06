@@ -127,11 +127,12 @@ public class ESUsersTool extends CliTool {
             users.put(username, hasher.hash(passwd));
             FileUserPasswdStore.writeFile(users, file);
 
-
-            file = FileUserRolesStore.resolveFile(settings, env);
-            Map<String, String[]> userRoles = new HashMap<>(FileUserRolesStore.parseFile(file, null));
-            userRoles.put(username, roles);
-            FileUserRolesStore.writeFile(userRoles, file);
+            if (roles != null && roles.length > 0) {
+                file = FileUserRolesStore.resolveFile(settings, env);
+                Map<String, String[]> userRoles = new HashMap<>(FileUserRolesStore.parseFile(file, null));
+                userRoles.put(username, roles);
+                FileUserRolesStore.writeFile(userRoles, file);
+            }
             return ExitStatus.OK;
         }
     }

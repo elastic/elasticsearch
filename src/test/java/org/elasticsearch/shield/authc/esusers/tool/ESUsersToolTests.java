@@ -143,6 +143,26 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     @Test
+    public void testUseradd_Cmd_AddingUserWithoutRolesDoesNotAddEmptyRole() throws Exception {
+        File userFile = writeFile("user2:hash2");
+        File userRolesFile = writeFile("user2:r3,r4");
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.authc.esusers.files.users", userFile)
+                .put("shield.authc.esusers.files.users_roles", userRolesFile)
+                .build();
+
+        ESUsersTool.Useradd cmd = new ESUsersTool.Useradd(new MockTerminal(), "user1", SecuredStringTests.build("changeme"));
+
+        CliTool.ExitStatus status = execute(cmd, settings);
+        assertThat(status, is(CliTool.ExitStatus.OK));
+
+        assertFileExists(userRolesFile);
+        List<String> lines = Files.readLines(userRolesFile, Charsets.UTF_8);
+        assertThat(lines, hasSize(1));
+        assertThat(lines, not(hasItem(startsWith("user1"))));
+    }
+
+    @Test
     public void testUseradd_Cmd_Append_UserAlreadyExists() throws Exception {
         File userFile = writeFile("user1:hash1");
         File userRolesFile = temporaryFolder.newFile();

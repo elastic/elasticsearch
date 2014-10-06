@@ -180,13 +180,13 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
         if (request.recovery) {
             // check on going recovery (from peer or gateway)
-            RecoveryStatus peerRecoveryStatus = indexShard.recoveryStatus();
-            if (peerRecoveryStatus == null) {
-                peerRecoveryStatus = peerRecoveryTarget.recoveryStatus(indexShard);
+            RecoveryState peerRecoveryState = indexShard.recoveryState();
+            if (peerRecoveryState == null) {
+                peerRecoveryState = peerRecoveryTarget.recoveryState(indexShard);
             }
-            if (peerRecoveryStatus != null) {
+            if (peerRecoveryState != null) {
                 PeerRecoveryStatus.Stage stage;
-                switch (peerRecoveryStatus.stage()) {
+                switch (peerRecoveryState.getStage()) {
                     case INIT:
                         stage = PeerRecoveryStatus.Stage.INIT;
                         break;
@@ -205,11 +205,11 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                     default:
                         stage = PeerRecoveryStatus.Stage.INIT;
                 }
-                shardStatus.peerRecoveryStatus = new PeerRecoveryStatus(stage, peerRecoveryStatus.recoveryState().getTimer().startTime(),
-                        peerRecoveryStatus.recoveryState().getTimer().time(),
-                        peerRecoveryStatus.recoveryState().getIndex().totalByteCount(),
-                        peerRecoveryStatus.recoveryState().getIndex().reusedByteCount(),
-                        peerRecoveryStatus.recoveryState().getIndex().recoveredByteCount(), peerRecoveryStatus.recoveryState().getTranslog().currentTranslogOperations());
+                shardStatus.peerRecoveryStatus = new PeerRecoveryStatus(stage, peerRecoveryState.getTimer().startTime(),
+                        peerRecoveryState.getTimer().time(),
+                        peerRecoveryState.getIndex().totalByteCount(),
+                        peerRecoveryState.getIndex().reusedByteCount(),
+                        peerRecoveryState.getIndex().recoveredByteCount(), peerRecoveryState.getTranslog().currentTranslogOperations());
             }
 
             IndexShardGatewayService gatewayService = indexService.shardInjector(request.shardId().id()).getInstance(IndexShardGatewayService.class);

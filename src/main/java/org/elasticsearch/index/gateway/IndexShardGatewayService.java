@@ -62,6 +62,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         this.shardGateway = shardGateway;
         this.snapshotService = snapshotService;
         this.recoveryState = new RecoveryState(shardId);
+        this.recoveryState.setType(RecoveryState.Type.GATEWAY);
         this.clusterService = clusterService;
     }
 

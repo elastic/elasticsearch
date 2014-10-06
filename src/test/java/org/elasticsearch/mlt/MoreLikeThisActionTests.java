@@ -525,7 +525,7 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
                     .maxQueryTerms(max_query_terms).percentTermsToMatch(0))
                     .actionGet();
             assertSearchResponse(response);
-            assertHitCount(response, values.length);
+            assertHitCount(response, max_query_terms);
         }
     }
 

@@ -19,20 +19,16 @@
 
 package org.elasticsearch.action.mlt;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.termvector.TermVectorRequest;
+import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.termvector.TransportSingleShardTermVectorAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -42,10 +38,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.index.get.GetField;
-import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -54,12 +46,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.Set;
-
-import static com.google.common.collect.Sets.newHashSet;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 
 /**
@@ -69,7 +56,7 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
 
     private final TransportSearchAction searchAction;
 
-    private final TransportGetAction getAction;
+    private final TransportSingleShardTermVectorAction termVectorAction;
 
     private final IndicesService indicesService;
 
@@ -78,11 +65,11 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
     private final TransportService transportService;
 
     @Inject
-    public TransportMoreLikeThisAction(Settings settings, ThreadPool threadPool, TransportSearchAction searchAction, TransportGetAction getAction,
+    public TransportMoreLikeThisAction(Settings settings, ThreadPool threadPool, TransportSearchAction searchAction, TransportSingleShardTermVectorAction getAction,
                                        ClusterService clusterService, IndicesService indicesService, TransportService transportService, ActionFilters actionFilters) {
         super(settings, MoreLikeThisAction.NAME, threadPool, transportService, actionFilters);
         this.searchAction = searchAction;
-        this.getAction = getAction;
+        this.termVectorAction = getAction;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -116,80 +103,28 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
             redirect(request, concreteIndex, listener, clusterState);
             return;
         }
-        Set<String> getFields = newHashSet();
-        if (request.fields() != null) {
-            Collections.addAll(getFields, request.fields());
-        }
-        // add the source, in case we need to parse it to get fields
-        getFields.add(SourceFieldMapper.NAME);
 
-        GetRequest getRequest = new GetRequest(request, request.index())
-                .fields(getFields.toArray(new String[getFields.size()]))
+        String[] selectedFields = (request.fields() == null || request.fields().length == 0) ? new String[]{"*"} : request.fields();
+        TermVectorRequest termVectorRequest = new TermVectorRequest()
+                .index(request.index())
                 .type(request.type())
                 .id(request.id())
+                .selectedFields(selectedFields)
                 .routing(request.routing())
                 .listenerThreaded(true)
                 .operationThreaded(true);
 
         request.beforeLocalFork();
-        getAction.execute(getRequest, new ActionListener<GetResponse>() {
+        termVectorAction.execute(termVectorRequest, new ActionListener<TermVectorResponse>() {
             @Override
-            public void onResponse(GetResponse getResponse) {
-                if (!getResponse.isExists()) {
+            public void onResponse(TermVectorResponse termVectorResponse) {
+                if (!termVectorResponse.isExists()) {
                     listener.onFailure(new DocumentMissingException(null, request.type(), request.id()));
                     return;
                 }
-                final BoolQueryBuilder boolBuilder = boolQuery();
+                final MoreLikeThisQueryBuilder mltQuery = getMoreLikeThis(request, true);
                 try {
-                    final DocumentMapper docMapper = indicesService.indexServiceSafe(concreteIndex).mapperService().documentMapper(request.type());
-                    if (docMapper == null) {
-                        throw new ElasticsearchException("No DocumentMapper found for type [" + request.type() + "]");
-                    }
-                    final Set<String> fields = newHashSet();
-                    if (request.fields() != null) {
-                        for (String field : request.fields()) {
-                            FieldMappers fieldMappers = docMapper.mappers().smartName(field);
-                            if (fieldMappers != null) {
-                                fields.add(fieldMappers.mapper().names().indexName());
-                            } else {
-                                fields.add(field);
-                            }
-                        }
-                    }
-
-                    if (!fields.isEmpty()) {
-                        // if fields are not empty, see if we got them in the response
-                        for (Iterator<String> it = fields.iterator(); it.hasNext(); ) {
-                            String field = it.next();
-                            GetField getField = getResponse.getField(field);
-                            if (getField != null) {
-                                for (Object value : getField.getValues()) {
-                                    addMoreLikeThis(request, boolBuilder, getField.getName(), value.toString(), true);
-                                }
-                                it.remove();
-                            }
-                        }
-                        if (!fields.isEmpty()) {
-                            // if we don't get all the fields in the get response, see if we can parse the source
-                            parseSource(getResponse, boolBuilder, docMapper, fields, request);
-                        }
-                    } else {
-                        // we did not ask for any fields, try and get it from the source
-                        parseSource(getResponse, boolBuilder, docMapper, fields, request);
-                    }
-
-                    if (!boolBuilder.hasClauses()) {
-                        // no field added, fail
-                        listener.onFailure(new ElasticsearchException("No fields found to fetch the 'likeText' from"));
-                        return;
-                    }
-
-                    // exclude myself
-                    if (!request.include()) {
-                        Term uidTerm = docMapper.uidMapper().term(request.type(), request.id());
-                        boolBuilder.mustNot(termQuery(uidTerm.field(), uidTerm.text()));
-                        boolBuilder.adjustPureNegative(false);
-                    }
+                    mltQuery.setTermVectorResponse(termVectorResponse);
                 } catch (Throwable e) {
                     listener.onFailure(e);
                     return;
@@ -210,7 +145,7 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
                         .scroll(request.searchScroll())
                         .listenerThreaded(request.listenerThreaded());
 
-                SearchSourceBuilder extraSource = searchSource().query(boolBuilder);
+                SearchSourceBuilder extraSource = searchSource().query(mltQuery);
                 if (request.searchFrom() != 0) {
                     extraSource.from(request.searchFrom());
                 }
@@ -277,52 +212,8 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
         });
     }
 
-    private void parseSource(GetResponse getResponse, final BoolQueryBuilder boolBuilder, DocumentMapper docMapper, final Set<String> fields, final MoreLikeThisRequest request) {
-        if (getResponse.isSourceEmpty()) {
-            return;
-        }
-        docMapper.parse(SourceToParse.source(getResponse.getSourceAsBytesRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
-            @Override
-            public boolean beforeFieldAdded(FieldMapper fieldMapper, Field field, Object parseContext) {
-                if (!field.fieldType().indexed()) {
-                    return false;
-                }
-                if (fieldMapper instanceof InternalMapper) {
-                    return true;
-                }
-                String value = fieldMapper.value(convertField(field)).toString();
-                if (value == null) {
-                    return false;
-                }
-
-                if (fields.isEmpty() || fields.contains(field.name())) {
-                    addMoreLikeThis(request, boolBuilder, fieldMapper, field, !fields.isEmpty());
-                }
-
-                return false;
-            }
-        });
-    }
-
-    private Object convertField(Field field) {
-        if (field.stringValue() != null) {
-            return field.stringValue();
-        } else if (field.binaryValue() != null) {
-            return BytesRef.deepCopyOf(field.binaryValue()).bytes;
-        } else if (field.numericValue() != null) {
-            return field.numericValue();
-        } else {
-            throw new ElasticsearchIllegalStateException("Field should have either a string, numeric or binary value");
-        }
-    }
-
-    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, FieldMapper fieldMapper, Field field, boolean failOnUnsupportedField) {
-        addMoreLikeThis(request, boolBuilder, field.name(), fieldMapper.value(convertField(field)).toString(), failOnUnsupportedField);
-    }
-
-    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, String fieldName, String likeText, boolean failOnUnsupportedField) {
-        MoreLikeThisQueryBuilder mlt = moreLikeThisQuery(fieldName)
-                .likeText(likeText)
+    private MoreLikeThisQueryBuilder getMoreLikeThis(MoreLikeThisRequest request, boolean failOnUnsupportedField) {
+        return moreLikeThisQuery(request.fields())
                 .minimumShouldMatch(request.minimumShouldMatch())
                 .boostTerms(request.boostTerms())
                 .minDocFreq(request.minDocFreq())
@@ -332,7 +223,7 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
                 .minTermFreq(request.minTermFreq())
                 .maxQueryTerms(request.maxQueryTerms())
                 .stopWords(request.stopWords())
+                .include(request.include())
                 .failOnUnsupportedField(failOnUnsupportedField);
-        boolBuilder.should(mlt);
     }
 }

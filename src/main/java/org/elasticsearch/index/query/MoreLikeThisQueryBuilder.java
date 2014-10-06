@@ -19,11 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -132,6 +130,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
 
     private final String[] fields;
     private List<Item> docs = new ArrayList<>();
+    private TermVectorResponse termVectorResponse = null;
     private Boolean include = null;
     private String minimumShouldMatch = null;
     private int minTermFreq = -1;
@@ -206,6 +205,15 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     @Deprecated
     public MoreLikeThisQueryBuilder docs(Item... docs) {
         return like(docs);
+    }
+
+     /* Allow to directly pass the terms as is. Only used internally by MLT API.
+     *
+     * @param termVectorResponse
+     */
+    public MoreLikeThisQueryBuilder setTermVectorResponse(TermVectorResponse termVectorResponse) {
+        this.termVectorResponse = termVectorResponse;
+        return this;
     }
 
     public MoreLikeThisQueryBuilder include(boolean include) {
@@ -346,14 +354,21 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             }
             builder.endArray();
         }
-        if (this.docs.isEmpty()) {
+        // at least like_text or one item is required
+        if (docs.isEmpty() && termVectorResponse == null) {
             throw new ElasticsearchIllegalArgumentException("more_like_this requires '" + likeFieldName + "' to be provided");
-        } else {
+        }
+        if (!docs.isEmpty()) {
             if (docs.size() == 1) {
                 builder.field(likeFieldName, docs);
             } else {
                 builder.array(likeFieldName, docs);
             }
+        }
+        if (termVectorResponse != null) {
+            builder.startObject("term_vector_response");
+            builder.value(termVectorResponse);
+            builder.endObject();
         }
         if (minimumShouldMatch != null) {
             builder.field(MoreLikeThisQueryParser.Fields.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);

@@ -19,35 +19,42 @@ import java.util.Set;
 public class LicenseVerificationTool {
 
     static class Options {
-        private final Set<File> licensesFiles;
+        private final Set<ESLicenses> licenses;
         private final String publicKeyFilePath;
-        private final String keyPass;
 
-        Options(Set<File> licensesFiles, String publicKeyFilePath, String keyPass) {
-            this.licensesFiles = licensesFiles;
+        Options(Set<ESLicenses> licenses, String publicKeyFilePath) {
+            this.licenses = licenses;
             this.publicKeyFilePath = publicKeyFilePath;
-            this.keyPass = keyPass;
         }
 
-        static Set<File> asFiles(Set<String> filePaths) {
-            Set<File> files = new HashSet<>(filePaths.size());
-            for (String filePath : filePaths) {
-                final File file = new File(filePath);
-                if (file.exists()) {
-                    files.add(file);
-                } else {
-                    throw new IllegalArgumentException(file.getAbsolutePath() + " does not exist!");
-                }
-            }
-            return files;
-        }
     }
 
-    private static Options parse(String[] args) {
+    static Set<ESLicenses> asLicensesFromFiles(Set<String> filePaths) throws IOException {
+        Set<ESLicenses> licenses = new HashSet<>(filePaths.size());
+        for (String filePath : filePaths) {
+            final File file = new File(filePath);
+            if (file.exists()) {
+                licenses.add(LicenseUtils.readLicenseFile(file));
+            } else {
+                throw new IllegalArgumentException(file.getAbsolutePath() + " does not exist!");
+            }
+        }
+        return licenses;
+    }
+
+    static Set<ESLicenses> asLicensesFromStrings(Set<String> fileContents) throws IOException {
+        Set<ESLicenses> licenses = new HashSet<>(fileContents.size());
+        for (String fileContent : fileContents) {
+            licenses.add(LicenseUtils.readLicensesFromString(fileContent));
+        }
+        return licenses;
+    }
+
+    private static Options parse(String[] args) throws IOException {
         Set<String> licenseFilePaths = null;
-        Set<File> licenseFiles = null;
+        Set<String> licensesContents = new HashSet<>();
+        Set<ESLicenses> licenses = null;
         String publicKeyPath = null;
-        String keyPass = null;
 
         for (int i = 0; i < args.length; i++) {
             String command = args[i];
@@ -56,29 +63,28 @@ public class LicenseVerificationTool {
                     licenseFilePaths = new HashSet<>();
                     licenseFilePaths.addAll(Arrays.asList(args[++i].split(":")));
                     break;
+                case "--licenses":
+                    licensesContents.add(args[++i]);
+                    break;
                 case "--publicKeyPath":
                     publicKeyPath = args[++i];
                     break;
-                case "--keyPass":
-                    keyPass = args[++i];
-                    break;
             }
         }
-        if (licenseFilePaths == null) {
-            throw new IllegalArgumentException("mandatory option '--licensesFiles' is missing");
+        if (licenseFilePaths == null && licensesContents.size() == 0) {
+            throw new IllegalArgumentException("mandatory option '--licensesFiles' or '--licenses' is missing");
+        } else if (licenseFilePaths != null) {
+            licenses = asLicensesFromFiles(licenseFilePaths);
+        } else if (licensesContents.size() > 0) {
+            licenses = asLicensesFromStrings(licensesContents);
         } else {
-            licenseFiles = Options.asFiles(licenseFilePaths);
-            if (licenseFiles.size() == 0) {
-                throw new IllegalArgumentException("no license file found for provided license files");
-            }
+            throw new IllegalArgumentException("no licenses could be extracted");
         }
         if (publicKeyPath == null) {
             throw new IllegalArgumentException("mandatory option '--publicKeyPath' is missing");
         }
-        if (keyPass == null) {
-            throw new IllegalArgumentException("mandatory option '--keyPass' is missing");
-        }
-        return new Options(licenseFiles, publicKeyPath, keyPass);
+        assert licenses != null;
+        return new Options(licenses, publicKeyPath);
     }
 
     public static void main(String[] args) throws IOException {
@@ -88,11 +94,8 @@ public class LicenseVerificationTool {
     public static void run(String[] args, OutputStream out) throws IOException {
         Options options = parse(args);
 
-        // read licenses
-        Set<ESLicenses> esLicensesSet = LicenseUtils.readLicensesFromFiles(options.licensesFiles);
-
         // verify licenses
-        ESLicenseManager licenseManager = new ESLicenseManager(esLicensesSet, options.publicKeyFilePath, options.keyPass);
+        ESLicenseManager licenseManager = new ESLicenseManager(options.licenses, options.publicKeyFilePath);
         licenseManager.verifyLicenses();
 
         // dump effective licences

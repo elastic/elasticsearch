@@ -25,7 +25,6 @@ public class LicenseVerificationToolTests {
 
     private static String pubKeyPath = null;
     private static String priKeyPath = null;
-    private static String keyPass = null;
 
     @BeforeClass
     public static void setup() throws IOException {
@@ -37,16 +36,13 @@ public class LicenseVerificationToolTests {
         LicenseVerificationToolTests.priKeyPath = privateKeyFile.getAbsolutePath();
         assert privateKeyFile.delete();
         assert publicKeyFile.delete();
-        LicenseVerificationToolTests.keyPass = "password";
 
         // Generate keyPair
-        String[] args = new String[6];
+        String[] args = new String[4];
         args[0] = "--publicKeyPath";
         args[1] = LicenseVerificationToolTests.pubKeyPath;
         args[2] = "--privateKeyPath";
         args[3] = LicenseVerificationToolTests.priKeyPath;
-        args[4] = "--keyPass";
-        args[5] = LicenseVerificationToolTests.keyPass;
         KeyPairGeneratorTool.main(args);
     }
 
@@ -67,13 +63,11 @@ public class LicenseVerificationToolTests {
         signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
         String secondLicenseFile = getAsFilePath(signedLicense);
 
-        String[] args = new String[6];
+        String[] args = new String[4];
         args[0] = "--licensesFiles";
         args[1] = firstLicenseFile + ":" + secondLicenseFile;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
-        args[4] = "--keyPass";
-        args[5] = keyPass;
 
         String effectiveLicenseStr = runLicenseVerificationTool(args);
         ESLicenses effectiveLicense = LicenseUtils.readLicensesFromString(effectiveLicenseStr);
@@ -101,13 +95,11 @@ public class LicenseVerificationToolTests {
         signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
         String secondLicenseFile = getAsFilePath(signedLicense);
 
-        String[] args = new String[6];
+        String[] args = new String[4];
         args[0] = "--licensesFiles";
         args[1] = firstLicenseFile + ":" + secondLicenseFile;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
-        args[4] = "--keyPass";
-        args[5] = keyPass;
 
         String effectiveLicenseStr = runLicenseVerificationTool(args);
         ESLicenses effectiveLicense = LicenseUtils.readLicensesFromString(effectiveLicenseStr);
@@ -142,13 +134,11 @@ public class LicenseVerificationToolTests {
         signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
         String secondLicenseFile = getAsFilePath(signedLicense);
 
-        String[] args = new String[6];
+        String[] args = new String[4];
         args[0] = "--licensesFiles";
         args[1] = firstLicenseFile + ":" + secondLicenseFile;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
-        args[4] = "--keyPass";
-        args[5] = keyPass;
 
         String effectiveLicenseStr = runLicenseVerificationTool(args);
         ESLicenses effectiveLicense = LicenseUtils.readLicensesFromString(effectiveLicenseStr);
@@ -170,16 +160,13 @@ public class LicenseVerificationToolTests {
     }
 
     public static String runLicenseGenerationTool(String licenseInput) throws IOException {
-        String args[] = new String[8];
-
+        String args[] = new String[6];
         args[0] = "--license";
         args[1] = licenseInput;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
         args[4] = "--privateKeyPath";
         args[5] = priKeyPath;
-        args[6] = "--keyPass";
-        args[7] = keyPass;
 
         return TestUtils.runLicenseGenerationTool(args);
     }

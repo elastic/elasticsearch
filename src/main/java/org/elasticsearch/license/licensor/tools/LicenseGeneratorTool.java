@@ -21,13 +21,11 @@ public class LicenseGeneratorTool {
         private final String licensesInput;
         private final String publicKeyFilePath;
         private final String privateKeyFilePath;
-        private final String keyPass;
 
-        Options(String licensesInput, String publicKeyFilePath, String privateKeyFilePath, String keyPass) {
+        Options(String licensesInput, String publicKeyFilePath, String privateKeyFilePath) {
             this.licensesInput = licensesInput;
             this.publicKeyFilePath = publicKeyFilePath;
             this.privateKeyFilePath = privateKeyFilePath;
-            this.keyPass = keyPass;
         }
     }
 
@@ -36,7 +34,6 @@ public class LicenseGeneratorTool {
         String licenseFilePath = null;
         String privateKeyPath = null;
         String publicKeyPath = null;
-        String keyPass = null;
 
         for (int i = 0; i < args.length; i++) {
             String command = args[i].trim();
@@ -52,9 +49,6 @@ public class LicenseGeneratorTool {
                     break;
                 case "--privateKeyPath":
                     privateKeyPath = args[++i];
-                    break;
-                case "--keyPass":
-                    keyPass = args[++i];
                     break;
             }
         }
@@ -75,11 +69,8 @@ public class LicenseGeneratorTool {
         if (privateKeyPath == null) {
             throw new IllegalArgumentException("mandatory option '--privateKeyPath' is missing");
         }
-        if (keyPass == null) {
-            throw new IllegalArgumentException("mandatory option '--keyPass' is missing");
-        }
 
-        return new Options(licenseInput, publicKeyPath, privateKeyPath, keyPass);
+        return new Options(licenseInput, publicKeyPath, privateKeyPath);
     }
 
     public static void main(String[] args) throws IOException {
@@ -91,7 +82,7 @@ public class LicenseGeneratorTool {
 
         ESLicenses esLicenses = LicenseUtils.readLicensesFromString(options.licensesInput);
 
-        ESLicenseSigner signer = new ESLicenseSigner(new ESLicenseSigner.SignerOptions(options.privateKeyFilePath, options.publicKeyFilePath, options.keyPass));
+        ESLicenseSigner signer = new ESLicenseSigner(options.privateKeyFilePath, options.publicKeyFilePath);
         ESLicenses signedLicences = signer.sign(esLicenses);
 
         LicenseUtils.dumpLicenseAsJson(signedLicences, out);

@@ -26,7 +26,6 @@ public class LicenseGenerationTests {
 
     private static String pubKeyPath = null;
     private static String priKeyPath = null;
-    private static String keyPass = null;
 
     @BeforeClass
     public static void setup() throws IOException {
@@ -38,17 +37,13 @@ public class LicenseGenerationTests {
         LicenseGenerationTests.priKeyPath = privateKeyFile.getAbsolutePath();
         assert privateKeyFile.delete();
         assert publicKeyFile.delete();
-        String keyPass = "password";
-        LicenseGenerationTests.keyPass = keyPass;
 
         // Generate keyPair
-        String[] args = new String[6];
+        String[] args = new String[4];
         args[0] = "--publicKeyPath";
         args[1] = LicenseGenerationTests.pubKeyPath;
         args[2] = "--privateKeyPath";
         args[3] = LicenseGenerationTests.priKeyPath;
-        args[4] = "--keyPass";
-        args[5] = LicenseGenerationTests.keyPass;
         KeyPairGeneratorTool.main(args);
     }
 
@@ -61,15 +56,13 @@ public class LicenseGenerationTests {
 
         String licenseString = TestUtils.generateESLicenses(map);
 
-        String[] args = new String[8];
+        String[] args = new String[6];
         args[0] = "--license";
         args[1] = licenseString;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
         args[4] = "--privateKeyPath";
         args[5] = priKeyPath;
-        args[6] = "--keyPass";
-        args[7] = keyPass;
 
         String licenseOutput = TestUtils.runLicenseGenerationTool(args);
 
@@ -90,15 +83,13 @@ public class LicenseGenerationTests {
         map.put(FeatureType.MARVEL, marvelFeatureAttributes);
 
         String licenseString = TestUtils.generateESLicenses(map);
-        String[] args = new String[8];
+        String[] args = new String[6];
         args[0] = "--license";
         args[1] = licenseString;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
         args[4] = "--privateKeyPath";
         args[5] = priKeyPath;
-        args[6] = "--keyPass";
-        args[7] = keyPass;
 
         String licenseOutput = TestUtils.runLicenseGenerationTool(args);
 
@@ -117,15 +108,13 @@ public class LicenseGenerationTests {
 
         String licenseString = TestUtils.generateESLicenses(map);
 
-        String[] args = new String[8];
+        String[] args = new String[6];
         args[0] = "--linse";
         args[1] = licenseString;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
         args[4] = "--privateKeyPath";
         args[5] = priKeyPath;
-        args[6] = "--keyPass";
-        args[7] = keyPass;
 
         try {
             String licenseOutput = TestUtils.runLicenseGenerationTool(args);
@@ -145,15 +134,13 @@ public class LicenseGenerationTests {
 
         String licenseString = TestUtils.generateESLicenses(map);
 
-        String[] args = new String[8];
+        String[] args = new String[6];
         args[0] = "--license";
         args[1] = licenseString;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
         args[4] = "--privateKeyPath";
         args[5] = priKeyPath;
-        args[6] = "--keyPass";
-        args[7] = keyPass;
 
         try {
             String licenseOutput = TestUtils.runLicenseGenerationTool(args);
@@ -172,15 +159,13 @@ public class LicenseGenerationTests {
 
         String licenseString = TestUtils.generateESLicenses(map);
 
-        String[] args = new String[8];
+        String[] args = new String[6];
         args[0] = "--license";
         args[1] = licenseString;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
         args[4] = "--privateKeyPath";
         args[5] = priKeyPath;
-        args[6] = "--keyPass";
-        args[7] = keyPass;
 
         try {
             String licenseOutput = TestUtils.runLicenseGenerationTool(args);
@@ -200,15 +185,13 @@ public class LicenseGenerationTests {
 
         String licenseString = TestUtils.generateESLicenses(map);
 
-        String[] args = new String[8];
+        String[] args = new String[6];
         args[0] = "--license";
         args[1] = licenseString;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
         args[4] = "--privateKeyPath";
         args[5] = priKeyPath;
-        args[6] = "--keyPass";
-        args[7] = keyPass;
 
         try {
             String licenseOutput = TestUtils.runLicenseGenerationTool(args);

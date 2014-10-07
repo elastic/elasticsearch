@@ -41,19 +41,19 @@ public class ESLicenseManager {
     private final ESLicenses esLicenses;
     private final FilePublicKeyDataProvider publicKeyDataProvider;
 
-    public ESLicenseManager(Set<ESLicenses> esLicensesSet, String publicKeyFile, String password) throws IOException {
+    public ESLicenseManager(Set<ESLicenses> esLicensesSet, String publicKeyFile) throws IOException {
         this.publicKeyDataProvider = new FilePublicKeyDataProvider(publicKeyFile);
         this.esLicenses = merge(esLicensesSet);
         LicenseManagerProperties.setLicenseProvider(new ESLicenseProvider());
         LicenseManagerProperties.setPublicKeyDataProvider(publicKeyDataProvider);
         LicenseManagerProperties.setLicenseValidator(new DefaultLicenseValidator());
-        LicenseManagerProperties.setPublicKeyPasswordProvider(new ESPublicKeyPasswordProvider(password));
+        LicenseManagerProperties.setPublicKeyPasswordProvider(new ESPublicKeyPasswordProvider());
         this.licenseManager = LicenseManager.getInstance();
     }
 
 
-    public ESLicenseManager(ESLicenses esLicenses, String publicKeyFile, String password) throws IOException {
-        this(Collections.singleton(esLicenses), publicKeyFile, password);
+    public ESLicenseManager(ESLicenses esLicenses, String publicKeyFile) throws IOException {
+        this(Collections.singleton(esLicenses), publicKeyFile);
     }
 
     private static ESLicenses merge(Set<ESLicenses> esLicensesSet) {
@@ -129,7 +129,7 @@ public class ESLicenseManager {
                 && license.getHolder().equals(eslicense.issuedTo())
                 && license.getIssueDate() == eslicense.issueDate()
                 && license.getGoodBeforeDate() == eslicense.expiryDate();
-        assert license.getFeatures().size() == 4 : "one license should have only four feature";
+        assert license.getFeatures().size() == 4 : "one license should have only four features";
         String maxNodesPrefix = "maxNodes:";
         String typePrefix = "type:";
         String subscriptionTypePrefix = "subscription_type:";
@@ -137,6 +137,7 @@ public class ESLicenseManager {
         boolean featureValid = false;
         boolean typeValid = false;
         boolean subscriptionTypeValid = false;
+
         for (License.Feature feature : license.getFeatures()) {
             String featureName = feature.getName();
             if (featureName.startsWith(maxNodesPrefix)) {
@@ -151,6 +152,7 @@ public class ESLicenseManager {
             }
         }
         if (!licenseValid || !featureValid || !maxNodesValid || !typeValid || !subscriptionTypeValid) {
+            //only for debugging
             String msg = "licenseValid: " + licenseValid + "\n" +
                     "featureValid: " + featureValid + "\n" +
                     "maxNodeValide: " + maxNodesValid + "\n" +
@@ -255,16 +257,11 @@ public class ESLicenseManager {
     }
 
     private class ESPublicKeyPasswordProvider implements PasswordProvider {
-
-        private final String pass;
-
-        private ESPublicKeyPasswordProvider(String pass) {
-            this.pass = pass;
-        }
+        private final String DEFAULT_PASS_PHRASE = "elasticsearch-license";
 
         @Override
         public char[] getPassword() {
-            return pass.toCharArray();
+            return Hasher.hash(DEFAULT_PASS_PHRASE).toCharArray();
         }
     }
 }

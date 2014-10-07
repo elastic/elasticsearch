@@ -70,14 +70,17 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Predicates.isNull;
 import static org.elasticsearch.test.ElasticsearchTestCase.*;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -771,4 +774,32 @@ public class ElasticsearchAssertions {
             return pluginInfo.getVersion();
         }
     };
+
+    /**
+     * Check if a file exists
+     */
+    public static void assertFileExists(File file) {
+        assertThat("file/dir [" + file + "] should exist.", file.exists(), is(true));
+    }
+
+    /**
+     * Check if a file exists
+     */
+    public static void assertFileExists(Path file) {
+        assertFileExists(file.toFile());
+    }
+
+    /**
+     * Check if a directory exists
+     */
+    public static void assertDirectoryExists(File dir) {
+        assertFileExists(dir);
+    }
+
+    /**
+     * Check if a directory exists
+     */
+    public static void assertDirectoryExists(Path dir) {
+        assertFileExists(dir);
+    }
 }

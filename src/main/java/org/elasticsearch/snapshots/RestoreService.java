@@ -46,14 +46,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
+import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
 
 /**
@@ -146,6 +144,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
                     final ImmutableMap<ShardId, RestoreMetaData.ShardRestoreStatus> shards;
+                    Set<String> aliases = newHashSet();
                     if (!renamedIndices.isEmpty()) {
                         // We have some indices to restore
                         ImmutableMap.Builder<ShardId, RestoreMetaData.ShardRestoreStatus> shardsBuilder = ImmutableMap.builder();
@@ -166,6 +165,10 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 if (!request.includeAliases() && !snapshotIndexMetaData.aliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
                                     indexMdBuilder.removeAllAliases();
+                                } else {
+                                    for (ObjectCursor<String> alias : snapshotIndexMetaData.aliases().keys()) {
+                                        aliases.add(alias.value);
+                                    }
                                 }
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.build();
                                 if (partial) {
@@ -186,6 +189,10 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                     /// Add existing aliases
                                     for (ObjectCursor<AliasMetaData> alias : currentIndexMetaData.aliases().values()) {
                                         indexMdBuilder.putAlias(alias.value);
+                                    }
+                                } else {
+                                    for (ObjectCursor<String> alias : snapshotIndexMetaData.aliases().keys()) {
+                                        aliases.add(alias.value);
                                     }
                                 }
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndex).build();
@@ -209,18 +216,28 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         shards = ImmutableMap.of();
                     }
 
+                    checkAliasNameConflicts(renamedIndices, aliases);
+
                     // Restore global state if needed
                     restoreGlobalStateIfRequested(mdBuilder);
 
                     if (completed(shards)) {
                         // We don't have any indices to restore - we are done
-                        restoreInfo = new RestoreInfo(request.name(), ImmutableList.<String>copyOf(renamedIndices.keySet()),
+                        restoreInfo = new RestoreInfo(request.name(), ImmutableList.copyOf(renamedIndices.keySet()),
                                 shards.size(), shards.size() - failedShards(shards));
                     }
 
                     ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocks).routingTable(rtBuilder).build();
                     RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
                     return ClusterState.builder(updatedState).routingResult(routingResult).build();
+                }
+
+                private void checkAliasNameConflicts(Map<String, String> renamedIndices, Set<String> aliases) {
+                    for(Map.Entry<String, String> renamedIndex: renamedIndices.entrySet()) {
+                        if (aliases.contains(renamedIndex.getKey())) {
+                            throw new SnapshotRestoreException(snapshotId, "cannot rename index [" + renamedIndex.getValue() + "] into [" + renamedIndex.getKey() + "] because of conflict with an alias with the same name");
+                        }
+                    }
                 }
 
                 private void populateIgnoredShards(String index, IntSet ignoreShards) {

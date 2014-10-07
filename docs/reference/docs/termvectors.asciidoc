@@ -249,7 +249,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true' -d '{
 [float]
 === Example 3
 
-Additionally, term vectors can also be generated for artificial documents,
+Term vectors can also be generated for artificial documents,
 that is for documents not present in the index. The syntax is similar to the
 <<search-percolate,percolator>> API. For example, the following request would
 return the same results as in example 1. The mapping used is determined by the
@@ -271,3 +271,59 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_termvector' -d '{
 }'
 --------------------------------------------------
 
+[float]
+[[docs-termvectors-per-field-analyzer]]
+=== Example 4 coming[1.5.0]
+
+Additionally, a different analyzer than the one at the field may be provided
+by using the `per_field_analyzer` parameter. This is useful in order to
+generate term vectors in any fashion, especially when using artificial
+documents. When providing an analyzer for a field that already stores term
+vectors, the term vectors will be re-generated.
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/twitter/tweet/_termvector' -d '{
+  "doc" : {
+    "fullname" : "John Doe",
+    "text" : "twitter test test test"
+  },
+  "fields": ["fullname"],
+  "per_field_analyzer" : {
+    "fullname": "keyword"
+  }
+}'
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "_index": "twitter",
+  "_type": "tweet",
+  "_version": 0,
+  "found": true,
+  "term_vectors": {
+    "fullname": {
+       "field_statistics": {
+          "sum_doc_freq": 1,
+          "doc_count": 1,
+          "sum_ttf": 1
+       },
+       "terms": {
+          "John Doe": {
+             "term_freq": 1,
+             "tokens": [
+                {
+                   "position": 0,
+                   "start_offset": 0,
+                   "end_offset": 8
+                }
+             ]
+          }
+       }
+    }
+  }
+}
+--------------------------------------------------

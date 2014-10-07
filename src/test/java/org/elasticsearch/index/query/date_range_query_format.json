@@ -1,0 +1,9 @@
+{
+    "range" : {
+        "born" : {
+            "gte": "01/01/2012",
+            "lt": "2030",
+            "format": "dd/MM/yyyy||yyyy"
+        }
+    }
+}

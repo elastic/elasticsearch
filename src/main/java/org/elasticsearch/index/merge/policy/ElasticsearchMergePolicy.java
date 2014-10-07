@@ -55,7 +55,7 @@ import java.util.Map;
 public final class ElasticsearchMergePolicy extends MergePolicy {
 
     private final MergePolicy delegate;
-    private volatile boolean nextForceIsUpgrade;
+    private volatile boolean upgradeInProgress;
     private static final int MAX_CONCURRENT_UPGRADE_MERGES = 5;
 
     /** @param delegate the merge policy to wrap */
@@ -199,7 +199,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge, IndexWriter writer)
         throws IOException {
 
-      if (nextForceIsUpgrade) {
+      if (upgradeInProgress) {
           MergeSpecification spec = new IndexUpgraderMergeSpecification();
           for (SegmentCommitInfo info : segmentInfos) {
               if (Version.CURRENT.luceneVersion.minor > info.info.getVersion().minor) {
@@ -213,7 +213,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
               }
           }
           // We must have less than our max upgrade merges, so the next return will be our last in upgrading mode.
-          nextForceIsUpgrade = false;
+          upgradeInProgress = false;
           if (spec.merges.isEmpty() == false) {
               return spec;
           }
@@ -238,10 +238,11 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     /**
      * When <code>upgrade</code> is true, running a force merge will upgrade any segments written
      * with older versions. This will apply to the next call to
-     * {@link IndexWriter#forceMerge} that is handled by this {@link MergePolicy}.
+     * {@link IndexWriter#forceMerge} that is handled by this {@link MergePolicy}, as well as
+     * cascading calls made by {@link IndexWriter}.
      */
-    public void setNextForceIsUpgrade(boolean upgrade) {
-        this.nextForceIsUpgrade = upgrade;
+    public void setUpgradeInProgress(boolean upgrade) {
+        this.upgradeInProgress = upgrade;
     }
 
     @Override

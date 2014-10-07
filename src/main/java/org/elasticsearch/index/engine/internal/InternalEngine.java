@@ -1038,7 +1038,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 MergePolicy mp = writer.getConfig().getMergePolicy();
                 assert mp instanceof ElasticsearchMergePolicy : "MergePolicy is " + mp.getClass().getName();
                 if (optimize.upgrade()) {
-                    ((ElasticsearchMergePolicy)mp).setNextForceIsUpgrade(true);
+                    ((ElasticsearchMergePolicy)mp).setUpgradeInProgress(true);
                 }
                 
                 if (optimize.onlyExpungeDeletes()) {

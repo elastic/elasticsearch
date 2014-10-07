@@ -53,6 +53,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 import static org.elasticsearch.common.Strings.hasLength;
+import static org.elasticsearch.common.io.FileSystemUtils.moveFilesWithoutOverwriting;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -256,13 +257,10 @@ public class PluginManager {
 
         File configFile = new File(extractLocation, "config");
         if (configFile.exists() && configFile.isDirectory()) {
-            File toLocation = pluginHandle.configDir(environment);
-            debug("Found config, moving to " + toLocation.getAbsolutePath());
-            FileSystemUtils.deleteRecursively(toLocation);
-            if (!configFile.renameTo(toLocation)) {
-                throw new IOException("Could not move ["+ configFile.getAbsolutePath() + "] to [" + configFile.getAbsolutePath() + "]");
-            }
-            debug("Installed " + name + " into " + toLocation.getAbsolutePath());
+            File configDestLocation = pluginHandle.configDir(environment);
+            debug("Found config, moving to " + configDestLocation.getAbsolutePath());
+            moveFilesWithoutOverwriting(configFile, configDestLocation, ".new");
+            debug("Installed " + name + " into " + configDestLocation.getAbsolutePath());
             potentialSitePlugin = false;
         }
 
@@ -320,15 +318,7 @@ public class PluginManager {
             }
             removed = true;
         }
-        File configLocation = pluginHandle.configDir(environment);
-        if (configLocation.exists()) {
-            debug("Removing: " + configLocation.getPath());
-            if (!FileSystemUtils.deleteRecursively(configLocation)) {
-                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
-                        configLocation.toString());
-            }
-            removed = true;
-        }
+
         if (removed) {
             log("Removed " + name);
         } else {

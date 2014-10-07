@@ -134,23 +134,6 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
     }
 
     /**
-     * @deprecated See {@link #upgrade()}
-     */
-    @Deprecated
-    public boolean force() {
-        return upgrade;
-    }
-
-    /**
-     * @deprecated Use {@link #upgrade(boolean)}.
-     */
-    @Deprecated
-    public OptimizeRequest force(boolean force) {
-        this.upgrade = force;
-        return this;
-    }
-
-    /**
      * Should the merge upgrade all old segments to the current index format.
      * Defaults to <tt>false</tt>.
      */

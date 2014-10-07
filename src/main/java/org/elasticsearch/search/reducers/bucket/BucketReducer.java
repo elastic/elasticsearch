@@ -19,7 +19,10 @@
 
 package org.elasticsearch.search.reducers.bucket;
 
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.reducers.Reducer;
@@ -38,15 +41,17 @@ public abstract class BucketReducer extends Reducer {
     }
 
     @Override
-    public InternalBucketReducerAggregation reduce(List<MultiBucketsAggregation> aggregations, ReduceContext reduceContext)
+    public InternalBucketReducerAggregation reduce(List<MultiBucketsAggregation> aggregations, SearchContext context)
             throws ReductionExecutionException {
         for (MultiBucketsAggregation aggregation : aggregations) {
             if (aggregation.getName().equals(path)) {
-                return doReduce(aggregation);
+                BytesReference bucketType = ((InternalAggregation) aggregation).type().stream();
+                BucketStreamContext bucketStreamContext = BucketStreams.stream(bucketType).getBucketStreamContext(aggregation.getBuckets().get(0)); // NOCOMMIT make this cleaner
+                return doReduce(aggregation, bucketType, bucketStreamContext);
             }
         }
         return null; // NOCOMMIT throw exception if we can't find the aggregation
     }
 
-    protected abstract InternalBucketReducerAggregation doReduce(MultiBucketsAggregation aggregation) throws ReductionExecutionException;
+    protected abstract InternalBucketReducerAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType, BucketStreamContext bucketStreamContext) throws ReductionExecutionException;
 }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.reducers.bucket.slidingwindow;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.internal.SearchContext;
@@ -41,7 +43,7 @@ public class SlidingWindowReducer extends BucketReducer {
         this.windowSize = windowSize;
     }
 
-    protected InternalBucketReducerAggregation doReduce(MultiBucketsAggregation aggregation) {
+    protected InternalBucketReducerAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType, BucketStreamContext bucketStreamContext) {
         List<InternalSelection> selections = new ArrayList<>();
         List<? extends Bucket> aggBuckets = (List<? extends MultiBucketsAggregation.Bucket>) aggregation.getBuckets();
         for (int i = 0; i <= aggBuckets.size() - windowSize; i++) {
@@ -50,9 +52,7 @@ public class SlidingWindowReducer extends BucketReducer {
                 selectionBuckets.add(aggBuckets.get(i + j));
             }
             // NOCOMMIT populate aggregations (sub reducers outputs)
-            // NOCOMMIT get bucket stream context from somewhere
-            // NOCOMMIT get bucket type from somewhere
-            InternalSelection selection = new InternalSelection("Selection " + i, null, null, selectionBuckets , null);
+            InternalSelection selection = new InternalSelection("Selection " + i, bucketType, bucketStreamContext, selectionBuckets , null);
             selections.add(selection);
         }
         return new InternalSlidingWindow(name(), selections);

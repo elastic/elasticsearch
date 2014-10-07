@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.HasAggregations;
 import org.elasticsearch.search.aggregations.support.OrderPath;
 
-import java.util.Collection;
 import java.util.List;
 
 /**

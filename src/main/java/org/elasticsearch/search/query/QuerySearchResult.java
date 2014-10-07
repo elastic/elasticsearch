@@ -44,6 +44,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private int size;
     private TopDocs topDocs;
     private InternalAggregations aggregations;
+    private InternalAggregations reducers;
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
@@ -110,6 +111,14 @@ public class QuerySearchResult extends QuerySearchResultProvider {
 
     public void aggregations(InternalAggregations aggregations) {
         this.aggregations = aggregations;
+    }
+
+    public Aggregations reducers() {
+        return reducers;
+    }
+
+    public void reducers(InternalAggregations reducers) {
+        this.reducers = reducers;
     }
 
     public Suggest suggest() {

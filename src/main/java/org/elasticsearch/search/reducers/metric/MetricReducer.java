@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.reducers.metric;
 
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.internal.SearchContext;
@@ -36,5 +35,5 @@ public abstract class MetricReducer extends Reducer {
     }
 
     @Override
-    public abstract InternalMetricsAggregation reduce(List<MultiBucketsAggregation> aggregations, ReduceContext reduceContext) throws ReductionExecutionException;
+    public abstract InternalMetricsAggregation reduce(List<MultiBucketsAggregation> aggregations, SearchContext context) throws ReductionExecutionException;
 }

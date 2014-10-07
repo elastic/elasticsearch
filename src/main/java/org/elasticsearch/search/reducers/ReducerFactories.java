@@ -20,6 +20,7 @@
 package org.elasticsearch.search.reducers;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -38,15 +39,21 @@ public class ReducerFactories {
     }
 
     public Reducer[] createSubReducers(Reducer parent) {
-        throw new UnsupportedOperationException("Not implemented"); // NOCOMMIT implement creation of sub-reducers
+        return new Reducer[0]; // NOCOMMIT implement creation of sub-reducers
     }
 
-    public void setParent(ReducerFactory reducerFactory) {
-        throw new UnsupportedOperationException("Not implemented"); // NOCOMMIT implement setting parent
+    public void setParent(ReducerFactory parent) {
+        for (ReducerFactory factory : factories) {
+            factory.parent = parent;
+        }
     }
 
-    public Reducer[] createTopLevelReducers(ReductionContext ctx) {
-        throw new UnsupportedOperationException("Not implemented"); // NOCOMMIT implement creation of top level reducers
+    public Reducer[] createTopLevelReducers(SearchContext ctx) {
+        Reducer[] reducers = new Reducer[factories.length];
+        for (int i = 0; i < factories.length; i++) {
+            reducers[i] = factories[i].create(ctx, null);
+        }
+        return reducers;
     }
 
     public void validate() {
@@ -68,7 +75,7 @@ public class ReducerFactories {
         }
 
         @Override
-        public Reducer[] createTopLevelReducers(ReductionContext ctx) {
+        public Reducer[] createTopLevelReducers(SearchContext ctx) {
             return EMPTY_AGGREGATORS;
         }
 

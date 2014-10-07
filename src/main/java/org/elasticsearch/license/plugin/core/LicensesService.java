@@ -20,6 +20,8 @@ import org.elasticsearch.license.core.LicenseBuilders;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Service responsible for maintaining and providing access to licenses on nodes.
  *
@@ -31,20 +33,22 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
    // private final Injector injector;
 
-    private final ClusterService clusterService;
+    //private final ClusterService clusterService;
 
     //private volatile ESLicenses licenses = null;//ImmutableMap.of();
 
+    private AtomicBoolean registerClusterStateListener = new AtomicBoolean(false);
+
     @Inject
-    public LicensesService(Settings settings, ClusterService clusterService/*, Injector injector*/) {
+    public LicensesService(Settings settings /*ClusterService clusterService, Injector injector*/) {
         super(settings);
         //this.injector = injector;
-        this.clusterService = clusterService;
+        //this.clusterService = clusterService;
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway
-        if (DiscoveryNode.dataNode(settings) || DiscoveryNode.masterNode(settings)) {
-            clusterService.add(this);
-        }
+        //if (DiscoveryNode.dataNode(settings) || DiscoveryNode.masterNode(settings)) {
+        //    clusterService.add(this);
+        //}
     }
 
     /**
@@ -53,7 +57,12 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      * This method can be only called on the master node. It tries to create a new licenses on the master
      * and if it was successful it adds the license to cluster metadata.
      */
-    public void registerLicenses(final String source, final PutLicenseRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void registerLicenses(ClusterService clusterService, String source, final PutLicenseRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+        if (registerClusterStateListener.compareAndSet(false, true)) {
+            if (DiscoveryNode.dataNode(settings) || DiscoveryNode.masterNode(settings)) {
+                clusterService.add(this);
+            }
+        }
         final LicensesMetaData newLicenseMetaData = new LicensesMetaData(request.license());
         //TODO: add a source field to request
         clusterService.submitStateUpdateTask(source, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
@@ -84,7 +93,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     }
 
     //TODO
-    public void unregisteredLicenses(final String source, final DeleteLicenseRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void unregisteredLicenses(ClusterService clusterService, String source, final DeleteLicenseRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask(source, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {

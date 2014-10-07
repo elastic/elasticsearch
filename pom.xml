@@ -66,7 +66,7 @@
         <dependency>
             <groupId>org.python</groupId>
             <artifactId>jython-standalone</artifactId>
-            <version>2.5.3</version>
+            <version>2.7-b3</version>
             <scope>compile</scope>
         </dependency>
 

@@ -28,34 +28,28 @@ import static org.elasticsearch.license.core.ESLicenses.ESLicense;
 
 public class ESLicenseSigner {
 
+    public static String DEFAULT_PASS_PHRASE = "elasticsearch-license";
+
     private final static int VERSION_START = 0;
     private final static int VERSION = VERSION_START;
 
     private final static int MAGIC_LENGTH = 13;
 
     private final LicenseCreator licenseCreator;
-    private final SignerOptions options;
 
-    public static class SignerOptions {
-        final String privateKeyPath;
-        final String publicKeyPath;
-        final String password;
+    private final Path publicKeyPath;
 
-        public SignerOptions(String privateKeyPath, String publicKeyPath, String password) {
-            this.privateKeyPath = privateKeyPath;
-            this.publicKeyPath = publicKeyPath;
-            this.password = password;
-        }
+    public ESLicenseSigner(final String privateKeyPath, final String publicKeyPath) {
+        this(Paths.get(privateKeyPath), Paths.get(publicKeyPath));
     }
 
-    public ESLicenseSigner(final SignerOptions options) {
+    public ESLicenseSigner(final Path privateKeyPath, final Path publicKeyPath) {
         LicenseCreatorProperties.setPrivateKeyDataProvider(new PrivateKeyDataProvider() {
             @Override
             public byte[] getEncryptedPrivateKeyData() throws KeyNotFoundException {
-                Path privateKeyFile = Paths.get(options.privateKeyPath);
-                assert privateKeyFile.toFile().exists();
+                assert privateKeyPath.toFile().exists();
                 try {
-                    return Files.readAllBytes(privateKeyFile);
+                    return Files.readAllBytes(privateKeyPath);
                 } catch (IOException e) {
                     e.printStackTrace();
                     throw new IllegalStateException(e);
@@ -64,13 +58,14 @@ public class ESLicenseSigner {
             }
         });
         LicenseCreatorProperties.setPrivateKeyPasswordProvider(new PasswordProvider() {
+
             @Override
             public char[] getPassword() {
-                return options.password.toCharArray();
+                return Hasher.hash(DEFAULT_PASS_PHRASE).toCharArray();
             }
         });
         this.licenseCreator = LicenseCreator.getInstance();
-        this.options = options;
+        this.publicKeyPath = publicKeyPath;
     }
 
     public ESLicenses sign(ESLicenses esLicenses) throws IOException {
@@ -108,7 +103,7 @@ public class ESLicenseSigner {
         random.nextBytes(magic);
         final byte[] licenseSignature = licenseCreator.signAndSerializeLicense(license);
         final byte[] hash = Hasher.hash(Base64.encodeBase64String(
-                        Files.readAllBytes(Paths.get(options.publicKeyPath)))
+                        Files.readAllBytes(publicKeyPath))
         ).getBytes(Charset.forName("UTF-8"));
         int headerLength = MAGIC_LENGTH + hash.length + 4 + 4;
         byte[] bytes = new byte[headerLength + licenseSignature.length];

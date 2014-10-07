@@ -23,7 +23,7 @@ public class Utils {
     private Utils() {
     }
 
-    static ESLicenses getESLicensesFromSignatures(final LicenseManager licenseManager, Set<String> signatures) {
+    public static ESLicenses getESLicensesFromSignatures(final LicenseManager licenseManager, Set<String> signatures) {
         final LicenseBuilders.LicensesBuilder licensesBuilder = LicenseBuilders.licensesBuilder();
         for (String signature : signatures) {
             licensesBuilder.license(getESLicenseFromSignature(licenseManager, signature));

@@ -31,7 +31,6 @@ public class LicenseVerificationTests {
 
     private static String pubKeyPath = null;
     private static String priKeyPath = null;
-    private static String keyPass = null;
 
     @BeforeClass
     public static void setup() throws IOException {
@@ -43,16 +42,13 @@ public class LicenseVerificationTests {
         LicenseVerificationTests.priKeyPath = privateKeyFile.getAbsolutePath();
         assert privateKeyFile.delete();
         assert publicKeyFile.delete();
-        LicenseVerificationTests.keyPass = "password";
 
         // Generate keyPair
-        String[] args = new String[6];
+        String[] args = new String[4];
         args[0] = "--publicKeyPath";
         args[1] = LicenseVerificationTests.pubKeyPath;
         args[2] = "--privateKeyPath";
         args[3] = LicenseVerificationTests.priKeyPath;
-        args[4] = "--keyPass";
-        args[5] = LicenseVerificationTests.keyPass;
         KeyPairGeneratorTool.main(args);
     }
 
@@ -68,21 +64,19 @@ public class LicenseVerificationTests {
 
         String licenseString = TestUtils.generateESLicenses(map);
 
-        String[] args = new String[8];
+        String[] args = new String[6];
         args[0] = "--license";
         args[1] = licenseString;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
         args[4] = "--privateKeyPath";
         args[5] = priKeyPath;
-        args[6] = "--keyPass";
-        args[7] = keyPass;
 
         String licenseOutput = TestUtils.runLicenseGenerationTool(args);
 
         ESLicenses esLicensesOutput = readLicensesFromString(licenseOutput);
 
-        ESLicenseManager esLicenseManager = new ESLicenseManager(esLicensesOutput, pubKeyPath, keyPass);
+        ESLicenseManager esLicenseManager = new ESLicenseManager(esLicensesOutput, pubKeyPath);
 
         esLicenseManager.verifyLicenses();
 
@@ -105,21 +99,19 @@ public class LicenseVerificationTests {
 
         String licenseString = TestUtils.generateESLicenses(map);
 
-        String[] args = new String[8];
+        String[] args = new String[6];
         args[0] = "--license";
         args[1] = licenseString;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
         args[4] = "--privateKeyPath";
         args[5] = priKeyPath;
-        args[6] = "--keyPass";
-        args[7] = keyPass;
 
         String licenseOutput = TestUtils.runLicenseGenerationTool(args);
 
         ESLicenses esLicensesOutput = readLicensesFromString(licenseOutput);
 
-        ESLicenseManager esLicenseManager = new ESLicenseManager(esLicensesOutput, pubKeyPath, keyPass);
+        ESLicenseManager esLicenseManager = new ESLicenseManager(esLicensesOutput, pubKeyPath);
 
         esLicenseManager.verifyLicenses();
 
@@ -145,21 +137,19 @@ public class LicenseVerificationTests {
 
         String licenseString = TestUtils.generateESLicenses(map);
 
-        String[] args = new String[8];
+        String[] args = new String[6];
         args[0] = "--license";
         args[1] = licenseString;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
         args[4] = "--privateKeyPath";
         args[5] = priKeyPath;
-        args[6] = "--keyPass";
-        args[7] = keyPass;
 
         String licenseOutput = TestUtils.runLicenseGenerationTool(args);
 
         ESLicenses esLicensesOutput = readLicensesFromString(licenseOutput);
 
-        ESLicenseManager esLicenseManager = new ESLicenseManager(esLicensesOutput, pubKeyPath, keyPass);
+        ESLicenseManager esLicenseManager = new ESLicenseManager(esLicensesOutput, pubKeyPath);
 
         // All validation for shield license should be normal as expected
         verifyLicenseManager(esLicenseManager, Collections.singletonMap(FeatureType.SHIELD, shildFeatureAttributes));
@@ -180,15 +170,13 @@ public class LicenseVerificationTests {
 
         String licenseString = TestUtils.generateESLicenses(map);
 
-        String[] args = new String[8];
+        String[] args = new String[6];
         args[0] = "--license";
         args[1] = licenseString;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
         args[4] = "--privateKeyPath";
         args[5] = priKeyPath;
-        args[6] = "--keyPass";
-        args[7] = keyPass;
 
         String licenseOutput = TestUtils.runLicenseGenerationTool(args);
 
@@ -208,7 +196,7 @@ public class LicenseVerificationTests {
 
         ESLicenseManager esLicenseManager = null;
         try {
-            esLicenseManager = new ESLicenseManager(tamperedLicenses, pubKeyPath, keyPass);
+            esLicenseManager = new ESLicenseManager(tamperedLicenses, pubKeyPath);
             assertTrue("License manager should always report the original (signed) expiry date", esLicenseManager.getExpiryDateForLicense(FeatureType.SHIELD) == originalExpiryDate);
             esLicenseManager.verifyLicenses();
             fail();

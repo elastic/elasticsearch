@@ -13,38 +13,37 @@ Generates a 2048-bit RSA public/private key pair to be used for license generati
 
 **Note:** Errors if provided file paths for public/private already exists
 
-**Output** - public/private key in the location provided with the provided key password
+**Output** - public/private key in the location provided
 
 **Options:**
 `--publicKeyPath` - path to store the public key
 `--privateKeyPath` - path to store the private key
-`--keyPass` - password for the key pair
 
 **Example Usage:**
 ```bash
-$ bin/key-pair-generator --publicKeyPath ~/.es_temp_license/pub.key --privateKeyPath ~/.es_temp_license/pri.key --keyPass ab
+$ bin/key-pair-generator --publicKeyPath ~/.es_temp_license/pub.key --privateKeyPath ~/.es_temp_license/pri.key
 ```
-Outputs the public key to `~/.es_temp_license/pub.key`, private key to `~/.es_temp_license/pri.key` securing the key pair with the provided `--keyPass` of `ab`
+Outputs the public key to `~/.es_temp_license/pub.key`, private key to `~/.es_temp_license/pri.key` 
 
 ### bin/license-generator
 Generates a signed license given a licensing spec and keyPair location
 
 **Note:** a `license spec` (see format below) can be provided in two ways, using `--license` allows for passing the spec as a string using `--licenseFile` allows passing in a file that has the license spec
 
-**Output** - a signed license based on the provided `license spec`, private/public key location and password
+**Output** - a signed license based on the provided `license spec`, private/public key location
 
 **Options:**
 `--license` - license spec as a string (optional when `--licenseFile` is provided)
 `--licenseFile` - path to a license spec file (optional when `--license` is provided)
 `--publicKeyPath` - path to retrieve the public key
 `--privateKeyPath` - path to retrieve the private key
-`--keyPass` - password for the key pair provided
 
 **License Spec format:**
 ```
 {
     "licenses": [
         {
+            "uid": STRING (optional, if not provided a random UUID is generated)
             "type": STRING (“trial” | “internal” | “subscription”),
             "subscription_type": STRING (“none” | “gold” | “silver” | “platinum”),
             "issued_to": STRING,
@@ -83,7 +82,7 @@ $ cat license_spec.json
 
 # generate a signed license according to license_spec.json using the private/public keypair 
 
-$ bin/license-generator --publicKeyPath ~/.es_temp_license/pub.key --privateKeyPath ~/.es_temp_license/pri.key --keyPass ab --licenseFile license_spec.json > gen_license.json
+$ bin/license-generator --publicKeyPath ~/.es_temp_license/pub.key --privateKeyPath ~/.es_temp_license/pri.key --licenseFile license_spec.json > gen_license.json
 
 # generated license for license_spec.json
 
@@ -117,14 +116,41 @@ One licenses that only retains effective sub-licenses for all the licenses provi
 
 **Options:**
 `--licensesFiles` - a set of **generated** licenses files separated by `:`
+`--licenses` - a **generated** licenses as string (multiple licenses could be inputted by repeating the parameter)
 `--publicKeyPath` -  path to retrieve the public key
-`--keyPass` - password for the key pair provided
 
 **Example Usage:**
 
-```
+```bash
 # the output will be the same as the content of gen_license.json (as all the licenses are valid and not expired)
 # in order to merge multiple licenses file use --licensesFiles file1.json:file2.json
 
-$ bin/verify-license --publicKeyPath ~/.es_temp_license/pub.key --keyPass ab --licensesFiles gen_license.json
+$ bin/verify-license --publicKeyPath ~/.es_temp_license/pub.key --licensesFiles gen_license.json
+
+# example using verify-license with multiple licenses json as string 
+$ bin/verify-license --publicKeyPath ~/.es_temp_license/pub.key --licenses `cat generated_license1.json` --licenses `cat generated_license2.json`
 ```
+
+## Workflow
+
+A public/private key pair has to be generated before license generation
+```bash
+
+# store public/private key pair to PUBLIC_KEY_FILE_PATH and PRIVATE_KEY_FILE_PATH respectively
+$ bin/key-pair-generator --publicKeyPath PUBLIC_KEY_FILE_PATH --privateKeyPath PRIVATE_KEY_FILE_PATH
+
+```
+### License Generation
+```bash
+
+# generate a license for a requested feature for a customer with a LICENSE_SPEC (format shown above)
+$ bin/license-generator --publicKeyPath PUBLIC_KEY_FILE_PATH --privateKeyPath PRIVATE_KEY_FILE_PATH --license LICENSE_SPEC > GENERATED_LICENSE
+
+# check any existing valid licenses already issued to the customer from the data store; grab the last generated license file for the customer
+# as EXISTING_LICENSE
+
+# use verify-license to generate en EFFECTIVE_LICENSE for the customer for distribution
+$ bin/verify-license --publicKeyPath PUBLIC_KEY_FILE_PATH --privateKeyPath PRIVATE_KEY_FILE_PATH --licenses GENERATED_LICENSE_STRING --licenses EXISTING_LICENSE_STRING > EFFECTIVE_LICENSE
+
+```
+

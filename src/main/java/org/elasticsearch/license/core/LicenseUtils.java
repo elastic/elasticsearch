@@ -10,10 +10,7 @@ import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.text.ParseException;
 import java.util.HashSet;
 import java.util.Set;
@@ -22,7 +19,7 @@ public class LicenseUtils {
 
     public static void dumpLicenseAsJson(ESLicenses esLicenses, OutputStream out) throws IOException {
         JsonGenerator generator = new JsonFactory().createJsonGenerator(out);
-        generator.useDefaultPrettyPrinter();
+        //generator.useDefaultPrettyPrinter();
 
         generator.writeStartObject();
         {
@@ -78,9 +75,13 @@ public class LicenseUtils {
 
     public static ESLicenses readLicenseFile(File licenseFile) throws IOException {
         try (FileInputStream fileInputStream = new FileInputStream(licenseFile)) {
-            JsonNode jsonNode = new ObjectMapper().readTree(fileInputStream);
-            return extractLicenseFromJson(jsonNode);
+            return readLicenseFromInputStream(fileInputStream);
         }
+    }
+
+    public static ESLicenses readLicenseFromInputStream(InputStream inputStream) throws IOException {
+        JsonNode jsonNode = new ObjectMapper().readTree(inputStream);
+        return extractLicenseFromJson(jsonNode);
     }
 
     public static ESLicenses readLicensesFromString(String licensesString) throws IOException {

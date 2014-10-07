@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import net.nicholaswilliams.java.licensing.encryption.Hasher;
 import net.nicholaswilliams.java.licensing.encryption.RSAKeyPairGenerator;
 import net.nicholaswilliams.java.licensing.exception.AlgorithmNotSupportedException;
 import net.nicholaswilliams.java.licensing.exception.InappropriateKeyException;
@@ -16,22 +17,21 @@ import java.security.KeyPair;
 
 public class KeyPairGeneratorTool {
 
+    public static String DEFAULT_PASS_PHRASE = "elasticsearch-license";
+
     static class Options {
         private final String publicKeyFilePath;
         private final String privateKeyFilePath;
-        private final String keyPass;
 
-        Options(String publicKeyFilePath, String privateKeyFilePath, String keyPass) {
+        Options(String publicKeyFilePath, String privateKeyFilePath) {
             this.publicKeyFilePath = publicKeyFilePath;
             this.privateKeyFilePath = privateKeyFilePath;
-            this.keyPass = keyPass;
         }
     }
 
     private static Options parse(String[] args) {
         String privateKeyPath = null;
         String publicKeyPath = null;
-        String keyPass = null;
 
         for (int i = 0; i < args.length; i++) {
             String command = args[i];
@@ -42,9 +42,6 @@ public class KeyPairGeneratorTool {
                 case "--privateKeyPath":
                     privateKeyPath = args[++i];
                     break;
-                case "--keyPass":
-                    keyPass = args[++i];
-                    break;
             }
         }
 
@@ -54,11 +51,8 @@ public class KeyPairGeneratorTool {
         if (privateKeyPath == null) {
             throw new IllegalArgumentException("mandatory option '--privateKeyPath' is missing");
         }
-        if (keyPass == null) {
-            throw new IllegalArgumentException("mandatory option '--keyPass' is missing");
-        }
 
-        return new Options(publicKeyPath, privateKeyPath, keyPass);
+        return new Options(publicKeyPath, privateKeyPath);
     }
 
     public static void main(String[] args) throws IOException {
@@ -76,7 +70,7 @@ public class KeyPairGeneratorTool {
             throw new IllegalArgumentException("public key already exists in " + options.publicKeyFilePath);
         }
 
-        KeyPair keyPair = generateKeyPair(options.privateKeyFilePath, options.publicKeyFilePath, options.keyPass);
+        KeyPair keyPair = generateKeyPair(options.privateKeyFilePath, options.publicKeyFilePath);
         if (keyPair != null) {
             printStream.println("Successfully generated new keyPair [publicKey: " + options.publicKeyFilePath + ", privateKey: " + options.privateKeyFilePath + "]");
             printStream.flush();
@@ -88,7 +82,7 @@ public class KeyPairGeneratorTool {
     }
 
 
-    private static KeyPair generateKeyPair(String privateKeyFileName, String publicKeyFileName, String password) {
+    private static KeyPair generateKeyPair(String privateKeyFileName, String publicKeyFileName) {
         RSAKeyPairGenerator generator = new RSAKeyPairGenerator();
 
         KeyPair keyPair;
@@ -99,7 +93,7 @@ public class KeyPairGeneratorTool {
         }
 
         try {
-            generator.saveKeyPairToFiles(keyPair, privateKeyFileName, publicKeyFileName, password.toCharArray());
+            generator.saveKeyPairToFiles(keyPair, privateKeyFileName, publicKeyFileName, Hasher.hash(DEFAULT_PASS_PHRASE).toCharArray());
         } catch (IOException | AlgorithmNotSupportedException | InappropriateKeyException | InappropriateKeySpecificationException e) {
             throw new IllegalStateException(e);
         }

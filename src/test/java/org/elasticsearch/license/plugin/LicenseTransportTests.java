@@ -48,6 +48,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.*;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 
@@ -57,7 +58,6 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
 
     private static String pubKeyPath = null;
     private static String priKeyPath = null;
-    private static String keyPass = null;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -77,17 +77,13 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
         LicenseTransportTests.priKeyPath = privateKeyFile.getAbsolutePath();
         assert privateKeyFile.delete();
         assert publicKeyFile.delete();
-        String keyPass = "password";
-        LicenseTransportTests.keyPass = keyPass;
 
         // Generate keyPair
-        String[] args = new String[6];
+        String[] args = new String[4];
         args[0] = "--publicKeyPath";
         args[1] = LicenseTransportTests.pubKeyPath;
         args[2] = "--privateKeyPath";
         args[3] = LicenseTransportTests.priKeyPath;
-        args[4] = "--keyPass";
-        args[5] = LicenseTransportTests.keyPass;
         KeyPairGeneratorTool.main(args);
     }
 
@@ -112,15 +108,13 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
         String licenseString = TestUtils.generateESLicenses(map);
 
 
-        String[] args = new String[8];
+        String[] args = new String[6];
         args[0] = "--license";
         args[1] = licenseString;
         args[2] = "--publicKeyPath";
         args[3] = pubKeyPath;
         args[4] = "--privateKeyPath";
         args[5] = priKeyPath;
-        args[6] = "--keyPass";
-        args[7] = keyPass;
 
         String licenseOutput = TestUtils.runLicenseGenerationTool(args);
 
@@ -140,6 +134,8 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
         final ActionFuture<GetLicenseResponse> getLicenseFuture = licenseGetAction().execute(new GetLicenseRequest());
 
         final GetLicenseResponse getLicenseResponse = getLicenseFuture.get();
+
+        assertThat(getLicenseResponse.licenses(), notNullValue());
 
         LicenseUtils.printLicense(getLicenseResponse.licenses());
     }

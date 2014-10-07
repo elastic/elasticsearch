@@ -5,7 +5,29 @@ Internal Elasticsearch Licensing Plugin
 
 ## Command Line tools (Interface with Internal License Server)
 
-**Note:** Initially run `mvn clean compile package` to use the scripts
+### Setup
+```bash
+# clone elasticsearch if not already cloned; go to elasticsearch project directory
+git clone git@github.com:elasticsearch/elasticsearch.git
+cd elasticsearch
+
+# checkout 1.4 branch
+git checkout 1.4
+
+# install elasticsearch 1.4
+mvn clean install -DskipTests=true
+
+# clone elasticsearch-license; go to elasticsearch-license project directory
+git clone git@github.com:elasticsearch/elasticsearch-license.git
+cd elasticsearch-license
+
+# TEMPORARY (switch to dev branch)
+git checkout dev
+
+# build
+mvn clean package
+
+```
 
 ### bin/key-pair-generator
 

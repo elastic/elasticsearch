@@ -1358,7 +1358,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         }
         indexRandom(true, builders);
         flushAndRefresh();
-        assertNoFailures(client().admin().indices().prepareOptimize("test").setForce(true).setFlush(true).setWaitForMerge(true).setMaxNumSegments(1).get());
+        assertNoFailures(client().admin().indices().prepareOptimize("test").setFlush(true).setWaitForMerge(true).setMaxNumSegments(1).get());
 
         CreateSnapshotResponse createSnapshotResponseFirst = client.admin().cluster().prepareCreateSnapshot("test-repo", "test").setWaitForCompletion(true).setIndices("test").get();
         assertThat(createSnapshotResponseFirst.getSnapshotInfo().successfulShards(), greaterThan(0));

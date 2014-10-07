@@ -39,7 +39,7 @@ public class CurrentTestFailedMarker extends RunListener {
     }
 
     @Override
-    public void testRunStarted(Description description) throws Exception {
+    public void testStarted(Description description) throws Exception {
         failed.set(false);
     }
 

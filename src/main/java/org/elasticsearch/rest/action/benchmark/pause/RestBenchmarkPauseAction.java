@@ -41,7 +41,7 @@ public class RestBenchmarkPauseAction extends BaseRestHandler {
     @Inject
     public RestBenchmarkPauseAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(POST, "/_bench/_pause/{name}", this);
+        controller.registerHandler(POST, "/_bench/pause/{name}", this);
     }
 
     /**

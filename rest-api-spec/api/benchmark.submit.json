@@ -3,11 +3,11 @@
         "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-benchmark.html",
         "methods": ["PUT"],
         "url": {
-            "path": "/_bench/_submit",
+            "path": "/_bench/submit",
             "paths": [
-                "/_bench/_submit",
-                "/{index}/_bench/_submit",
-                "/{index}/{types}/_bench/_submit"
+                "/_bench/submit",
+                "/{index}/_bench/submit",
+                "/{index}/{types}/_bench/submit"
             ],
             "parts": {
                 "index": {

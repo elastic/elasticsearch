@@ -39,8 +39,8 @@ public class RestBenchmarkStatusAction extends BaseRestHandler {
     @Inject
     public RestBenchmarkStatusAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(GET, "/_bench/_status", this);
-        controller.registerHandler(GET, "/_bench/_status/{name}", this);
+        controller.registerHandler(GET, "/_bench/status", this);
+        controller.registerHandler(GET, "/_bench/status/{name}", this);
     }
 
     /**

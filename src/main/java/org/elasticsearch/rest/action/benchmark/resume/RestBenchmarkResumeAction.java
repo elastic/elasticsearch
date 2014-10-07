@@ -41,7 +41,7 @@ public class RestBenchmarkResumeAction extends BaseRestHandler {
     @Inject
     public RestBenchmarkResumeAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(POST, "/_bench/_resume/{name}", this);
+        controller.registerHandler(POST, "/_bench/resume/{name}", this);
     }
 
     /**

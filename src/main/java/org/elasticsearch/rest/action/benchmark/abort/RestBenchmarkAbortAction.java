@@ -40,7 +40,7 @@ public class RestBenchmarkAbortAction extends BaseRestHandler {
     @Inject
     public RestBenchmarkAbortAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(POST, "/_bench/_abort/{name}", this);
+        controller.registerHandler(POST, "/_bench/abort/{name}", this);
     }
 
     /**

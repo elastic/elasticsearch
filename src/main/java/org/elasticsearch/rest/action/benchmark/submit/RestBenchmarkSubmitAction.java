@@ -59,9 +59,9 @@ public class RestBenchmarkSubmitAction extends BaseRestHandler {
     protected RestBenchmarkSubmitAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
 
-        controller.registerHandler(PUT, "/_bench/_submit", this);
-        controller.registerHandler(PUT, "/{index}/_bench/_submit", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_bench/_submit", this);
+        controller.registerHandler(PUT, "/_bench/submit", this);
+        controller.registerHandler(PUT, "/{index}/_bench/submit", this);
+        controller.registerHandler(PUT, "/{index}/{type}/_bench/submit", this);
     }
 
     @Override

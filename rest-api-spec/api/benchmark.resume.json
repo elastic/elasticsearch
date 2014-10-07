@@ -3,9 +3,9 @@
         "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-benchmark.html",
         "methods": ["POST"],
         "url": {
-            "path": "/_bench/_resume/{id}",
+            "path": "/_bench/resume/{id}",
             "paths": [
-                "/_bench/_resume/{id}"
+                "/_bench/resume/{id}"
             ],
             "parts": { },
             "params": {

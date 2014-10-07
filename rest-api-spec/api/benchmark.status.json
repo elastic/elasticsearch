@@ -3,10 +3,10 @@
         "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-benchmark.html",
         "methods": ["GET"],
         "url": {
-            "path": "/_bench/_status/{id}",
+            "path": "/_bench/status/{id}",
             "paths": [
-                "/_bench/_status",
-                "/_bench/_status/{id}"
+                "/_bench/status",
+                "/_bench/status/{id}"
             ],
             "parts": { },
             "params": {

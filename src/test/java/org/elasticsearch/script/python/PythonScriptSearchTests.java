@@ -288,4 +288,26 @@ public class PythonScriptSearchTests extends ElasticsearchIntegrationTest {
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getKeyAsNumber().floatValue(), Matchers.is(1f));
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), Matchers.is(1l));
     }
+
+    /**
+     * Test case for #19: https://github.com/elasticsearch/elasticsearch-lang-python/issues/19
+     * Multi-line or multi-statement Python scripts raise NullPointerException
+     */
+    @Test
+    public void testPythonMultiLines() throws Exception {
+        createIndex("test");
+        index("test", "type1", "1", jsonBuilder().startObject().field("myfield", "foo").endObject());
+        refresh();
+
+        client().prepareUpdate("test", "type1", "1").setScriptLang("python")
+                .setScript("a=42; ctx[\"_source\"][\"myfield\"]=\"bar\"", ScriptService.ScriptType.INLINE)
+                .execute().actionGet();
+        refresh();
+
+        Object value = get("test", "type1", "1").getSourceAsMap().get("myfield");
+        assertThat(value instanceof String, is(true));
+
+        assertThat((String) value, CoreMatchers.equalTo("bar"));
+    }
+
 }

@@ -31,24 +31,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener {
 
-   // private final Injector injector;
-
-    //private final ClusterService clusterService;
-
-    //private volatile ESLicenses licenses = null;//ImmutableMap.of();
-
     private AtomicBoolean registerClusterStateListener = new AtomicBoolean(false);
 
     @Inject
-    public LicensesService(Settings settings /*ClusterService clusterService, Injector injector*/) {
+    public LicensesService(Settings settings) {
         super(settings);
-        //this.injector = injector;
-        //this.clusterService = clusterService;
-        // Doesn't make sense to maintain repositories on non-master and non-data nodes
-        // Nothing happens there anyway
-        //if (DiscoveryNode.dataNode(settings) || DiscoveryNode.masterNode(settings)) {
-        //    clusterService.add(this);
-        //}
     }
 
     /**

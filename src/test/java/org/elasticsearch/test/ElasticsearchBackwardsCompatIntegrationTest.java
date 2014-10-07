@@ -34,6 +34,7 @@ import org.junit.Before;
 import org.junit.Ignore;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
@@ -92,14 +93,40 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
             throw new IllegalArgumentException("Backcompat elasticsearch version must be same major version as current. " +
                 "backcompat: " + version + ", current: " + Version.CURRENT.toString());
         }
-        File file = new File(path, "elasticsearch-" + version);
-        if (!file.exists()) {
-            throw new IllegalArgumentException("Backwards tests location is missing: " + file.getAbsolutePath());
+        File dir;
+        if (version == null || version.isEmpty()) {
+            // choose a random version
+            // TODO: how can we put the version selected in the repeat test output?
+            File[] subdirs = new File(path).listFiles(new FileFilter() {
+                @Override
+                public boolean accept(File file) {
+                    return file.getName().startsWith("elasticsearch-") && file.isDirectory();
+                }
+            });
+            if (subdirs == null || subdirs.length == 0) {
+                throw new IllegalArgumentException("Backwards dir " + path + " must be a directory, and contain elasticsearch releases");
+            }
+            dir = subdirs[randomInt(subdirs.length - 1)];
+            version = dir.getName().substring("elasticsearch-".length());
+        } else {
+            dir = new File(path, "elasticsearch-" + version);
+            if (!dir.exists()) {
+                throw new IllegalArgumentException("Backwards tests location is missing: " + dir.getAbsolutePath());
+            }
+            if (!dir.isDirectory()) {
+                throw new IllegalArgumentException("Backwards tests location is not a directory: " + dir.getAbsolutePath());
+            }
         }
-        if (!file.isDirectory()) {
-            throw new IllegalArgumentException("Backwards tests location is not a directory: " + file.getAbsolutePath());
+        
+        Version v = Version.fromString(version);
+        if (v == null) {
+            throw new IllegalArgumentException("Backcompat elasticsearch version could not be parsed: " + version);
         }
-        return file;
+        if (v.major != Version.CURRENT.major) {
+            throw new IllegalArgumentException("Backcompat elasticsearch version must be same major version as current. " +
+                                               "backcompat: " + version + ", current: " + Version.CURRENT.toString());
+        }
+        return dir;
     }
 
     public CompositeTestCluster backwardsCluster() {

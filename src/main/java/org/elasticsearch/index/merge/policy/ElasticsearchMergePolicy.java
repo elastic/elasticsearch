@@ -29,6 +29,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
@@ -40,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A {@link MergePolicy} that upgrades segments and can force merges.
+ * A {@link MergePolicy} that upgrades segments and can upgrade merges.
  * <p>
  * It can be useful to use the background merging process to upgrade segments,
  * for example when we perform internal changes that imply different index
@@ -54,7 +55,8 @@ import java.util.Map;
 public final class ElasticsearchMergePolicy extends MergePolicy {
 
     private final MergePolicy delegate;
-    private volatile boolean force;
+    private volatile boolean upgradeInProgress;
+    private static final int MAX_CONCURRENT_UPGRADE_MERGES = 5;
 
     /** @param delegate the merge policy to wrap */
     public ElasticsearchMergePolicy(MergePolicy delegate) {
@@ -196,22 +198,30 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     public MergeSpecification findForcedMerges(SegmentInfos segmentInfos,
         int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge, IndexWriter writer)
         throws IOException {
-        MergeSpecification spec = delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, writer);
 
-        if (spec == null && force) {
-            List<SegmentCommitInfo> segments = Lists.newArrayList();
-            for (SegmentCommitInfo info : segmentInfos) {
-                if (segmentsToMerge.containsKey(info)) {
-                    segments.add(info);
-                }
-            }
-            if (!segments.isEmpty()) {
-                spec = new IndexUpgraderMergeSpecification();
-                spec.add(new OneMerge(segments));
-                return spec;
-            }
-        }
-        return upgradedMergeSpecification(spec);
+      if (upgradeInProgress) {
+          MergeSpecification spec = new IndexUpgraderMergeSpecification();
+          for (SegmentCommitInfo info : segmentInfos) {
+              if (Version.CURRENT.luceneVersion.minor > info.info.getVersion().minor) {
+                  // TODO: Use IndexUpgradeMergePolicy instead.  We should be comparing codecs,
+                  // for now we just assume every minor upgrade has a new format.
+                  spec.add(new OneMerge(Lists.newArrayList(info)));
+              }
+              if (spec.merges.size() == MAX_CONCURRENT_UPGRADE_MERGES) {
+                  // hit our max upgrades, so return the spec.  we will get a cascaded call to continue.
+                  return spec;
+              }
+          }
+          // We must have less than our max upgrade merges, so the next return will be our last in upgrading mode.
+          upgradeInProgress = false;
+          if (spec.merges.isEmpty() == false) {
+              return spec;
+          }
+          // fall through, so when we don't have any segments to upgrade, the delegate policy
+          // has a chance to decide what to do (e.g. collapse the segments to satisfy maxSegmentCount)
+      }
+
+      return upgradedMergeSpecification(delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, writer));
     }
 
     @Override
@@ -226,12 +236,13 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     }
 
     /**
-     * When <code>force</code> is true, running a force merge will cause a merge even if there
-     * is a single segment in the directory. This will apply to all calls to
-     * {@link IndexWriter#forceMerge} that are handled by this {@link MergePolicy}.
+     * When <code>upgrade</code> is true, running a force merge will upgrade any segments written
+     * with older versions. This will apply to the next call to
+     * {@link IndexWriter#forceMerge} that is handled by this {@link MergePolicy}, as well as
+     * cascading calls made by {@link IndexWriter}.
      */
-    public void setForce(boolean force) {
-        this.force = force;
+    public void setUpgradeInProgress(boolean upgrade) {
+        this.upgradeInProgress = upgrade;
     }
 
     @Override

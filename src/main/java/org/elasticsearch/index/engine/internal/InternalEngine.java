@@ -1025,27 +1025,22 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     @Override
     public void optimize(Optimize optimize) throws EngineException {
         if (optimizeMutex.compareAndSet(false, true)) {
-            ElasticsearchMergePolicy elasticsearchMergePolicy = null;
             try (InternalLock _ = readLock.acquire()) {
                 final IndexWriter writer = currentIndexWriter();
 
-                if (writer.getConfig().getMergePolicy() instanceof ElasticsearchMergePolicy) {
-                    elasticsearchMergePolicy = (ElasticsearchMergePolicy) writer.getConfig().getMergePolicy();
-                }
-                if (optimize.force() && elasticsearchMergePolicy == null) {
-                    throw new ElasticsearchIllegalStateException("The `force` flag can only be used if the merge policy is an instance of "
-                            + ElasticsearchMergePolicy.class.getSimpleName() + ", got [" + writer.getConfig().getMergePolicy().getClass().getName() + "]");
-                }
-
                 /*
-                 * The way we implement "forced forced merges" is a bit hackish in the sense that we set an instance variable and that this
-                 * setting will thus apply to all forced merges that will be run until `force` is set back to false. However, since
-                 * InternalEngine.optimize is the only place in code where we call forceMerge and since calls are protected with
-                 * `optimizeMutex`, this has the expected behavior.
+                 * The way we implement upgrades is a bit hackish in the sense that we set an instance
+                 * variable and that this setting will thus apply to the next forced merge that will be run.
+                 * This is ok because (1) this is the only place we call forceMerge, (2) we have a single
+                 * thread for optimize, and the 'optimizeMutex' guarding this code, and (3) ConcurrentMergeScheduler
+                 * syncs calls to findForcedMerges.
                  */
-                if (optimize.force()) {
-                    elasticsearchMergePolicy.setForce(true);
+                MergePolicy mp = writer.getConfig().getMergePolicy();
+                assert mp instanceof ElasticsearchMergePolicy : "MergePolicy is " + mp.getClass().getName();
+                if (optimize.upgrade()) {
+                    ((ElasticsearchMergePolicy)mp).setUpgradeInProgress(true);
                 }
+                
                 if (optimize.onlyExpungeDeletes()) {
                     writer.forceMergeDeletes(false);
                 } else if (optimize.maxNumSegments() <= 0) {
@@ -1058,9 +1053,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 maybeFailEngine(t, "optimize");
                 throw new OptimizeFailedEngineException(shardId, t);
             } finally {
-                if (elasticsearchMergePolicy != null) {
-                    elasticsearchMergePolicy.setForce(false);
-                }
                 optimizeMutex.set(false);
             }
         }

@@ -75,7 +75,7 @@ public class LicensesMetaData implements MetaData.Custom, ESLicenses {
     /**
      * Licenses metadata factory
      */
-    public static class Factory implements MetaData.Custom.Factory<LicensesMetaData> {
+    public static class Factory extends MetaData.Custom.Factory<LicensesMetaData> {
 
         /**
          * {@inheritDoc}
@@ -144,15 +144,9 @@ public class LicensesMetaData implements MetaData.Custom, ESLicenses {
         }
 
         @Override
-        public boolean isPersistent() {
-            return true;
-        }
-
-        /*
-        @Override
         public EnumSet<MetaData.XContentContext> context() {
-            return MetaData.API_AND_GATEWAY;
-        }*/
+            return EnumSet.of(MetaData.XContentContext.API);
+        }
 
 
         private final static class Fields {

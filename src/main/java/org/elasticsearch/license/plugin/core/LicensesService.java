@@ -29,16 +29,16 @@ import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
  */
 public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener {
 
-    private final Injector injector;
+   // private final Injector injector;
 
     private final ClusterService clusterService;
 
     //private volatile ESLicenses licenses = null;//ImmutableMap.of();
 
     @Inject
-    public LicensesService(Settings settings, ClusterService clusterService, Injector injector) {
+    public LicensesService(Settings settings, ClusterService clusterService/*, Injector injector*/) {
         super(settings);
-        this.injector = injector;
+        //this.injector = injector;
         this.clusterService = clusterService;
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway

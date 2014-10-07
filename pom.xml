@@ -10,7 +10,7 @@
 
     <properties>
         <elasticsearch.version>1.4.0-SNAPSHOT</elasticsearch.version>
-        <lucene.version>4.10.0</lucene.version>
+        <lucene.version>4.10.1</lucene.version>
     </properties>
 
     <dependencies>

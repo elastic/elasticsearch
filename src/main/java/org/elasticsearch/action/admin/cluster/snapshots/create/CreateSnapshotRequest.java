@@ -245,9 +245,12 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
     }
 
     /**
-     * If set to true the request should wait for the snapshot completion before returning.
+     * If set to true the operation should wait for the snapshot completion before returning.
      *
-     * @param waitForCompletion true if
+     * By default, the operation will return as soon as snapshot is initialized. It can be changed by setting this
+     * flag to true.
+     *
+     * @param waitForCompletion true if operation should wait for the snapshot completion
      * @return this request
      */
     public CreateSnapshotRequest waitForCompletion(boolean waitForCompletion) {

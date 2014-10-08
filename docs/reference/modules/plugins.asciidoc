@@ -239,6 +239,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/sksamuel/elasticsearch-river-neo4j[Neo4j River Plugin] (by Steve Samuel)
 * https://github.com/jprante/elasticsearch-river-oai/[Open Archives Initiative (OAI) River Plugin] (by Jörg Prante)
 * https://github.com/sksamuel/elasticsearch-river-redis[Redis River Plugin] (by Steve Samuel)
+* https://github.com/rethinkdb/elasticsearch-river-rethinkdb[RethinkDB River Plugin] (by RethinkDB)
 * http://dadoonet.github.com/rssriver/[RSS River Plugin] (by David Pilato)
 * https://github.com/adamlofts/elasticsearch-river-sofa[Sofa River Plugin] (by adamlofts)
 * https://github.com/javanna/elasticsearch-river-solr/[Solr River Plugin] (by Luca Cavanna)

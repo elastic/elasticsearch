@@ -24,6 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
@@ -484,6 +485,33 @@ public class CommonStats implements Streamable, ToXContent {
         CommonStats stats = new CommonStats();
         stats.readFrom(in);
         return stats;
+    }
+
+    /**
+     * Utility method which computes total memory by adding
+     * FieldData, IdCache, Percolate, Segments (memory, index writer, version map)
+     */
+    public ByteSizeValue getTotalMemory() {
+        long size = 0;
+        if (this.getFieldData() != null) {
+            size += this.getFieldData().getMemorySizeInBytes();
+        }
+        if (this.getFilterCache() != null) {
+            size += this.getFilterCache().getMemorySizeInBytes();
+        }
+        if (this.getIdCache() != null) {
+            size += this.getIdCache().getMemorySizeInBytes();
+        }
+        if (this.getPercolate() != null) {
+            size += this.getPercolate().getMemorySizeInBytes();
+        }
+        if (this.getSegments() != null) {
+            size += this.getSegments().getMemoryInBytes() +
+                    this.getSegments().getIndexWriterMemoryInBytes() +
+                    this.getSegments().getVersionMapMemoryInBytes();
+        }
+
+        return new ByteSizeValue(size);
     }
 
     @Override

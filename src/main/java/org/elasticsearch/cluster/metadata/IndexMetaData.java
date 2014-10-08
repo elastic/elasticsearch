@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
@@ -193,7 +194,6 @@ public class IndexMetaData {
         this.mappings = mappings;
         this.customs = customs;
         this.totalNumberOfShards = numberOfShards() * (numberOfReplicas() + 1);
-
         this.aliases = aliases;
 
         ImmutableMap<String, String> requireMap = settings.getByPrefix("index.routing.allocation.require.").getAsMap();
@@ -215,6 +215,8 @@ public class IndexMetaData {
             excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
         }
     }
+
+
 
     public String index() {
         return index;

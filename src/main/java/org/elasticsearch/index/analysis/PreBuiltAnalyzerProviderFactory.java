@@ -38,7 +38,7 @@ public class PreBuiltAnalyzerProviderFactory implements AnalyzerProviderFactory 
 
     @Override
     public AnalyzerProvider create(String name, Settings settings) {
-        Version indexVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        Version indexVersion = Version.indexCreated(settings);
         if (!Version.CURRENT.equals(indexVersion)) {
             PreBuiltAnalyzers preBuiltAnalyzers = PreBuiltAnalyzers.getOrDefault(name, null);
             if (preBuiltAnalyzers != null) {

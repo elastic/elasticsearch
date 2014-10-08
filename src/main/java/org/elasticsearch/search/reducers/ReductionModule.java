@@ -22,6 +22,7 @@ package org.elasticsearch.search.reducers;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowParser;
 
 import java.util.List;
 
@@ -30,7 +31,7 @@ public class ReductionModule extends AbstractModule {
     private List<Class<? extends Reducer.Parser>> parsers = Lists.newArrayList();
 
     public ReductionModule() {
-//        parsers.add(MetricReductionParser.class);
+        parsers.add(SlidingWindowParser.class);
     }
 
     /**

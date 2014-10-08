@@ -59,7 +59,7 @@ public class HasParentFilterParser implements FilterParser {
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
-        XContentStructure.InnerQuery innerQuery = null;
+        XContentStructure.InnerQuery iq = null;
         XContentStructure.InnerFilter innerFilter = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -70,7 +70,7 @@ public class HasParentFilterParser implements FilterParser {
                 // XContentStructure.<type> facade to parse if available,
                 // or delay parsing if not.
                 if ("query".equals(currentFieldName)) {
-                    innerQuery = new XContentStructure.InnerQuery(parseContext, parentType == null ? null : new String[] {parentType});
+                    iq = new XContentStructure.InnerQuery(parseContext, parentType == null ? null : new String[] {parentType});
                     queryFound = true;
                 } else if ("filter".equals(currentFieldName)) {
                     innerFilter = new XContentStructure.InnerFilter(parseContext, parentType == null ? null : new String[] {parentType});
@@ -101,18 +101,18 @@ public class HasParentFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'parent_type' field");
         }
 
-        Query query;
+        Query innerQuery;
         if (queryFound) {
-            query = innerQuery.asQuery(parentType);
+            innerQuery = iq.asQuery(parentType);
         } else {
-            query = innerFilter.asFilter(parentType);
+            innerQuery = innerFilter.asFilter(parentType);
         }
 
-        if (query == null) {
+        if (innerQuery == null) {
             return null;
         }
 
-        Query parentQuery = createParentQuery(query, parentType, false, parseContext);
+        Query parentQuery = createParentQuery(innerQuery, parentType, false, parseContext);
         if (parentQuery == null) {
             return null;
         }

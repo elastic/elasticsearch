@@ -2160,6 +2160,40 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
     }
 
+    @Test
+    public void testTypeIsAppliedInHasParentInnerQuery() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent"));
+        ensureGreen();
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "parent", "1").setSource("field1", "a"));
+        indexRequests.add(client().prepareIndex("test", "child", "1").setParent("1").setSource("{}"));
+        indexRequests.add(client().prepareIndex("test", "child", "2").setParent("1").setSource("{}"));
+        indexRandom(true, indexRequests);
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(constantScoreQuery(hasParentFilter("parent", notFilter(termFilter("field1", "a")))))
+                .get();
+        assertHitCount(searchResponse, 0l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(hasParentQuery("parent", constantScoreQuery(notFilter(termFilter("field1", "a")))))
+                .get();
+        assertHitCount(searchResponse, 0l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(constantScoreQuery(hasParentFilter("parent", termFilter("field1", "a"))))
+                .get();
+        assertHitCount(searchResponse, 2l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(hasParentQuery("parent", constantScoreQuery(termFilter("field1", "a"))))
+                .get();
+        assertHitCount(searchResponse, 2l);
+    }
+
     List<IndexRequestBuilder> createMinMaxDocBuilders() {
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         // Parent 1 and its children

@@ -95,8 +95,8 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
     private EnabledAttributeMapper enabledState;
 
-    public SizeFieldMapper() {
-        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null, null, ImmutableSettings.EMPTY);
+    public SizeFieldMapper(Settings indexSettings) {
+        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null, null, indexSettings);
     }
 
     public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, PostingsFormatProvider postingsProvider,

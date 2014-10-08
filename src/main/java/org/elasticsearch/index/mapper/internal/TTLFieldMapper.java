@@ -119,8 +119,8 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     private EnabledAttributeMapper enabledState;
     private long defaultTTL;
 
-    public TTLFieldMapper() {
-        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED_STATE, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, ImmutableSettings.EMPTY);
+    public TTLFieldMapper(Settings indexSettings) {
+        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED_STATE, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, indexSettings);
     }
 
     protected TTLFieldMapper(FieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,

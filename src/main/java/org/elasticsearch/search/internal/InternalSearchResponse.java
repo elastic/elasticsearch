@@ -98,7 +98,9 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             aggregations.toXContent(builder, params);
         }
         if (reductions != null) {
-            reductions.toXContent(builder, params);
+            builder.startObject("reductions");
+            reductions.toXContentInternal(builder, params);
+            builder.endObject();
         }
         if (suggest != null) {
             suggest.toXContent(builder, params);

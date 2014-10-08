@@ -379,7 +379,7 @@ public class SearchPhaseController extends AbstractComponent {
         }
 
         InternalAggregations reductions = null;
-        if (aggregations != null) {
+        if (aggregations != null && firstResult.reducerFactories() != null) {
             Reducer[] reducers = firstResult.reducerFactories().createTopLevelReducers(new ReducerContext(bigArrays, scriptService));
             List<InternalAggregation> reductionsList = new ArrayList<>(reducers.length);
             for (Reducer reducer : reducers) {

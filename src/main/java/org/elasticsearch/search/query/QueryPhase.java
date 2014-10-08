@@ -97,6 +97,7 @@ public class QueryPhase implements SearchPhase {
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
         aggregationPhase.preProcess(searchContext);
+        reductionPhase.preProcess(searchContext);
 
         searchContext.queryResult().searchTimedOut(false);
 
@@ -168,5 +169,6 @@ public class QueryPhase implements SearchPhase {
         }
         suggestPhase.execute(searchContext);
         aggregationPhase.execute(searchContext);
+        reductionPhase.execute(searchContext);
     }
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.search.reducers.bucket.slidingwindow;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
@@ -65,7 +66,7 @@ public class SlidingWindowReducer extends BucketReducer {
                 selectionBuckets.add(aggBuckets.get(i + j));
             }
             // NOCOMMIT populate aggregations (sub reducers outputs)
-            InternalSelection selection = new InternalSelection("Selection " + i, bucketType, bucketStreamContext, selectionBuckets , null);
+            InternalSelection selection = new InternalSelection("Selection " + i, bucketType, bucketStreamContext, selectionBuckets , InternalAggregations.EMPTY);
             selections.add(selection);
         }
         return new InternalSlidingWindow(name(), selections);

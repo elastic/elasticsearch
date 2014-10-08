@@ -100,7 +100,7 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("key", key);
-            builder.field("bucketType", bucketType);
+            builder.field("bucketType", bucketType.toUtf8());
             builder.startArray("buckets");
             for (MultiBucketsAggregation.Bucket bucket : buckets) {
                 bucket.toXContent(builder, params);

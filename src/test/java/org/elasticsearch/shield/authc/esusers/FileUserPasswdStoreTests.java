@@ -6,6 +6,8 @@
 package org.elasticsearch.shield.authc.esusers;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Charsets;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -29,6 +31,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  *
@@ -115,5 +118,16 @@ public class FileUserPasswdStoreTests extends ElasticsearchTestCase {
         Map<String, char[]> users = FileUserPasswdStore.parseFile(file.toPath(), null);
         assertThat(users, notNullValue());
         assertThat(users.keySet(), hasSize(1));
+    }
+
+    @Test
+    public void testParseEmptyFile() throws Exception {
+        File empty = this.tempFolder.newFile();
+        Path path = Paths.get(getClass().getResource("users").toURI());
+        ESLogger log = ESLoggerFactory.getLogger("test");
+        log = spy(log);
+        Map<String, char[]> users = FileUserPasswdStore.parseFile(empty.toPath(), log);
+
+        verify(log, times(1)).warn(contains("No users found"));
     }
 }

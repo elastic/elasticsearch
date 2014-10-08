@@ -117,7 +117,11 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
             users.put(username, hash.toCharArray());
         }
 
-        return users.build();
+        ImmutableMap<String, char[]> usersMap = users.build();
+        if (logger != null && usersMap.isEmpty()){
+            logger.warn("No users found in file [" + path.toAbsolutePath() + "].  Use bin/shield/esusers to add users and role mappings");
+        }
+        return usersMap;
     }
 
     public static void writeFile(Map<String, char[]> esUsers, Path path) {

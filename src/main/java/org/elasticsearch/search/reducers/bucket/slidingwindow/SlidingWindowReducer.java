@@ -52,8 +52,8 @@ public class SlidingWindowReducer extends BucketReducer {
 
     private int windowSize;
 
-    public SlidingWindowReducer(String name, String path, int windowSize, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, path, factories, context, parent);
+    public SlidingWindowReducer(String name, String bucketsPath, int windowSize, ReducerFactories factories, ReducerContext context, Reducer parent) {
+        super(name, bucketsPath, factories, context, parent);
         this.windowSize = windowSize;
     }
 
@@ -74,35 +74,35 @@ public class SlidingWindowReducer extends BucketReducer {
 
     public static class Factory extends ReducerFactory {
 
-        private String path;
+        private String bucketsPath;
         private int windowSize;
 
         public Factory() {
             super(InternalSlidingWindow.TYPE);
         }
 
-        public Factory(String name, String path, int windowSize) {
+        public Factory(String name, String bucketsPath, int windowSize) {
             super(name, InternalSlidingWindow.TYPE);
-            this.path = path;
+            this.bucketsPath = bucketsPath;
             this.windowSize = windowSize;
         }
 
         @Override
         public Reducer create(ReducerContext context, Reducer parent) {
-            return new SlidingWindowReducer(name, path, windowSize, factories, context, parent);
+            return new SlidingWindowReducer(name, bucketsPath, windowSize, factories, context, parent);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             name = in.readString();
-            path = in.readString();
+            bucketsPath = in.readString();
             windowSize = in.readInt();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            out.writeString(path);
+            out.writeString(bucketsPath);
             out.writeInt(windowSize);
         }
         

@@ -46,7 +46,7 @@ public class SlidingWindowBuilder extends ReductionBuilder<SlidingWindowBuilder>
         builder.startObject();
 
         if (path != null) {
-            builder.field(SlidingWindowParser.PATH_FIELD.getPreferredName(), path);
+            builder.field(SlidingWindowParser.BUCKETS_FIELD.getPreferredName(), path);
         }
         if (windowSize != null) {
             builder.field(SlidingWindowParser.WINDOW_SIZE_FIELD.getPreferredName(), windowSize);

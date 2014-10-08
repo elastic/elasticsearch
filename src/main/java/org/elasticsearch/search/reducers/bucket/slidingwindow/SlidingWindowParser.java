@@ -30,8 +30,8 @@ import java.io.IOException;
 
 public class SlidingWindowParser implements Reducer.Parser{
 
-    protected static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
-    protected static final ParseField PATH_FIELD = new ParseField("path");
+    protected static final ParseField WINDOW_SIZE_FIELD = new ParseField("window");
+    protected static final ParseField BUCKETS_FIELD = new ParseField("buckets");
 
     @Override
     public String type() {
@@ -41,7 +41,7 @@ public class SlidingWindowParser implements Reducer.Parser{
     @Override
     public ReducerFactory parse(String reducerName, XContentParser parser, SearchContext context) throws IOException {
         
-        String path = null;
+        String buckets = null;
         int windowSize = 2;
 
         XContentParser.Token token;
@@ -53,8 +53,8 @@ public class SlidingWindowParser implements Reducer.Parser{
                 if (WINDOW_SIZE_FIELD.match(currentFieldName)) {
                     windowSize = parser.intValue(true);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (PATH_FIELD.match(currentFieldName)) {
-                        path = parser.text();
+                    if (BUCKETS_FIELD.match(currentFieldName)) {
+                        buckets = parser.text();
                     } else {
                         throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
                     }
@@ -66,10 +66,10 @@ public class SlidingWindowParser implements Reducer.Parser{
             }
         }
 
-        if (path == null) {
+        if (buckets == null) {
             throw new SearchParseException(context, "Missing [path] in sliding_window reducer [" + reducerName + "]");
         }
-        return new SlidingWindowReducer.Factory(reducerName, path, windowSize);
+        return new SlidingWindowReducer.Factory(reducerName, buckets, windowSize);
     }
 
 }

@@ -33,18 +33,18 @@ import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 public abstract class BucketReducer extends Reducer {
 
-    private String path;
+    private String bucketsPath;
 
-    public BucketReducer(String name, String path, ReducerFactories factories, ReducerContext context, Reducer parent) {
+    public BucketReducer(String name, String bucketsPath, ReducerFactories factories, ReducerContext context, Reducer parent) {
         super(name, factories, context, parent);
-        this.path = path;
+        this.bucketsPath = bucketsPath;
     }
 
     @Override
     public InternalBucketReducerAggregation reduce(InternalAggregations aggregations)
             throws ReductionExecutionException {
         for (Aggregation aggregation : aggregations) {
-            if (aggregation.getName().equals(path)) {
+            if (aggregation.getName().equals(bucketsPath)) {
                 if (aggregation instanceof MultiBucketsAggregation) {
                     MultiBucketsAggregation multiBucketsAggregation = (MultiBucketsAggregation) aggregation;
                     BytesReference bucketType = ((InternalAggregation) aggregation).type().stream();

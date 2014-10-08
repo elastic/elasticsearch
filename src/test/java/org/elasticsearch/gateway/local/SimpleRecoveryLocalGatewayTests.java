@@ -37,6 +37,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -348,6 +349,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     public void testReusePeerRecovery() throws Exception {
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
+                .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
                 .put("gateway.recover_after_nodes", 4)
                 .put(MockDirectoryHelper.CRASH_INDEX, false);
 

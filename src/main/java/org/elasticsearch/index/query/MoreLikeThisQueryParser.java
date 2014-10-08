@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -55,7 +56,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
     private MoreLikeThisFetchService fetchService = null;
 
     public static class Fields {
-        public static final ParseField LIKE_TEXT = new ParseField("like_text");
+        public static final ParseField LIKE_TEXT = new ParseField("like_text").withAllDeprecated("like");
         public static final ParseField MIN_TERM_FREQ = new ParseField("min_term_freq");
         public static final ParseField MAX_QUERY_TERMS = new ParseField("max_query_terms");
         public static final ParseField MIN_WORD_LENGTH = new ParseField("min_word_length", "min_word_len");
@@ -67,8 +68,9 @@ public class MoreLikeThisQueryParser implements QueryParser {
         public static final ParseField PERCENT_TERMS_TO_MATCH = new ParseField("percent_terms_to_match");
         public static final ParseField FAIL_ON_UNSUPPORTED_FIELD = new ParseField("fail_on_unsupported_field");
         public static final ParseField STOP_WORDS = new ParseField("stop_words");
-        public static final ParseField DOCUMENT_IDS = new ParseField("ids");
-        public static final ParseField DOCUMENTS = new ParseField("docs");
+        public static final ParseField DOCUMENT_IDS = new ParseField("ids").withAllDeprecated("like");
+        public static final ParseField DOCUMENTS = new ParseField("docs").withAllDeprecated("like");
+        public static final ParseField LIKE = new ParseField("like");
         public static final ParseField INCLUDE = new ParseField("include");
     }
 
@@ -100,13 +102,18 @@ public class MoreLikeThisQueryParser implements QueryParser {
 
         XContentParser.Token token;
         String currentFieldName = null;
+
+        List<String> likeTexts = new ArrayList<>();
         MultiTermVectorsRequest items = new MultiTermVectorsRequest();
+
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (Fields.LIKE_TEXT.match(currentFieldName, parseContext.parseFlags())) {
-                    mltQuery.setLikeText(parser.text());
+                    likeTexts.add(parser.text());
+                } else if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
+                    parseLikeField(parser, likeTexts, items);
                 } else if (Fields.MIN_TERM_FREQ.match(currentFieldName, parseContext.parseFlags())) {
                     mltQuery.setMinTermFrequency(parser.intValue());
                 } else if (Fields.MAX_QUERY_TERMS.match(currentFieldName, parseContext.parseFlags())) {
@@ -166,15 +173,25 @@ public class MoreLikeThisQueryParser implements QueryParser {
                         if (token != XContentParser.Token.START_OBJECT) {
                             throw new ElasticsearchIllegalArgumentException("docs array element should include an object");
                         }
-                        items.add(parseDocuments(parser));
+                        items.add(parseDocument(parser));
                     }
+                } else if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        parseLikeField(parser, likeTexts, items);
+                    }
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (Fields.LIKE.match(currentFieldName, parseContext.parseFlags())) {
+                    parseLikeField(parser, likeTexts, items);
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             }
         }
 
-        if (mltQuery.getLikeText() == null && items.isEmpty()) {
+        if (likeTexts.isEmpty() && items.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "more_like_this requires at least 'like_text' or 'ids/docs' to be specified");
         }
         if (moreLikeFields != null && moreLikeFields.isEmpty()) {
@@ -202,6 +219,11 @@ public class MoreLikeThisQueryParser implements QueryParser {
         // support for named query
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, mltQuery);
+        }
+
+        // handle like texts
+        if (!likeTexts.isEmpty()) {
+            mltQuery.setLikeText(likeTexts);
         }
 
         // handle items
@@ -245,6 +267,22 @@ public class MoreLikeThisQueryParser implements QueryParser {
         return mltQuery;
     }
 
+    private TermVectorRequest parseDocument(XContentParser parser) throws IOException {
+        TermVectorRequest termVectorRequest = newTermVectorRequest();
+        TermVectorRequest.parseRequest(termVectorRequest, parser);
+        return termVectorRequest;
+    }
+
+    private void parseLikeField(XContentParser parser, List<String> likeTexts, MultiTermVectorsRequest items) throws IOException {
+        if (parser.currentToken().isValue()) {
+            likeTexts.add(parser.text());
+        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            items.add(parseDocument(parser));
+        } else {
+            throw new ElasticsearchIllegalArgumentException("Content of 'like' parameter should either be a string or an object");
+        }
+    }
+
     private TermVectorRequest newTermVectorRequest() {
         return new TermVectorRequest()
                 .positions(false)
@@ -252,12 +290,6 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 .payloads(false)
                 .fieldStatistics(false)
                 .termStatistics(false);
-    }
-
-    private TermVectorRequest parseDocuments(XContentParser parser) throws IOException {
-        TermVectorRequest termVectorRequest = newTermVectorRequest();
-        TermVectorRequest.parseRequest(termVectorRequest, parser);
-        return termVectorRequest;
     }
 
     private List<String> removeUnsupportedFields(List<String> moreLikeFields, Analyzer analyzer, boolean failOnUnsupportedField) throws IOException {

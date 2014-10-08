@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -44,7 +46,9 @@ public class AnalysisTestsHelper {
     public static AnalysisService createAnalysisServiceFromSettings(
             Settings settings) {
         Index index = new Index("test");
-
+        if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
+            settings = ImmutableSettings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        }
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings),
                 new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
 

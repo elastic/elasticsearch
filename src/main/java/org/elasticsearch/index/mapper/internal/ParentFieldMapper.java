@@ -42,6 +42,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,6 +62,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     public static final String NAME = "_parent";
 
     public static final String CONTENT_TYPE = "_parent";
+
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = ParentFieldMapper.NAME;
@@ -150,8 +152,8 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         this.typeAsBytes = type == null ? null : new BytesRef(type);
     }
 
-    public ParentFieldMapper() {
-        this(Defaults.NAME, Defaults.NAME, null, null, null, null);
+    public ParentFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, Defaults.NAME, null, null, null, indexSettings);
         this.fieldDataType = new FieldDataType("_parent", settingsBuilder().put(Loading.KEY, Loading.LAZY_VALUE));
     }
 

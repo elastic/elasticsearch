@@ -96,7 +96,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         this.matcher = parseTokenChars(settings.getAsArray("token_chars"));
-        this.esVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
+        this.esVersion = org.elasticsearch.Version.indexCreated(indexSettings);
     }
 
     @SuppressWarnings("deprecation")

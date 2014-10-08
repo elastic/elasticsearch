@@ -34,7 +34,7 @@ public class PreBuiltCharFilterFactoryFactory implements CharFilterFactoryFactor
 
     @Override
     public CharFilterFactory create(String name, Settings settings) {
-        Version indexVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        Version indexVersion = Version.indexCreated(settings);
         if (!Version.CURRENT.equals(indexVersion)) {
             PreBuiltCharFilters preBuiltCharFilters = PreBuiltCharFilters.getOrDefault(name, null);
             if (preBuiltCharFilters != null) {

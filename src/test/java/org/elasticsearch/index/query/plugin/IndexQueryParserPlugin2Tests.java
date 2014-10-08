@@ -20,7 +20,9 @@
 package org.elasticsearch.index.query.plugin;
 
 import org.elasticsearch.cache.recycler.CacheRecyclerModule;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -57,7 +59,7 @@ public class IndexQueryParserPlugin2Tests extends ElasticsearchTestCase {
 
     @Test
     public void testCustomInjection() throws InterruptedException {
-        Settings settings = ImmutableSettings.builder().put("name", "testCustomInjection").build();
+        Settings settings = ImmutableSettings.builder().put("name", "testCustomInjection").put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
         IndexQueryParserModule queryParserModule = new IndexQueryParserModule(settings);
         queryParserModule.addQueryParser("my", PluginJsonQueryParser.class);

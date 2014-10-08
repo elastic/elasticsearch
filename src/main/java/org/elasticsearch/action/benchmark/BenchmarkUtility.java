@@ -32,15 +32,15 @@ import java.util.List;
  */
 public final class BenchmarkUtility {
 
-    public static boolean exists(String benchmarkId, BenchmarkMetaData meta) {
+    public static BenchmarkMetaData.Entry exists(String benchmarkId, BenchmarkMetaData meta) {
         if (meta != null) {
             for (BenchmarkMetaData.Entry entry : meta.entries()) {
                 if (entry.benchmarkId().equals(benchmarkId)) {
-                    return true;
+                    return entry;
                 }
             }
         }
-        return false;
+        return null;
     }
 
     public static List<DiscoveryNode> executors(DiscoveryNodes nodes, int num) {

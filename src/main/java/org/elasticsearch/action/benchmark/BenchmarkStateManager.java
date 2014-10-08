@@ -81,13 +81,38 @@ public class BenchmarkStateManager {
         this.transportService = transportService;
     }
 
+    public static class BenchmarkCreationStatus {
+
+        private final String benchmarkId;
+        private final boolean created;
+        private final List<String> nodeIds;
+
+        public BenchmarkCreationStatus(final String benchmarkId, final boolean created, final List<String> nodeIds) {
+            this.benchmarkId = benchmarkId;
+            this.created = created;
+            this.nodeIds = nodeIds;
+        }
+
+        public String benchmarkId() {
+            return benchmarkId;
+        }
+
+        public boolean created() {
+            return created;
+        }
+
+        public List<String> nodeIds() {
+            return ImmutableList.copyOf(nodeIds);
+        }
+    }
+
     /**
      * Initiates the lifecycle of a benchmark by creating an entry in the cluster metadata.
      *
      * @param request   Benchmark request and definition
      * @param listener  Response listener
      */
-    public void start(final BenchmarkStartRequest request, final ActionListener<List<String>> listener) {
+    public void start(final BenchmarkStartRequest request, final ActionListener<BenchmarkCreationStatus> listener) {
 
         final String cause = "benchmark-start-request (" + request.benchmarkId() + ")";
 
@@ -105,33 +130,56 @@ public class BenchmarkStateManager {
             public ClusterState execute(ClusterState state) throws Exception {
 
                 final BenchmarkMetaData meta = state.metaData().custom(BenchmarkMetaData.TYPE);
-                if (BenchmarkUtility.exists(request.benchmarkId(), meta)) {
-                    throw new BenchmarkIdConflictException("benchmark [" + request.benchmarkId() + "]: already exists");
+                final Entry existing = meta == null ? null : BenchmarkUtility.exists(request.benchmarkId(), meta);
+                BenchmarkCreationStatus creation;
+
+                if (existing != null) {
+                    // If a benchmark was submitted with the same ID from the same master node, then it
+                    // is a user error of double submission and we throw an ID conflict exception.
+                    // Otherwise, if the existing benchmark's master node ID differs from the current master node ID,
+                    // this is an automatic re-submission due to master failure.
+                    // This case is not supported, so we respond back with creation failed message.
+                    if (state.nodes().masterNodeId().equals(existing.masterNodeId())) {
+                        throw new BenchmarkIdConflictException("benchmark [" + request.benchmarkId() + "]: already exists");
+                    }
                 }
 
                 final ImmutableList.Builder<BenchmarkMetaData.Entry> builder = ImmutableList.builder();
                 if (meta != null) {
                     for (BenchmarkMetaData.Entry entry : meta.entries()) {
-                        builder.add(entry);
+                        if (existing != null && existing.equals(entry)) {
+                            // Benchmark is a leftover from a master failure; abort it.
+                            builder.add(new BenchmarkMetaData.Entry(existing.benchmarkId(),
+                                    existing.masterNodeId(), BenchmarkMetaData.State.ABORTED, entry.nodeStateMap()));
+                        } else {
+                            builder.add(entry);
+                        }
                     }
                 }
 
-                // Assign nodes on which to execute the benchmark
-                final BenchmarkMetaData.Entry entry = new BenchmarkMetaData.Entry(request.benchmarkId());
-                final List<String> nodeIds = new ArrayList<String>();
-                final List<DiscoveryNode> nodes = BenchmarkUtility.executors(clusterService.state().nodes(), request.numExecutorNodes());
-                for (DiscoveryNode node : nodes) {
-                    nodeIds.add(node.id());
-                    entry.nodeStateMap().put(node.id(), BenchmarkMetaData.Entry.NodeState.INITIALIZING);
+                if (existing != null) {
+                    creation = new BenchmarkCreationStatus(request.benchmarkId(), false, new ArrayList<String>());
+                } else {
+                    // Assign nodes on which to execute the benchmark
+                    final BenchmarkMetaData.Entry entry = new BenchmarkMetaData.Entry(request.benchmarkId(), state.getNodes().masterNodeId());
+                    final List<DiscoveryNode> nodes = BenchmarkUtility.executors(clusterService.state().nodes(), request.numExecutorNodes());
+                    final List<String> nodeIds = new ArrayList<>();
+
+                    for (DiscoveryNode node : nodes) {
+                        nodeIds.add(node.id());
+                        entry.nodeStateMap().put(node.id(), BenchmarkMetaData.Entry.NodeState.INITIALIZING);
+                    }
+
+                    // Add benchmark to cluster metadata
+                    builder.add(entry);
+                    creation = new BenchmarkCreationStatus(request.benchmarkId(), true, nodeIds);
                 }
 
-                // Add benchmark to cluster metadata
-                builder.add(entry);
                 final MetaData.Builder metabuilder = MetaData.builder(state.metaData());
                 metabuilder.putCustom(BenchmarkMetaData.TYPE, new BenchmarkMetaData(builder.build()));
 
                 // Notify caller that everything is OK and send back a list of nodeIds on which the benchmark will execute
-                listener.onResponse(nodeIds);
+                listener.onResponse(creation);
 
                 return ClusterState.builder(state).metaData(metabuilder).build();
             }
@@ -187,7 +235,7 @@ public class BenchmarkStateManager {
                 if (!eligibilitySet.contains(entry.state())) {
                     builder.add(entry);
                 } else if (Regex.simpleMatch(patterns, entry.benchmarkId())) {
-                    builder.add(new BenchmarkMetaData.Entry(entry.benchmarkId(), target, entry.nodeStateMap()));
+                    builder.add(new BenchmarkMetaData.Entry(entry.benchmarkId(), entry.masterNodeId(), target, entry.nodeStateMap()));
                     found.add(entry.benchmarkId());
                 } else {
                     builder.add(entry);
@@ -302,7 +350,7 @@ public class BenchmarkStateManager {
                                 }
                             }
                         }
-                        builder.add(new BenchmarkMetaData.Entry(entry.benchmarkId(), benchmarkState, map));
+                        builder.add(new BenchmarkMetaData.Entry(entry.benchmarkId(), entry.masterNodeId(), benchmarkState, map));
                     } else {
                         builder.add(entry);
                     }

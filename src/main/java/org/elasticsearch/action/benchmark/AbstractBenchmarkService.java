@@ -204,7 +204,7 @@ public abstract class AbstractBenchmarkService extends AbstractComponent impleme
                                     map.put(mapEntry.getKey(), mapEntry.getValue());
                                 }
                             }
-                            builder.add(new BenchmarkMetaData.Entry(request.benchmarkId, entry.state(), map));
+                            builder.add(new BenchmarkMetaData.Entry(request.benchmarkId, entry.masterNodeId(), entry.state(), map));
                         }
                     }
 

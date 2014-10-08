@@ -91,22 +91,28 @@ public class BenchmarkMetaData implements MetaData.Custom {
 
     public static class Entry {
 
+        private final String                 masterNodeId;
         private final String                 benchmarkId;
         private final State                  state;
         private final Map<String, NodeState> nodeStateMap;
 
-        public Entry(String benchmarkId) {
-            this(benchmarkId, State.INITIALIZING, new HashMap<String, NodeState>());
+        public Entry(String benchmarkId, String masterNodeId) {
+            this(benchmarkId, masterNodeId, State.INITIALIZING, new HashMap<String, NodeState>());
         }
 
-        public Entry(String benchmarkId, State state, Map<String, NodeState> nodeStateMap) {
+        public Entry(String benchmarkId, String masterNodeId, State state, Map<String, NodeState> nodeStateMap) {
             this.benchmarkId  = benchmarkId;
             this.state        = state;
             this.nodeStateMap = nodeStateMap;
+            this.masterNodeId = masterNodeId;
         }
 
         public String benchmarkId() {
             return benchmarkId;
+        }
+
+        public String masterNodeId() {
+            return masterNodeId;
         }
 
         public State state() {
@@ -136,6 +142,7 @@ public class BenchmarkMetaData implements MetaData.Custom {
             Entry entry = (Entry) o;
 
             if (!benchmarkId.equals(entry.benchmarkId)) return false;
+            if (!masterNodeId.equals(entry.masterNodeId)) return false;
             if (state != entry.state) return false;
 
             if (nodeStateMap().size() != entry.nodeStateMap().size()) return false;
@@ -156,6 +163,7 @@ public class BenchmarkMetaData implements MetaData.Custom {
         @Override
         public int hashCode() {
             int result = benchmarkId.hashCode();
+            result = 31 * result + masterNodeId.hashCode();
             result = 31 * result + state.hashCode();
             result = 31 * result + nodeStateMap.hashCode();
             return result;
@@ -264,13 +272,14 @@ public class BenchmarkMetaData implements MetaData.Custom {
             Entry[] entries = new Entry[in.readVInt()];
             for (int i = 0; i < entries.length; i++) {
                 String benchmarkId = in.readString();
+                String masterNodeId = in.readString();
                 State state = State.fromId(in.readByte());
                 int size = in.readVInt();
                 Map<String, Entry.NodeState> map = new HashMap<>(size);
                 for (int j = 0; j < size; j++) {
                     map.put(in.readString(), Entry.NodeState.fromId(in.readByte()));
                 }
-                entries[i] = new Entry(benchmarkId, state, map);
+                entries[i] = new Entry(benchmarkId, masterNodeId, state, map);
             }
             return new BenchmarkMetaData(entries);
         }
@@ -280,6 +289,7 @@ public class BenchmarkMetaData implements MetaData.Custom {
             out.writeVInt(repositories.entries().size());
             for (Entry entry : repositories.entries()) {
                 out.writeString(entry.benchmarkId());
+                out.writeString(entry.masterNodeId());
                 out.writeByte(entry.state().id());
                 out.writeVInt(entry.nodeStateMap.size());
                 for (Map.Entry<String, Entry.NodeState> mapEntry : entry.nodeStateMap().entrySet()) {

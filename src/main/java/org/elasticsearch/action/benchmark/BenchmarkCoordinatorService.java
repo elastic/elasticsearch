@@ -199,12 +199,16 @@ public class BenchmarkCoordinatorService extends AbstractBenchmarkService {
 
         preconditions(request.numExecutorNodes());
 
-        manager.start(request, new ActionListener<List<String>>() {
+        manager.start(request, new ActionListener<BenchmarkStateManager.BenchmarkCreationStatus>() {
 
             @Override
-            public void onResponse(List<String> nodeIds) {
-                assert null == benchmarks.get(request.benchmarkId());
-                benchmarks.put(request.benchmarkId(), new State(request, nodeIds, listener));
+            public void onResponse(BenchmarkStateManager.BenchmarkCreationStatus creationStatus) {
+                if (creationStatus.created()) {
+                    assert null == benchmarks.get(request.benchmarkId());
+                    benchmarks.put(request.benchmarkId(), new State(request, creationStatus.nodeIds(), listener));
+                } else {
+                    onFailure(new ElasticsearchIllegalStateException("benchmark [" + request.benchmarkId() + "]: aborted due to master failure"));
+                }
             }
 
             @Override

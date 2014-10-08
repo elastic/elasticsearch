@@ -39,19 +39,21 @@ public class InternalAuthorizationService extends AbstractComponent implements A
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public ImmutableList<String> authorizedIndicesAndAliases(User user, String action) {
         String[] roles = user.roles();
         if (roles.length == 0) {
             return ImmutableList.of();
         }
-        Predicate[] predicates = new Predicate[roles.length];
-        for (int i = 0; i < roles.length; i++) {
-            Permission.Global global = rolesStore.permission(roles[i]);
-            predicates[i] = global.indices().allowedIndicesMatcher(action);
+        ImmutableList.Builder<Predicate<String>> predicates = ImmutableList.builder();
+        for (String role: roles) {
+            Permission.Global global = rolesStore.permission(role);
+            if (global != null) {
+                predicates.add(global.indices().allowedIndicesMatcher(action));
+            }
         }
+
         ImmutableList.Builder<String> indicesAndAliases = ImmutableList.builder();
-        Predicate<String> predicate = Predicates.or(predicates);
+        Predicate<String> predicate = Predicates.or(predicates.build());
         MetaData metaData = clusterService.state().metaData();
         for (String index : metaData.concreteAllIndices()) {
             if (predicate.apply(index)) {

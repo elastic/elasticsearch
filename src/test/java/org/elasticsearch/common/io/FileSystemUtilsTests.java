@@ -31,6 +31,7 @@ import java.util.Properties;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
 /**
@@ -63,27 +64,27 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
     public void testMoveOverExistingFileAndAppend() throws IOException {
 
         FileSystemUtils.moveFilesWithoutOverwriting(new File(src, "v1"), dst, ".new");
-        assertFileContent(dst, "file1.txt", "version1\n");
-        assertFileContent(dst, "dir/file2.txt", "version1\n");
+        assertFileContent(dst, "file1.txt", "version1");
+        assertFileContent(dst, "dir/file2.txt", "version1");
 
         FileSystemUtils.moveFilesWithoutOverwriting(new File(src, "v2"), dst, ".new");
-        assertFileContent(dst, "file1.txt", "version1\n");
-        assertFileContent(dst, "dir/file2.txt", "version1\n");
-        assertFileContent(dst, "file1.txt.new", "version2\n");
-        assertFileContent(dst, "dir/file2.txt.new", "version2\n");
-        assertFileContent(dst, "file3.txt", "version1\n");
-        assertFileContent(dst, "dir/subdir/file4.txt", "version1\n");
+        assertFileContent(dst, "file1.txt", "version1");
+        assertFileContent(dst, "dir/file2.txt", "version1");
+        assertFileContent(dst, "file1.txt.new", "version2");
+        assertFileContent(dst, "dir/file2.txt.new", "version2");
+        assertFileContent(dst, "file3.txt", "version1");
+        assertFileContent(dst, "dir/subdir/file4.txt", "version1");
 
         FileSystemUtils.moveFilesWithoutOverwriting(new File(src, "v3"), dst, ".new");
-        assertFileContent(dst, "file1.txt", "version1\n");
-        assertFileContent(dst, "dir/file2.txt", "version1\n");
-        assertFileContent(dst, "file1.txt.new", "version3\n");
-        assertFileContent(dst, "dir/file2.txt.new", "version3\n");
-        assertFileContent(dst, "file3.txt", "version1\n");
-        assertFileContent(dst, "dir/subdir/file4.txt", "version1\n");
-        assertFileContent(dst, "file3.txt.new", "version2\n");
-        assertFileContent(dst, "dir/subdir/file4.txt.new", "version2\n");
-        assertFileContent(dst, "dir/subdir/file5.txt", "version1\n");
+        assertFileContent(dst, "file1.txt", "version1");
+        assertFileContent(dst, "dir/file2.txt", "version1");
+        assertFileContent(dst, "file1.txt.new", "version3");
+        assertFileContent(dst, "dir/file2.txt.new", "version3");
+        assertFileContent(dst, "file3.txt", "version1");
+        assertFileContent(dst, "dir/subdir/file4.txt", "version1");
+        assertFileContent(dst, "file3.txt.new", "version2");
+        assertFileContent(dst, "dir/subdir/file4.txt.new", "version2");
+        assertFileContent(dst, "dir/subdir/file5.txt", "version1");
     }
 
     @Test
@@ -91,27 +92,27 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
         File dest = globalTempDir();
 
         FileSystemUtils.moveFilesWithoutOverwriting(new File(src, "v1"), dest, null);
-        assertFileContent(dest, "file1.txt", "version1\n");
-        assertFileContent(dest, "dir/file2.txt", "version1\n");
+        assertFileContent(dest, "file1.txt", "version1");
+        assertFileContent(dest, "dir/file2.txt", "version1");
 
         FileSystemUtils.moveFilesWithoutOverwriting(new File(src, "v2"), dest, null);
-        assertFileContent(dest, "file1.txt", "version1\n");
-        assertFileContent(dest, "dir/file2.txt", "version1\n");
+        assertFileContent(dest, "file1.txt", "version1");
+        assertFileContent(dest, "dir/file2.txt", "version1");
         assertFileContent(dest, "file1.txt.new", null);
         assertFileContent(dest, "dir/file2.txt.new", null);
-        assertFileContent(dest, "file3.txt", "version1\n");
-        assertFileContent(dest, "dir/subdir/file4.txt", "version1\n");
+        assertFileContent(dest, "file3.txt", "version1");
+        assertFileContent(dest, "dir/subdir/file4.txt", "version1");
 
         FileSystemUtils.moveFilesWithoutOverwriting(new File(src, "v3"), dest, null);
-        assertFileContent(dest, "file1.txt", "version1\n");
-        assertFileContent(dest, "dir/file2.txt", "version1\n");
+        assertFileContent(dest, "file1.txt", "version1");
+        assertFileContent(dest, "dir/file2.txt", "version1");
         assertFileContent(dest, "file1.txt.new", null);
         assertFileContent(dest, "dir/file2.txt.new", null);
-        assertFileContent(dest, "file3.txt", "version1\n");
-        assertFileContent(dest, "dir/subdir/file4.txt", "version1\n");
+        assertFileContent(dest, "file3.txt", "version1");
+        assertFileContent(dest, "dir/subdir/file4.txt", "version1");
         assertFileContent(dest, "file3.txt.new", null);
         assertFileContent(dest, "dir/subdir/file4.txt.new", null);
-        assertFileContent(dest, "dir/subdir/file5.txt", "version1\n");
+        assertFileContent(dest, "dir/subdir/file5.txt", "version1");
     }
 
 
@@ -129,7 +130,8 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
         } else {
             assertFileExists(file);
             String fileContent = com.google.common.io.Files.toString(file, UTF8);
-            Assert.assertThat(fileContent, containsString(expected));
+            // trim the string content to prevent different handling on windows vs. unix and CR chars...
+            Assert.assertThat(fileContent.trim(), equalTo(expected.trim()));
         }
     }
 }

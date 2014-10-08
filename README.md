@@ -27,17 +27,17 @@ _After_ installing the plugin, be sure to restart the node. This applies to _all
 
 ### Stable version
 As with any other plugin, simply run:
-`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.0.1`
+`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.0.2`
 
 When looking for `light` or `hadoop2` artifacts use:
-`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.0.1-<classifier>`
+`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.0.2-<classifier>`
 
 ### Beta version
 For the beta version, simply run:
-`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.1.0.Beta1`
+`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.1.0.Beta2`
 
 When looking for `light` or `hadoop2` artifacts use:
-`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.1.0.Beta1-<classifier>`
+`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.1.0.Beta2-<classifier>`
 
 ### Development snashot
 To install the latest snapshot, please install the plugin manually using:

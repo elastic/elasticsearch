@@ -66,7 +66,13 @@ public class SlidingWindowReducer extends BucketReducer {
                 selectionBuckets.add(aggBuckets.get(i + j));
             }
             // NOCOMMIT populate aggregations (sub reducers outputs)
-            InternalSelection selection = new InternalSelection("Selection " + i, bucketType, bucketStreamContext, selectionBuckets , InternalAggregations.EMPTY);
+            String selectionKey = null;
+            if (selectionBuckets.size() == 1) {
+                selectionKey = selectionBuckets.get(0).getKey();
+            } else {
+                selectionKey = selectionBuckets.get(0).getKey() + " TO " + selectionBuckets.get(selectionBuckets.size() - 1).getKey();
+            }
+            InternalSelection selection = new InternalSelection(selectionKey, bucketType, bucketStreamContext, selectionBuckets , InternalAggregations.EMPTY);
             selections.add(selection);
         }
         return new InternalSlidingWindow(name(), selections);

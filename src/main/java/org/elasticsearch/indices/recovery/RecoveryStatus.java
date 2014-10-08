@@ -38,11 +38,14 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class RecoveryStatus {
 
+    final String RECOVERY_PREFIX = "recovery.";
+
     final ShardId shardId;
     final long recoveryId;
     final InternalIndexShard indexShard;
     final RecoveryState recoveryState;
     final DiscoveryNode sourceNode;
+    final String tempFilePrefix;
 
     public RecoveryStatus(long recoveryId, InternalIndexShard indexShard, DiscoveryNode sourceNode) {
         this.recoveryId = recoveryId;
@@ -50,7 +53,8 @@ public class RecoveryStatus {
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
         this.recoveryState = new RecoveryState(shardId);
-        recoveryState.getTimer().startTime(System.currentTimeMillis());
+        this.recoveryState.getTimer().startTime(System.currentTimeMillis());
+        this.tempFilePrefix = RECOVERY_PREFIX + recoveryState.getTimer().startTime() + ".";
     }
 
     volatile Thread recoveryThread;
@@ -59,6 +63,8 @@ public class RecoveryStatus {
 
     private volatile ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     public final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
+
+    private final Set<String> tempFileNames = ConcurrentCollections.newConcurrentSet();
 
     public DiscoveryNode sourceNode() {
         return this.sourceNode;
@@ -90,6 +96,32 @@ public class RecoveryStatus {
             return null;
         }
         return outputs.get(key);
+    }
+
+    /**
+     * returns a temporary file for the given file name. the temporary file is unique to this recovery and is later retrievable via
+     * {@link #getTempFiles()} *
+     */
+    public String getTempNameForFile(String origFile) {
+        String s = tempFilePrefix + origFile;
+        tempFileNames.add(s);
+        return s;
+    }
+
+    /** returns the temporary files created fro this recovery so far */
+    public String[] getTempFiles() {
+        return tempFileNames.toArray(new String[tempFileNames.size()]);
+    }
+
+    /** return true if the give file is a temporary file name issued by this recovery */
+    public boolean isTempFile(String filename) {
+        return tempFileNames.contains(filename);
+    }
+
+    /** returns the original file name for a temporary file name issued by this recovery */
+    public String originalNameForTempFile(String tempFile) {
+        assert isTempFile(tempFile);
+        return tempFile.substring(tempFilePrefix.length());
     }
 
     public synchronized Set<Entry<String, IndexOutput>> cancelAndClearOpenIndexInputs() {

@@ -506,27 +506,26 @@ public class RecoveryTarget extends AbstractComponent {
                 // first, we go and move files that were created with the recovery id suffix to
                 // the actual names, its ok if we have a corrupted index here, since we have replicas
                 // to recover from in case of a full cluster shutdown just when this code executes...
-                String prefix = "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + ".";
                 Set<String> filesToRename = Sets.newHashSet();
                 for (String existingFile : store.directory().listAll()) {
-                    if (existingFile.startsWith(prefix)) {
-                        filesToRename.add(existingFile.substring(prefix.length(), existingFile.length()));
+                    if (onGoingRecovery.isTempFile(existingFile)) {
+                        filesToRename.add(existingFile);
                     }
                 }
-                Exception failureToRename = null;
                 if (!filesToRename.isEmpty()) {
                     // first, go and delete the existing ones
                     final Directory directory = store.directory();
-                    for (String file : filesToRename) {
+                    for (String tempFile : filesToRename) {
+                        String origFile = onGoingRecovery.originalNameForTempFile(tempFile);
                         try {
-                            directory.deleteFile(file);
+                            directory.deleteFile(origFile);
                         } catch (Throwable ex) {
-                            logger.debug("failed to delete file [{}]", ex, file);
+                            logger.debug("failed to delete file [{}]", ex, origFile);
                         }
                     }
-                    for (String fileToRename : filesToRename) {
+                    for (String tempFile : filesToRename) {
                         // now, rename the files... and fail it it won't work
-                        store.renameFile(prefix + fileToRename, fileToRename);
+                        store.renameFile(tempFile, onGoingRecovery.originalNameForTempFile(tempFile));
                     }
                 }
                 // now write checksums
@@ -585,7 +584,7 @@ public class RecoveryTarget extends AbstractComponent {
 
                     String fileName = request.name();
                     if (store.directory().fileExists(fileName)) {
-                        fileName = "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + "." + fileName;
+                        fileName = onGoingRecovery.getTempNameForFile(fileName);
                     }
                     indexOutput = onGoingRecovery.openAndPutIndexOutput(request.name(), fileName, request.metadata(), store);
                 } else {
@@ -631,7 +630,7 @@ public class RecoveryTarget extends AbstractComponent {
                                 IOUtils.closeWhileHandlingException(indexOutput);
                             } finally {
                                 // trash the file - unsuccessful
-                                store.deleteQuiet(request.name(), "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + "." + request.name());
+                                store.deleteQuiet(request.name(), onGoingRecovery.getTempNameForFile(request.name()));
                             }
                         }
                     }

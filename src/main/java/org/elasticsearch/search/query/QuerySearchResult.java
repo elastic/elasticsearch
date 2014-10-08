@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.reducers.ReducerFactories;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -44,7 +45,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private int size;
     private TopDocs topDocs;
     private InternalAggregations aggregations;
-    private InternalAggregations reducers;
+    private ReducerFactories reducerFactories;
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
@@ -113,12 +114,12 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         this.aggregations = aggregations;
     }
 
-    public Aggregations reducers() {
-        return reducers;
+    public ReducerFactories reducerFactories() {
+        return reducerFactories;
     }
 
-    public void reducers(InternalAggregations reducers) {
-        this.reducers = reducers;
+    public void reducerFactories(ReducerFactories reducerFactories) {
+        this.reducerFactories = reducerFactories;
     }
 
     public Suggest suggest() {
@@ -170,6 +171,9 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             aggregations = InternalAggregations.readAggregations(in);
         }
         if (in.readBoolean()) {
+            reducerFactories = ReducerFactories.readReducerFactories(in);
+        }
+        if (in.readBoolean()) {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         searchTimedOut = in.readBoolean();
@@ -195,6 +199,12 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         } else {
             out.writeBoolean(true);
             aggregations.writeTo(out);
+        }
+        if (reducerFactories == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            reducerFactories.writeTo(out);
         }
         if (suggest == null) {
             out.writeBoolean(false);

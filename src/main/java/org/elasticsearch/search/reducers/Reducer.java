@@ -19,35 +19,28 @@
 
 package org.elasticsearch.search.reducers;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 
-public abstract class Reducer implements Releasable{
+public abstract class Reducer {
 
     private String name;
-    private ReducerFactories factories;
-    private SearchContext context;
+    private ReducerContext context;
     private Reducer parent;
     private Reducer[] subReducers;
     private HashMap<String, Reducer> subReducersbyName;
 
-    public Reducer(String name, ReducerFactories factories, SearchContext context, Reducer parent) {
-        this.name = name;
+    public Reducer(String name, ReducerFactories factories, ReducerContext context, Reducer parent) {
         assert factories != null : "sub-factories provided to Reducer must not be null, use ReducerFactories.EMPTY instead";
-        this.factories = factories;
-        this.context = context;
+        this.name = name;
         this.parent = parent;
+        this.context = context;
         this.subReducers = factories.createSubReducers(parent);
-        context.addReleasable(this, Lifetime.PHASE);
     }
 
     public String name() {
@@ -72,7 +65,7 @@ public abstract class Reducer implements Releasable{
         return subReducersbyName.get(reducerName);
     }
 
-    public SearchContext context() {
+    public ReducerContext context() {
         return context;
     }
 
@@ -80,11 +73,7 @@ public abstract class Reducer implements Releasable{
         // Default Implementation does nothing
     }
 
-    public abstract InternalAggregation reduce(List<MultiBucketsAggregation> aggregations, SearchContext context) throws ReductionExecutionException;
-
-    @Override
-    public void close() throws ElasticsearchException {
-    }
+    public abstract InternalAggregation reduce(InternalAggregations aggregations) throws ReductionExecutionException;
 
     /**
      * Parses the reducer request and creates the appropriate reducer factory for it.

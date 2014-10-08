@@ -20,19 +20,27 @@
 package org.elasticsearch.search.reducers;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 
-public class ReducerFactories {
+public class ReducerFactories implements Streamable {
 
     public static final ReducerFactories EMPTY = new Empty();
 
     private ReducerFactory[] factories;
+
+    public ReducerFactories() {
+        // For Serialization
+    }
 
     private ReducerFactories(ReducerFactory[] factories) {
         this.factories = factories;
@@ -42,16 +50,10 @@ public class ReducerFactories {
         return new Reducer[0]; // NOCOMMIT implement creation of sub-reducers
     }
 
-    public void setParent(ReducerFactory parent) {
-        for (ReducerFactory factory : factories) {
-            factory.parent = parent;
-        }
-    }
-
-    public Reducer[] createTopLevelReducers(SearchContext ctx) {
+    public Reducer[] createTopLevelReducers(ReducerContext context) {
         Reducer[] reducers = new Reducer[factories.length];
         for (int i = 0; i < factories.length; i++) {
-            reducers[i] = factories[i].create(ctx, null);
+            reducers[i] = factories[i].create(context, null);
         }
         return reducers;
     }
@@ -75,7 +77,7 @@ public class ReducerFactories {
         }
 
         @Override
-        public Reducer[] createTopLevelReducers(SearchContext ctx) {
+        public Reducer[] createTopLevelReducers(ReducerContext context) {
             return EMPTY_AGGREGATORS;
         }
 
@@ -100,5 +102,31 @@ public class ReducerFactories {
             }
             return new ReducerFactories(factories.toArray(new ReducerFactory[factories.size()]));
         }
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        int size = in.readInt();
+        ReducerFactory[] factories = new ReducerFactory[size];
+        for (int i = 0; i < factories.length; i++) {
+            BytesReference type = in.readBytesReference();
+            factories[i] = ReducerFactoryStreams.stream(type).readResult(in);
+        }
+        this.factories = factories;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeInt(factories.length);
+        for (ReducerFactory factory : factories) {
+            out.writeBytesReference(factory.type().stream());
+            factory.writeTo(out);
+        }
+    }
+
+    public static ReducerFactories readReducerFactories(StreamInput in) throws IOException {
+        ReducerFactories factories = new ReducerFactories();
+        factories.readFrom(in);
+        return factories;
     }
 }

@@ -19,21 +19,19 @@
 
 package org.elasticsearch.search.reducers.metric;
 
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.reducers.Reducer;
+import org.elasticsearch.search.reducers.ReducerContext;
 import org.elasticsearch.search.reducers.ReducerFactories;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
-import java.util.List;
-
 public abstract class MetricReducer extends Reducer {
 
-    public MetricReducer(String name, ReducerFactories factories, SearchContext context, Reducer parent) {
+    public MetricReducer(String name, ReducerFactories factories, ReducerContext context, Reducer parent) {
         super(name, factories, context, parent);
     }
 
     @Override
-    public abstract InternalMetricsAggregation reduce(List<MultiBucketsAggregation> aggregations, SearchContext context) throws ReductionExecutionException;
+    public abstract InternalMetricsAggregation reduce(InternalAggregations aggregations) throws ReductionExecutionException;
 }

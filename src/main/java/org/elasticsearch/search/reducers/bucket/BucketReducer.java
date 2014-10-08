@@ -20,34 +20,40 @@
 package org.elasticsearch.search.reducers.bucket;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.reducers.Reducer;
+import org.elasticsearch.search.reducers.ReducerContext;
 import org.elasticsearch.search.reducers.ReducerFactories;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
-
-import java.util.List;
 
 public abstract class BucketReducer extends Reducer {
 
     private String path;
 
-    public BucketReducer(String name, String path, ReducerFactories factories, SearchContext context, Reducer parent) {
+    public BucketReducer(String name, String path, ReducerFactories factories, ReducerContext context, Reducer parent) {
         super(name, factories, context, parent);
         this.path = path;
     }
 
     @Override
-    public InternalBucketReducerAggregation reduce(List<MultiBucketsAggregation> aggregations, SearchContext context)
+    public InternalBucketReducerAggregation reduce(InternalAggregations aggregations)
             throws ReductionExecutionException {
-        for (MultiBucketsAggregation aggregation : aggregations) {
+        for (Aggregation aggregation : aggregations) {
             if (aggregation.getName().equals(path)) {
-                BytesReference bucketType = ((InternalAggregation) aggregation).type().stream();
-                BucketStreamContext bucketStreamContext = BucketStreams.stream(bucketType).getBucketStreamContext(aggregation.getBuckets().get(0)); // NOCOMMIT make this cleaner
-                return doReduce(aggregation, bucketType, bucketStreamContext);
+                if (aggregation instanceof MultiBucketsAggregation) {
+                    MultiBucketsAggregation multiBucketsAggregation = (MultiBucketsAggregation) aggregation;
+                    BytesReference bucketType = ((InternalAggregation) aggregation).type().stream();
+                    BucketStreamContext bucketStreamContext = BucketStreams.stream(bucketType).getBucketStreamContext(multiBucketsAggregation.getBuckets().get(0)); // NOCOMMIT make this cleaner
+                    return doReduce(multiBucketsAggregation, bucketType, bucketStreamContext);
+                    
+                } else {
+                    // NOCOMMIT throw exception as path must match a MultiBucketAggregation
+                }
             }
         }
         return null; // NOCOMMIT throw exception if we can't find the aggregation

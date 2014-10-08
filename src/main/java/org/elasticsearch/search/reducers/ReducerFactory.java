@@ -18,18 +18,22 @@
  */
 package org.elasticsearch.search.reducers;
 
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 
 
 /**
  * A factory that knows how to create an {@link Reducer} of a specific type.
  */
-public abstract class ReducerFactory {
+public abstract class ReducerFactory implements Streamable {
 
     protected String name;
-    protected String type;
-    protected ReducerFactory parent;
+    protected Type type;
     protected ReducerFactories factories = ReducerFactories.EMPTY;
+
+    protected ReducerFactory(Type type) {
+        this.type = type;
+    }
 
     /**
      * Constructs a new reducer factory.
@@ -37,9 +41,13 @@ public abstract class ReducerFactory {
      * @param name  The reducer name
      * @param type  The reducer type
      */
-    public ReducerFactory(String name, String type) {
+    public ReducerFactory(String name, Type type) {
+        this(type);
         this.name = name;
-        this.type = type;
+    }
+
+    public Type type() {
+        return type;
     }
 
     /**
@@ -51,7 +59,6 @@ public abstract class ReducerFactory {
      */
     public ReducerFactory subFactories(ReducerFactories subFactories) {
         this.factories = subFactories;
-        this.factories.setParent(this);
         return this;
     }
 
@@ -64,23 +71,16 @@ public abstract class ReducerFactory {
     }
 
     /**
-     * @return  The parent factory if one exists (will always return {@code null} for top level reducer factories).
-     */
-    public ReducerFactory parent() {
-        return parent;
-    }
-
-    /**
      * Creates the reducer
      *
-     * @param context               The search context
+     * @param context               The reducer context
      * @param parent                The parent reducer (if this is a top level factory, the parent will be {@code null})
      * @param expectedBucketsCount  If this is a sub-factory of another factory, this will indicate the number of bucket the parent reducer
      *                              may generate (this is an estimation only). For top level factories, this will always be 0
      *
      * @return                      The created reducer
      */
-    public abstract Reducer create(SearchContext context, Reducer parent);
+    public abstract Reducer create(ReducerContext context, Reducer parent);
 
     public void doValidate() {
     }

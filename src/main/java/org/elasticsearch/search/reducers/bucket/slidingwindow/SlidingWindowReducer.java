@@ -20,25 +20,38 @@
 package org.elasticsearch.search.reducers.bucket.slidingwindow;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.reducers.Reducer;
-import org.elasticsearch.search.reducers.ReducerFactories;
-import org.elasticsearch.search.reducers.ReducerFactory;
+import org.elasticsearch.search.reducers.*;
 import org.elasticsearch.search.reducers.bucket.BucketReducer;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation.InternalSelection;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class SlidingWindowReducer extends BucketReducer {
 
+    public static final ReducerFactoryStreams.Stream STREAM = new ReducerFactoryStreams.Stream() {
+        @Override
+        public ReducerFactory readResult(StreamInput in) throws IOException {
+            Factory factory = new Factory();
+            factory.readFrom(in);
+            return factory;
+        }
+    };
+
+    public static void registerStreams() {
+        ReducerFactoryStreams.registerStream(STREAM, InternalSlidingWindow.TYPE.stream());
+    }
+
     private int windowSize;
 
-    public SlidingWindowReducer(String name, String path, int windowSize, ReducerFactories factories, SearchContext context, Reducer parent) {
+    public SlidingWindowReducer(String name, String path, int windowSize, ReducerFactories factories, ReducerContext context, Reducer parent) {
         super(name, path, factories, context, parent);
         this.windowSize = windowSize;
     }
@@ -63,15 +76,33 @@ public class SlidingWindowReducer extends BucketReducer {
         private String path;
         private int windowSize;
 
+        public Factory() {
+            super(InternalSlidingWindow.TYPE);
+        }
+
         public Factory(String name, String path, int windowSize) {
-            super(name, InternalSlidingWindow.TYPE.name());
+            super(name, InternalSlidingWindow.TYPE);
             this.path = path;
             this.windowSize = windowSize;
         }
 
         @Override
-        public Reducer create(SearchContext context, Reducer parent) {
+        public Reducer create(ReducerContext context, Reducer parent) {
             return new SlidingWindowReducer(name, path, windowSize, factories, context, parent);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            name = in.readString();
+            path = in.readString();
+            windowSize = in.readInt();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeString(path);
+            out.writeInt(windowSize);
         }
         
     }

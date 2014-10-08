@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -43,6 +44,8 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.search.reducers.Reducer;
+import org.elasticsearch.search.reducers.ReducerContext;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -375,13 +378,19 @@ public class SearchPhaseController extends AbstractComponent {
             }
         }
 
+        InternalAggregations reductions = null;
         if (aggregations != null) {
-            // NOCOMMIT Add reducer phase here
+            Reducer[] reducers = firstResult.reducerFactories().createTopLevelReducers(new ReducerContext(bigArrays, scriptService));
+            List<InternalAggregation> reductionsList = new ArrayList<>(reducers.length);
+            for (Reducer reducer : reducers) {
+                reductionsList.add(reducer.reduce(aggregations));
+            }
+            reductions = new InternalAggregations(reductionsList);
         }
 
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
 
-        return new InternalSearchResponse(searchHits, aggregations, suggest, timedOut, terminatedEarly);
+        return new InternalSearchResponse(searchHits, aggregations, reductions, suggest, timedOut, terminatedEarly);
     }
 
 }

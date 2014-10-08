@@ -22,7 +22,6 @@ package org.elasticsearch.search.reducers;
 public class SearchContextReducers {
 
         private final ReducerFactories factories;
-        private Reducer[] reducers;
 
         /**
          * Creates a new aggregation context with the parsed aggregator factories
@@ -33,19 +32,6 @@ public class SearchContextReducers {
 
         public ReducerFactories factories() {
             return factories;
-        }
-
-        public Reducer[] reducers() {
-            return reducers;
-        }
-
-        /**
-         * Registers all the created reducers (top level reducers) for the search execution context.
-         *
-         * @param aggregators The top level reducers of the search execution.
-         */
-        public void reducers(Reducer[] reducers) {
-            this.reducers = reducers;
         }
 
 }

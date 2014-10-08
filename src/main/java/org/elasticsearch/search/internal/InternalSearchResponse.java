@@ -40,12 +40,14 @@ import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHit
 public class InternalSearchResponse implements Streamable, ToXContent {
 
     public static InternalSearchResponse empty() {
-        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, false, null);
+        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, null, false, null);
     }
 
     private InternalSearchHits hits;
 
     private InternalAggregations aggregations;
+
+    private InternalAggregations reductions;
 
     private Suggest suggest;
 
@@ -56,9 +58,10 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     private InternalSearchResponse() {
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, InternalAggregations aggregations, Suggest suggest, boolean timedOut, Boolean terminatedEarly) {
+    public InternalSearchResponse(InternalSearchHits hits, InternalAggregations aggregations, InternalAggregations reductions, Suggest suggest, boolean timedOut, Boolean terminatedEarly) {
         this.hits = hits;
         this.aggregations = aggregations;
+        this.reductions = reductions;
         this.suggest = suggest;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
@@ -80,6 +83,10 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         return aggregations;
     }
 
+    public Aggregations reductions() {
+        return reductions;
+    }
+
     public Suggest suggest() {
         return suggest;
     }
@@ -89,6 +96,9 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         hits.toXContent(builder, params);
         if (aggregations != null) {
             aggregations.toXContent(builder, params);
+        }
+        if (reductions != null) {
+            reductions.toXContent(builder, params);
         }
         if (suggest != null) {
             suggest.toXContent(builder, params);
@@ -109,6 +119,9 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             aggregations = InternalAggregations.readAggregations(in);
         }
         if (in.readBoolean()) {
+            reductions = InternalAggregations.readAggregations(in);
+        }
+        if (in.readBoolean()) {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         timedOut = in.readBoolean();
@@ -126,6 +139,12 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         } else {
             out.writeBoolean(true);
             aggregations.writeTo(out);
+        }
+        if (reductions == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            reductions.writeTo(out);
         }
         if (suggest == null) {
             out.writeBoolean(false);

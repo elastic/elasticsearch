@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.operation.plain;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -33,10 +34,10 @@ import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationD
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
+import org.elasticsearch.cluster.routing.operation.hash.murmur3.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -45,27 +46,28 @@ import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  *
  */
 public class PlainOperationRouting extends AbstractComponent implements OperationRouting {
 
-    // unused: as of elasticsearch 1.5, the hash function is hardwired to murmur3 and the type is never used to compute the
-    // shard to route a document to
-    @Deprecated
-    private final HashFunction hashFunction;
-    @Deprecated
-    private final boolean useType;
+    public static final String SETTING_LEGACY_HASH_FUNCTION = "index.legacy.routing.hash.type";
+    public static final String SETTING_LEGACY_USE_TYPE = "index.legacy.routing.use_type";
+
+    // hard-coded hash function as of 2.0
+    // older indices will read which hash function to use in their index settings
+    private static final HashFunction HASH_FUNCTION = new Murmur3HashFunction();
 
     private final AwarenessAllocationDecider awarenessAllocationDecider;
 
     @Inject
-    public PlainOperationRouting(Settings indexSettings, HashFunction hashFunction, AwarenessAllocationDecider awarenessAllocationDecider) {
-        super(indexSettings);
-        this.hashFunction = hashFunction;
-        this.useType = indexSettings.getAsBoolean("cluster.routing.operation.use_type", false);
+    public PlainOperationRouting(Settings settings, AwarenessAllocationDecider awarenessAllocationDecider) {
+        super(settings);
         this.awarenessAllocationDecider = awarenessAllocationDecider;
     }
 
@@ -270,61 +272,52 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
     private int shardId(ClusterState clusterState, String index, String type, String id, @Nullable String routing) {
         final IndexMetaData indexMetaData = indexMetaData(clusterState, index);
         final Version createdVersion = Version.indexCreated(indexMetaData.getSettings());
-        if (createdVersion.onOrAfter(Version.V_1_5_0)) {
-            // on and after 1.5, we force usage of murmur3 for hashing: it has a better distribution that makes sure
-            // that there are no adversarial numbers of shards or patterns of document ids that generate unbalanced shards
-            // (as there could be with DJB hash with 33 shards and incremental numeric ids)
+        final HashFunction hashFunction;
+        final boolean useType;
 
-            // nocommit: should we force the use of the type? it is tempting to avoid some worst-cases in the lots-of-types
-            // case but it currently breaks parent/child given that in that case only the parent id is passed as a routing key
-
-            if (routing == null) {
-                if (id == null) {
-                    throw new ElasticsearchIllegalArgumentException("_id cannot be null, got _id=[" + id + "]");
-                }
-                routing = id;
+        final Class<? extends HashFunction> hashFunctionClass = indexMetaData.getSettings().getAsClass(SETTING_LEGACY_HASH_FUNCTION, null);
+        if (createdVersion.onOrAfter(Version.V_2_0_0)) {
+            if (hashFunctionClass != null) {
+                throw new ElasticsearchIllegalStateException("Index [" + index + "] has the `" + SETTING_LEGACY_HASH_FUNCTION + "` setting while it is not supposed to have it since it was created on " + createdVersion);
             }
-            final int shard = shardId(indexMetaData.numberOfShards(), routing);
-            assert shard >= 0 && shard < indexMetaData.numberOfShards();
-            return shard;
+            hashFunction = HASH_FUNCTION;
+            useType = false;
         } else {
-            // This is the pre-1.5.0 routing logic
-            if (routing == null) {
-                if (!useType) {
-                    return Math.abs(hash(id) % indexMetaData.numberOfShards());
-                } else {
-                    return Math.abs(hash(type, id) % indexMetaData.numberOfShards());
-                }
+            if (hashFunctionClass == null) {
+                throw new ElasticsearchIllegalStateException("Index [" + index + "] misses the `" + SETTING_LEGACY_HASH_FUNCTION + "` setting while recovery from gateway should have added it since it was created on " + createdVersion);
             }
-            return Math.abs(hash(routing) % indexMetaData.numberOfShards());
+            // TODO: is there a way to make Guice instantiate it instead?
+            try {
+                hashFunction = hashFunctionClass.newInstance();
+            } catch (InstantiationException | IllegalAccessException e) {
+                throw new ElasticsearchIllegalStateException("Cannot instantiate hash function", e);
+            }
+            useType = indexMetaData.getSettings().getAsBoolean(SETTING_LEGACY_USE_TYPE, false);
+        }
+
+        final int hash;
+        if (routing == null) {
+            if (!useType) {
+                hash = hash(hashFunction, id);
+            } else {
+                hash = hash(hashFunction, type, id);
+            }
+        } else {
+            hash = hash(hashFunction, routing);
+        }
+        if (createdVersion.onOrAfter(Version.V_2_0_0)) {
+            return MathUtils.mod(hash, indexMetaData.numberOfShards());
+        } else {
+            return Math.abs(hash % indexMetaData.numberOfShards());
         }
     }
 
-    // public for testing
-    public static int shardId(int numShards, String routing) {
-        return MathUtils.mod(murmur3Hash(routing), numShards);
-    }
-
-    private static int murmur3Hash(CharSequence key) {
-        final byte[] bytesToHash = new byte[key.length() * 2];
-        for (int i = 0; i < key.length(); ++i) {
-            final char c = key.charAt(i);
-            final byte b1 = (byte) (c >>> 8), b2 = (byte) c;
-            assert ((b1 & 0xFF) << 8 | (b2 & 0xFF)) == c;
-            bytesToHash[i * 2] = b1;
-            bytesToHash[i * 2 + 1] = b2;
-        }
-        final MurmurHash3.Hash128 hash = MurmurHash3.hash128(bytesToHash, 0, bytesToHash.length, 0, new MurmurHash3.Hash128());
-        return (int) hash.h1;
-    }
-
-    @Deprecated
-    protected int hash(String routing) {
+    protected int hash(HashFunction hashFunction, String routing) {
         return hashFunction.hash(routing);
     }
 
     @Deprecated
-    protected int hash(String type, String id) {
+    protected int hash(HashFunction hashFunction, String type, String id) {
         if (type == null || "_all".equals(type)) {
             throw new ElasticsearchIllegalArgumentException("Can't route an operation with no type and having type part of the routing (for backward comp)");
         }
@@ -335,20 +328,6 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         if (!nodes.dataNodes().keys().contains(nodeId)) {
             throw new ElasticsearchIllegalArgumentException("No data node with id[" + nodeId + "] found");
         }
-    }
-
-    // nocommit: kept here for testing purposes, will be removed when pushing
-    public static void main(String[] args) {
-        final int numShards = 33;
-        final int[] counts = new int[numShards];
-        final int[] counts2 = new int[numShards];
-        for (int i = 0; i < 100000; ++i) {
-            final String id = Integer.toString(i);
-            counts[shardId(numShards, id)]++;
-            counts2[Math.abs(DjbHashFunction.DJB_HASH(id) % numShards)]++;
-        }
-        System.out.println(Arrays.toString(counts));
-        System.out.println(Arrays.toString(counts2));
     }
 
 }

@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -52,20 +51,20 @@ public class RoutingBackwardCompatibilityTests extends ElasticsearchTestCase {
                     final String type = parts[2];
                     final String id = parts[3];
                     final String routing = "null".equals(parts[4]) ? null : parts[4];
-                    final int pre15ExpectedShardId = Integer.parseInt(parts[5]);
+                    final int pre20ExpectedShardId = Integer.parseInt(parts[5]);
                     final int currentExpectedShard = Integer.parseInt(parts[6]);
 
                     OperationRouting operationRouting = node.injector().getInstance(OperationRouting.class);
 
                     for (Version version : allVersions()) {
-                        final Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+                        final Settings settings = settings(version).build();
                         IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(settings).numberOfShards(numberOfShards).numberOfReplicas(randomInt(3)).build();
                         MetaData.Builder metaData = MetaData.builder().put(indexMetaData, false);
                         RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetaData).build();
                         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
                         final int shardId = operationRouting.indexShards(clusterState, index, type, id, routing).shardId().getId();
-                        if (version.before(Version.V_1_5_0)) {
-                            assertEquals(pre15ExpectedShardId, shardId);
+                        if (version.before(Version.V_2_0_0)) {
+                            assertEquals(pre20ExpectedShardId, shardId);
                         } else {
                             assertEquals(currentExpectedShard, shardId);
                         }

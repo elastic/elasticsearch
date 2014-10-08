@@ -38,8 +38,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.cluster.routing.operation.plain.PlainOperationRouting;
+import org.elasticsearch.cluster.routing.operation.hash.murmur3.Murmur3HashFunction;
 import org.elasticsearch.common.inject.internal.Join;
+import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.IndexMissingException;
@@ -226,7 +227,7 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
                 docSource.put(fieldSettings[i].name, contentArray[i]);
             }
             int id = 0;
-            while (PlainOperationRouting.shardId(numberOfDocs, Integer.toString(id)) != shardId) {
+            while (shardId(numberOfDocs, Integer.toString(id)) != shardId) {
                 id += 1;
             }
             TestDoc doc = new TestDoc(Integer.toString(id), fieldSettings, contentArray.clone());
@@ -237,6 +238,11 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
         refresh();
         return testDocs;
 
+    }
+
+    // TODO: this test should NOT depend on the routing algorithm!
+    private static int shardId(int numberOfShards, String id) {
+        return MathUtils.mod(new Murmur3HashFunction().hash(id), numberOfShards);
     }
 
     protected TestConfig[] generateTestConfigs(int numberOfTests, TestDoc[] testDocs, TestFieldSetting[] fieldSettings) {

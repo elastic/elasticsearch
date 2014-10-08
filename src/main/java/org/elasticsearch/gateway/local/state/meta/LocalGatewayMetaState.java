@@ -29,6 +29,9 @@ import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
+import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
+import org.elasticsearch.cluster.routing.operation.plain.PlainOperationRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -152,6 +155,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         if (DiscoveryNode.masterNode(settings)) {
             try {
                 pre019Upgrade();
+                pre20Upgrade();
                 long start = System.currentTimeMillis();
                 loadState();
                 logger.debug("took {} to load state", TimeValue.timeValueMillis(System.currentTimeMillis() - start));
@@ -514,6 +518,32 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         }
 
         logger.info("conversion to new metadata location and format done, backup create at [{}]", backupFile.getAbsolutePath());
+    }
+
+    /**
+     * Elasticsearch 2.0 deprecated custom routing hash functions. So what we do here is that for old indices, we
+     * move this old & deprecated node setting to an index setting so that we can keep things backward compatible.
+     * See {@link PlainOperationRouting}.
+     */
+    private void pre20Upgrade() throws Exception {
+        final Class<? extends HashFunction> pre20HashFunction = settings.getAsClass("cluster.routing.operation.hash.type", DjbHashFunction.class, "org.elasticsearch.cluster.routing.operation.hash.", "HashFunction");
+        final boolean pre20UseType = settings.getAsBoolean("cluster.routing.operation.use_type", false);
+        MetaData metaData = loadMetaState();
+        for (IndexMetaData indexMetaData : metaData) {
+            if (indexMetaData.settings().get(PlainOperationRouting.SETTING_LEGACY_HASH_FUNCTION) == null
+                    && Version.indexCreated(indexMetaData.settings()).before(Version.V_2_0_0)) {
+                // these settings need an upgrade
+                Settings indexSettings = ImmutableSettings.builder().put(indexMetaData.settings())
+                        .put(PlainOperationRouting.SETTING_LEGACY_HASH_FUNCTION, pre20HashFunction)
+                        .put(PlainOperationRouting.SETTING_LEGACY_USE_TYPE, pre20UseType)
+                        .build();
+                IndexMetaData newMetaData = IndexMetaData.builder(indexMetaData)
+                        .version(indexMetaData.version())
+                        .settings(indexSettings)
+                        .build();
+                writeIndex("upgrade", newMetaData, null);
+            }
+        }
     }
 
     class RemoveDanglingIndex implements Runnable {

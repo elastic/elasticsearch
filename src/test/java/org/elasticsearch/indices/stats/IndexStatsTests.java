@@ -27,7 +27,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -427,7 +426,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
         NumShards test1 = getNumShards("test1");
 
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 100; i++) {
             index("test1", "type1", Integer.toString(i), "field", "value");
             index("test1", "type2", Integer.toString(i), "field", "value");
         }

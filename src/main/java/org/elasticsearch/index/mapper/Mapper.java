@@ -64,7 +64,7 @@ public interface Mapper extends ToXContent {
             if (indexSettings == null) {
                 return null;
             }
-            return indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
+            return Version.indexCreated(indexSettings);
         }
     }
 

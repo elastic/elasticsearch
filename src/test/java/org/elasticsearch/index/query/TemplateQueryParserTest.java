@@ -20,7 +20,9 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -68,6 +70,7 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("path.conf", this.getResource("config").getPath())
                 .put("name", getClass().getName())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 
         Index index = new Index("test");

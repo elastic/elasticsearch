@@ -92,7 +92,7 @@ public class Analysis {
             return Lucene.parseVersion(sVersion, Lucene.ANALYZER_VERSION, logger);
         }
         // resolve the analysis version based on the version the index was created with
-        return indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).luceneVersion;
+        return org.elasticsearch.Version.indexCreated(indexSettings).luceneVersion;
     }
 
     public static boolean isNoStopwords(Settings settings) {

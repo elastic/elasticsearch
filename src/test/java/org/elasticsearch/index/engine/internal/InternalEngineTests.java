@@ -36,6 +36,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -126,13 +128,13 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         store.deleteContent();
         storeReplica = createStoreReplica();
         storeReplica.deleteContent();
-        engineSettingsService = new IndexSettingsService(shardId.index(), EMPTY_SETTINGS);
+        engineSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         engine = createEngine(engineSettingsService, store, createTranslog());
         if (randomBoolean()) {
             engine.enableGcDeletes(false);
         }
         engine.start();
-        replicaSettingsService = new IndexSettingsService(shardId.index(), EMPTY_SETTINGS);
+        replicaSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         replicaEngine = createEngine(replicaSettingsService, storeReplica, createTranslogReplica());
         if (randomBoolean()) {
             replicaEngine.enableGcDeletes(false);
@@ -210,7 +212,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
         return new InternalEngine(shardId, defaultSettings, threadPool, indexSettingsService, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
-                new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
+                new AnalysisService(shardId.index(), indexSettingsService.getSettings()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
     }
 
     protected static final BytesReference B_1 = new BytesArray(new byte[]{1});
@@ -1293,7 +1295,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                                            new ShardIndexingService(shardId, settings,
                                                                     new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, engineSettingsService)),
                                            null, store, createSnapshotDeletionPolicy(), createTranslog(), createMergePolicy(), createMergeScheduler(engineSettingsService),
-                                           new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
+                                           new AnalysisService(shardId.index(), engineSettingsService.getSettings()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
         engine.start();
         engine.enableGcDeletes(false);
 

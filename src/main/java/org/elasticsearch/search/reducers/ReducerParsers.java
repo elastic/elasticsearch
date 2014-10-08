@@ -110,9 +110,9 @@ public class ReducerParsers {
                 final String fieldName = parser.currentName();
 
                 token = parser.nextToken();
-                if (token != XContentParser.Token.START_OBJECT) {
-                    throw new SearchParseException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] under [" + fieldName + "], but got a [" + token + "] in [" + reductionName + "]");
-                }
+//                if (token != XContentParser.Token.START_OBJECT) {
+//                    throw new SearchParseException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] under [" + fieldName + "], but got a [" + token + "] in [" + reductionName + "]");
+//                } FIXME
 
                 switch (fieldName) {
                     case "reducers":

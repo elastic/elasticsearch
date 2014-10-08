@@ -57,7 +57,7 @@ public class SlidingWindowReducer extends BucketReducer {
         this.windowSize = windowSize;
     }
 
-    protected InternalBucketReducerAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType, BucketStreamContext bucketStreamContext) {
+    public InternalBucketReducerAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType, BucketStreamContext bucketStreamContext) {
         List<InternalSelection> selections = new ArrayList<>();
         List<? extends Bucket> aggBuckets = (List<? extends MultiBucketsAggregation.Bucket>) aggregation.getBuckets();
         for (int i = 0; i <= aggBuckets.size() - windowSize; i++) {
@@ -73,6 +73,8 @@ public class SlidingWindowReducer extends BucketReducer {
                 selectionKey = selectionBuckets.get(0).getKey() + " TO " + selectionBuckets.get(selectionBuckets.size() - 1).getKey();
             }
             InternalSelection selection = new InternalSelection(selectionKey, bucketType, bucketStreamContext, selectionBuckets , InternalAggregations.EMPTY);
+            InternalAggregations subReducersResults = runSubReducers(selection);
+            selection.setAggregations(subReducersResults);
             selections.add(selection);
         }
         return new InternalSlidingWindow(name(), selections);

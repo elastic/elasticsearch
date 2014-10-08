@@ -19,9 +19,14 @@
 
 package org.elasticsearch.search.reducers;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -30,21 +35,27 @@ import java.util.HashMap;
 public abstract class Reducer {
 
     private String name;
+    private String bucketsPath;
     private ReducerContext context;
     private Reducer parent;
     private Reducer[] subReducers;
     private HashMap<String, Reducer> subReducersbyName;
 
-    public Reducer(String name, ReducerFactories factories, ReducerContext context, Reducer parent) {
+    public Reducer(String name, String bucketsPath, ReducerFactories factories, ReducerContext context, Reducer parent) {
         assert factories != null : "sub-factories provided to Reducer must not be null, use ReducerFactories.EMPTY instead";
         this.name = name;
+        this.bucketsPath = bucketsPath;
         this.parent = parent;
         this.context = context;
-        this.subReducers = factories.createSubReducers(parent);
+        this.subReducers = factories.createSubReducers(this);
     }
 
     public String name() {
         return name;
+    }
+
+    public String bucketsPath() {
+        return bucketsPath;
     }
 
     public Reducer parent() {
@@ -73,7 +84,25 @@ public abstract class Reducer {
         // Default Implementation does nothing
     }
 
-    public abstract InternalAggregation reduce(InternalAggregations aggregations) throws ReductionExecutionException;
+    public final InternalAggregation reduce(InternalAggregations aggregations)
+            throws ReductionExecutionException {
+        for (Aggregation aggregation : aggregations) {
+            if (aggregation.getName().equals(bucketsPath)) {
+                if (aggregation instanceof MultiBucketsAggregation) {
+                    MultiBucketsAggregation multiBucketsAggregation = (MultiBucketsAggregation) aggregation;
+                    BytesReference bucketType = ((InternalAggregation) aggregation).type().stream();
+                    BucketStreamContext bucketStreamContext = BucketStreams.stream(bucketType).getBucketStreamContext(multiBucketsAggregation.getBuckets().get(0)); // NOCOMMIT make this cleaner
+                    return doReduce(multiBucketsAggregation, bucketType, bucketStreamContext);
+                    
+                } else {
+                    // NOCOMMIT throw exception as path must match a MultiBucketAggregation
+                }
+            }
+        }
+        return null; // NOCOMMIT throw exception if we can't find the aggregation
+    }
+
+    public abstract InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType, BucketStreamContext bucketStreamContext) throws ReductionExecutionException;
 
     /**
      * Parses the reducer request and creates the appropriate reducer factory for it.

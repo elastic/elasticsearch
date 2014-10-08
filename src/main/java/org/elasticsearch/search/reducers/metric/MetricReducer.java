@@ -19,8 +19,10 @@
 
 package org.elasticsearch.search.reducers.metric;
 
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerContext;
 import org.elasticsearch.search.reducers.ReducerFactories;
@@ -28,10 +30,11 @@ import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 public abstract class MetricReducer extends Reducer {
 
-    public MetricReducer(String name, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, factories, context, parent);
+    public MetricReducer(String name, String bucketPath, ReducerFactories factories, ReducerContext context, Reducer parent) {
+        super(name, bucketPath, factories, context, parent);
     }
-
+    
     @Override
-    public abstract InternalMetricsAggregation reduce(InternalAggregations aggregations) throws ReductionExecutionException;
+    public abstract InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType,
+            BucketStreamContext bucketStreamContext) throws ReductionExecutionException;
 }

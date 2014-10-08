@@ -44,7 +44,7 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
     private List<InternalSelection> selections;
     private Map<String, Selection> selectionMap;
 
-    public static class InternalSelection implements Selection {
+    public static class InternalSelection implements Selection, MultiBucketsAggregation {
 
         private String key;
         private BytesReference bucketType;
@@ -66,6 +66,11 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
         }
 
         @Override
+        public String getName() {
+            return getKey();
+        }
+
+        @Override
         public String getKey() {
             return key;
         }
@@ -78,6 +83,18 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
         @Override
         public Aggregations getAggregations() {
             return aggregations;
+        }
+        
+        public void setAggregations(InternalAggregations aggregations) {
+            this.aggregations = aggregations;
+        }
+
+        public BytesReference getBucketType() {
+            return bucketType;
+        }
+
+        public BucketStreamContext getBucketStreamContext() {
+            return bucketStreamContext;
         }
 
         @Override

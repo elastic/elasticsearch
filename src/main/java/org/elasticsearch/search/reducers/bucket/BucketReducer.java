@@ -20,44 +20,35 @@
 package org.elasticsearch.search.reducers.bucket;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
-import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerContext;
 import org.elasticsearch.search.reducers.ReducerFactories;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
+import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation.InternalSelection;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class BucketReducer extends Reducer {
 
-    private String bucketsPath;
 
     public BucketReducer(String name, String bucketsPath, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, factories, context, parent);
-        this.bucketsPath = bucketsPath;
+        super(name, bucketsPath, factories, context, parent);
     }
 
     @Override
-    public InternalBucketReducerAggregation reduce(InternalAggregations aggregations)
-            throws ReductionExecutionException {
-        for (Aggregation aggregation : aggregations) {
-            if (aggregation.getName().equals(bucketsPath)) {
-                if (aggregation instanceof MultiBucketsAggregation) {
-                    MultiBucketsAggregation multiBucketsAggregation = (MultiBucketsAggregation) aggregation;
-                    BytesReference bucketType = ((InternalAggregation) aggregation).type().stream();
-                    BucketStreamContext bucketStreamContext = BucketStreams.stream(bucketType).getBucketStreamContext(multiBucketsAggregation.getBuckets().get(0)); // NOCOMMIT make this cleaner
-                    return doReduce(multiBucketsAggregation, bucketType, bucketStreamContext);
-                    
-                } else {
-                    // NOCOMMIT throw exception as path must match a MultiBucketAggregation
-                }
-            }
-        }
-        return null; // NOCOMMIT throw exception if we can't find the aggregation
-    }
+    public abstract InternalBucketReducerAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType, BucketStreamContext bucketStreamContext) throws ReductionExecutionException;
 
-    protected abstract InternalBucketReducerAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType, BucketStreamContext bucketStreamContext) throws ReductionExecutionException;
+    protected InternalAggregations runSubReducers(InternalSelection selection) {
+        Reducer[] subReducers = subReducers();
+        List<InternalAggregation> aggregations = new ArrayList<>(subReducers.length);
+        for (Reducer reducer : subReducers) {
+            aggregations.add(reducer.doReduce(selection, selection.getBucketType(), selection.getBucketStreamContext()));
+        }
+        return new InternalAggregations(aggregations);
+    }
 }

@@ -47,7 +47,11 @@ public class ReducerFactories implements Streamable {
     }
 
     public Reducer[] createSubReducers(Reducer parent) {
-        return new Reducer[0]; // NOCOMMIT implement creation of sub-reducers
+        Reducer[] reducers = new Reducer[factories.length];
+        for (int i = 0; i < factories.length; i++) {
+            reducers[i] = factories[i].create(parent.context(), parent);
+        }
+        return reducers;
     }
 
     public Reducer[] createTopLevelReducers(ReducerContext context) {

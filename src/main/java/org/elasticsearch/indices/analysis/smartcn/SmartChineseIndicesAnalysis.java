@@ -20,15 +20,13 @@
 package org.elasticsearch.indices.analysis.smartcn;
 
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.cn.smart.HMMChineseTokenizer;
 import org.apache.lucene.analysis.cn.smart.SmartChineseAnalyzer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
-import org.elasticsearch.index.analysis.PreBuiltTokenizerFactoryFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.io.Reader;
@@ -59,5 +57,30 @@ public class SmartChineseIndicesAnalysis extends AbstractComponent {
             }
         }));
 
+        // Register smartcn_sentence tokenizer -- for backwards compat an alias to smartcn_tokenizer
+        indicesAnalysisService.tokenizerFactories().put("smartcn_sentence", new PreBuiltTokenizerFactoryFactory(new TokenizerFactory() {
+            @Override
+            public String name() {
+                return "smartcn_sentence";
+            }
+
+            @Override
+            public Tokenizer create(Reader reader) {
+                return new HMMChineseTokenizer(reader);
+            }
+        }));
+
+        // Register smartcn_word token filter -- noop
+        indicesAnalysisService.tokenFilterFactories().put("smartcn_word", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return "smartcn_word";
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return tokenStream;
+            }
+        }));
     }
 }

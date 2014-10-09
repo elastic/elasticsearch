@@ -159,16 +159,14 @@ public class MoreLikeThisQueryParser implements QueryParser {
                         if (!token.isValue()) {
                             throw new ElasticsearchIllegalArgumentException("ids array element should only contain ids");
                         }
-                        items.add(new TermVectorRequest().id(parser.text()));
+                        items.add(newTermVectorRequest().id(parser.text()));
                     }
                 } else if (Fields.DOCUMENTS.match(currentFieldName, parseContext.parseFlags())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token != XContentParser.Token.START_OBJECT) {
                             throw new ElasticsearchIllegalArgumentException("docs array element should include an object");
                         }
-                        TermVectorRequest termVectorRequest = new TermVectorRequest();
-                        TermVectorRequest.parseRequest(termVectorRequest, parser);
-                        items.add(termVectorRequest);
+                        items.add(parseDocuments(parser));
                     }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
@@ -245,6 +243,21 @@ public class MoreLikeThisQueryParser implements QueryParser {
         }
 
         return mltQuery;
+    }
+
+    private TermVectorRequest newTermVectorRequest() {
+        return new TermVectorRequest()
+                .positions(false)
+                .offsets(false)
+                .payloads(false)
+                .fieldStatistics(false)
+                .termStatistics(false);
+    }
+
+    private TermVectorRequest parseDocuments(XContentParser parser) throws IOException {
+        TermVectorRequest termVectorRequest = newTermVectorRequest();
+        TermVectorRequest.parseRequest(termVectorRequest, parser);
+        return termVectorRequest;
     }
 
     private List<String> removeUnsupportedFields(List<String> moreLikeFields, Analyzer analyzer, boolean failOnUnsupportedField) throws IOException {

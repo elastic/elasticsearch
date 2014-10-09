@@ -18,40 +18,50 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
+import org.elasticsearch.search.aggregations.bucket.filters.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
+import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNested;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.date.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
-import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNested;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.TransportSignificantTermsHeuristicModule;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.InternalCardinality;
+import org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentiles;
+import org.elasticsearch.search.aggregations.metrics.scripted.InternalScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
 
 /**
  * A module that registers all the transport streams for the addAggregation
  */
-public class TransportAggregationModule extends AbstractModule {
+public class TransportAggregationModule extends AbstractModule implements SpawnModules {
 
     @Override
     protected void configure() {
@@ -65,11 +75,14 @@ public class TransportAggregationModule extends AbstractModule {
         InternalExtendedStats.registerStreams();
         InternalValueCount.registerStreams();
         InternalPercentiles.registerStreams();
+        InternalPercentileRanks.registerStreams();
         InternalCardinality.registerStreams();
+        InternalScriptedMetric.registerStreams();
 
         // buckets
         InternalGlobal.registerStreams();
         InternalFilter.registerStreams();
+        InternalFilters.registerStream();
         InternalMissing.registerStreams();
         StringTerms.registerStreams();
         LongTerms.registerStreams();
@@ -87,5 +100,13 @@ public class TransportAggregationModule extends AbstractModule {
         InternalGeoDistance.registerStream();
         InternalNested.registerStream();
         InternalReverseNested.registerStream();
+        InternalTopHits.registerStreams();
+        InternalGeoBounds.registerStream();
+        InternalChildren.registerStream();
+    }
+
+    @Override
+    public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(new TransportSignificantTermsHeuristicModule());
     }
 }

@@ -1,7 +1,7 @@
 [[mapping-dynamic-mapping]]
 == Dynamic Mapping
 
-Default mappings allow to automatically apply generic mapping definitions
+Default mappings allow generic mapping definitions to be automatically applied
 to types that do not have mappings predefined. This is mainly done
 thanks to the fact that the
 <<mapping-object-type,object mapping>> and
@@ -63,3 +63,17 @@ root and inner object types:
     }
 }
 --------------------------------------------------
+
+[float]
+=== Unmapped fields in queries
+
+Queries and filters can refer to fields which don't exist in a mapping, except
+when registering a new <<search-percolate,percolator query>> or when creating
+a <<filtered,filtered alias>>.  In these two cases, any fields referred to in
+the query or filter must already exist in the mapping, otherwise there is a
+chance that the wrong field type will be used.
+
+This requirement can be disabled by setting
+`index.query.parse.allow_unmapped_fields` to `true`, in which case you run the
+risk that your query or filter might not work correctly.
+

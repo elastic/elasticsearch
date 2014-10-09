@@ -34,6 +34,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 
 import java.util.Map;
 
@@ -46,13 +48,13 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestUpdateAction extends BaseRestHandler {
 
     @Inject
-    public RestUpdateAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestUpdateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
         updateRequest.listenerThreaded(false);
         updateRequest.routing(request.param("routing"));
@@ -68,8 +70,16 @@ public class RestUpdateAction extends BaseRestHandler {
             updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
         updateRequest.docAsUpsert(request.paramAsBoolean("doc_as_upsert", updateRequest.docAsUpsert()));
-        updateRequest.script(request.param("script"));
-        updateRequest.scriptLang(request.param("lang"));
+        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
+        scriptParameterParser.parseParams(request);
+        ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+        if (scriptValue != null) {
+            updateRequest.script(scriptValue.script(), scriptValue.scriptType());
+        }
+        String scriptLang = scriptParameterParser.lang();
+        if (scriptLang != null) {
+            updateRequest.scriptLang(scriptLang);
+        }
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
             if (entry.getKey().startsWith("sp_")) {
                 updateRequest.addScriptParam(entry.getKey().substring(3), entry.getValue());

@@ -2,8 +2,7 @@
 "Test benchmark list":
 
   - skip:
-        version:     "0 - 9999"
-        reason:      Disabled until nodes run with node.bench set to true
+        features:    "benchmark"
 
   - do:
         list_benchmarks: {}

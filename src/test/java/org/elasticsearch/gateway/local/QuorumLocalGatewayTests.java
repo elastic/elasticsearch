@@ -28,7 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.TestCluster.RestartCallback;
+import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
@@ -57,7 +57,7 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testChangeInitialShardsRecovery() throws Exception {
         logger.info("--> starting 3 nodes");
-        final String[] nodes = cluster().startNodesAsync(3, settingsBuilder().put("gateway.type", "local").build()).get().toArray(new String[0]);
+        final String[] nodes = internalCluster().startNodesAsync(3, settingsBuilder().put("gateway.type", "local").build()).get().toArray(new String[0]);
 
         createIndex("test");
         ensureGreen();
@@ -77,7 +77,7 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
         
         final String nodeToRemove = nodes[between(0,2)];
         logger.info("--> restarting 1 nodes -- kill 2");
-        cluster().fullRestart(new RestartCallback() {
+        internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 return settingsBuilder().put("gateway.type", "local").build();
@@ -97,10 +97,10 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
         assertThat(awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
-                ClusterStateResponse clusterStateResponse = cluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
+                ClusterStateResponse clusterStateResponse = internalCluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
                 return clusterStateResponse.getState() != null && clusterStateResponse.getState().routingTable().index("test") != null;
             }}), equalTo(true)); // wait until we get a cluster state - could be null if we quick enough.
-        final ClusterStateResponse clusterStateResponse = cluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
+        final ClusterStateResponse clusterStateResponse = internalCluster().smartClient().admin().cluster().prepareState().setMasterNodeTimeout("500ms").get();
         assertThat(clusterStateResponse.getState(), notNullValue());
         assertThat(clusterStateResponse.getState().routingTable().index("test"), notNullValue());
         assertThat(clusterStateResponse.getState().routingTable().index("test").allPrimaryShardsActive(), is(false));
@@ -123,7 +123,7 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
     public void testQuorumRecovery() throws Exception {
 
         logger.info("--> starting 3 nodes");
-        cluster().startNodesAsync(3, settingsBuilder().put("gateway.type", "local").build()).get();
+        internalCluster().startNodesAsync(3, settingsBuilder().put("gateway.type", "local").build()).get();
         // we are shutting down nodes - make sure we don't have 2 clusters if we test network
         setMinimumMasterNodes(2);
 
@@ -143,7 +143,7 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
         }
         logger.info("--> restart all nodes");
-        cluster().fullRestart(new RestartCallback() {
+        internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 return null;

@@ -27,9 +27,12 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
@@ -81,13 +84,15 @@ public class ExistsFilterParser implements FilterParser {
     }
 
     public static Filter newFilter(QueryParseContext parseContext, String fieldPattern, String filterName) {
+        final FieldMappers fieldNamesMapper = parseContext.mapperService().indexName(FieldNamesFieldMapper.CONTENT_TYPE);
+
         MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
         if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {
             // automatic make the object mapper pattern
             fieldPattern = fieldPattern + ".*";
         }
 
-        Set<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
+        List<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
         if (fields.isEmpty()) {
             // no fields exists, so we should not match anything
             return Queries.MATCH_NO_FILTER;
@@ -101,7 +106,17 @@ public class ExistsFilterParser implements FilterParser {
                 nonNullFieldMappers = smartNameFieldMappers;
             }
             Filter filter = null;
-            if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+            if (fieldNamesMapper!= null && fieldNamesMapper.mapper().fieldType().indexed()) {
+                final String f;
+                if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+                    f = smartNameFieldMappers.mapper().names().indexName();
+                } else {
+                    f = field;
+                }
+                filter = fieldNamesMapper.mapper().termFilter(f, parseContext);
+            }
+            // if _field_names are not indexed, we need to go the slow way
+            if (filter == null && smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
                 filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true, parseContext);
             }
             if (filter == null) {

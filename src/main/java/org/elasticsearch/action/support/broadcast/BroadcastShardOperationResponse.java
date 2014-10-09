@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
@@ -30,37 +31,33 @@ import java.io.IOException;
  */
 public abstract class BroadcastShardOperationResponse extends TransportResponse {
 
-    String index;
-    int shardId;
+    ShardId shardId;
 
     protected BroadcastShardOperationResponse() {
 
     }
 
-    protected BroadcastShardOperationResponse(String index, int shardId) {
-        this.index = index;
+    protected BroadcastShardOperationResponse(ShardId shardId) {
         this.shardId = shardId;
     }
 
     public String getIndex() {
-        return this.index;
+        return this.shardId.getIndex();
     }
 
     public int getShardId() {
-        return this.shardId;
+        return this.shardId.id();
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
-        shardId = in.readVInt();
+        shardId = ShardId.readShardId(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
-        out.writeVInt(shardId);
+        shardId.writeTo(out);
     }
 }

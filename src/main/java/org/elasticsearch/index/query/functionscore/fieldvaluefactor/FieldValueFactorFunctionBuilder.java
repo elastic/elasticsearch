@@ -30,7 +30,7 @@ import java.util.Locale;
  * Builder to construct {@code field_value_factor} functions for a function
  * score query.
  */
-public class FieldValueFactorFunctionBuilder implements ScoreFunctionBuilder {
+public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder {
     private String field = null;
     private Float factor = null;
     private FieldValueFactorFunction.Modifier modifier = null;
@@ -55,7 +55,7 @@ public class FieldValueFactorFunctionBuilder implements ScoreFunctionBuilder {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         if (field != null) {
             builder.field("field", field);
@@ -69,6 +69,5 @@ public class FieldValueFactorFunctionBuilder implements ScoreFunctionBuilder {
             builder.field("modifier", modifier.toString().toLowerCase(Locale.ROOT));
         }
         builder.endObject();
-        return builder;
     }
 }

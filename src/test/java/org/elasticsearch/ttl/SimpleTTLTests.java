@@ -20,18 +20,26 @@
 package org.elasticsearch.ttl;
 
 import com.google.common.base.Predicate;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
@@ -191,5 +199,36 @@ public class SimpleTTLTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.isExists(), equalTo(false));
         getResponse = client().prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(false).execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
+    }
+
+    @Test // issue 5053
+    public void testThatUpdatingMappingShouldNotRemoveTTLConfiguration() throws Exception {
+        String index = "foo";
+        String type = "mytype";
+
+        XContentBuilder builder = jsonBuilder().startObject().startObject("_ttl").field("enabled", true).endObject().endObject();
+        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+
+        // check mapping again
+        assertTTLMappingEnabled(index, type);
+
+        // update some field in the mapping
+        XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("properties").startObject("otherField").field("type", "string").endObject().endObject();
+        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(index).setType(type).setSource(updateMappingBuilder).get();
+        assertAcked(putMappingResponse);
+
+        // make sure timestamp field is still in mapping
+        assertTTLMappingEnabled(index, type);
+    }
+
+    private void assertTTLMappingEnabled(String index, String type) throws IOException {
+        String errMsg = String.format(Locale.ROOT, "Expected ttl field mapping to be enabled for %s/%s", index, type);
+
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes(type).get();
+        Map<String, Object> mappingSource = getMappingsResponse.getMappings().get(index).get(type).getSourceAsMap();
+        assertThat(errMsg, mappingSource, hasKey("_ttl"));
+        String ttlAsString = mappingSource.get("_ttl").toString();
+        assertThat(ttlAsString, is(notNullValue()));
+        assertThat(errMsg, ttlAsString, is("{enabled=true}"));
     }
 }

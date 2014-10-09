@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
@@ -30,10 +29,10 @@ import java.util.Map;
 /**
  * Builder for a cluster update settings request
  */
-public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder> {
+public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder, ClusterAdminClient> {
 
     public ClusterUpdateSettingsRequestBuilder(ClusterAdminClient clusterClient) {
-        super((InternalClusterAdminClient) clusterClient, new ClusterUpdateSettingsRequest());
+        super(clusterClient, new ClusterUpdateSettingsRequest());
     }
 
     /**
@@ -102,6 +101,6 @@ public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuil
 
     @Override
     protected void doExecute(ActionListener<ClusterUpdateSettingsResponse> listener) {
-        ((ClusterAdminClient) client).updateSettings(request, listener);
+        client.updateSettings(request, listener);
     }
 }

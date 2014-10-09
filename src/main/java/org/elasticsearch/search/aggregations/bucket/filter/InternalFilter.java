@@ -56,4 +56,8 @@ public class InternalFilter extends InternalSingleBucketAggregation implements F
         return TYPE;
     }
 
+    @Override
+    protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
+        return new InternalFilter(name, docCount, subAggregations);
+    }
 }

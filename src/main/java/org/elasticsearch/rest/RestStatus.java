@@ -429,6 +429,10 @@ public enum RestStatus {
      */
     FAILED_DEPENDENCY(424),
     /**
+     * 429 Too Many Requests (RFC6585)
+     */
+    TOO_MANY_REQUESTS(429),
+    /**
      * The server encountered an unexpected condition which prevented it from fulfilling the request.
      */
     INTERNAL_SERVER_ERROR(500),

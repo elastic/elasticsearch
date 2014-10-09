@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
@@ -222,7 +221,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         if (value == null) {
             return;
         }
-        fields.add(new XStringField(names.indexName(), value ? "T" : "F", fieldType));
+        fields.add(new Field(names.indexName(), value ? "T" : "F", fieldType));
     }
 
     @Override

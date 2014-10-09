@@ -19,12 +19,13 @@
 
 package org.elasticsearch.action.suggest;
 
-import java.io.IOException;
-
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
+
+import java.io.IOException;
 
 /**
  * Internal suggest request executed directly against a specific index shard.
@@ -36,8 +37,8 @@ final class ShardSuggestRequest extends BroadcastShardOperationRequest {
     ShardSuggestRequest() {
     }
 
-    public ShardSuggestRequest(String index, int shardId, SuggestRequest request) {
-        super(index, shardId, request);
+    ShardSuggestRequest(ShardId shardId, SuggestRequest request) {
+        super(shardId, request);
         this.suggestSource = request.suggest();
     }
 

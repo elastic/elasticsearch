@@ -20,9 +20,6 @@
 package org.elasticsearch.stresstest.rollingrestart;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.status.IndexShardStatus;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
-import org.elasticsearch.action.admin.indices.status.ShardStatus;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -229,18 +226,6 @@ public class RollingRestartStressTest {
         }
 
         client.client().admin().indices().prepareRefresh().execute().actionGet();
-
-        // check the status
-        IndicesStatusResponse status = client.client().admin().indices().prepareStatus("test").execute().actionGet();
-        for (IndexShardStatus shardStatus : status.getIndex("test")) {
-            ShardStatus shard = shardStatus.getShards()[0];
-            logger.info("shard [{}], docs [{}]", shard.getShardId(), shard.getDocs().getNumDocs());
-            for (ShardStatus shardStatu : shardStatus) {
-                if (shard.getDocs().getNumDocs() != shardStatu.getDocs().getNumDocs()) {
-                    logger.warn("shard doc number does not match!, got {} and {}", shard.getDocs().getNumDocs(), shardStatu.getDocs().getNumDocs());
-                }
-            }
-        }
 
         // check the count
         for (int i = 0; i < (nodes.length * 5); i++) {

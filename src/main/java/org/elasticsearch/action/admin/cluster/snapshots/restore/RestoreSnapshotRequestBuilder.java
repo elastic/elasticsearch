@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
@@ -31,7 +30,7 @@ import java.util.Map;
 /**
  * Restore snapshot request builder
  */
-public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<RestoreSnapshotRequest, RestoreSnapshotResponse, RestoreSnapshotRequestBuilder> {
+public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<RestoreSnapshotRequest, RestoreSnapshotResponse, RestoreSnapshotRequestBuilder, ClusterAdminClient> {
 
     /**
      * Constructs new restore snapshot request builder
@@ -39,7 +38,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      * @param clusterAdminClient cluster admin client
      */
     public RestoreSnapshotRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super((InternalClusterAdminClient) clusterAdminClient, new RestoreSnapshotRequest());
+        super(clusterAdminClient, new RestoreSnapshotRequest());
     }
 
     /**
@@ -50,7 +49,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      * @param name               snapshot name
      */
     public RestoreSnapshotRequestBuilder(ClusterAdminClient clusterAdminClient, String repository, String name) {
-        super((InternalClusterAdminClient) clusterAdminClient, new RestoreSnapshotRequest(repository, name));
+        super(clusterAdminClient, new RestoreSnapshotRequest(repository, name));
     }
 
 
@@ -96,7 +95,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      * For example indices that don't exist.
      *
      * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
-     * @return this request
+     * @return this builder
      */
     public RestoreSnapshotRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
@@ -125,7 +124,7 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      * See {@link #setRenamePattern(String)} for more information.
      *
      * @param renameReplacement rename replacement
-     * @return
+     * @return this builder
      */
     public RestoreSnapshotRequestBuilder setRenameReplacement(String renameReplacement) {
         request.renameReplacement(renameReplacement);
@@ -202,15 +201,37 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      * The global cluster state includes persistent settings and index template definitions.
      *
      * @param restoreGlobalState true if global state should be restored from the snapshot
-     * @return this request
+     * @return this builder
      */
     public RestoreSnapshotRequestBuilder setRestoreGlobalState(boolean restoreGlobalState) {
         request.includeGlobalState(restoreGlobalState);
         return this;
     }
 
+    /**
+     * If set to true the restore procedure will restore partially snapshotted indices
+     *
+     * @param partial true if partially snapshotted indices should be restored
+     * @return this builder
+     */
+    public RestoreSnapshotRequestBuilder setPartial(boolean partial) {
+        request.partial(partial);
+        return this;
+    }
+
+    /**
+     * If set to true the restore procedure will restore aliases
+     *
+     * @param restoreAliases true if aliases should be restored from the snapshot
+     * @return this builder
+     */
+    public RestoreSnapshotRequestBuilder setIncludeAliases(boolean restoreAliases) {
+        request.includeAliases(restoreAliases);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<RestoreSnapshotResponse> listener) {
-        ((ClusterAdminClient) client).restoreSnapshot(request, listener);
+        client.restoreSnapshot(request, listener);
     }
 }

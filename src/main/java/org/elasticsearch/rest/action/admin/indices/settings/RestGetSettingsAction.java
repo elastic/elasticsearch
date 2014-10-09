@@ -38,21 +38,19 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetSettingsAction extends BaseRestHandler {
 
     @Inject
-    public RestGetSettingsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
-        controller.registerHandler(GET, "/_settings", this);
-        controller.registerHandler(GET, "/{index}/_settings", this);
+    public RestGetSettingsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/{index}/_settings/{name}", this);
         controller.registerHandler(GET, "/_settings/{name}", this);
         controller.registerHandler(GET, "/{index}/_setting/{name}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
                 .indices(Strings.splitStringByCommaToArray(request.param("index")))
-                .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strict()))
+                .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strictExpandOpen()))
                 .names(names);
         getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
 
@@ -79,8 +77,6 @@ public class RestGetSettingsAction extends BaseRestHandler {
     }
 
     static class Fields {
-
         static final XContentBuilderString SETTINGS = new XContentBuilderString("settings");
-
     }
 }

@@ -26,13 +26,14 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 
+import java.io.IOException;
 import java.util.UUID;
 
 /**
  */
 public class RefreshStressTest1 {
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws InterruptedException, IOException {
         int numberOfShards = 5;
         Node node = NodeBuilder.nodeBuilder().local(true).loadConfigSettings(false).clusterName("testCluster").settings(
                 ImmutableSettings.settingsBuilder()

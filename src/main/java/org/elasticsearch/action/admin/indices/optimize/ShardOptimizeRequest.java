@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -36,17 +37,18 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
     private int maxNumSegments = OptimizeRequest.Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = OptimizeRequest.Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = OptimizeRequest.Defaults.FLUSH;
-    private boolean force = OptimizeRequest.Defaults.FORCE;
+    private boolean upgrade = OptimizeRequest.Defaults.UPGRADE;
 
     ShardOptimizeRequest() {
     }
 
-    public ShardOptimizeRequest(String index, int shardId, OptimizeRequest request) {
-        super(index, shardId, request);
+    ShardOptimizeRequest(ShardId shardId, OptimizeRequest request) {
+        super(shardId, request);
         waitForMerge = request.waitForMerge();
         maxNumSegments = request.maxNumSegments();
         onlyExpungeDeletes = request.onlyExpungeDeletes();
         flush = request.flush();
+        upgrade = request.upgrade();
     }
 
     boolean waitForMerge() {
@@ -65,8 +67,8 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         return flush;
     }
 
-    public boolean force() {
-        return force;
+    public boolean upgrade() {
+        return upgrade;
     }
 
     @Override
@@ -77,7 +79,7 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            force = in.readBoolean();
+            upgrade = in.readBoolean();
         }
     }
 
@@ -89,7 +91,7 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeBoolean(force);
+            out.writeBoolean(upgrade);
         }
     }
 }

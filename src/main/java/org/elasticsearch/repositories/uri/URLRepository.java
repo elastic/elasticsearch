@@ -25,17 +25,15 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.URL;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Read-only URL-based implementation of the BlobStoreRepository
@@ -74,10 +72,8 @@ public class URLRepository extends BlobStoreRepository {
         } else {
             url = new URL(path);
         }
-        int concurrentStreams = repositorySettings.settings().getAsInt("concurrent_streams", componentSettings.getAsInt("concurrent_streams", 5));
-        ExecutorService concurrentStreamPool = EsExecutors.newScaling(1, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[fs_stream]"));
         listDirectories = repositorySettings.settings().getAsBoolean("list_directories", componentSettings.getAsBoolean("list_directories", true));
-        blobStore = new URLBlobStore(componentSettings, concurrentStreamPool, url);
+        blobStore = new URLBlobStore(componentSettings, url);
         basePath = BlobPath.cleanPath();
     }
 
@@ -106,4 +102,16 @@ public class URLRepository extends BlobStoreRepository {
             }
         }
     }
+
+    @Override
+    public String startVerification() {
+        //TODO: #7831 Add check that URL exists and accessible
+        return null;
+    }
+
+    @Override
+    public void endVerification(String seed) {
+        throw new UnsupportedOperationException("shouldn't be called");
+    }
+
 }

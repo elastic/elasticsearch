@@ -43,15 +43,15 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     @Inject
-    public RestGetIndexTemplateAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestGetIndexTemplateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         controller.registerHandler(GET, "/_template", this);
         controller.registerHandler(GET, "/_template/{name}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);

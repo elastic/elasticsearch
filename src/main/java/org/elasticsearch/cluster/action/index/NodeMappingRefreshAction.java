@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
@@ -39,6 +41,8 @@ import java.io.IOException;
  */
 public class NodeMappingRefreshAction extends AbstractComponent {
 
+    public static final String ACTION_NAME = "internal:cluster/node/mapping/refresh";
+
     private final TransportService transportService;
     private final MetaDataMappingService metaDataMappingService;
 
@@ -47,7 +51,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         super(settings);
         this.transportService = transportService;
         this.metaDataMappingService = metaDataMappingService;
-        transportService.registerHandler(NodeMappingRefreshTransportHandler.ACTION, new NodeMappingRefreshTransportHandler());
+        transportService.registerHandler(ACTION_NAME, new NodeMappingRefreshTransportHandler());
     }
 
     public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) throws ElasticsearchException {
@@ -56,7 +60,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             innerMappingRefresh(request);
         } else {
             transportService.sendRequest(state.nodes().masterNode(),
-                    NodeMappingRefreshTransportHandler.ACTION, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+                    ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
         }
     }
 
@@ -65,8 +69,6 @@ public class NodeMappingRefreshAction extends AbstractComponent {
     }
 
     private class NodeMappingRefreshTransportHandler extends BaseTransportRequestHandler<NodeMappingRefreshRequest> {
-
-        static final String ACTION = "cluster/nodeMappingRefresh";
 
         @Override
         public NodeMappingRefreshRequest newInstance() {
@@ -85,7 +87,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         }
     }
 
-    public static class NodeMappingRefreshRequest extends TransportRequest {
+    public static class NodeMappingRefreshRequest extends TransportRequest implements IndicesRequest {
 
         private String index;
         private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
@@ -100,6 +102,16 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             this.indexUUID = indexUUID;
             this.types = types;
             this.nodeId = nodeId;
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[]{index};
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
         public String index() {

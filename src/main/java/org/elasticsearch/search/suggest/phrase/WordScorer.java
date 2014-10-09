@@ -23,6 +23,7 @@ import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.common.util.BigArrays;
@@ -38,7 +39,7 @@ public abstract class WordScorer {
     protected final Terms terms;
     protected final long vocabluarySize;
     protected final double realWordLikelyhood;
-    protected final BytesRef spare = new BytesRef();
+    protected final BytesRefBuilder spare = new BytesRefBuilder();
     protected final BytesRef separator;
     private final TermsEnum termsEnum;
     private final long numTerms;

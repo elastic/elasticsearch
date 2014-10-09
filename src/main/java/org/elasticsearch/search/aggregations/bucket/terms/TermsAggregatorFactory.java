@@ -22,7 +22,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.*;
-import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -40,27 +40,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                              long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
-                              AggregationContext aggregationContext, Aggregator parent) {
-                return new StringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
-            }
-
-            @Override
-            boolean needsGlobalOrdinals() {
-                return false;
-            }
-
-        },
-        ORDINALS(new ParseField("ordinals")) {
-
-            @Override
-            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                              long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
-                              AggregationContext aggregationContext, Aggregator parent) {
-                if (includeExclude != null) {
-                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
-                }
-                return new StringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+                              long maxOrd, Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+                              AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError) {
+                return new StringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError);
             }
 
             @Override
@@ -73,12 +55,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                              long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
-                              AggregationContext aggregationContext, Aggregator parent) {
-                if (includeExclude != null) {
-                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
-                }
-                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+                              long maxOrd, Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+                              AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError) {
+                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError);
             }
 
             @Override
@@ -91,12 +70,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                              long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
-                              AggregationContext aggregationContext, Aggregator parent) {
-                if (includeExclude != null) {
-                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
-                }
-                return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+                              long maxOrd, Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+                              AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError) {
+                return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError);
             }
 
             @Override
@@ -108,15 +84,12 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                              long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
-                              AggregationContext aggregationContext, Aggregator parent) {
-                if (includeExclude != null) {
-                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
+                              long maxOrd, Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+                              AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError) {
+                if (includeExclude != null || factories.count() > 0) {
+                    return GLOBAL_ORDINALS.create(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError);
                 }
-                if (factories != AggregatorFactories.EMPTY) {
-                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode can only be used as a leaf aggregation");
-                }
-                return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+                return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode, showTermDocCountError);
             }
 
             @Override
@@ -141,8 +114,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
 
         abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                                   long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount,
-                                   IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent);
+                                   long maxOrd, Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds,
+                                   IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError);
 
         abstract boolean needsGlobalOrdinals();
 
@@ -152,28 +125,26 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
     }
 
-    private final InternalOrder order;
-    private final int requiredSize;
-    private final int shardSize;
-    private final long minDocCount;
+    private final Terms.Order order;
     private final IncludeExclude includeExclude;
     private final String executionHint;
+    private SubAggCollectionMode subAggCollectMode;
+    private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
+    private boolean showTermDocCountError;
 
-    public TermsAggregatorFactory(String name, ValuesSourceConfig config, InternalOrder order, int requiredSize,
-                                  int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
-
+    public TermsAggregatorFactory(String name, ValuesSourceConfig config, Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, String executionHint,SubAggCollectionMode executionMode, boolean showTermDocCountError) {
         super(name, StringTerms.TYPE.name(), config);
         this.order = order;
-        this.requiredSize = requiredSize;
-        this.shardSize = shardSize;
-        this.minDocCount = minDocCount;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
+        this.bucketCountThresholds = bucketCountThresholds;
+        this.subAggCollectMode = executionMode;
+        this.showTermDocCountError = showTermDocCountError;
     }
 
     @Override
     protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-        final InternalAggregation aggregation = new UnmappedTerms(name, order, requiredSize, minDocCount);
+        final InternalAggregation aggregation = new UnmappedTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount());
         return new NonCollectingAggregator(name, aggregationContext, parent) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
@@ -182,18 +153,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         };
     }
 
-    private static boolean hasParentBucketAggregator(Aggregator parent) {
-        if (parent == null) {
-            return false;
-        } else if (parent.bucketAggregationMode() == BucketAggregationMode.PER_BUCKET) {
-            return true;
-        } else {
-            return hasParentBucketAggregator(parent.parent());
-        }
-    }
-
-    @Override
-    protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+    public static long estimatedBucketCount(ValuesSource valuesSource, Aggregator parent) {
         long estimatedBucketCount = valuesSource.metaData().maxAtomicUniqueValuesCount();
         if (estimatedBucketCount < 0) {
             // there isn't an estimation available.. 50 should be a good start
@@ -208,6 +168,19 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         // And that all values are not necessarily visited by the matches.
         estimatedBucketCount = Math.min(estimatedBucketCount, 512);
 
+        if (Aggregator.hasParentBucketAggregator(parent)) {
+            // There is a parent that creates buckets, potentially with a very long tail of buckets with few documents
+            // Let's be conservative with memory in that case
+            estimatedBucketCount = Math.min(estimatedBucketCount, 8);
+        }
+
+        return estimatedBucketCount;
+    }
+
+    @Override
+    protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        long estimatedBucketCount = estimatedBucketCount(valuesSource, parent);
+
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
@@ -216,8 +189,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
             // In some cases, using ordinals is just not supported: override it
             if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
-                execution = ExecutionMode.MAP;
-            } else if (includeExclude != null) {
                 execution = ExecutionMode.MAP;
             }
 
@@ -238,7 +209,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 // if there is a parent bucket aggregator the number of instances of this aggregator is going
                 // to be unbounded and most instances may only aggregate few documents, so use hashed based
                 // global ordinals to keep the bucket ords dense.
-                if (hasParentBucketAggregator(parent)) {
+                if (Aggregator.hasParentBucketAggregator(parent)) {
                     execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
                     if (factories == AggregatorFactories.EMPTY) {
@@ -257,19 +228,29 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
             assert execution != null;
             valuesSource.setNeedsGlobalOrdinals(execution.needsGlobalOrdinals());
-            return execution.create(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
+            return execution.create(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError);
         }
 
-        if (includeExclude != null) {
-            throw new AggregationExecutionException("Aggregation [" + name + "] cannot support the include/exclude " +
-                    "settings as it can only be applied to string values");
+        if ((includeExclude != null) && (includeExclude.isRegexBased())) {
+            throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude " +
+                    "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses used to filter numeric fields");
         }
 
         if (valuesSource instanceof ValuesSource.Numeric) {
+            IncludeExclude.LongFilter longFilter = null;
             if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
-                return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+                if (includeExclude != null) {
+                    longFilter = includeExclude.convertToDoubleFilter();
+                }
+                return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
+                        estimatedBucketCount, order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode,
+                        showTermDocCountError, longFilter);
             }
-            return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToLongFilter();
+            }
+            return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount,
+                    order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode, showTermDocCountError, longFilter);
         }
 
         throw new AggregationExecutionException("terms aggregation cannot be applied to field [" + config.fieldContext().field() +

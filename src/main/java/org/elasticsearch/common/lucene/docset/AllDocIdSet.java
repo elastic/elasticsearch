@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene.docset;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
 
@@ -42,6 +43,11 @@ public class AllDocIdSet extends DocIdSet {
     @Override
     public boolean isCacheable() {
         return true;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return RamUsageEstimator.NUM_BYTES_INT;
     }
 
     @Override

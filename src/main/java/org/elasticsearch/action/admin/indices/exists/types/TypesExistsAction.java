@@ -26,7 +26,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class TypesExistsAction extends IndicesAction<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder> {
 
     public static final TypesExistsAction INSTANCE = new TypesExistsAction();
-    public static final String NAME = "indices/types/exists";
+    public static final String NAME = "indices:admin/types/exists";
 
     private TypesExistsAction() {
         super(NAME);

@@ -140,7 +140,7 @@ public class PropertyPlaceholder {
             if (Strings.substringMatch(buf, index, this.placeholderSuffix)) {
                 if (withinNestedPlaceholder > 0) {
                     withinNestedPlaceholder--;
-                    index = index + this.placeholderPrefix.length() - 1;
+                    index = index + this.placeholderSuffix.length();
                 } else {
                     return index;
                 }

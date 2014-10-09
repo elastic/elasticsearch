@@ -56,7 +56,7 @@ public class SuggestStatsTests extends ElasticsearchIntegrationTest {
     public void testSimpleStats() throws Exception {
         // clear all stats first
         client().admin().indices().prepareStats().clear().execute().actionGet();
-        final int numNodes = immutableCluster().numDataNodes();
+        final int numNodes = cluster().numDataNodes();
         assertThat(numNodes, greaterThanOrEqualTo(2));
         final int shardsIdx1 = randomIntBetween(1, 10); // we make sure each node gets at least a single shard...
         final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));
@@ -85,15 +85,15 @@ public class SuggestStatsTests extends ElasticsearchIntegrationTest {
 
         long startTime = System.currentTimeMillis();
         for (int i = 0; i < suggestAllIdx; i++) {
-            SuggestResponse suggestResponse = addSuggestions(cluster().clientNodeClient().prepareSuggest(), i).get();
+            SuggestResponse suggestResponse = addSuggestions(internalCluster().clientNodeClient().prepareSuggest(), i).get();
             assertAllSuccessful(suggestResponse);
         }
         for (int i = 0; i < suggestIdx1; i++) {
-            SuggestResponse suggestResponse = addSuggestions(cluster().clientNodeClient().prepareSuggest("test1"), i).get();
+            SuggestResponse suggestResponse = addSuggestions(internalCluster().clientNodeClient().prepareSuggest("test1"), i).get();
             assertAllSuccessful(suggestResponse);
         }
         for (int i = 0; i < suggestIdx2; i++) {
-            SuggestResponse suggestResponse = addSuggestions(cluster().clientNodeClient().prepareSuggest("test2"), i).get();
+            SuggestResponse suggestResponse = addSuggestions(internalCluster().clientNodeClient().prepareSuggest("test2"), i).get();
             assertAllSuccessful(suggestResponse);
         }
         long endTime = System.currentTimeMillis();

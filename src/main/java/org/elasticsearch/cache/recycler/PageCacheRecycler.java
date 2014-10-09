@@ -256,7 +256,7 @@ public class PageCacheRecycler extends AbstractComponent {
 
         public static Type parse(String type) {
             if (Strings.isNullOrEmpty(type)) {
-                return SOFT_CONCURRENT;
+                return CONCURRENT;
             }
             try {
                 return Type.valueOf(type.toUpperCase(Locale.ROOT));

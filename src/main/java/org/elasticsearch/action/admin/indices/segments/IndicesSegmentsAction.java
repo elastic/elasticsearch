@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class IndicesSegmentsAction extends IndicesAction<IndicesSegmentsRequest, IndicesSegmentResponse, IndicesSegmentsRequestBuilder> {
 
     public static final IndicesSegmentsAction INSTANCE = new IndicesSegmentsAction();
-    public static final String NAME = "indices/segments";
+    public static final String NAME = "indices:monitor/segments";
 
     private IndicesSegmentsAction() {
         super(NAME);

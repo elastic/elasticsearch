@@ -43,13 +43,13 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestDeleteAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestDeleteAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(DELETE, "/{index}/{type}/{id}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
 
         deleteRequest.listenerThreaded(false);

@@ -72,12 +72,32 @@ It is an error to index to an alias which points to more than one index.
 Aliases with filters provide an easy way to create different "views" of
 the same index. The filter can be defined using Query DSL and is applied
 to all Search, Count, Delete By Query and More Like This operations with
-this alias. Here is an example:
+this alias.
+
+To create a filtered alias, first we need to ensure that the fields already
+exist in the mapping:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'http://localhost:9200/_aliases' -d '
-{
+curl -XPUT 'http://localhost:9200/test1' -d '{
+  "mappings": {
+    "type1": {
+      "properties": {
+        "user" : {
+          "type": "string",
+          "index": "not_analyzed"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+Now we can create an alias that uses a filter on field `user`:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '{
     "actions" : [
         {
             "add" : {
@@ -173,14 +193,34 @@ You can also use the plural `_aliases`.
 [float]
 ==== Examples:
 
-Adding time based alias:
-
+Adding time based alias::
++
+--
 [source,js]
 --------------------------------------------------
 curl -XPUT 'localhost:9200/logs_201305/_alias/2013'
 --------------------------------------------------
+--
 
-Adding user alias:
+Adding a user alias::
++
+--
+First create the index and add a mapping for the `user_id` field:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/users' -d '{
+    "mappings" : {
+        "user" : {
+            "properties" : {
+                "user_id" : {"type" : "integer"}
+            }
+        }
+    }
+}'
+--------------------------------------------------
+
+Then add the alias for a specific user:
 
 [source,js]
 --------------------------------------------------
@@ -194,17 +234,24 @@ curl -XPUT 'localhost:9200/users/_alias/user_12' -d '{
 }'
 --------------------------------------------------
 
+--
+
 [float]
 [[alias-index-creation]]
 === Aliases during index creation
-
-added[1.1.0]
 
 Aliases can also be specified during <<create-index-aliases,index creation>>:
 
 [source,js]
 --------------------------------------------------
 curl -XPUT localhost:9200/logs_20142801 -d '{
+    "mappings" : {
+        "type" : {
+            "properties" : {
+                "year" : {"type" : "integer"}
+            }
+        }
+    },
     "aliases" : {
         "current_day" : {},
         "2014" : {

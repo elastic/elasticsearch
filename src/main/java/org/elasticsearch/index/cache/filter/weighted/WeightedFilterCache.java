@@ -23,15 +23,17 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.Weigher;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.CachedFilter;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
@@ -51,7 +53,7 @@ import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 
-public class WeightedFilterCache extends AbstractIndexComponent implements FilterCache, SegmentReader.CoreClosedListener {
+public class WeightedFilterCache extends AbstractIndexComponent implements FilterCache, SegmentReader.CoreClosedListener, IndexReader.ReaderClosedListener {
 
     final IndicesFilterCache indicesFilterCache;
     IndexService indexService;
@@ -80,6 +82,12 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
     @Override
+    public void onClose(IndexReader reader) {
+        clear(reader.getCoreCacheKey());
+    }
+
+
+    @Override
     public void clear(String reason) {
         logger.debug("full cache clear, reason [{}]", reason);
         for (Object readerKey : seenReaders.keySet()) {
@@ -94,7 +102,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     @Override
     public void clear(String reason, String[] keys) {
         logger.debug("clear keys [], reason [{}]", reason, keys);
-        final BytesRef spare = new BytesRef();
+        final BytesRefBuilder spare = new BytesRefBuilder();
         for (String key : keys) {
             final byte[] keyBytes = Strings.toUTF8Bytes(key, spare);
             for (Object readerKey : seenReaders.keySet()) {
@@ -160,9 +168,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
                     Boolean previous = cache.seenReaders.putIfAbsent(context.reader().getCoreCacheKey(), Boolean.TRUE);
                     if (previous == null) {
                         // we add a core closed listener only, for non core IndexReaders we rely on clear being called (percolator for example)
-                        if (context.reader() instanceof SegmentReader) {
-                            ((SegmentReader) context.reader()).addCoreClosedListener(cache);
-                        }
+                        SegmentReaderUtils.registerCoreListener(context.reader(), cache);
                     }
                 }
                 // we can't pass down acceptedDocs provided, because we are caching the result, and acceptedDocs

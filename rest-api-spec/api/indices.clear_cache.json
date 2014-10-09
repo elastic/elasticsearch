@@ -65,6 +65,10 @@
         "recycler": {
           "type" : "boolean",
           "description" : "Clear the recycler cache"
+        },
+        "query_cache": {
+          "type" : "boolean",
+          "description" : "Clear query cache"
         }
       }
     },

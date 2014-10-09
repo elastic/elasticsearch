@@ -56,14 +56,10 @@ public class CardinalityParser implements Aggregator.Parser {
                 currentFieldName = parser.currentName();
             } else if (vsParser.token(currentFieldName, token, parser)) {
                 continue;
-            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+            } else if (token.isValue()) {
                 if ("rehash".equals(currentFieldName)) {
                     rehash = parser.booleanValue();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + name + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (PRECISION_THRESHOLD.match(currentFieldName)) {
+                } else if (PRECISION_THRESHOLD.match(currentFieldName)) {
                     precisionThreshold = parser.longValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + name + "]: [" + currentFieldName + "].");

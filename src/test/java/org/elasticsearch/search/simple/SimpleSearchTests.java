@@ -20,6 +20,8 @@
 package org.elasticsearch.search.simple;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -28,12 +30,17 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.containsString;
 
 public class SimpleSearchTests extends ElasticsearchIntegrationTest {
 
@@ -66,8 +73,13 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
 
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {
+            String randomPreference = randomUnicodeOfLengthBetween(0, 4);
+            // randomPreference should not start with '_' (reserved for known preference types (e.g. _shards, _primary)
+            while (randomPreference.startsWith("_")) {
+                randomPreference = randomUnicodeOfLengthBetween(0, 4);
+            }
             // id is not indexed, but lets see that we automatically convert to
-            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setPreference(randomUnicodeOfLengthBetween(0, 4)).get();
+            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setPreference(randomPreference).get();
             assertHitCount(searchResponse, 6l);
 
         }
@@ -193,6 +205,58 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
                     .execute().actionGet();
             assertHitCount(searchResponse, 20l);
 
+        }
+    }
+
+    @Test
+    public void simpleTerminateAfterCountTests() throws Exception {
+        prepareCreate("test").setSettings(
+                SETTING_NUMBER_OF_SHARDS, 1,
+                SETTING_NUMBER_OF_REPLICAS, 0).get();
+        ensureGreen();
+        int max = randomIntBetween(3, 29);
+        List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);
+
+        for (int i = 1; i <= max; i++) {
+            String id = String.valueOf(i);
+            docbuilders.add(client().prepareIndex("test", "type1", id).setSource("field", "2010-01-"+ id +"T02:00"));
+        }
+
+        indexRandom(true, docbuilders);
+        ensureGreen();
+        refresh();
+
+        String upperBound = "2010-01-" + String.valueOf(max+1) + "||+2d";
+        String lowerBound = "2009-12-01||+2d";
+
+        SearchResponse searchResponse;
+
+        for (int i = 1; i <= max; i++) {
+            searchResponse = client().prepareSearch("test")
+                    .setQuery(QueryBuilders.rangeQuery("field").gte(lowerBound).lte(upperBound))
+                    .setTerminateAfter(i).execute().actionGet();
+            assertHitCount(searchResponse, (long)i);
+            assertTrue(searchResponse.isTerminatedEarly());
+        }
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(QueryBuilders.rangeQuery("field").gte(lowerBound).lte(upperBound))
+                .setTerminateAfter(2 * max).execute().actionGet();
+
+        assertHitCount(searchResponse, max);
+        assertFalse(searchResponse.isTerminatedEarly());
+    }
+
+    @Test
+    public void testInsaneFrom() throws Exception {
+        createIndex("idx");
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+
+        try {
+            client().prepareSearch("idx").setFrom(Integer.MAX_VALUE).get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("Result window is too large, from + size must be less than or equal to:"));
         }
     }
 }

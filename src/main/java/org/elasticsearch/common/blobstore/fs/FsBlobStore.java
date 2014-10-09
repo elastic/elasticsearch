@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -30,20 +30,17 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.File;
-import java.util.concurrent.Executor;
 
 /**
  *
  */
 public class FsBlobStore extends AbstractComponent implements BlobStore {
 
-    private final Executor executor;
-
     private final File path;
 
     private final int bufferSizeInBytes;
 
-    public FsBlobStore(Settings settings, Executor executor, File path) {
+    public FsBlobStore(Settings settings, File path) {
         super(settings);
         this.path = path;
         if (!path.exists()) {
@@ -56,7 +53,6 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
             throw new BlobStoreException("Path is not a directory at [" + path + "]");
         }
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
-        this.executor = executor;
     }
 
     @Override
@@ -72,13 +68,9 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
         return this.bufferSizeInBytes;
     }
 
-    public Executor executor() {
-        return executor;
-    }
-
     @Override
-    public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
-        return new FsImmutableBlobContainer(this, path, buildAndCreate(path));
+    public BlobContainer blobContainer(BlobPath path) {
+        return new FsBlobContainer(this, path, buildAndCreate(path));
     }
 
     @Override

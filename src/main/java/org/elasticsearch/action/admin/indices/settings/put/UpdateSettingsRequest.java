@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,7 +43,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsT
 /**
  * Request for an update index settings action
  */
-public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest> {
+public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
@@ -75,7 +76,8 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         return validationException;
     }
 
-    String[] indices() {
+    @Override
+    public String[] indices() {
         return indices;
     }
 
@@ -86,11 +88,13 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     /**
      * Sets the indices to apply to settings update to
      */
+    @Override
     public UpdateSettingsRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
 
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;
+import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -45,6 +46,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
+import org.elasticsearch.index.cache.fixedbitset.ShardFixedBitSetFilterCache;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
@@ -77,8 +79,15 @@ public interface IndexShard extends IndexShardComponent {
 
     ShardFilterCache filterCache();
 
+    ShardQueryCache queryCache();
+
     ShardFieldData fieldData();
 
+    /**
+     * Returns the latest cluster routing entry received with this shard. Might be null if the
+     * shard was just created.
+     */
+    @Nullable
     ShardRouting routingEntry();
 
     DocsStats docStats();
@@ -120,6 +129,8 @@ public interface IndexShard extends IndexShardComponent {
     ShardTermVectorService termVectorService();
 
     ShardSuggestService shardSuggestService();
+
+    ShardFixedBitSetFilterCache shardFixedBitSetFilterCache();
 
     MapperService mapperService();
 

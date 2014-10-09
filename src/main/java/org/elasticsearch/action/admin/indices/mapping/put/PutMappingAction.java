@@ -27,7 +27,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 public class PutMappingAction extends IndicesAction<PutMappingRequest, PutMappingResponse, PutMappingRequestBuilder> {
 
     public static final PutMappingAction INSTANCE = new PutMappingAction();
-    public static final String NAME = "indices/mapping/put";
+    public static final String NAME = "indices:admin/mapping/put";
 
     private PutMappingAction() {
         super(NAME);

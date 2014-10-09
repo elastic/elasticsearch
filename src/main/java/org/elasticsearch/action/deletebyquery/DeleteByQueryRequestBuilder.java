@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -40,7 +39,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
     private QuerySourceBuilder sourceBuilder;
 
     public DeleteByQueryRequestBuilder(Client client) {
-        super((InternalClient) client, new DeleteByQueryRequest());
+        super(client, new DeleteByQueryRequest());
     }
 
     /**
@@ -162,7 +161,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
             request.source(sourceBuilder);
         }
 
-        ((Client) client).deleteByQuery(request, listener);
+        client.deleteByQuery(request, listener);
     }
 
     private QuerySourceBuilder sourceBuilder() {

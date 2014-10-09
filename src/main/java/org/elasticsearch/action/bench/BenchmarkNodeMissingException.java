@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
- *
+ * Indicates that a benchmark cannot be executed due to a lack of candidate nodes.
  */
 public class BenchmarkNodeMissingException extends ElasticsearchException {
 

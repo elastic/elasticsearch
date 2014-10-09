@@ -27,8 +27,12 @@ import org.elasticsearch.rest.RestStatus;
  */
 public class NoNodeAvailableException extends ElasticsearchException {
 
-    public NoNodeAvailableException() {
-        super("No node available");
+    public NoNodeAvailableException(String message) {
+        super(message);
+    }
+
+    public NoNodeAvailableException(String message, Throwable t) {
+        super(message, t);
     }
 
     @Override

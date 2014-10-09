@@ -19,14 +19,14 @@
 
 package org.elasticsearch.common.joda;
 
-import java.util.Locale;
-
 import org.elasticsearch.common.Strings;
 import org.joda.time.*;
 import org.joda.time.field.DividedDateTimeField;
 import org.joda.time.field.OffsetDateTimeField;
 import org.joda.time.field.ScaledDurationField;
 import org.joda.time.format.*;
+
+import java.util.Locale;
 
 /**
  *
@@ -142,11 +142,12 @@ public class Joda {
                 } else {
                     DateTimeFormatter dateTimeFormatter = null;
                     for (int i = 0; i < formats.length; i++) {
-                        DateTimeFormatter currentFormatter = forPattern(formats[i], locale).parser();
+                        FormatDateTimeFormatter currentFormatter = forPattern(formats[i], locale);
+                        DateTimeFormatter currentParser = currentFormatter.parser();
                         if (dateTimeFormatter == null) {
-                            dateTimeFormatter = currentFormatter;
+                            dateTimeFormatter = currentFormatter.printer();
                         }
-                        parsers[i] = currentFormatter.getParser();
+                        parsers[i] = currentParser.getParser();
                     }
 
                     DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(dateTimeFormatter.withZone(DateTimeZone.UTC).getPrinter(), parsers);

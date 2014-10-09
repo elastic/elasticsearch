@@ -20,7 +20,9 @@
 package org.elasticsearch.indices.mapping;
 
 
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -29,9 +31,11 @@ import org.junit.Test;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -52,7 +56,7 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
 
         int iters = scaledRandomIntBetween(5, 15);
         for (int i = 0; i < iters; i++) {
-            immutableCluster().wipeIndices("test");
+            cluster().wipeIndices("test");
             assertAcked(prepareCreate("test")
                     .addMapping(mappingType, mapping));
             ensureYellow();
@@ -85,4 +89,25 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
         }
     }
 
+    @Test
+    public void testDynamicMappingIntroductionPropagatesToAll() throws Exception {
+        int numDocs = randomIntBetween(100, 1000);
+        int numberOfFields = randomIntBetween(1, 50);
+        Set<Integer> fieldsIdx = Sets.newHashSet();
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; ++i) {
+            int fieldIdx = i % numberOfFields;
+            fieldsIdx.add(fieldIdx);
+            builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+                    .startObject()
+                    .field("str_value_" + fieldIdx, "s" + i)
+                    .field("l_value_" + fieldIdx, i)
+                    .field("d_value_" + fieldIdx, i)
+                    .endObject());
+        }
+        indexRandom(false, builders);
+        for (Integer fieldIdx : fieldsIdx) {
+            waitForConcreteMappingsOnAll("idx", "type", "str_value_" + fieldIdx, "l_value_" + fieldIdx, "d_value_" + fieldIdx);
+        }
+    }
 }

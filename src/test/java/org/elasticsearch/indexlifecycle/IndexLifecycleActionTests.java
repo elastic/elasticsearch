@@ -36,7 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Test;
 
 import java.util.Set;
@@ -78,7 +78,7 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
 
         // start one server
         logger.info("Starting sever1");
-        final String server_1 = cluster().startNode(settings);
+        final String server_1 = internalCluster().startNode(settings);
         final String node1 = getLocalNodeId(server_1);
 
         logger.info("Creating index [test]");
@@ -97,7 +97,7 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
 
         logger.info("Starting server2");
         // start another server
-        String server_2 = cluster().startNode(settings);
+        String server_2 = internalCluster().startNode(settings);
 
         // first wait for 2 nodes in the cluster
         logger.info("Running Cluster Health");
@@ -133,7 +133,7 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
 
         logger.info("Starting server3");
         // start another server
-        String server_3 = cluster().startNode(settings);
+        String server_3 = internalCluster().startNode(settings);
 
         // first wait for 3 nodes in the cluster
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3")).actionGet();
@@ -178,7 +178,7 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
 
         logger.info("Closing server1");
         // kill the first server
-        cluster().stopRandomNode(TestCluster.nameFilter(server_1));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(server_1));
         // verify health
         logger.info("Running Cluster Health");
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
@@ -224,7 +224,7 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
     }
 
     private String getLocalNodeId(String name) {
-        Discovery discovery = cluster().getInstance(Discovery.class, name);
+        Discovery discovery = internalCluster().getInstance(Discovery.class, name);
         String nodeId = discovery.localNode().getId();
         assertThat(nodeId, not(nullValue()));
         return nodeId;
@@ -243,7 +243,7 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
 
         // start one server
         logger.info("Starting server1");
-        final String server_1 = cluster().startNode(settings);
+        final String server_1 = internalCluster().startNode(settings);
 
         final String node1 = getLocalNodeId(server_1);
 
@@ -267,7 +267,7 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
 
         // start another server
         logger.info("Starting server2");
-        final String server_2 = cluster().startNode(settings);
+        final String server_2 = internalCluster().startNode(settings);
 
         // first wait for 2 nodes in the cluster
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
@@ -301,7 +301,7 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
 
         // start another server
         logger.info("Starting server3");
-        final String server_3 = cluster().startNode();
+        final String server_3 = internalCluster().startNode();
 
         // first wait for 3 nodes in the cluster
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3")).actionGet();
@@ -342,7 +342,7 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
 
         logger.info("Closing server1");
         // kill the first server
-        cluster().stopRandomNode(TestCluster.nameFilter(server_1));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(server_1));
 
         logger.info("Running Cluster Health");
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();

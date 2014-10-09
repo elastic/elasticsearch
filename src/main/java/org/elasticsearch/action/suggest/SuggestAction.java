@@ -19,16 +19,16 @@
 
 package org.elasticsearch.action.suggest;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.suggest.Suggest;
 
 /**
  */
-public class SuggestAction extends Action<SuggestRequest, SuggestResponse, SuggestRequestBuilder> {
+public class SuggestAction extends ClientAction<SuggestRequest, SuggestResponse, SuggestRequestBuilder> {
 
     public static final SuggestAction INSTANCE = new SuggestAction();
-    public static final String NAME = "suggest";
+    public static final String NAME = "indices:data/read/suggest";
 
     private SuggestAction() {
         super(NAME);

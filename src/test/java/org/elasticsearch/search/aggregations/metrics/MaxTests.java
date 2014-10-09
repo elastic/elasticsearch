@@ -254,7 +254,7 @@ public class MaxTests extends AbstractNumericTests {
     public void testScript_MultiValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(max("max").script("new double[] { doc['value'].value, doc['value'].value + inc }").param("inc", 1))
+                .addAggregation(max("max").script("[ doc['value'].value, doc['value'].value + inc ]").param("inc", 1))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));

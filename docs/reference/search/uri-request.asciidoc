@@ -62,7 +62,7 @@ query.
 |`explain` |For each hit, contain an explanation of how scoring of the
 hits was computed.
 
-|`_source`| added[1.0.0.Beta1]Set to `false` to disable retrieval of the `_source` field. You can also retrieve
+|`_source`|Set to `false` to disable retrieval of the `_source` field. You can also retrieve
 part of the document by using `_source_include` & `_source_exclude` (see the <<search-request-source-filtering, request body>>
 documentation for more details)
 
@@ -81,6 +81,12 @@ scores and return them as part of each hit.
 |`timeout` |A search timeout, bounding the search request to be executed
 within the specified time value and bail with the hits accumulated up to
 that point when expired. Defaults to no timeout.
+
+|`terminate_after` |The maximum number of documents to collect for
+each shard, upon reaching which the query execution will terminate early.
+If set, the response will have a boolean field `terminated_early` to
+indicate whether the query execution has actually terminated_early.
+Defaults to no terminate_after.
 
 |`from` |The starting from index of the hits to return. Defaults to `0`.
 

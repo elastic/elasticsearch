@@ -8,6 +8,17 @@
           id:             1
           body:           { foo: bar }
           version_type:   external_gte
+          version:        0
+
+ - match:   { _version: 0}
+
+ - do:
+      index:
+          index:          test_1
+          type:           test
+          id:             1
+          body:           { foo: bar }
+          version_type:   external_gte
           version:        5
 
  - match:   { _version: 5}
@@ -20,7 +31,7 @@
           id:             1
           body:           { foo: bar }
           version_type:   external_gte
-          version:        4
+          version:        0
 
  - do:
       index:

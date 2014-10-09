@@ -76,7 +76,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
     }
 
     private void rerouteWithCommands(Settings commonSettings) throws Exception {
-        List<String> nodesIds = cluster().startNodesAsync(2, commonSettings).get();
+        List<String> nodesIds = internalCluster().startNodesAsync(2, commonSettings).get();
         final String node_1 = nodesIds.get(0);
         final String node_2 = nodesIds.get(1);
 
@@ -157,9 +157,9 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
     private void rerouteWithAllocateLocalGateway(Settings commonSettings) throws Exception {
         logger.info("--> starting 2 nodes");
-        String node_1 = cluster().startNode(commonSettings);
-        cluster().startNode(commonSettings);
-        assertThat(immutableCluster().size(), equalTo(2));
+        String node_1 = internalCluster().startNode(commonSettings);
+        internalCluster().startNode(commonSettings);
+        assertThat(cluster().size(), equalTo(2));
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
@@ -190,17 +190,17 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
 
         logger.info("--> closing all nodes");
-        File[] shardLocation = cluster().getInstance(NodeEnvironment.class, node_1).shardLocations(new ShardId("test", 0));
+        File[] shardLocation = internalCluster().getInstance(NodeEnvironment.class, node_1).shardLocations(new ShardId("test", 0));
         assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // make sure the data is there!
-        cluster().closeNonSharedNodes(false); // don't wipe data directories the index needs to be there!
+        internalCluster().closeNonSharedNodes(false); // don't wipe data directories the index needs to be there!
 
         logger.info("--> deleting the shard data [{}] ", Arrays.toString(shardLocation));
         assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // verify again after cluster was shut down
         assertThat(FileSystemUtils.deleteRecursively(shardLocation), equalTo(true));
 
         logger.info("--> starting nodes back, will not allocate the shard since it has no data, but the index will be there");
-        node_1 = cluster().startNode(commonSettings);
-        cluster().startNode(commonSettings);
+        node_1 = internalCluster().startNode(commonSettings);
+        internalCluster().startNode(commonSettings);
         // wait a bit for the cluster to realize that the shard is not there...
         // TODO can we get around this? the cluster is RED, so what do we wait for?
         client().admin().cluster().prepareReroute().get();
@@ -228,9 +228,9 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         Settings commonSettings = settingsBuilder().build();
 
         logger.info("--> starting a node");
-        String node_1 = cluster().startNode(commonSettings);
+        String node_1 = internalCluster().startNode(commonSettings);
 
-        assertThat(immutableCluster().size(), equalTo(1));
+        assertThat(cluster().size(), equalTo(1));
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("1").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
@@ -248,8 +248,8 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).execute().actionGet();
 
         logger.info("--> starting a second node");
-        String node_2 = cluster().startNode(commonSettings);
-        assertThat(immutableCluster().size(), equalTo(2));
+        String node_2 = internalCluster().startNode(commonSettings);
+        assertThat(cluster().size(), equalTo(2));
         healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 

@@ -55,8 +55,8 @@ public class RestBulkAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
 
     @Inject
-    public RestBulkAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestBulkAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         controller.registerHandler(POST, "/_bulk", this);
         controller.registerHandler(PUT, "/_bulk", this);
@@ -69,7 +69,7 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         BulkRequest bulkRequest = Requests.bulkRequest();
         bulkRequest.listenerThreaded(false);
         String defaultIndex = request.param("index");

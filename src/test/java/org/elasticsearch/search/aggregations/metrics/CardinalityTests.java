@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.cardinality.Cardinality;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -122,6 +123,13 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, builders);
         createIndex("idx_unmapped");
+
+        IndexRequestBuilder[] dummyDocsBuilder = new IndexRequestBuilder[10];
+        for (int i = 0; i < dummyDocsBuilder.length; i++) {
+            dummyDocsBuilder[i] = client().prepareIndex("idx", "type").setSource("a_field", "1");
+        }
+        indexRandom(true, dummyDocsBuilder);
+
         ensureSearchable();
     }
 
@@ -397,7 +405,9 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
     @Test
     public void asSubAgg() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms").field("str_value").subAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_values")))
+                .addAggregation(terms("terms").field("str_value")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .subAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_values")))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -414,7 +424,9 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
     @Test
     public void asSubAggHashed() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms").field("str_value").subAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_values.hash")))
+                .addAggregation(terms("terms").field("str_value")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .subAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).field("str_values.hash")))
                 .execute().actionGet();
 
         assertSearchResponse(response);

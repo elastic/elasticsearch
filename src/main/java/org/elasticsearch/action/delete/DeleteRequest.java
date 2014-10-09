@@ -19,11 +19,14 @@
 
 package org.elasticsearch.action.delete;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
@@ -41,15 +44,18 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#delete(DeleteRequest)
  * @see org.elasticsearch.client.Requests#deleteRequest(String)
  */
-public class DeleteRequest extends ShardReplicationOperationRequest<DeleteRequest> {
+public class DeleteRequest extends ShardReplicationOperationRequest<DeleteRequest> implements DocumentRequest<DeleteRequest> {
 
     private String type;
     private String id;
     @Nullable
     private String routing;
     private boolean refresh;
-    private long version;
+    private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
+
+    public DeleteRequest() {
+    }
 
     /**
      * Constructs a new delete request against the specified index. The {@link #type(String)} and {@link #id(String)}
@@ -72,8 +78,19 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         this.id = id;
     }
 
+    /**
+     * Copy constructor that creates a new delete request that is a copy of the one provided as an argument.
+     */
     public DeleteRequest(DeleteRequest request) {
-        super(request);
+        this(request, request);
+    }
+
+    /**
+     * Copy constructor that creates a new delete request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    public DeleteRequest(DeleteRequest request, ActionRequest originalRequest) {
+        super(request, originalRequest);
         this.type = request.type();
         this.id = request.id();
         this.routing = request.routing();
@@ -82,7 +99,12 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         this.versionType = request.versionType();
     }
 
-    public DeleteRequest() {
+    /**
+     * Creates a delete request caused by some other request, which is provided as an
+     * argument so that its headers and context can be copied to the new request
+     */
+    public DeleteRequest(ActionRequest request) {
+        super(request);
     }
 
     @Override
@@ -205,7 +227,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         id = in.readString();
         routing = in.readOptionalString();
         refresh = in.readBoolean();
-        version = in.readLong();
+        version = Versions.readVersion(in);
         versionType = VersionType.fromValue(in.readByte());
     }
 
@@ -216,7 +238,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         out.writeString(id);
         out.writeOptionalString(routing());
         out.writeBoolean(refresh);
-        out.writeLong(version);
+        Versions.writeVersion(version, out);
         out.writeByte(versionType.getValue());
     }
 

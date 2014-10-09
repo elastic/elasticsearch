@@ -8,7 +8,7 @@ for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
 rem Detect JVM version to figure out appropriate executable to use
 if not exist "%JAVA_HOME%\bin\java.exe" (
-echo JAVA_HOME points to an invalid Java installation (no java.exe found in "%JAVA_HOME%"^). Existing...
+echo JAVA_HOME points to an invalid Java installation (no java.exe found in "%JAVA_HOME%"^). Exiting...
 goto:eof
 )
 "%JAVA_HOME%\bin\java" -version 2>&1 | find "64-Bit" >nul:
@@ -42,6 +42,8 @@ set SERVICE_ID=%1
 :checkServiceCmd
 
 if "%LOG_OPTS%" == "" set LOG_OPTS=--LogPath "%LOG_DIR%" --LogPrefix "%SERVICE_ID%" --StdError auto --StdOutput auto
+
+TITLE Elasticsearch Service ${project.version}
 
 if /i %SERVICE_CMD% == install goto doInstall
 if /i %SERVICE_CMD% == remove goto doRemove
@@ -159,6 +161,9 @@ set JAVA_OPTS=%JAVA_OPTS% -XX:+HeapDumpOnOutOfMemoryError
 REM The path to the heap dump location, note directory must exists and have enough
 REM space for a full heap dump.
 REM JAVA_OPTS=%JAVA_OPTS% -XX:HeapDumpPath=$ES_HOME/logs/heapdump.hprof
+
+REM Disables explicit GC
+set JAVA_OPTS=%JAVA_OPTS% -XX:+DisableExplicitGC
 
 if "%DATA_DIR%" == "" set DATA_DIR=%ES_HOME%\data
 

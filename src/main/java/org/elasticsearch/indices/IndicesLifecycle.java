@@ -130,7 +130,7 @@ public interface IndicesLifecycle {
          *
          * @param shardId The shard id
          */
-        public void afterIndexShardClosed(ShardId shardId) {
+        public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
 
         }
 

@@ -19,15 +19,15 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
 /**
  */
-public class SearchAction extends Action<SearchRequest, SearchResponse, SearchRequestBuilder> {
+public class SearchAction extends ClientAction<SearchRequest, SearchResponse, SearchRequestBuilder> {
 
     public static final SearchAction INSTANCE = new SearchAction();
-    public static final String NAME = "search";
+    public static final String NAME = "indices:data/read/search";
 
     private SearchAction() {
         super(NAME);

@@ -44,10 +44,14 @@ setting is also applicable when `_all`, `*` or no index has been specified.
 `expand_wildcards`::
 
 Controls to what kind of concrete indices wildcard indices expression expand
-to. If `open` is specified then the wildcard expression if expanded to only
-open indices and if `closed` is specified then the wildcard expression if
+to. If `open` is specified then the wildcard expression is expanded to only
+open indices and if `closed` is specified then the wildcard expression is
 expanded only to closed indices. Also both values (`open,closed`) can be
 specified to expand to all indices.
++
+If `none` is specified then wildcard expansion will be disabled and if `all` 
+is specified, wildcard expressions will expand to all indices (this is equivalent 
+to specifying `open,closed`).
 
 The defaults settings for the above parameters depend on the api being used.
 
@@ -78,7 +82,7 @@ The human readable values can be turned off by adding `?human=false`
 to the query string. This makes sense when the stats results are
 being consumed by a monitoring tool, rather than intended for human
 consumption.  The default for the `human` flag is
-`false`. added[1.00.Beta,Previously defaulted to `true`]
+`false`.
 
 [float]
 === Flat Settings
@@ -146,6 +150,7 @@ can be specified as a whole number representing time in milliseconds, or as a ti
 `y`::   Year
 `M`::   Month
 `w`::   Week
+`d`::   Day
 `h`::   Hour
 `m`::   Minute
 `s`::   Second
@@ -241,8 +246,19 @@ document indexed.
 [float]
 === JSONP
 
-All REST APIs accept a `callback` parameter resulting in a
-http://en.wikipedia.org/wiki/JSONP[JSONP] result.
+By default JSONP responses are disabled.
+
+When enabled, all REST APIs accept a `callback` parameter
+resulting in a http://en.wikipedia.org/wiki/JSONP[JSONP] result. You can enable
+this behavior by adding the following to `config.yaml`:
+
+    http.jsonp.enable: true
+
+Please note, when enabled, due to the architecture of Elasticsearch, this may pose
+a security risk. Under some circumstances, an attacker may be able to exfiltrate
+data in your Elasticsearch server if they're able to force your browser to make a
+JSONP request on your behalf (e.g. by including a <script> tag on an untrusted site
+with a legitimate query against a local Elasticsearch server).
 
 [float]
 === Request body in query string

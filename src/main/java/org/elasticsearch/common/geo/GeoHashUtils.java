@@ -21,7 +21,6 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 
 
 /**
@@ -120,23 +119,6 @@ public class GeoHashUtils {
     public static Collection<? extends CharSequence> neighbors(String geohash) {
         return addNeighbors(geohash, geohash.length(), new ArrayList<CharSequence>(8));
     }
-
-    /**
-     * Create an {@link Iterable} which allows to iterate over the cells that
-     * contain a given geohash
-     *   
-     * @param geohash Geohash of a cell
-     * 
-     * @return {@link Iterable} of path
-     */
-    public static Iterable<String> path(final String geohash) {
-        return new Iterable<String>() {
-            @Override
-            public Iterator<String> iterator() {
-                return new GeohashPathIterator(geohash);
-            }
-        };
-    }
     
     /**
      * Calculate the geohash of a neighbor of a geohash
@@ -185,7 +167,7 @@ public class GeoHashUtils {
             // encode the cell directly. Otherwise find the cell next to this
             // cell recursively. Since encoding wraps around within a cell
             // it can be encoded here.
-            if (nx >= 0 && nx <= xLimit && ny >= 0 && ny < yLimit) {
+            if (nx >= 0 && nx <= xLimit && ny >= 0 && ny <= yLimit) {
                 return geohash.substring(0, level - 1) + encode(nx, ny);
             } else {
                 String neighbor = neighbor(geohash, level - 1, dx, dy);
@@ -329,19 +311,6 @@ public class GeoHashUtils {
     public static GeoPoint decode(String geohash, GeoPoint ret) {
         double[] interval = decodeCell(geohash);
         return ret.reset((interval[0] + interval[1]) / 2D, (interval[2] + interval[3]) / 2D);
-    }
-
-    /**
-     * Decodes the given geohash into a geohash cell defined by the points nothWest and southEast
-     *
-     * @param geohash   Geohash to deocde
-     * @param northWest the point north/west of the cell
-     * @param southEast the point south/east of the cell
-     */
-    public static void decodeCell(String geohash, GeoPoint northWest, GeoPoint southEast) {
-        double[] interval = decodeCell(geohash);
-        northWest.reset(interval[1], interval[2]);
-        southEast.reset(interval[0], interval[3]);
     }
 
     private static double[] decodeCell(String geohash) {
@@ -511,5 +480,5 @@ public class GeoHashUtils {
             }
         }
         return interval;
-    }       
+    }
 }

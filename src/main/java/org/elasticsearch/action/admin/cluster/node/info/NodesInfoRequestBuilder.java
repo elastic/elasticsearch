@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  *
@@ -30,7 +29,7 @@ import org.elasticsearch.client.internal.InternalClusterAdminClient;
 public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesInfoRequest, NodesInfoResponse, NodesInfoRequestBuilder> {
 
     public NodesInfoRequestBuilder(ClusterAdminClient clusterClient) {
-        super((InternalClusterAdminClient) clusterClient, new NodesInfoRequest());
+        super(clusterClient, new NodesInfoRequest());
     }
 
     /**
@@ -123,6 +122,6 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
 
     @Override
     protected void doExecute(ActionListener<NodesInfoResponse> listener) {
-        ((ClusterAdminClient) client).nodesInfo(request, listener);
+        client.nodesInfo(request, listener);
     }
 }

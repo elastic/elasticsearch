@@ -21,7 +21,7 @@ $ curl -XGET 'http://localhost:9200/twitter/tweet/_count' -d '
 --------------------------------------------------
 
 NOTE: The query being sent in the body must be nested in a `query` key, same as
-the <<search-search,search api>> works added[1.0.0.RC1,The query was previously the top-level object].
+the <<search-search,search api>> works
 
 Both examples above do the same thing, which is count the number of
 tweets from the twitter index for a certain user. The result is:
@@ -63,6 +63,12 @@ query.
 
 |default_operator |The default operator to be used, can be `AND` or
 `OR`. Defaults to `OR`.
+
+|terminate_after |The maximum count for each shard, upon
+reaching which the query execution will terminate early.
+If set, the response will have a boolean field `terminated_early` to
+indicate whether the query execution has actually terminated_early.
+Defaults to no terminate_after.
 |=======================================================================
 
 [float]

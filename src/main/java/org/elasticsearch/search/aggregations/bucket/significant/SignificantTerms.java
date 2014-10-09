@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import java.util.Collection;
 
 /**
- *
+ * An aggregation that collects significant terms in comparison to a background set.
  */
 public interface SignificantTerms extends MultiBucketsAggregation, Iterable<SignificantTerms.Bucket> {
 

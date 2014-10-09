@@ -31,19 +31,71 @@ The `range` filter accepts the following parameters:
 `lt`::      Less-than
 
 [float]
+==== Date options
+
+When applied on `date` fields the `range` filter accepts also a `time_zone` parameter.
+The `time_zone` parameter will be applied to your input lower and upper bounds and will
+move them to UTC time based date:
+
+[source,js]
+--------------------------------------------------
+{
+    "constant_score": {
+        "filter": {
+            "range" : {
+                "born" : {
+                    "gte": "2012-01-01",
+                    "lte": "now",
+                    "time_zone": "+1:00"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+In the above example, `gte` will be actually moved to `2011-12-31T23:00:00` UTC date.
+
+NOTE: if you give a date with a timezone explicitly defined and use the `time_zone` parameter, `time_zone` will be
+ignored. For example, setting `from` to `2012-01-01T00:00:00+01:00` with `"time_zone":"+10:00"` will still use `+01:00` time zone.
+
+coming[1.5.0,New feature added]
+
+When applied on `date` fields the `range` filter accepts also a `format` parameter.
+The `format` parameter will help support another date format than the one defined in mapping:
+
+[source,js]
+--------------------------------------------------
+{
+    "constant_score": {
+        "filter": {
+            "range" : {
+                "born" : {
+                    "gte": "01/01/2012",
+                    "lte": "2013",
+                    "format": "dd/MM/yyyy||yyyy"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
 ==== Execution
 
 The `execution` option controls how the range filter internally executes. The `execution` option accepts the following values:
 
 [horizontal]
-`index`::       Uses field's inverted in order to determine of documents fall with in the range filter's from and to range
-`fielddata`::   Uses field data in order to determine of documents fall with in the range filter's from and to range.
+`index`::       Uses the field's inverted index in order to determine whether documents fall within the specified range.
+`fielddata`::   Uses fielddata in order to determine whether documents fall within the specified range.
 
 In general for small ranges the `index` execution is faster and for longer ranges the `fielddata` execution is faster.
 
-The `fielddata` execution as the same suggests uses field data and therefor requires more memory, so make you have
-sufficient memory on your nodes in order to use this execution mode. It usually makes sense to use it on fields  you're
-already faceting or sorting by.
+The `fielddata` execution, as the name suggests, uses field data and therefore
+requires more memory, so make sure you have sufficient memory on your nodes in
+order to use this execution mode. It usually makes sense to use it on fields
+you're already aggregating or sorting by.
 
 [float]
 ==== Caching

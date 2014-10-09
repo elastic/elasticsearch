@@ -36,14 +36,14 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestHeadIndexTemplateAction extends BaseRestHandler {
 
     @Inject
-    public RestHeadIndexTemplateAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestHeadIndexTemplateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         controller.registerHandler(HEAD, "/_template/{name}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(request.param("name"));
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         client.admin().indices().getTemplates(getIndexTemplatesRequest, new RestResponseListener<GetIndexTemplatesResponse>(channel) {

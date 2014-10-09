@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-range-aggregation]]
-=== Range
+=== Range Aggregation
 
 A multi-bucket value source based aggregation that enables the user to define a set of ranges - each representing a bucket. During the aggregation process, the values extracted from each document will be checked against each bucket range and "bucket" the relevant/matching document.
 Note that this aggregration includes the `from` value and excludes the `to` value for each range.
@@ -11,7 +11,7 @@ Example:
 {
     "aggs" : {
         "price_ranges" : {
-            "range" : { 
+            "range" : {
                 "field" : "price",
                 "ranges" : [
                     { "to" : 50 },
@@ -55,14 +55,14 @@ Response:
 
 ==== Keyed Response
 
-Setting the `key` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
+Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
 
 [source,js]
 --------------------------------------------------
 {
     "aggs" : {
         "price_ranges" : {
-            "range" : { 
+            "range" : {
                 "field" : "price",
                 "keyed" : true,
                 "ranges" : [
@@ -112,7 +112,7 @@ It is also possible to customize the key for each range:
 {
     "aggs" : {
         "price_ranges" : {
-            "range" : { 
+            "range" : {
                 "field" : "price",
                 "keyed" : true,
                 "ranges" : [
@@ -155,7 +155,7 @@ Lets say the product prices are in USD but we would like to get the price ranges
 {
     "aggs" : {
         "price_ranges" : {
-            "range" : { 
+            "range" : {
                 "field" : "price",
                 "script" : "_value * conversion_rate",
                 "params" : {
@@ -181,7 +181,7 @@ The following example, not only "bucket" the documents to the different buckets 
 {
     "aggs" : {
         "price_ranges" : {
-            "range" : { 
+            "range" : {
                 "field" : "price",
                 "ranges" : [
                     { "to" : 50 },
@@ -190,7 +190,7 @@ The following example, not only "bucket" the documents to the different buckets 
                 ]
             },
             "aggs" : {
-                "price_stats" : { 
+                "price_stats" : {
                     "stats" : { "field" : "price" }
                 }
             }
@@ -254,7 +254,7 @@ If a sub aggregation is also based on the same value source as the range aggrega
 {
     "aggs" : {
         "price_ranges" : {
-            "range" : { 
+            "range" : {
                 "field" : "price",
                 "ranges" : [
                     { "to" : 50 },
@@ -263,13 +263,13 @@ If a sub aggregation is also based on the same value source as the range aggrega
                 ]
             },
             "aggs" : {
-                "price_stats" : { 
+                "price_stats" : {
                     "stats" : {} <1>
                 }
             }
         }
     }
 }
--------------------------------------------------- 
+--------------------------------------------------
 
 <1> We don't need to specify the `price` as we "inherit" it by default from the parent `range` aggregation

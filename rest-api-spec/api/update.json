@@ -34,7 +34,7 @@
         },
         "lang": {
           "type": "string",
-          "description": "The script language (default: mvel)"
+          "description": "The script language (default: groovy)"
         },
         "parent": {
           "type": "string",
@@ -60,6 +60,13 @@
         },
         "script": {
           "description": "The URL-encoded script definition (instead of using request body)"
+        },
+        "script_id": {
+          "description": "The id of a stored script"
+        },
+        "scripted_upsert": {
+          "type": "boolean",        
+          "description": "True if the script referenced in script or script_id should be called to perform inserts - defaults to false"
         },
         "timeout": {
           "type": "time",

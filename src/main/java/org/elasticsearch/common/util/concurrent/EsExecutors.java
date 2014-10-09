@@ -30,6 +30,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class EsExecutors {
 
     /**
+     * Settings key to manually set the number of available processors.
+     * This is used to adjust thread pools sizes etc. per node.
+     */
+    public static final String PROCESSORS = "processors";
+
+    /**
      * Returns the number of processors available but at most <tt>32</tt>.
      */
     public static int boundedNumberOfProcessors(Settings settings) {
@@ -37,7 +43,7 @@ public class EsExecutors {
          * ie. >= 48 create too many threads and run into OOM see #3478
          * We just use an 32 core upper-bound here to not stress the system
          * too much with too many created threads */
-        return settings.getAsInt("processors", Math.min(32, Runtime.getRuntime().availableProcessors()));
+        return settings.getAsInt(PROCESSORS, Math.min(32, Runtime.getRuntime().availableProcessors()));
     }
 
     public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(ThreadFactory threadFactory) {

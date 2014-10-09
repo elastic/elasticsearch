@@ -20,7 +20,7 @@
 package org.elasticsearch.common.logging;
 
 /**
- *
+ * Contract for all elasticsearch loggers.
  */
 public interface ESLogger {
 

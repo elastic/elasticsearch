@@ -27,7 +27,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class NodesHotThreadsAction extends ClusterAction<NodesHotThreadsRequest, NodesHotThreadsResponse, NodesHotThreadsRequestBuilder> {
 
     public static final NodesHotThreadsAction INSTANCE = new NodesHotThreadsAction();
-    public static final String NAME = "cluster/nodes/hot_threads";
+    public static final String NAME = "cluster:monitor/nodes/hot_threads";
 
     private NodesHotThreadsAction() {
         super(NAME);

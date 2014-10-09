@@ -20,15 +20,15 @@
 package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.internal.InternalGenericClient;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  */
 public abstract class NodesOperationRequestBuilder<Request extends NodesOperationRequest<Request>, Response extends NodesOperationResponse, RequestBuilder extends NodesOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+        extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient> {
 
-    protected NodesOperationRequestBuilder(InternalGenericClient client, Request request) {
+    protected NodesOperationRequestBuilder(ClusterAdminClient client, Request request) {
         super(client, request);
     }
 

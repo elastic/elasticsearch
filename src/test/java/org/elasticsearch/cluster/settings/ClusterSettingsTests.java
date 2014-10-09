@@ -110,7 +110,7 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testUpdateDiscoveryPublishTimeout() {
 
-        DiscoverySettings discoverySettings = cluster().getInstance(DiscoverySettings.class);
+        DiscoverySettings discoverySettings = internalCluster().getInstance(DiscoverySettings.class);
 
         assertThat(discoverySettings.getPublishTimeout(), equalTo(DiscoverySettings.DEFAULT_PUBLISH_TIMEOUT));
 

@@ -20,7 +20,5 @@
 /**
  * Aggregations module
  */
-@TestLogging("org.elasticsearch.action.search.type:TRACE")
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.test.junit.annotations.TestLogging;

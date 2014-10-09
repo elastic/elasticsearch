@@ -14,14 +14,14 @@ Here is a sample configuration:
             "char_filter" : {
                 "my_mapping" : {
                     "type" : "mapping",
-                    "mappings" : ["ph=>f", "qu=>q"]
+                    "mappings" : ["ph=>f", "qu=>k"]
                 }
             },
             "analyzer" : {
                 "custom_with_char_filter" : {
                     "tokenizer" : "standard",
                     "char_filter" : ["my_mapping"]
-                },
+                }
             }
         }
     }

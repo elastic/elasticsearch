@@ -21,6 +21,7 @@ package org.elasticsearch.action.bench;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -30,25 +31,27 @@ import java.io.IOException;
  * A request to abort a specified benchmark
  */
 public class AbortBenchmarkRequest extends AcknowledgedRequest {
-    private String benchmarkName;
+
+    private String[] benchmarkNames = Strings.EMPTY_ARRAY;
 
     public AbortBenchmarkRequest() { }
 
-    public AbortBenchmarkRequest(String benchmarkName) {
-        this.benchmarkName = benchmarkName;
+    public AbortBenchmarkRequest(String... benchmarkNames) {
+        this.benchmarkNames = benchmarkNames;
     }
 
-    public void benchmarkName(String benchmarkName) {
-        this.benchmarkName = benchmarkName;
+    public void benchmarkNames(String... benchmarkNames) {
+        this.benchmarkNames = benchmarkNames;
     }
 
-    public String benchmarkName() {
-        return benchmarkName;
+    public String[] benchmarkNames() {
+        return benchmarkNames;
     }
+
     @Override
     public ActionRequestValidationException validate() {
-        if (benchmarkName == null) {
-            return ValidateActions.addValidationError("benchmarkName must not be null", null);
+        if (benchmarkNames == null || benchmarkNames.length == 0) {
+            return ValidateActions.addValidationError("benchmarkNames must not be null or empty", null);
         }
         return null;
     }
@@ -56,14 +59,14 @@ public class AbortBenchmarkRequest extends AcknowledgedRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        benchmarkName = in.readString();
+        benchmarkNames = in.readStringArray();
         readTimeout(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(benchmarkName);
+        out.writeStringArray(benchmarkNames);
         writeTimeout(out);
     }
 }

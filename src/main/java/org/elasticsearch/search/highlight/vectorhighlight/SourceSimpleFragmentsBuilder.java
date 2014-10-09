@@ -20,11 +20,11 @@ package org.elasticsearch.search.highlight.vectorhighlight;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -38,10 +38,13 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
     private final SearchContext searchContext;
 
+    private final FetchSubPhase.HitContext hitContext;
+
     public SourceSimpleFragmentsBuilder(FieldMapper<?> mapper, SearchContext searchContext,
-                                        String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
+                                        FetchSubPhase.HitContext hitContext, String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
         super(mapper, preTags, postTags, boundaryScanner);
         this.searchContext = searchContext;
+        this.hitContext = hitContext;
     }
 
     public static final Field[] EMPTY_FIELDS = new Field[0];
@@ -53,13 +56,13 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
         lookup.setNextReader((AtomicReaderContext) reader.getContext());
         lookup.setNextDocId(docId);
 
-        List<Object> values = lookup.source().extractRawValues(mapper.names().sourcePath());
+        List<Object> values = lookup.source().extractRawValues(hitContext.getSourcePath(mapper.names().sourcePath()));
         if (values.isEmpty()) {
             return EMPTY_FIELDS;
         }
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
-            fields[i] = new XStringField(mapper.names().indexName(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
+            fields[i] = new Field(mapper.names().indexName(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
         }
         return fields;
     }

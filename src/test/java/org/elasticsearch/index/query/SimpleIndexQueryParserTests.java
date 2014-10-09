@@ -21,70 +21,63 @@ package org.elasticsearch.index.query;
 
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.Term;
+import com.google.common.collect.Sets;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.index.*;
+import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.queries.*;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
 import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cache.recycler.CacheRecyclerModule;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvector.TermVectorRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
-import org.elasticsearch.index.codec.CodecModule;
-import org.elasticsearch.index.engine.IndexEngineModule;
-import org.elasticsearch.index.fielddata.IndexFieldDataModule;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
+import org.elasticsearch.index.search.child.ParentConstantScoreQuery;
 import org.elasticsearch.index.search.geo.GeoDistanceFilter;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
-import org.elasticsearch.indices.query.IndicesQueriesModule;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.index.service.StubIndexService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.hamcrest.Matchers;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.RegexpFlag.*;
@@ -95,56 +88,24 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
+public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
-    private static Injector injector;
+    private IndexQueryParserService queryParser;
 
-    private static IndexQueryParserService queryParser;
-
-    @BeforeClass
-    public static void setupQueryParser() throws IOException {
+    @Before
+    public void setup() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("index.cache.filter.type", "none")
+                .put("name", "SimpleIndexQueryParserTests")
                 .build();
-        Index index = new Index("test");
-        injector = new ModulesBuilder().add(
-                new CacheRecyclerModule(settings),
-                new CodecModule(settings),
-                new SettingsModule(settings),
-                new ThreadPoolModule(settings),
-                new IndicesQueriesModule(),
-                new ScriptModule(settings),
-                new MapperServiceModule(),
-                new IndexSettingsModule(index, settings),
-                new IndexCacheModule(settings),
-                new AnalysisModule(settings),
-                new IndexEngineModule(settings),
-                new SimilarityModule(settings),
-                new IndexQueryParserModule(settings),
-                new IndexFieldDataModule(settings),
-                new IndexNameModule(index),
-                new FunctionScoreModule(),
-                new AbstractModule() {
-                    @Override
-                    protected void configure() {
-                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
-                        bind(CircuitBreakerService.class).to(DummyCircuitBreakerService.class);
-                    }
-                }
-        ).createInjector();
+        IndexService indexService = createIndex("test", settings);
+        MapperService mapperService = indexService.mapperService();
 
-        injector.getInstance(IndexFieldDataService.class).setIndexService((new StubIndexService(injector.getInstance(MapperService.class))));
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
-        injector.getInstance(MapperService.class).merge("person", new CompressedString(mapping), true);
-        injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
-        queryParser = injector.getInstance(IndexQueryParserService.class);
-    }
+        mapperService.merge("person", new CompressedString(mapping), true);
+        mapperService.documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
 
-    @AfterClass
-    public static void close() {
-        injector.getInstance(ThreadPool.class).shutdownNow();
-        queryParser = null;
-        injector = null;
+        queryParser = indexService.queryParserService();
     }
 
     private IndexQueryParserService queryParser() throws IOException {
@@ -152,9 +113,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
     }
 
     private BytesRef longToPrefixCoded(long val, int shift) {
-        BytesRef bytesRef = new BytesRef();
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
         NumericUtils.longToPrefixCoded(val, shift, bytesRef);
-        return bytesRef;
+        return bytesRef.get();
     }
 
     @Test
@@ -233,8 +194,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         BooleanQuery bQuery = (BooleanQuery) parsedQuery;
         assertThat(bQuery.clauses().size(), equalTo(2));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(), equalTo(new Term("name.first", "test")));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getTerm(), equalTo(new Term("name.last", "test")));
+        assertEquals(Sets.newHashSet(new Term("name.first", "test"), new Term("name.last", "test")),
+                Sets.newHashSet(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(),
+                        assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getTerm()));
     }
 
     @Test
@@ -811,40 +773,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testNumericRangeFilteredQueryBuilder() throws IOException {
-        IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), numericRangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false))).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        Filter filter = ((XFilteredQuery) parsedQuery).getFilter();
-        assertThat(filter, instanceOf(NumericRangeFieldDataFilter.class));
-        NumericRangeFieldDataFilter<Number> rangeFilter = (NumericRangeFieldDataFilter<Number>) filter;
-        assertThat(rangeFilter.getField(), equalTo("age"));
-        assertThat(rangeFilter.getLowerVal().intValue(), equalTo(23));
-        assertThat(rangeFilter.getUpperVal().intValue(), equalTo(54));
-        assertThat(rangeFilter.isIncludeLower(), equalTo(true));
-        assertThat(rangeFilter.isIncludeUpper(), equalTo(false));
-    }
-
-    @Test
     public void testRangeFilteredQueryBuilder_executionFieldData() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), rangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false).setExecution("fielddata"))).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        Filter filter = ((XFilteredQuery) parsedQuery).getFilter();
-        assertThat(filter, instanceOf(NumericRangeFieldDataFilter.class));
-        NumericRangeFieldDataFilter<Number> rangeFilter = (NumericRangeFieldDataFilter<Number>) filter;
-        assertThat(rangeFilter.getField(), equalTo("age"));
-        assertThat(rangeFilter.getLowerVal().intValue(), equalTo(23));
-        assertThat(rangeFilter.getUpperVal().intValue(), equalTo(54));
-        assertThat(rangeFilter.isIncludeLower(), equalTo(true));
-        assertThat(rangeFilter.isIncludeUpper(), equalTo(false));
-    }
-
-    @Test
-    public void testNumericRangeFilteredQuery() throws IOException {
-        IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/numeric_range-filter.json");
-        Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
         Filter filter = ((XFilteredQuery) parsedQuery).getFilter();
         assertThat(filter, instanceOf(NumericRangeFieldDataFilter.class));
@@ -1672,6 +1603,105 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testMoreLikeThisIds() throws Exception {
+        MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
+        parser.setFetchService(new MockMoreLikeThisFetchService());
+
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/mlt-items.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
+        assertThat(booleanQuery.getClauses().length, is(1));
+
+        BooleanClause itemClause = booleanQuery.getClauses()[0];
+        assertThat(itemClause.getOccur(), is(BooleanClause.Occur.SHOULD));
+        assertThat(itemClause.getQuery(), instanceOf(MoreLikeThisQuery.class));
+        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) itemClause.getQuery();
+
+        // check each Fields is for each item
+        for (int id = 1; id <= 4; id++) {
+            Fields fields = mltQuery.getLikeFields()[id - 1];
+            assertThat(termsToString(fields.terms("name.first")), is(String.valueOf(id)));
+            assertThat(termsToString(fields.terms("name.last")), is(String.valueOf(id)));
+        }
+    }
+
+    @Test
+    public void testMLTPercentTermsToMatch() throws Exception {
+        // setup for mocking fetching items
+        MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
+        parser.setFetchService(new MockMoreLikeThisFetchService());
+
+        // parsing the ES query
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/mlt-items.json");
+        BooleanQuery parsedQuery = (BooleanQuery) queryParser.parse(query).query();
+
+        // get MLT query, other clause is for include/exclude items
+        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery.getClauses()[0].getQuery();
+
+        // all terms must match
+        mltQuery.setMinimumShouldMatch("100%");
+        mltQuery.setMinWordLen(0);
+        mltQuery.setMinDocFreq(0);
+
+        // one document has all values
+        MemoryIndex index = new MemoryIndex();
+        index.addField("name.first", "apache lucene", new WhitespaceAnalyzer());
+        index.addField("name.last", "1 2 3 4", new WhitespaceAnalyzer());
+
+        // two clauses, one for items and one for like_text if set
+        BooleanQuery luceneQuery = (BooleanQuery) mltQuery.rewrite(index.createSearcher().getIndexReader());
+        BooleanClause[] clauses = luceneQuery.getClauses();
+
+        // check for items
+        int minNumberShouldMatch = ((BooleanQuery) (clauses[0].getQuery())).getMinimumNumberShouldMatch();
+        assertThat(minNumberShouldMatch, is(4));
+
+        // and for like_text
+        minNumberShouldMatch = ((BooleanQuery) (clauses[1].getQuery())).getMinimumNumberShouldMatch();
+        assertThat(minNumberShouldMatch, is(2));
+    }
+
+    private static class MockMoreLikeThisFetchService extends MoreLikeThisFetchService {
+
+        public MockMoreLikeThisFetchService() {
+            super(null, ImmutableSettings.Builder.EMPTY_SETTINGS);
+        }
+
+        @Override
+        public Fields[] fetch(MultiTermVectorsRequest items) throws IOException {
+            List<Fields> likeTexts = new ArrayList<>();
+            for (TermVectorRequest item : items) {
+                likeTexts.add(generateFields(item.selectedFields().toArray(Strings.EMPTY_ARRAY), item.id()));
+            }
+            return likeTexts.toArray(Fields.EMPTY_ARRAY);
+        }
+    }
+
+    private static Fields generateFields(String[] fieldNames, String text) throws IOException {
+        MemoryIndex index = new MemoryIndex();
+        for (String fieldName : fieldNames) {
+            index.addField(fieldName, text, new WhitespaceAnalyzer(Lucene.VERSION));
+        }
+        return MultiFields.getFields(index.createSearcher().getIndexReader());
+    }
+
+    private static String termsToString(Terms terms) throws IOException {
+        String strings = "";
+        TermsEnum termsEnum = terms.iterator(null);
+        CharsRefBuilder spare = new CharsRefBuilder();
+        BytesRef text;
+        while((text = termsEnum.next()) != null) {
+            spare.copyUTF8Bytes(text);
+            String term = spare.toString();
+            strings += term;
+        }
+        return strings;
+    }
+
+    @Test
     public void testFuzzyLikeThisBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxQueryTerms(12)).query();
@@ -2289,5 +2319,148 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/simple-query-string.json");
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+    }
+
+    @Test
+    public void testMatchWithFuzzyTranspositions() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/match-with-fuzzy-transpositions.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
+        assertThat( ((FuzzyQuery) parsedQuery).getTranspositions(), equalTo(true));
+    }
+
+    @Test
+    public void testMatchWithoutFuzzyTranspositions() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/match-without-fuzzy-transpositions.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
+        assertThat( ((FuzzyQuery) parsedQuery).getTranspositions(), equalTo(false));
+    }
+
+    // https://github.com/elasticsearch/elasticsearch/issues/7240
+    @Test
+    public void testEmptyBooleanQuery() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = jsonBuilder().startObject().startObject("bool").endObject().endObject().string();
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(MatchAllDocsQuery.class));
+    }
+
+    // https://github.com/elasticsearch/elasticsearch/issues/7240
+    @Test
+    public void testEmptyBooleanQueryInsideFQuery() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/fquery-with-empty-bool-query.json");
+        XContentParser parser = XContentHelper.createParser(new BytesArray(query));
+        ParsedFilter parsedQuery = queryParser.parseInnerFilter(parser);
+        assertThat(parsedQuery.filter(), instanceOf(QueryWrapperFilter.class));
+        assertThat(((QueryWrapperFilter) parsedQuery.filter()).getQuery(), instanceOf(XFilteredQuery.class));
+        assertThat(((XFilteredQuery) ((QueryWrapperFilter) parsedQuery.filter()).getQuery()).getFilter(), instanceOf(TermFilter.class));
+        TermFilter filter = (TermFilter) ((XFilteredQuery) ((QueryWrapperFilter) parsedQuery.filter()).getQuery()).getFilter();
+        assertThat(filter.getTerm().toString(), equalTo("text:apache"));
+    }
+
+    @Test
+    public void testProperErrorMessageWhenTwoFunctionsDefinedInQueryBody() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/function-score-query-causing-NPE.json");
+        try {
+            queryParser.parse(query).query();
+            fail("FunctionScoreQueryParser should throw an exception here because two functions in body are not allowed.");
+        } catch (QueryParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("Use functions[{...},...] if you want to define several functions."));
+        }
+    }
+
+    @Test
+    public void testWeight1fStillProducesWeighFuction() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String queryString = jsonBuilder().startObject()
+                .startObject("function_score")
+                .startArray("functions")
+                .startObject()
+                .startObject("field_value_factor")
+                .field("field", "popularity")
+                .endObject()
+                .field("weight", 1.0)
+                .endObject()
+                .endArray()
+                .endObject()
+                .endObject().string();
+        IndexService indexService = createIndex("testidx", client().admin().indices().prepareCreate("testidx")
+                .addMapping("doc",jsonBuilder().startObject()
+                        .startObject("properties")
+                        .startObject("popularity").field("type", "float").endObject()
+                        .endObject()
+                        .endObject()));
+        SearchContext.setCurrent(createSearchContext(indexService));
+        Query query = queryParser.parse(queryString).query();
+        assertThat(query, instanceOf(FunctionScoreQuery.class));
+        assertThat(((FunctionScoreQuery) query).getFunction(), instanceOf(WeightFactorFunction.class));
+        SearchContext.removeCurrent();
+    }
+
+    @Test
+    public void testProperErrorMessagesForMisplacedWeightsAndFunctions() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = jsonBuilder().startObject().startObject("function_score")
+                .startArray("functions")
+                .startObject().field("weight", 2).field("boost_factor",2).endObject()
+                .endArray()
+                .endObject().endObject().string();
+        try {
+            queryParser.parse(query).query();
+            fail("Expect exception here because boost_factor must not have a weight");
+        } catch (QueryParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE));
+        }
+        try {
+            functionScoreQuery().add(factorFunction(2.0f).setWeight(2.0f));
+            fail("Expect exception here because boost_factor must not have a weight");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getDetailedMessage(), containsString(BoostScoreFunction.BOOST_WEIGHT_ERROR_MESSAGE));
+        }
+        query = jsonBuilder().startObject().startObject("function_score")
+                .startArray("functions")
+                .startObject().field("boost_factor",2).endObject()
+                .endArray()
+                .field("weight", 2)
+                .endObject().endObject().string();
+        try {
+            queryParser.parse(query).query();
+            fail("Expect exception here because array of functions and one weight in body is not allowed.");
+        } catch (QueryParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("You can either define \"functions\":[...] or a single function, not both. Found \"functions\": [...] already, now encountering \"weight\"."));
+        }
+        query = jsonBuilder().startObject().startObject("function_score")
+                .field("weight", 2)
+                .startArray("functions")
+                .startObject().field("boost_factor",2).endObject()
+                .endArray()
+                .endObject().endObject().string();
+        try {
+            queryParser.parse(query).query();
+            fail("Expect exception here because array of functions and one weight in body is not allowed.");
+        } catch (QueryParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("You can either define \"functions\":[...] or a single function, not both. Found \"weight\" already, now encountering \"functions\": [...]."));
+        }
+    }
+
+    // https://github.com/elasticsearch/elasticsearch/issues/6722
+    public void testEmptyBoolSubClausesIsMatchAll() throws ElasticsearchException, IOException {
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/bool-query-with-empty-clauses-for-parsing.json");
+        IndexService indexService = createIndex("testidx", client().admin().indices().prepareCreate("testidx")
+                .addMapping("foo")
+                .addMapping("test", "_parent", "type=foo"));
+        SearchContext.setCurrent(createSearchContext(indexService));
+        IndexQueryParserService queryParser = indexService.queryParserService();
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
+        assertThat(((XConstantScoreQuery) parsedQuery).getFilter(), instanceOf(CustomQueryWrappingFilter.class));
+        assertThat(((CustomQueryWrappingFilter) ((XConstantScoreQuery) parsedQuery).getFilter()).getQuery(), instanceOf(ParentConstantScoreQuery.class));
+        assertThat(((CustomQueryWrappingFilter) ((XConstantScoreQuery) parsedQuery).getFilter()).getQuery().toString(), equalTo("parent_filter[foo](filtered(*:*)->cache(_type:foo))"));
+        SearchContext.removeCurrent();
     }
 }

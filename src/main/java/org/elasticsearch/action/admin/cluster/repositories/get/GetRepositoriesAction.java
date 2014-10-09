@@ -28,7 +28,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class GetRepositoriesAction extends ClusterAction<GetRepositoriesRequest, GetRepositoriesResponse, GetRepositoriesRequestBuilder> {
 
     public static final GetRepositoriesAction INSTANCE = new GetRepositoriesAction();
-    public static final String NAME = "cluster/repository/get";
+    public static final String NAME = "cluster:admin/repository/get";
 
     private GetRepositoriesAction() {
         super(NAME);

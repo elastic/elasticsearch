@@ -40,14 +40,14 @@ public class KeyedLockTests extends ElasticsearchTestCase {
     public void checkIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
         ConcurrentHashMap<String, Integer> counter = new ConcurrentHashMap<>();
         ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
-        KeyedLock<String> connectionLock = new KeyedLock<>();
+        KeyedLock<String> connectionLock = randomBoolean() ? new KeyedLock.GlobalLockable<String>() : new KeyedLock<String>();
         String[] names = new String[randomIntBetween(1, 40)];
         for (int i = 0; i < names.length; i++) {
             names[i] = randomRealisticUnicodeOfLengthBetween(10, 20);
         }
         CountDownLatch startLatch = new CountDownLatch(1);
         int numThreads = randomIntBetween(3, 10);
-        Thread[] threads = new Thread[numThreads];
+        AcquireAndReleaseThread[] threads = new AcquireAndReleaseThread[numThreads];
         for (int i = 0; i < numThreads; i++) {
             threads[i] = new AcquireAndReleaseThread(startLatch, connectionLock, names, counter, safeCounter);
         }
@@ -55,6 +55,12 @@ public class KeyedLockTests extends ElasticsearchTestCase {
             threads[i].start();
         }
         startLatch.countDown();
+        for (int i = 0; i < numThreads; i++) {
+            if (randomBoolean()) {
+                threads[i].incWithGlobal();
+            }
+        }
+
         for (int i = 0; i < numThreads; i++) {
             threads[i].join();
         }
@@ -70,12 +76,22 @@ public class KeyedLockTests extends ElasticsearchTestCase {
     }
 
     @Test(expected = ElasticsearchIllegalStateException.class)
+    public void checkCannotAcquireTwoLocksGlobal() throws InterruptedException {
+        KeyedLock.GlobalLockable<String> connectionLock = new KeyedLock.GlobalLockable<>();
+        String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
+        connectionLock.acquire(name);
+        try {
+            connectionLock.acquire(name);
+        } finally {
+           connectionLock.release(name);
+           connectionLock.globalLock().lock();
+           connectionLock.globalLock().unlock();
+        }
+    }
+
+    @Test(expected = ElasticsearchIllegalStateException.class)
     public void checkCannotAcquireTwoLocks() throws InterruptedException {
-        ConcurrentHashMap<String, Integer> counters = new ConcurrentHashMap<>();
-        ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
-        KeyedLock<String> connectionLock = new KeyedLock<>();
-        String[] names = new String[randomIntBetween(1, 40)];
-        connectionLock = new KeyedLock<>();
+        KeyedLock<String> connectionLock = randomBoolean() ? new KeyedLock.GlobalLockable<String>() : new KeyedLock<String>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
         connectionLock.acquire(name);
         connectionLock.acquire(name);
@@ -83,11 +99,7 @@ public class KeyedLockTests extends ElasticsearchTestCase {
 
     @Test(expected = ElasticsearchIllegalStateException.class)
     public void checkCannotReleaseUnacquiredLock() throws InterruptedException {
-        ConcurrentHashMap<String, Integer> counters = new ConcurrentHashMap<>();
-        ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
-        KeyedLock<String> connectionLock = new KeyedLock<>();
-        String[] names = new String[randomIntBetween(1, 40)];
-        connectionLock = new KeyedLock<>();
+        KeyedLock<String> connectionLock = randomBoolean() ? new KeyedLock.GlobalLockable<String>() : new KeyedLock<String>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
         connectionLock.release(name);
     }
@@ -114,7 +126,7 @@ public class KeyedLockTests extends ElasticsearchTestCase {
             } catch (InterruptedException e) {
                 throw new RuntimeException();
             }
-            int numRuns = scaledRandomIntBetween(500, 5000);
+            int numRuns = scaledRandomIntBetween(5000, 50000);
             for (int i = 0; i < numRuns; i++) {
                 String curName = names[randomInt(names.length - 1)];
                 connectionLock.acquire(curName);
@@ -134,6 +146,33 @@ public class KeyedLockTests extends ElasticsearchTestCase {
                     atomicInteger.incrementAndGet();
                 } else {
                     value.incrementAndGet();
+                }
+            }
+        }
+
+        public void incWithGlobal() {
+            if (connectionLock instanceof KeyedLock.GlobalLockable) {
+                final int iters = randomIntBetween(10, 200);
+                for (int i = 0; i < iters; i++) {
+                    ((KeyedLock.GlobalLockable) connectionLock).globalLock().lock();
+                    try {
+                        String curName = names[randomInt(names.length - 1)];
+                        Integer integer = counter.get(curName);
+                        if (integer == null) {
+                            counter.put(curName, 1);
+                        } else {
+                            counter.put(curName, integer.intValue() + 1);
+                        }
+                        AtomicInteger atomicInteger = new AtomicInteger(0);
+                        AtomicInteger value = safeCounter.putIfAbsent(curName, atomicInteger);
+                        if (value == null) {
+                            atomicInteger.incrementAndGet();
+                        } else {
+                            value.incrementAndGet();
+                        }
+                    } finally {
+                        ((KeyedLock.GlobalLockable) connectionLock).globalLock().unlock();
+                    }
                 }
             }
         }

@@ -122,7 +122,7 @@ public class DoSection implements ExecutableSection {
 
     private String formatStatusCodeMessage(RestResponse restResponse, String expected) {
         return "expected [" + expected + "] status code but api [" + apiCallSection.getApi() + "] returned ["
-                + restResponse.getStatusCode() + " " + restResponse.getReasonPhrase() + "] [" + restResponse.getBody() + "]";
+                + restResponse.getStatusCode() + " " + restResponse.getReasonPhrase() + "] [" + restResponse.getBodyAsString() + "]";
     }
 
     private static Map<String, Tuple<String, org.hamcrest.Matcher<Integer>>> catches = Maps.newHashMap();
@@ -131,6 +131,6 @@ public class DoSection implements ExecutableSection {
         catches.put("missing", tuple("404", equalTo(404)));
         catches.put("conflict", tuple("409", equalTo(409)));
         catches.put("forbidden", tuple("403", equalTo(403)));
-        catches.put("request", tuple("4xx|5xx", greaterThanOrEqualTo(400)));
+        catches.put("request", tuple("4xx|5xx", allOf(greaterThanOrEqualTo(400), not(equalTo(404)), not(equalTo(409)), not(equalTo(403)))));
     }
 }

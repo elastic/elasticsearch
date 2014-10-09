@@ -19,7 +19,16 @@
 
 package org.elasticsearch;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.rest.HasRestHeaders;
 import org.elasticsearch.rest.RestStatus;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * A base class for all elasticsearch exceptions.
@@ -150,6 +159,59 @@ public class ElasticsearchException extends RuntimeException {
                 cause = cause.getCause();
             }
             return false;
+        }
+    }
+
+    /**
+     * A base class for exceptions that should carry rest headers
+     */
+    @SuppressWarnings("unchecked")
+    public static class WithRestHeaders extends ElasticsearchException implements HasRestHeaders {
+
+        private final ImmutableMap<String, List<String>> headers;
+
+        public WithRestHeaders(String msg, Tuple<String, String[]>... headers) {
+            super(msg);
+            this.headers = headers(headers);
+        }
+
+        public WithRestHeaders(String msg, @Nullable ImmutableMap<String, List<String>> headers) {
+            super(msg);
+            this.headers = headers != null ? headers : ImmutableMap.<String, List<String>>of();
+        }
+
+        public WithRestHeaders(String msg, Throwable cause, Tuple<String, String[]>... headers) {
+            super(msg, cause);
+            this.headers = headers(headers);
+        }
+
+        public WithRestHeaders(String msg, Throwable cause, @Nullable ImmutableMap<String, List<String>> headers) {
+            super(msg, cause);
+            this.headers = headers != null ? headers : ImmutableMap.<String, List<String>>of();
+        }
+
+        public ImmutableMap<String, List<String>> getHeaders() {
+            return headers;
+        }
+
+        protected static Tuple<String, String[]> header(String name, String... values) {
+            return Tuple.tuple(name, values);
+        }
+
+        private static ImmutableMap<String, List<String>> headers(Tuple<String, String[]>... headers) {
+            Map<String, List<String>> map = Maps.newHashMap();
+            for (Tuple<String, String[]> header : headers) {
+                List<String> list = map.get(header.v1());
+                if (list == null) {
+                    list = Lists.newArrayList(header.v2());
+                    map.put(header.v1(), list);
+                } else {
+                    for (String value : header.v2()) {
+                        list.add(value);
+                    }
+                }
+            }
+            return ImmutableMap.copyOf(map);
         }
     }
 }

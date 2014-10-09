@@ -173,6 +173,13 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testByteConversion() throws Exception {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject().field("test_name", (Byte)(byte)120).endObject();
+        assertThat(builder.bytes().toUtf8(), equalTo("{\"test_name\":120}"));
+    }
+
+    @Test
     public void testDateTypesConversion() throws Exception {
         Date date = new Date();
         String expectedDate = XContentBuilder.defaultDatePrinter.print(date.getTime());

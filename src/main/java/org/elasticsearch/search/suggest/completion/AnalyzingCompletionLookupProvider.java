@@ -32,11 +32,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.fst.ByteSequenceOutputs;
-import org.apache.lucene.util.fst.FST;
-import org.apache.lucene.util.fst.PairOutputs;
+import org.apache.lucene.util.fst.*;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
-import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
@@ -190,7 +187,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
         @Override
         public void addPosition(int position, BytesRef payload, int startOffset, int endOffset) throws IOException {
             analyzingSuggestLookupProvider.parsePayload(payload, spare);
-            builder.addSurface(spare.surfaceForm, spare.payload, spare.weight);
+            builder.addSurface(spare.surfaceForm.get(), spare.payload.get(), spare.weight);
             // multi fields have the same surface form so we sum up here
             maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, position + 1);
         }
@@ -256,7 +253,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
             AnalyzingSuggestHolder holder = new AnalyzingSuggestHolder(preserveSep, preservePositionIncrements, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions,
                     hasPayloads, maxAnalyzedPathsForOneInput, fst, sepLabel, payloadSep, endByte, holeCharacter);
-            sizeInBytes += fst.sizeInBytes();
+            sizeInBytes += fst.ramBytesUsed();
             lookupMap.put(entry.getValue(), holder);
         }
         final long ramBytesUsed = sizeInBytes;
@@ -299,16 +296,13 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                 }
 
                 for (Map.Entry<String, AnalyzingSuggestHolder> entry : lookupMap.entrySet()) {
-                    sizeInBytes += entry.getValue().fst.sizeInBytes();
+                    sizeInBytes += entry.getValue().fst.ramBytesUsed();
                     if (fields == null || fields.length == 0) {
                         continue;
                     }
-                    for (String field : fields) {
-                        // support for getting fields by regex as in fielddata
-                        if (Regex.simpleMatch(field, entry.getKey())) {
-                            long fstSize = entry.getValue().fst.sizeInBytes();
-                            completionFields.addTo(field, fstSize);
-                        }
+                    if (Regex.simpleMatch(fields, entry.getKey())) {
+                        long fstSize = entry.getValue().fst.ramBytesUsed();
+                        completionFields.addTo(entry.getKey(), fstSize);
                     }
                 }
 

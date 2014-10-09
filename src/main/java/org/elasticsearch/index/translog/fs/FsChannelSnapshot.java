@@ -20,16 +20,17 @@
 package org.elasticsearch.index.translog.fs;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.FileChannelInputStream;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.index.translog.Translog;
 
+import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  *
@@ -48,10 +49,16 @@ public class FsChannelSnapshot implements Translog.Snapshot {
 
     private Translog.Operation lastOperationRead = null;
 
-    private int position = 0;
+    private long position = 0;
 
     private ByteBuffer cacheBuffer;
 
+    private AtomicBoolean closed = new AtomicBoolean(false);
+
+    /**
+     * Create a snapshot of translog file channel. The length parameter should be consistent with totalOperations and point
+     * at the end of the last operation in this snapshot.
+     */
     public FsChannelSnapshot(long id, RafReference raf, long length, int totalOperations) throws FileNotFoundException {
         this.id = id;
         this.raf = raf;
@@ -81,64 +88,64 @@ public class FsChannelSnapshot implements Translog.Snapshot {
     }
 
     @Override
-    public InputStream stream() throws IOException {
-        return new FileChannelInputStream(channel, position, lengthInBytes());
-    }
-
-    @Override
     public long lengthInBytes() {
         return length - position;
     }
 
     @Override
-    public boolean hasNext() {
+    public Translog.Operation next() {
         try {
-            if (position > length) {
-                return false;
+            if (position >= length) {
+                return null;
             }
             if (cacheBuffer == null) {
                 cacheBuffer = ByteBuffer.allocate(1024);
             }
             cacheBuffer.limit(4);
-            int bytesRead = channel.read(cacheBuffer, position);
-            if (bytesRead < 4) {
-                return false;
+            int bytesRead = Channels.readFromFileChannel(channel, position, cacheBuffer);
+            if (bytesRead < 0) {
+                // the snapshot is acquired under a write lock. we should never
+                // read beyond the EOF, must be an abrupt EOF
+                throw new EOFException("read past EOF. pos [" + position + "] length: [" + cacheBuffer.limit() + "] end: [" + channel.size() + "]");
             }
+            assert bytesRead == 4;
             cacheBuffer.flip();
-            int opSize = cacheBuffer.getInt();
-            position += 4;
+            // Add an extra 4 to account for the operation size integer itself
+            int opSize = cacheBuffer.getInt() + 4;
             if ((position + opSize) > length) {
-                // restore the position to before we read the opSize
-                position -= 4;
-                return false;
+                // the snapshot is acquired under a write lock. we should never
+                // read beyond the EOF, must be an abrupt EOF
+                throw new EOFException("opSize of [" + opSize + "] pointed beyond EOF. position [" + position + "] length [" + length + "]");
             }
             if (cacheBuffer.capacity() < opSize) {
                 cacheBuffer = ByteBuffer.allocate(opSize);
             }
             cacheBuffer.clear();
             cacheBuffer.limit(opSize);
-            channel.read(cacheBuffer, position);
+            bytesRead = Channels.readFromFileChannel(channel, position, cacheBuffer);
+            if (bytesRead < 0) {
+                // the snapshot is acquired under a write lock. we should never
+                // read beyond the EOF, must be an abrupt EOF
+                throw new EOFException("tried to read past EOF. opSize [" + opSize + "] position [" + position + "] length [" + length + "]");
+            }
             cacheBuffer.flip();
             position += opSize;
-            lastOperationRead = TranslogStreams.readTranslogOperation(new BytesStreamInput(cacheBuffer.array(), 0, opSize, true));
-            return true;
-        } catch (Exception e) {
-            return false;
+            return TranslogStreams.readTranslogOperation(new BytesStreamInput(cacheBuffer.array(), 0, opSize, true));
+        } catch (IOException e) {
+            throw new ElasticsearchException("unexpected exception reading from translog snapshot of " + this.raf.file(), e);
         }
     }
 
     @Override
-    public Translog.Operation next() {
-        return this.lastOperationRead;
-    }
-
-    @Override
-    public void seekForward(long length) {
-        this.position += length;
+    public void seekTo(long position) {
+        this.position = position;
     }
 
     @Override
     public void close() throws ElasticsearchException {
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
         raf.decreaseRefCount(true);
     }
 }

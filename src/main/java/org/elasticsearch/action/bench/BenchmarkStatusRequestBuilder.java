@@ -20,21 +20,20 @@
 package org.elasticsearch.action.bench;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 
 /**
  * Request builder for benchmark status
  */
-public class BenchmarkStatusRequestBuilder extends ActionRequestBuilder<BenchmarkStatusRequest, BenchmarkStatusResponse, BenchmarkStatusRequestBuilder> {
+public class BenchmarkStatusRequestBuilder extends ActionRequestBuilder<BenchmarkStatusRequest, BenchmarkStatusResponse, BenchmarkStatusRequestBuilder, Client> {
 
     public BenchmarkStatusRequestBuilder(Client client) {
-        super((InternalClient) client, new BenchmarkStatusRequest());
+        super(client, new BenchmarkStatusRequest());
     }
 
     @Override
     protected void doExecute(ActionListener<BenchmarkStatusResponse> listener) {
-        ((Client) client).benchStatus(request, listener);
+        client.benchStatus(request, listener);
     }
 }

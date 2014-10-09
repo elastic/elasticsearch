@@ -19,10 +19,7 @@
 
 package org.apache.lucene.util;
 
-import com.carrotsearch.randomizedtesting.JUnit4MethodProvider;
-import com.carrotsearch.randomizedtesting.LifecycleScope;
-import com.carrotsearch.randomizedtesting.RandomizedContext;
-import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.*;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
@@ -32,8 +29,12 @@ import com.carrotsearch.randomizedtesting.rules.StaticFieldsInvariantRule;
 import com.carrotsearch.randomizedtesting.rules.SystemPropertiesInvariantRule;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.test.CurrentTestFailedMarker;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.PrintAllThreadStacksOnFailure;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.junit.After;
 import org.junit.Before;
@@ -56,7 +57,10 @@ import java.util.logging.Logger;
         JUnit4MethodProvider.class
 })
 @Listeners({
-        ReproduceInfoPrinter.class
+        ReproduceInfoPrinter.class,
+        FailureMarker.class,
+        CurrentTestFailedMarker.class,
+        PrintAllThreadStacksOnFailure.class
 })
 @RunWith(value = com.carrotsearch.randomizedtesting.RandomizedRunner.class)
 @SuppressCodecs(value = "Lucene3x")
@@ -64,6 +68,56 @@ import java.util.logging.Logger;
 // NOTE: this class is in o.a.lucene.util since it uses some classes that are related
 // to the test framework that didn't make sense to copy but are package private access
 public abstract class AbstractRandomizedTest extends RandomizedTest {
+
+
+    /**
+     * The number of concurrent JVMs used to run the tests, Default is <tt>1</tt>
+     */
+    public static final int CHILD_JVM_COUNT = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_COUNT, "1"));
+    /**
+     * The child JVM ordinal of this JVM. Default is <tt>0</tt>
+     */
+    public static final int CHILD_JVM_ID = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
+
+    /**
+     * Annotation for backwards compat tests
+     */
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @TestGroup(enabled = false, sysProperty = TESTS_BACKWARDS_COMPATIBILITY)
+    public @interface Backwards {
+    }
+
+    /**
+     * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from
+     * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY}
+     */
+    public static final String TESTS_BACKWARDS_COMPATIBILITY = "tests.bwc";
+
+    public static final String TESTS_BACKWARDS_COMPATIBILITY_VERSION = "tests.bwc.version";
+
+    /**
+     * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from
+     * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY_PATH}
+     */
+    public static final String TESTS_BACKWARDS_COMPATIBILITY_PATH = "tests.bwc.path";
+
+    /**
+     * Annotation for REST tests
+     */
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @TestGroup(enabled = true, sysProperty = TESTS_REST)
+    public @interface Rest {
+    }
+
+    /**
+     * Property that allows to control whether the REST tests are run (default) or not
+     */
+    public static final String TESTS_REST = "tests.rest";
+
     /**
      * Annotation for integration tests
      */
@@ -71,7 +125,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
     @TestGroup(enabled = true, sysProperty = SYSPROP_INTEGRATION)
-    public @interface IntegrationTests {
+    public @interface Integration {
     }
 
     // --------------------------------------------------------------------
@@ -89,6 +143,8 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     public static final String SYSPROP_FAILFAST = "tests.failfast";
 
     public static final String SYSPROP_INTEGRATION = "tests.integration";
+
+    public static final String SYSPROP_PROCESSORS = "tests.processors";
 
     // -----------------------------------------------------------------
     // Truly immutable fields and constants, initialized once and valid 
@@ -128,12 +184,20 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      */
     public static final File TEMP_DIR;
 
+    public static final int TESTS_PROCESSORS;
+
     static {
         String s = System.getProperty("tempDir", System.getProperty("java.io.tmpdir"));
         if (s == null)
             throw new RuntimeException("To run tests, you need to define system property 'tempDir' or 'java.io.tmpdir'.");
         TEMP_DIR = new File(s);
         TEMP_DIR.mkdirs();
+
+        String processors = System.getProperty(SYSPROP_PROCESSORS, ""); // mvn sets "" as default
+        if (processors == null || processors.isEmpty()) {
+            processors = Integer.toString(EsExecutors.boundedNumberOfProcessors(ImmutableSettings.EMPTY));
+        }
+        TESTS_PROCESSORS = Integer.parseInt(processors);
     }
 
     /**
@@ -309,12 +373,16 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     // Suite and test case setup/ cleanup.
     // -----------------------------------------------------------------
 
+    /** MockFSDirectoryService sets this: */
+    public static boolean checkIndexFailed;
+
     /**
      * For subclasses to override. Overrides must call {@code super.setUp()}.
      */
     @Before
     public void setUp() throws Exception {
         parentChainCallRule.setupCalled = true;
+        checkIndexFailed = false;
     }
 
     /**
@@ -323,6 +391,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     @After
     public void tearDown() throws Exception {
         parentChainCallRule.teardownCalled = true;
+        assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
     }
 
 
@@ -363,5 +432,4 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     public String getTestName() {
         return threadAndTestNameRule.testMethodName;
     }
-
 }

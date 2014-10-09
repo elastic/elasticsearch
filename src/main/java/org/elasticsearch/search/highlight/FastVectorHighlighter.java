@@ -107,7 +107,7 @@ public class FastVectorHighlighter implements Highlighter {
                     if (!forceSource && mapper.fieldType().stored()) {
                         fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                     } else {
-                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
+                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, hitContext, field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                     }
                 } else {
                     fragListBuilder = field.fieldOptions().fragmentOffset() == -1 ? new SimpleFragListBuilder() : new SimpleFragListBuilder(field.fieldOptions().fragmentOffset());
@@ -115,13 +115,13 @@ public class FastVectorHighlighter implements Highlighter {
                         if (!forceSource && mapper.fieldType().stored()) {
                             fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         } else {
-                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, context, field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
+                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, context, hitContext, field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         }
                     } else {
                         if (!forceSource && mapper.fieldType().stored()) {
                             fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         } else {
-                            fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
+                            fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, hitContext, field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         }
                     }
                 }

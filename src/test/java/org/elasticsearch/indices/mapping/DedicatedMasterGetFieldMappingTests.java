@@ -39,7 +39,7 @@ public class DedicatedMasterGetFieldMappingTests extends SimpleGetFieldMappingsT
         Settings settings = settingsBuilder()
                 .put("node.data", false)
                 .build();
-        cluster().startNodesAsync(settings, ImmutableSettings.EMPTY).get();
+        internalCluster().startNodesAsync(settings, ImmutableSettings.EMPTY).get();
     }
 
 }

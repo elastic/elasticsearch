@@ -19,34 +19,62 @@
 
 package org.elasticsearch.index.mapper.ip;
 
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Ignore;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.bootstrap.Elasticsearch;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.junit.Test;
+
+import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-@Ignore("No tests?")
-public class SimpleIpMappingTests extends ElasticsearchTestCase {
+public class SimpleIpMappingTests extends ElasticsearchSingleNodeTest {
 
-    // No Longer enabled...
-//    @Test public void testAutoIpDetection() throws Exception {
-//        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-//                .startObject("properties").endObject()
-//                .endObject().endObject().string();
-//
-//        XContentDocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
-//
-//        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
-//                .startObject()
-//                .field("ip1", "127.0.0.1")
-//                .field("ip2", "0.1")
-//                .field("ip3", "127.0.0.1.2")
-//                .endObject()
-//                .copiedBytes());
-//
-//        assertThat(doc.doc().getFieldable("ip1"), notNullValue());
-//        assertThat(doc.doc().get("ip1"), nullValue()); // its numeric
-//        assertThat(doc.doc().get("ip2"), equalTo("0.1"));
-//        assertThat(doc.doc().get("ip3"), equalTo("127.0.0.1.2"));
-//    }
+    @Test
+    public void testSimpleMapping() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("ip").field("type", "ip").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("ip", "127.0.0.1")
+                .endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().getField("ip").numericValue().longValue(), is(2130706433L));
+        assertThat(doc.rootDoc().get("ip"), is(nullValue()));
+    }
+
+    @Test
+    public void testThatValidIpCanBeConvertedToLong() throws Exception {
+        assertThat(IpFieldMapper.ipToLong("127.0.0.1"), is(2130706433L));
+    }
+
+    @Test
+    public void testThatInvalidIpThrowsException() throws Exception {
+        try {
+            IpFieldMapper.ipToLong("127.0.011.1111111");
+            fail("Expected ip address parsing to fail but did not happen");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("not a valid ip address"));
+        }
+    }
+
+    @Test
+    public void testThatIpv6AddressThrowsException() throws Exception {
+        try {
+            IpFieldMapper.ipToLong("2001:db8:0:8d3:0:8a2e:70:7344");
+            fail("Expected ip address parsing to fail but did not happen");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("not a valid ipv4 address"));
+        }
+    }
+
 }

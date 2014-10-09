@@ -40,8 +40,8 @@ public class RestPutMappingAction extends BaseRestHandler {
 
 
     @Inject
-    public RestPutMappingAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestPutMappingAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(PUT, "/{index}/_mapping/", this);
         controller.registerHandler(PUT, "/{index}/{type}/_mapping", this);
         controller.registerHandler(PUT, "/{index}/_mapping/{type}", this);
@@ -65,7 +65,7 @@ public class RestPutMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         putMappingRequest.listenerThreaded(false);
         putMappingRequest.type(request.param("type"));

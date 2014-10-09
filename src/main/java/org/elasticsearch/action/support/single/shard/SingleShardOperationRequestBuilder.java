@@ -21,14 +21,14 @@ package org.elasticsearch.action.support.single.shard;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.internal.InternalGenericClient;
+import org.elasticsearch.client.Client;
 
 /**
  */
 public abstract class SingleShardOperationRequestBuilder<Request extends SingleShardOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends SingleShardOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+        extends ActionRequestBuilder<Request, Response, RequestBuilder, Client> {
 
-    protected SingleShardOperationRequestBuilder(InternalGenericClient client, Request request) {
+    protected SingleShardOperationRequestBuilder(Client client, Request request) {
         super(client, request);
     }
 

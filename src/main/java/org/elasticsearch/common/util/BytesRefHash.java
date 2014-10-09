@@ -77,7 +77,7 @@ public final class BytesRefHash extends AbstractHash {
         final long slot = slot(rehash(code), mask);
         for (long index = slot; ; index = nextSlot(index, mask)) {
             final long id = id(index);
-            if (id == -1L || UnsafeUtils.equals(key, get(id, spare))) {
+            if (id == -1L || key.bytesEquals(get(id, spare))) {
                 return id;
             }
         }
@@ -99,7 +99,7 @@ public final class BytesRefHash extends AbstractHash {
                 append(id, key, code);
                 ++size;
                 return id;
-            } else if (UnsafeUtils.equals(key, get(curId, spare))) {
+            } else if (key.bytesEquals(get(curId, spare))) {
                 return -1 - curId;
             }
         }

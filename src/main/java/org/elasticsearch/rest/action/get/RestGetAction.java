@@ -42,13 +42,13 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetAction extends BaseRestHandler {
 
     @Inject
-    public RestGetAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestGetAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/{index}/{type}/{id}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.listenerThreaded(false);
         getRequest.operationThreaded(true);
@@ -57,6 +57,7 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.parent(request.param("parent"));
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBoolean("realtime", null));
+        getRequest.ignoreErrorsOnGeneratedFields(request.paramAsBoolean("ignore_errors_on_generated_fields", false));
 
         String sField = request.param("fields");
         if (sField != null) {

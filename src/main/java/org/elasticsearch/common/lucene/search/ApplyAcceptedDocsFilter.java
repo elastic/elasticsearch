@@ -23,6 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 
 import java.io.IOException;
@@ -53,7 +54,8 @@ public class ApplyAcceptedDocsFilter extends Filter {
             // optimized wrapper for not deleted cases
             return new NotDeletedDocIdSet(docIdSet, acceptDocs);
         }
-        return BitsFilteredDocIdSet.wrap(docIdSet, acceptDocs);
+        // we wrap this to make sure we can unwrap the inner docIDset in #unwrap
+        return new WrappedDocIdSet(BitsFilteredDocIdSet.wrap(docIdSet, acceptDocs), docIdSet);
     }
 
     public Filter filter() {
@@ -63,6 +65,15 @@ public class ApplyAcceptedDocsFilter extends Filter {
     @Override
     public String toString() {
         return filter.toString();
+    }
+
+    public static DocIdSet unwrap(DocIdSet docIdSet) {
+        if (docIdSet instanceof NotDeletedDocIdSet) {
+            return ((NotDeletedDocIdSet) docIdSet).innerSet;
+        } else if (docIdSet instanceof WrappedDocIdSet) {
+            return ((WrappedDocIdSet) docIdSet).innerSet;
+        }
+        return docIdSet;
     }
 
     static class NotDeletedDocIdSet extends DocIdSet {
@@ -78,6 +89,11 @@ public class ApplyAcceptedDocsFilter extends Filter {
         @Override
         public boolean isCacheable() {
             return innerSet.isCacheable();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return RamUsageEstimator.NUM_BYTES_OBJECT_REF + innerSet.ramBytesUsed();
         }
 
         @Override
@@ -166,5 +182,36 @@ public class ApplyAcceptedDocsFilter extends Filter {
         } else if (!filter.equals(other.filter))
             return false;
         return true;
+    }
+
+    private static final class WrappedDocIdSet extends DocIdSet {
+        private final DocIdSet delegate;
+        private final DocIdSet innerSet;
+
+        private WrappedDocIdSet(DocIdSet delegate, DocIdSet innerSet) {
+            this.delegate = delegate;
+            this.innerSet = innerSet;
+        }
+
+
+        @Override
+        public DocIdSetIterator iterator() throws IOException {
+            return delegate.iterator();
+        }
+
+        @Override
+        public Bits bits() throws IOException {
+            return delegate.bits();
+        }
+
+        @Override
+        public boolean isCacheable() {
+            return delegate.isCacheable();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return RamUsageEstimator.NUM_BYTES_OBJECT_REF + delegate.ramBytesUsed();
+        }
     }
 }

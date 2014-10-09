@@ -24,10 +24,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 
 import java.io.IOException;
 import java.util.*;
@@ -59,12 +59,6 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
      */
     public InternalAggregations(List<InternalAggregation> aggregations) {
         this.aggregations = aggregations;
-    }
-
-    /** Resets the internal addAggregation */
-    void reset(List<InternalAggregation> aggregations) {
-        this.aggregations = aggregations;
-        this.aggregationsAsMap = null;
     }
 
     /**
@@ -118,7 +112,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
      * @param aggregationsList  A list of aggregation to reduce
      * @return                  The reduced addAggregation
      */
-    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, BigArrays bigArrays) {
+    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
         if (aggregationsList.isEmpty()) {
             return null;
         }
@@ -143,22 +137,9 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         for (Map.Entry<String, List<InternalAggregation>> entry : aggByName.entrySet()) {
             List<InternalAggregation> aggregations = entry.getValue();
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
-            reducedAggregations.add(first.reduce(new InternalAggregation.ReduceContext(aggregations, bigArrays)));
+            reducedAggregations.add(first.reduce(new InternalAggregation.ReduceContext(aggregations, context.bigArrays(), context.scriptService())));
         }
-        InternalAggregations result = aggregationsList.get(0);
-        result.reset(reducedAggregations);
-        return result;
-    }
-
-    /**
-     * Reduces this aggregations, effectively propagates the reduce to all the sub aggregations
-     * @param cacheRecycler
-     */
-    public void reduce(BigArrays bigArrays) {
-        for (int i = 0; i < aggregations.size(); i++) {
-            InternalAggregation aggregation = aggregations.get(i);
-            aggregations.set(i, aggregation.reduce(new InternalAggregation.ReduceContext(ImmutableList.of(aggregation), bigArrays)));
-        }
+        return new InternalAggregations(reducedAggregations);
     }
 
     /** The fields required to write this addAggregation to xcontent */

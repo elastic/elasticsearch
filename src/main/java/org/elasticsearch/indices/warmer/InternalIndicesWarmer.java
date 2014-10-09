@@ -67,11 +67,11 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         listeners.remove(listener);
     }
 
-    public void warm(final WarmerContext context) {
+    public void warmNewReaders(final WarmerContext context) {
         warmInternal(context, false);
     }
 
-    public void warmTop(WarmerContext context) {
+    public void warmTopReader(WarmerContext context) {
         warmInternal(context, true);
     }
 
@@ -104,9 +104,9 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         // get a handle on pending tasks
         for (final Listener listener : listeners) {
             if (topReader) {
-                terminationHandles.add(listener.warmTop(indexShard, indexMetaData, context, threadPool));
+                terminationHandles.add(listener.warmTopReader(indexShard, indexMetaData, context, threadPool));
             } else {
-                terminationHandles.add(listener.warm(indexShard, indexMetaData, context, threadPool));
+                terminationHandles.add(listener.warmNewReaders(indexShard, indexMetaData, context, threadPool));
             }
         }
         // wait for termination

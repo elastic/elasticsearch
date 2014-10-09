@@ -19,17 +19,27 @@
 
 package org.elasticsearch.action.termvector;
 
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Request returning the term vector (doc frequency, positions, offsets) for a
@@ -38,18 +48,26 @@ import java.util.*;
  * Note, the {@link #index()}, {@link #type(String)} and {@link #id(String)} are
  * required.
  */
-public class TermVectorRequest extends SingleShardOperationRequest<TermVectorRequest> {
+public class TermVectorRequest extends SingleShardOperationRequest<TermVectorRequest> implements DocumentRequest<TermVectorRequest> {
 
     private String type;
 
     private String id;
 
+    private BytesReference doc;
+
     private String routing;
 
     protected String preference;
 
+    private static final AtomicInteger randomInt = new AtomicInteger(0);
+
     // TODO: change to String[]
     private Set<String> selectedFields;
+
+    Boolean realtime;
+
+    private Map<String, String> perFieldAnalyzer;
 
     private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
             Flag.FieldStatistics);
@@ -67,7 +85,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         this.id = id;
         this.type = type;
     }
-    
+
     /**
      * Constructs a new term vector request for a document that will be fetch
      * from the provided index. Use {@link #type(String)} and
@@ -83,6 +101,15 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         if (other.selectedFields != null) {
             this.selectedFields = new HashSet<>(other.selectedFields);
         }
+        this.realtime = other.realtime();
+    }
+
+    public TermVectorRequest(MultiGetRequest.Item item) {
+        super(item.index());
+        this.id = item.id();
+        this.type = item.type();
+        this.selectedFields(item.fields());
+        this.routing(item.routing());
     }
 
     public EnumSet<Flag> getFlags() {
@@ -116,6 +143,32 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
      */
     public TermVectorRequest id(String id) {
         this.id = id;
+        return this;
+    }
+
+    /**
+     * Returns the artificial document from which term vectors are requested for.
+     */
+    public BytesReference doc() {
+        return doc;
+    }
+
+    /**
+     * Sets an artificial document from which term vectors are requested for.
+     */
+    public TermVectorRequest doc(XContentBuilder documentBuilder) {
+        return this.doc(documentBuilder.bytes(), true);
+    }
+
+    /**
+     * Sets an artificial document from which term vectors are requested for.
+     */
+    public TermVectorRequest doc(BytesReference doc, boolean generateRandomId) {
+        // assign a random id to this artificial document, for routing
+        if (generateRandomId) {
+            this.id(String.valueOf(randomInt.getAndAdd(1)));
+        }
+        this.doc = doc;
         return this;
     }
 
@@ -168,7 +221,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
-     * @returns <code>true</code> if term offsets should be returned. Otherwise
+     * @return <code>true</code> if term offsets should be returned. Otherwise
      * <code>false</code>
      */
     public boolean offsets() {
@@ -192,7 +245,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
-     * @returns <code>true</code> if term payloads should be returned. Otherwise
+     * @return <code>true</code> if term payloads should be returned. Otherwise
      * <code>false</code>
      */
     public boolean payloads() {
@@ -208,7 +261,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
-     * @returns <code>true</code> if term statistics should be returned.
+     * @return <code>true</code> if term statistics should be returned.
      * Otherwise <code>false</code>
      */
     public boolean termStatistics() {
@@ -224,7 +277,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
-     * @returns <code>true</code> if field statistics should be returned.
+     * @return <code>true</code> if field statistics should be returned.
      * Otherwise <code>false</code>
      */
     public boolean fieldStatistics() {
@@ -251,8 +304,32 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
      * Return only term vectors for special selected fields. Returns the term
      * vectors for all fields if selectedFields == null
      */
-    public TermVectorRequest selectedFields(String[] fields) {
+    public TermVectorRequest selectedFields(String... fields) {
         selectedFields = fields != null && fields.length != 0 ? Sets.newHashSet(fields) : null;
+        return this;
+    }
+
+    public boolean realtime() {
+        return this.realtime == null ? true : this.realtime;
+    }
+
+    public TermVectorRequest realtime(Boolean realtime) {
+        this.realtime = realtime;
+        return this;
+    }
+
+    /**
+     * Return the overridden analyzers at each field
+     */
+    public Map<String, String> perFieldAnalyzer() {
+        return perFieldAnalyzer;
+    }
+
+    /**
+     * Override the analyzer used at each field when generating term vectors
+     */
+    public TermVectorRequest perFieldAnalyzer(Map<String, String> perFieldAnalyzer) {
+        this.perFieldAnalyzer = perFieldAnalyzer != null && perFieldAnalyzer.size() != 0 ? Maps.newHashMap(perFieldAnalyzer) : null;
         return this;
     }
 
@@ -267,15 +344,12 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (index == null) {
-            validationException = ValidateActions.addValidationError("index is missing", validationException);
-        }
+        ActionRequestValidationException validationException = super.validate();
         if (type == null) {
             validationException = ValidateActions.addValidationError("type is missing", validationException);
         }
-        if (id == null) {
-            validationException = ValidateActions.addValidationError("id is missing", validationException);
+        if (id == null && doc == null) {
+            validationException = ValidateActions.addValidationError("id or doc is missing", validationException);
         }
         return validationException;
     }
@@ -290,9 +364,18 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
+        if (in.getVersion().before(Version.V_1_4_0_Beta1)) {
+            //term vector used to read & write the index twice, here and in the parent class
+            in.readString();
+        }
         type = in.readString();
         id = in.readString();
+
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            if (in.readBoolean()) {
+                doc = in.readBytesReference();
+            }
+        }
         routing = in.readOptionalString();
         preference = in.readOptionalString();
         long flags = in.readVLong();
@@ -310,14 +393,30 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                 selectedFields.add(in.readString());
             }
         }
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            if (in.readBoolean()) {
+                perFieldAnalyzer = readPerFieldAnalyzer(in.readMap());
+            }
+            this.realtime = in.readBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
+        if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
+            //term vector used to read & write the index twice, here and in the parent class
+            out.writeString(index);
+        }
         out.writeString(type);
         out.writeString(id);
+
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            out.writeBoolean(doc != null);
+            if (doc != null) {
+                out.writeBytesReference(doc);
+            }
+        }
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
         long longFlags = 0;
@@ -333,21 +432,23 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         } else {
             out.writeVInt(0);
         }
-
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeBoolean(perFieldAnalyzer != null);
+            if (perFieldAnalyzer != null) {
+                out.writeGenericValue(perFieldAnalyzer);
+            }
+            out.writeBoolean(realtime());
+        }
     }
 
     public static enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
-        Positions, Offsets, Payloads, FieldStatistics, TermStatistics;
+        Positions, Offsets, Payloads, FieldStatistics, TermStatistics
     }
 
     /**
      * populates a request object (pre-populated with defaults) based on a parser.
-     *
-     * @param termVectorRequest
-     * @param parser
-     * @throws IOException
      */
     public static void parseRequest(TermVectorRequest termVectorRequest, XContentParser parser) throws IOException {
         XContentParser.Token token;
@@ -358,7 +459,6 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                 currentFieldName = parser.currentName();
             } else if (currentFieldName != null) {
                 if (currentFieldName.equals("fields")) {
-
                     if (token == XContentParser.Token.START_ARRAY) {
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                             fields.add(parser.text());
@@ -377,12 +477,22 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                     termVectorRequest.termStatistics(parser.booleanValue());
                 } else if (currentFieldName.equals("field_statistics") || currentFieldName.equals("fieldStatistics")) {
                     termVectorRequest.fieldStatistics(parser.booleanValue());
+                } else if (currentFieldName.equals("per_field_analyzer") || currentFieldName.equals("perFieldAnalyzer")) {
+                    termVectorRequest.perFieldAnalyzer(readPerFieldAnalyzer(parser.map()));
                 } else if ("_index".equals(currentFieldName)) { // the following is important for multi request parsing.
                     termVectorRequest.index = parser.text();
                 } else if ("_type".equals(currentFieldName)) {
                     termVectorRequest.type = parser.text();
                 } else if ("_id".equals(currentFieldName)) {
+                    if (termVectorRequest.doc != null) {
+                        throw new ElasticsearchParseException("Either \"id\" or \"doc\" can be specified, but not both!");
+                    }
                     termVectorRequest.id = parser.text();
+                } else if ("doc".equals(currentFieldName)) {
+                    if (termVectorRequest.id != null) {
+                        throw new ElasticsearchParseException("Either \"id\" or \"doc\" can be specified, but not both!");
+                    }
+                    termVectorRequest.doc(jsonBuilder().copyCurrentStructure(parser));
                 } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
                     termVectorRequest.routing = parser.text();
                 } else {
@@ -391,10 +501,22 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                 }
             }
         }
-
         if (fields.size() > 0) {
             String[] fieldsAsArray = new String[fields.size()];
             termVectorRequest.selectedFields(fields.toArray(fieldsAsArray));
         }
+    }
+
+    private static Map<String, String> readPerFieldAnalyzer(Map<String, Object> map) {
+        Map<String, String> mapStrStr = new HashMap<>();
+        for (Map.Entry<String, Object> e : map.entrySet()) {
+            if (e.getValue() instanceof String) {
+                mapStrStr.put(e.getKey(), (String) e.getValue());
+            } else {
+                throw new ElasticsearchException(
+                        "The analyzer at " + e.getKey() + " should be of type String, but got a " + e.getValue().getClass() + "!");
+            }
+        }
+        return mapStrStr;
     }
 }

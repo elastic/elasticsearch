@@ -39,76 +39,76 @@ import java.util.concurrent.TimeoutException;
  * <li>Barrier as a trigger for elapsed notification events </li>
  * <p/>
  * <pre>
- *    class MyTestClass	implements RemoteEventListener
+ *    class MyTestClass implements RemoteEventListener
  *    {
- *    	final ThreadBarrier	barrier;
+ *      final ThreadBarrier barrier;
  *
- *    	class Worker implements Runnable
+ *      class Worker implements Runnable
  *        {
- *    		public void run()
+ *          public void run()
  *            {
- *    			barrier.await();	//wait for all threads to reach run
- *    			try
+ *              barrier.await();    //wait for all threads to reach run
+ *              try
  *                {
- *    				prepare();
- *    				barrier.await();	//wait for all threads to prepare
- *    				process();
- *    				barrier.await();	//wait for all threads to process
+ *                  prepare();
+ *                  barrier.await();    //wait for all threads to prepare
+ *                  process();
+ *                  barrier.await();    //wait for all threads to process
  *                }
- *    			catch(Throwable t){
- *    				log(&quot;Worker thread caught exception&quot;, t);
- *    				barrier.reset(t);
+ *              catch(Throwable t){
+ *                  log(&quot;Worker thread caught exception&quot;, t);
+ *                  barrier.reset(t);
  *                }
  *            }
  *        }
  *
- *    	public void testThreads() {
- *    		barrier = new ThreadBarrier(N_THREADS + 1);
- *    		for (int i = 0; i &lt; N; ++i)
+ *      public void testThreads() {
+ *          barrier = new ThreadBarrier(N_THREADS + 1);
+ *          for (int i = 0; i &lt; N; ++i)
  *           new Thread(new Worker()).start();
  *
- *    		try{
- *    			barrier.await();	//wait for all threads to reach run
- *    			barrier.await();	//wait for all threads to prepare
- *    			barrier.await();	//wait for all threads to process
+ *          try{
+ *              barrier.await();    //wait for all threads to reach run
+ *              barrier.await();    //wait for all threads to prepare
+ *              barrier.await();    //wait for all threads to process
  *            }
- *    		catch(BrokenBarrierException bbe) {
- *    			Assert.fail(bbe);
+ *          catch(BrokenBarrierException bbe) {
+ *              Assert.fail(bbe);
  *            }
  *       }
  *
  *      int actualNotificationCount = 0;
- *    	public synchronized void notify (RemoteEvent event) {
- *    		try{
- *    			actualNotificationCount++;
- *    			if (actualNotificationCount == EXPECTED_COUNT)
- *    				barrier.await();	//signal when all notifications arrive
+ *      public synchronized void notify (RemoteEvent event) {
+ *          try{
+ *              actualNotificationCount++;
+ *              if (actualNotificationCount == EXPECTED_COUNT)
+ *                  barrier.await();    //signal when all notifications arrive
  *
- *    			 // too many notifications?
- *    			 Assert.assertFalse(&quot;Exceeded notification count&quot;,
- *    										actualNotificationCount > EXPECTED_COUNT);
+ *               // too many notifications?
+ *               Assert.assertFalse(&quot;Exceeded notification count&quot;,
+ *                                          actualNotificationCount > EXPECTED_COUNT);
  *            }
- *    		catch(Throwable t) {
- *    			log(&quot;Worker thread caught exception&quot;, t);
- *    			barrier.reset(t);
+ *          catch(Throwable t) {
+ *              log(&quot;Worker thread caught exception&quot;, t);
+ *              barrier.reset(t);
  *            }
  *        }
  *
- *    	public void testNotify() {
- *    		barrier = new ThreadBarrier(N_LISTENERS + 1);
- *    		registerNotification();
- *    		triggerNotifications();
+ *      public void testNotify() {
+ *          barrier = new ThreadBarrier(N_LISTENERS + 1);
+ *          registerNotification();
+ *          triggerNotifications();
  *
- *    		//wait until either all notifications arrive, or
- *    		//until a MAX_TIMEOUT is reached.
- *    		barrier.await(MAX_TIMEOUT);
+ *          //wait until either all notifications arrive, or
+ *          //until a MAX_TIMEOUT is reached.
+ *          barrier.await(MAX_TIMEOUT);
  *
- *    		//check if all notifications were accounted for or timed-out
- *    		Assert.assertEquals(&quot;Notification count&quot;,
- *    									EXPECTED_COUNT, actualNotificationCount);
+ *          //check if all notifications were accounted for or timed-out
+ *          Assert.assertEquals(&quot;Notification count&quot;,
+ *                                      EXPECTED_COUNT, actualNotificationCount);
  *
- *    		//inspect that the barrier isn't broken
- *    		barrier.inspect(); //throws BrokenBarrierException if broken
+ *          //inspect that the barrier isn't broken
+ *          barrier.inspect(); //throws BrokenBarrierException if broken
  *        }
  *    }
  * </pre>
@@ -255,7 +255,7 @@ public class ThreadBarrier extends CyclicBarrier {
      *                                                                                             ..
      *                                                                                             long time = timer.getTimeInNanos();
      *                                                                                             long tpi = time / ((long)nREPEATS * nTHREADS); //throughput per thread iteration
-     *                                                                                             long secs = timer.getTimeInSeconds();	//total runtime in seconds
+     *                                                                                             long secs = timer.getTimeInSeconds();    //total runtime in seconds
      *                                                                                             ..
      *                                                                                             timer.reset();  // reuse timer
      *                                                                                           </code></pre>

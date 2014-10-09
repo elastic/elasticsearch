@@ -1,0 +1,33 @@
+---
+"Indexed template":
+
+  - do:
+      put_template:
+        id: "1"
+        body: { "template": { "query": { "match_all": {}}, "size": "{{my_size}}" } }
+  - match: { _id: "1" }
+
+  - do:
+     get_template:
+       id: 1
+  - match: { template: /.*query\S\S\S\Smatch_all.*/ }
+
+
+  - do:
+     delete_template:
+       id: "1"
+  - match: { found: true }
+  - match: { _index: ".scripts" }
+  - match: { _id: "1" }
+
+  - do:
+      catch: request
+      put_template:
+        id: "1"
+        body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }
+
+  - do:
+      catch: /ElasticsearchIllegalArgumentException\SUnable\sto\sparse.*/
+      put_template:
+        id: "1"
+        body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }

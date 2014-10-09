@@ -19,12 +19,15 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -40,7 +43,8 @@ public class BulkShardRequest extends ShardReplicationOperationRequest<BulkShard
     BulkShardRequest() {
     }
 
-    BulkShardRequest(String index, int shardId, boolean refresh, BulkItemRequest[] items) {
+    BulkShardRequest(BulkRequest bulkRequest, String index, int shardId, boolean refresh, BulkItemRequest[] items) {
+        super(bulkRequest);
         this.index = index;
         this.shardId = shardId;
         this.items = items;
@@ -57,6 +61,17 @@ public class BulkShardRequest extends ShardReplicationOperationRequest<BulkShard
 
     BulkItemRequest[] items() {
         return items;
+    }
+
+    @Override
+    public String[] indices() {
+        List<String> indices = new ArrayList<>();
+        for (BulkItemRequest item : items) {
+            if (item != null) {
+                indices.add(item.index());
+            }
+        }
+        return indices.toArray(new String[indices.size()]);
     }
 
     /**
@@ -80,8 +95,14 @@ public class BulkShardRequest extends ShardReplicationOperationRequest<BulkShard
         out.writeVInt(items.length);
         for (BulkItemRequest item : items) {
             if (item != null) {
-                out.writeBoolean(true);
-                item.writeTo(out);
+                // if we are serializing to a node that is pre 1.3.3, make sure to pass null to maintain
+                // the old behavior of putting null in the request to be ignored on the replicas
+                if (item.isIgnoreOnReplica() && out.getVersion().before(Version.V_1_3_3)) {
+                    out.writeBoolean(false);
+                } else {
+                    out.writeBoolean(true);
+                    item.writeTo(out);
+                }
             } else {
                 out.writeBoolean(false);
             }

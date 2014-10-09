@@ -19,6 +19,8 @@
 
 package org.elasticsearch.rest;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 
@@ -30,7 +32,7 @@ import java.util.Map;
 /**
  *
  */
-public abstract class RestResponse {
+public abstract class RestResponse implements HasRestHeaders {
 
     protected Map<String, List<String>> customHeaders;
 
@@ -55,6 +57,20 @@ public abstract class RestResponse {
      * The rest status code.
      */
     public abstract RestStatus status();
+
+    public void addHeaders(Map<String, List<String>> headers) {
+        if (customHeaders == null) {
+            customHeaders = new HashMap<>(headers.size());
+        }
+        for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+            List<String> values = customHeaders.get(entry.getKey());
+            if (values == null) {
+                values = Lists.newArrayList();
+                customHeaders.put(entry.getKey(), values);
+            }
+            values.addAll(entry.getValue());
+        }
+    }
 
     /**
      * Add a custom header.

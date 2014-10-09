@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-datehistogram-aggregation]]
-=== Date Histogram
+=== Date Histogram Aggregation
 
 A multi-bucket aggregation similar to the <<search-aggregations-bucket-histogram-aggregation,histogram>> except it can
 only be applied on date values. Since dates are represented in elasticsearch internally as long values, it is possible
@@ -68,14 +68,6 @@ Sometimes, we want to apply the same conversion to UTC we did above for hour als
 set `pre_zone_adjust_large_interval` to `true`, which will apply the same conversion done for hour interval in the
 example, to day and above intervals (it can be set regardless of the interval, but only kick in when using day and
 higher intervals).
-
-==== Factor
-
-The date histogram works on numeric values (since time is stored in milliseconds since the epoch in UTC). But,
-sometimes, systems will store a different resolution (like seconds since UTC) in a numeric field. The `factor`
-parameter can be used to change the value in the field to milliseconds to actual do the relevant rounding, and then
-be applied again to get to the original unit. For example, when storing in a numeric field seconds resolution, the
-factor can be set to 1000.
 
 ==== Pre/Post Offset
 

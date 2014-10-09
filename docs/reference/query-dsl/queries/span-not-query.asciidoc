@@ -9,10 +9,17 @@ query maps to Lucene `SpanNotQuery`. Here is an example:
 {
     "span_not" : {
         "include" : {
-            "span_term" : { "field1" : "value1" }
+            "span_term" : { "field1" : "hoya" }
         },
         "exclude" : {
-            "span_term" : { "field2" : "value2" }
+            "span_near" : { 
+                "clauses" : [
+                    { "span_term" : { "field1" : "la" } },
+                    { "span_term" : { "field1" : "hoya" } }
+                ],
+                "slop" : 0,
+                "in_order" : true
+            }
         }
     }
 }
@@ -22,3 +29,5 @@ The `include` and `exclude` clauses can be any span type query. The
 `include` clause is the span query whose matches are filtered, and the
 `exclude` clause is the span query whose matches must not overlap those
 returned.
+
+In the above example all documents with the term hoya are filtered except the ones that have 'la' preceeding them.

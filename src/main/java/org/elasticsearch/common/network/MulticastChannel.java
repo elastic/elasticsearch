@@ -21,7 +21,6 @@ package org.elasticsearch.common.network;
 
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.IOUtils;
-
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
@@ -152,6 +151,7 @@ public abstract class MulticastChannel implements Closeable {
 
     protected abstract void close(Listener listener);
 
+    public static final String SHARED_CHANNEL_NAME = "#shared#";
     /**
      * A shared channel that keeps a static map of Config -> Shared channels, and closes shared
      * channel once their reference count has reached 0. It also handles de-registering relevant
@@ -172,7 +172,7 @@ public abstract class MulticastChannel implements Closeable {
                 } else {
                     MultiListener multiListener = new MultiListener();
                     multiListener.add(listener);
-                    shared = new Shared(multiListener, new Plain(multiListener, "#shared#", config));
+                    shared = new Shared(multiListener, new Plain(multiListener, SHARED_CHANNEL_NAME, config));
                     sharedChannels.put(config, shared);
                 }
                 return new Delegate(listener, shared);
@@ -314,6 +314,11 @@ public abstract class MulticastChannel implements Closeable {
             if (multicastSocket != null) {
                 IOUtils.closeWhileHandlingException(multicastSocket);
                 multicastSocket = null;
+            }
+            try {
+                receiverThread.join(10000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
 

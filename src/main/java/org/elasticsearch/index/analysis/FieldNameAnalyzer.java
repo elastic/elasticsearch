@@ -20,24 +20,31 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.AnalyzerWrapper;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.elasticsearch.common.collect.CopyOnWriteHashMap;
+
+import java.util.Collection;
+import java.util.Map;
 
 /**
  *
  */
-public final class FieldNameAnalyzer extends AnalyzerWrapper {
+public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
 
-    private final ImmutableOpenMap<String, Analyzer> analyzers;
-
+    private final CopyOnWriteHashMap<String, Analyzer> analyzers;
     private final Analyzer defaultAnalyzer;
 
-    public FieldNameAnalyzer(ImmutableOpenMap<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
-        this.analyzers = analyzers;
+    public FieldNameAnalyzer(Analyzer defaultAnalyzer) {
+        this(new CopyOnWriteHashMap<String, Analyzer>(), defaultAnalyzer);
+    }
+
+    public FieldNameAnalyzer(Map<String, Analyzer> analyzers, Analyzer defaultAnalyzer) {
+        super(Analyzer.PER_FIELD_REUSE_STRATEGY);
+        this.analyzers = CopyOnWriteHashMap.copyOf(analyzers);
         this.defaultAnalyzer = defaultAnalyzer;
     }
 
-    public ImmutableOpenMap<String, Analyzer> analyzers() {
+    public Map<String, Analyzer> analyzers() {
         return analyzers;
     }
 
@@ -50,11 +57,6 @@ public final class FieldNameAnalyzer extends AnalyzerWrapper {
         return getAnalyzer(fieldName);
     }
 
-    @Override
-    protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-        return components;
-    }
-
     private Analyzer getAnalyzer(String name) {
         Analyzer analyzer = analyzers.get(name);
         if (analyzer != null) {
@@ -62,4 +64,18 @@ public final class FieldNameAnalyzer extends AnalyzerWrapper {
         }
         return defaultAnalyzer;
     }
+
+    /**
+     * Return a new instance that contains the union of this and of the provided analyzers.
+     */
+    public FieldNameAnalyzer copyAndAddAll(Collection<? extends Map.Entry<String, Analyzer>> mappers) {
+        CopyOnWriteHashMap<String, Analyzer> analyzers = this.analyzers;
+        for (Map.Entry<String, Analyzer> entry : mappers) {
+            if (entry.getValue() != null) {
+                analyzers = analyzers.copyAndPut(entry.getKey(), entry.getValue());
+            }
+        }
+        return new FieldNameAnalyzer(analyzers, defaultAnalyzer);
+    }
+
 }

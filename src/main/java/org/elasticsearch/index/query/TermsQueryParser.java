@@ -35,7 +35,6 @@ import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.elasticsearch.common.lucene.search.Queries.optimizeQuery;
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
@@ -128,7 +127,7 @@ public class TermsQueryParser implements QueryParser {
             }
             booleanQuery.setBoost(boost);
             Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
-            Query query = wrapSmartNameQuery(optimizeQuery(fixNegativeQueryIfNeeded(booleanQuery)), smartNameFieldMappers, parseContext);
+            Query query = wrapSmartNameQuery(fixNegativeQueryIfNeeded(booleanQuery), smartNameFieldMappers, parseContext);
             if (queryName != null) {
                 parseContext.addNamedQuery(queryName, query);
             }

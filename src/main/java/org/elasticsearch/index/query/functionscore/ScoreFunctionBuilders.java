@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuild
 import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
 
 import java.util.Map;
 
@@ -71,12 +72,17 @@ public class ScoreFunctionBuilders {
         return (new ScriptScoreFunctionBuilder()).script(script).params(params);
     }
 
+    @Deprecated
     public static FactorBuilder factorFunction(float boost) {
         return (new FactorBuilder()).boostFactor(boost);
     }
 
-    public static RandomScoreFunctionBuilder randomFunction(long seed) {
+    public static RandomScoreFunctionBuilder randomFunction(int seed) {
         return (new RandomScoreFunctionBuilder()).seed(seed);
+    }
+    
+    public static WeightBuilder weightFactorFunction(float weight) {
+        return (WeightBuilder)(new WeightBuilder().setWeight(weight));
     }
 
     public static FieldValueFactorFunctionBuilder fieldValueFactorFunction(String fieldName) {

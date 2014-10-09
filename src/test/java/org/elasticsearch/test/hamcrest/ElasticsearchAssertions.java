@@ -18,11 +18,16 @@
  */
 package org.elasticsearch.test.hamcrest;
 
+import com.google.common.base.Function;
 import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
+import com.google.common.collect.FluentIterable;
+import com.google.common.collect.Iterables;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequest;
@@ -30,10 +35,16 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
+import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -43,6 +54,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -55,25 +68,28 @@ import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
+import org.junit.Assert;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+import static com.google.common.base.Predicates.isNull;
 import static org.elasticsearch.test.ElasticsearchTestCase.*;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  *
  */
 public class ElasticsearchAssertions {
 
-    public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder) {
+    public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?, ?> builder) {
         assertAcked(builder.get());
     }
 
@@ -82,7 +98,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNoTimeout(ClusterHealthResponse response) {
-        assertThat("ClusterHealthResponse has timed out - returned status: [" + response.getStatus() + "]", response.isTimedOut(), is(false));
+        assertThat("ClusterHealthResponse has timed out - returned: [" + response + "]", response.isTimedOut(), is(false));
     }
 
     public static void assertAcked(AcknowledgedResponse response) {
@@ -142,6 +158,17 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(searchResponse);
     }
 
+    public static void assertSortValues(SearchResponse searchResponse, Object[]... sortValues) {
+        assertSearchResponse(searchResponse);
+        SearchHit[] hits = searchResponse.getHits().getHits();
+        assertEquals(sortValues.length, hits.length);
+        for (int i = 0; i < sortValues.length; ++i) {
+            final Object[] hitsSortValues = hits[i].getSortValues();
+            assertArrayEquals("Offset " + Integer.toString(i) + ", id " + hits[i].getId(), sortValues[i], hitsSortValues);
+        }
+        assertVersionSerializable(searchResponse);
+    }
+
     public static void assertOrderedSearchHits(SearchResponse searchResponse, String... ids) {
         String shardStatus = formatShardStatus(searchResponse);
         assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().hits().length, equalTo(ids.length));
@@ -157,6 +184,12 @@ public class ElasticsearchAssertions {
             fail("Count is " + countResponse.getCount() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
         assertVersionSerializable(countResponse);
+    }
+    public static void assertExists(ExistsResponse existsResponse, boolean expected) {
+        if (existsResponse.exists() != expected) {
+            fail("Exist is " + existsResponse.exists() + " but " + expected + " was expected " + formatShardStatus(existsResponse));
+        }
+        assertVersionSerializable(existsResponse);
     }
 
     public static void assertMatchCount(PercolateResponse percolateResponse, long expectedHitCount) {
@@ -301,6 +334,22 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(searchSuggest);
     }
 
+    public static void assertSuggestionPhraseCollateMatchExists(Suggest searchSuggest, String key, int numberOfPhraseExists) {
+        int counter = 0;
+        assertThat(searchSuggest, notNullValue());
+        String msg = "Suggest result: " + searchSuggest.toString();
+        assertThat(msg, searchSuggest.size(), greaterThanOrEqualTo(1));
+        assertThat(msg, searchSuggest.getSuggestion(key).getName(), equalTo(key));
+
+        for (Suggest.Suggestion.Entry.Option option : searchSuggest.getSuggestion(key).getEntries().get(0).getOptions()) {
+            if (option.collateMatch()) {
+                counter++;
+            }
+        }
+
+        assertThat(counter, equalTo(numberOfPhraseExists));
+    }
+
     public static void assertSuggestion(Suggest searchSuggest, int entry, int ord, String key, String text) {
         assertThat(searchSuggest, notNullValue());
         String msg = "Suggest result: " + searchSuggest.toString();
@@ -330,6 +379,42 @@ public class ElasticsearchAssertions {
         }
     }
 
+    /**
+     * Assert that an index template is missing
+     */
+    public static void assertIndexTemplateMissing(GetIndexTemplatesResponse templatesResponse, String name) {
+        List<String> templateNames = new ArrayList<>();
+        for (IndexTemplateMetaData indexTemplateMetaData : templatesResponse.getIndexTemplates()) {
+            templateNames.add(indexTemplateMetaData.name());
+        }
+        assertThat(templateNames, not(hasItem(name)));
+    }
+
+    /**
+     * Assert that an index template exists
+     */
+    public static void assertIndexTemplateExists(GetIndexTemplatesResponse templatesResponse, String name) {
+        List<String> templateNames = new ArrayList<>();
+        for (IndexTemplateMetaData indexTemplateMetaData : templatesResponse.getIndexTemplates()) {
+            templateNames.add(indexTemplateMetaData.name());
+        }
+        assertThat(templateNames, hasItem(name));
+    }
+
+    /**
+     * Assert that aliases are missing
+     */
+    public static void assertAliasesMissing(AliasesExistResponse aliasesExistResponse) {
+        assertFalse("Aliases shouldn't exist", aliasesExistResponse.exists());
+    }
+
+    /**
+     * Assert that aliases exist
+     */
+    public static void assertAliasesExist(AliasesExistResponse aliasesExistResponse) {
+        assertTrue("Aliases should exist", aliasesExistResponse.exists());
+    }
+
     /*
      * matchers
      */
@@ -357,22 +442,68 @@ public class ElasticsearchAssertions {
         return (T) q.getClauses()[i].getQuery();
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, Class<E> exceptionClass) {
+    /**
+     * Run the request from a given builder and check that it throws an exception of the right type
+     */
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, Class<E> exceptionClass) {
         assertThrows(builder.execute(), exceptionClass);
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, Class<E> exceptionClass, String extraInfo) {
+    /**
+     * Run the request from a given builder and check that it throws an exception of the right type, with a given {@link org.elasticsearch.rest.RestStatus}
+     */
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, Class<E> exceptionClass, RestStatus status) {
+        assertThrows(builder.execute(), exceptionClass, status);
+    }
+
+    /**
+     * Run the request from a given builder and check that it throws an exception of the right type
+     *
+     * @param extraInfo extra information to add to the failure message
+     */
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, Class<E> exceptionClass, String extraInfo) {
         assertThrows(builder.execute(), exceptionClass, extraInfo);
     }
 
+    /**
+     * Run future.actionGet() and check that it throws an exception of the right type
+     */
     public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass) {
-        assertThrows(future, exceptionClass, null);
+        assertThrows(future, exceptionClass, null, null);
     }
 
+    /**
+     * Run future.actionGet() and check that it throws an exception of the right type, with a given {@link org.elasticsearch.rest.RestStatus}
+     */
+    public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass, RestStatus status) {
+        assertThrows(future, exceptionClass, status, null);
+    }
+
+    /**
+     * Run future.actionGet() and check that it throws an exception of the right type
+     *
+     * @param extraInfo extra information to add to the failure message
+     */
     public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass, String extraInfo) {
+        assertThrows(future, exceptionClass, null, extraInfo);
+    }
+
+    /**
+     * Run future.actionGet() and check that it throws an exception of the right type, optionally checking the exception's rest status
+     *
+     * @param exceptionClass expected exception class
+     * @param status         {@link org.elasticsearch.rest.RestStatus} to check for. Can be null to disable the check
+     * @param extraInfo      extra information to add to the failure message. Can be null.
+     */
+    public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass, @Nullable RestStatus status, @Nullable String extraInfo) {
         boolean fail = false;
         extraInfo = extraInfo == null || extraInfo.isEmpty() ? "" : extraInfo + ": ";
         extraInfo += "expected a " + exceptionClass + " exception to be thrown";
+
+        if (status != null) {
+            extraInfo += " with status [" + status + "]";
+        }
+
 
         try {
             future.actionGet();
@@ -380,8 +511,43 @@ public class ElasticsearchAssertions {
 
         } catch (ElasticsearchException esException) {
             assertThat(extraInfo, esException.unwrapCause(), instanceOf(exceptionClass));
+            if (status != null) {
+                assertThat(extraInfo, ExceptionsHelper.status(esException), equalTo(status));
+            }
         } catch (Throwable e) {
             assertThat(extraInfo, e, instanceOf(exceptionClass));
+            if (status != null) {
+                assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
+            }
+        }
+        // has to be outside catch clause to get a proper message
+        if (fail) {
+            throw new AssertionError(extraInfo);
+        }
+    }
+
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, RestStatus status) {
+        assertThrows(builder.execute(), status);
+    }
+
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, RestStatus status, String extraInfo) {
+        assertThrows(builder.execute(), status, extraInfo);
+    }
+
+    public static <E extends Throwable> void assertThrows(ActionFuture future, RestStatus status) {
+        assertThrows(future, status, null);
+    }
+
+    public static void assertThrows(ActionFuture future, RestStatus status, String extraInfo) {
+        boolean fail = false;
+        extraInfo = extraInfo == null || extraInfo.isEmpty() ? "" : extraInfo + ": ";
+        extraInfo += "expected a " + status + " status exception to be thrown";
+
+        try {
+            future.actionGet();
+            fail = true;
+        } catch (Throwable e) {
+            assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
         }
         // has to be outside catch clause to get a proper message
         if (fail) {
@@ -491,12 +657,7 @@ public class ElasticsearchAssertions {
         try {
             for (final MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
                 try {
-                    awaitBusy(new Predicate<Object>() {
-                        @Override
-                        public boolean apply(Object input) {
-                            return !w.isOpen();
-                        }
-                    });
+                    w.awaitClosed(5000);
                 } catch (InterruptedException e) {
                     Thread.interrupted();
                 }
@@ -521,4 +682,124 @@ public class ElasticsearchAssertions {
         }
     }
 
+    public static void assertNodeContainsPlugins(NodesInfoResponse response, String nodeId,
+                                           List<String> expectedJvmPluginNames,
+                                           List<String> expectedJvmPluginDescriptions,
+                                           List<String> expectedJvmVersions,
+                                           List<String> expectedSitePluginNames,
+                                           List<String> expectedSitePluginDescriptions,
+                                           List<String> expectedSiteVersions) {
+
+        Assert.assertThat(response.getNodesMap().get(nodeId), notNullValue());
+
+        PluginsInfo plugins = response.getNodesMap().get(nodeId).getPlugins();
+        Assert.assertThat(plugins, notNullValue());
+
+        List<String> pluginNames = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(nameFunction).toList();
+        for (String expectedJvmPluginName : expectedJvmPluginNames) {
+            Assert.assertThat(pluginNames, hasItem(expectedJvmPluginName));
+        }
+
+        List<String> pluginDescriptions = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(descriptionFunction).toList();
+        for (String expectedJvmPluginDescription : expectedJvmPluginDescriptions) {
+            Assert.assertThat(pluginDescriptions, hasItem(expectedJvmPluginDescription));
+        }
+
+        List<String> jvmPluginVersions = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(versionFunction).toList();
+        for (String pluginVersion : expectedJvmVersions) {
+            Assert.assertThat(jvmPluginVersions, hasItem(pluginVersion));
+        }
+
+        FluentIterable<String> jvmUrls = FluentIterable.from(plugins.getInfos())
+                .filter(Predicates.and(jvmPluginPredicate, Predicates.not(sitePluginPredicate)))
+                .filter(isNull())
+                .transform(urlFunction);
+        Assert.assertThat(Iterables.size(jvmUrls), is(0));
+
+        List<String> sitePluginNames = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(nameFunction).toList();
+        Assert.assertThat(sitePluginNames.isEmpty(), is(expectedSitePluginNames.isEmpty()));
+        for (String expectedSitePluginName : expectedSitePluginNames) {
+            Assert.assertThat(sitePluginNames, hasItem(expectedSitePluginName));
+        }
+
+        List<String> sitePluginDescriptions = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(descriptionFunction).toList();
+        Assert.assertThat(sitePluginDescriptions.isEmpty(), is(expectedSitePluginDescriptions.isEmpty()));
+        for (String sitePluginDescription : expectedSitePluginDescriptions) {
+            Assert.assertThat(sitePluginDescriptions, hasItem(sitePluginDescription));
+        }
+
+        List<String> sitePluginUrls = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(urlFunction).toList();
+        Assert.assertThat(sitePluginUrls, not(contains(nullValue())));
+
+
+        List<String> sitePluginVersions = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(versionFunction).toList();
+        Assert.assertThat(sitePluginVersions.isEmpty(), is(expectedSiteVersions.isEmpty()));
+        for (String pluginVersion : expectedSiteVersions) {
+            Assert.assertThat(sitePluginVersions, hasItem(pluginVersion));
+        }
+    }
+
+    private static Predicate<PluginInfo> jvmPluginPredicate = new Predicate<PluginInfo>() {
+        public boolean apply(PluginInfo pluginInfo) {
+            return pluginInfo.isJvm();
+        }
+    };
+
+    private static Predicate<PluginInfo> sitePluginPredicate = new Predicate<PluginInfo>() {
+        public boolean apply(PluginInfo pluginInfo) {
+            return pluginInfo.isSite();
+        }
+    };
+
+    private static Function<PluginInfo, String> nameFunction = new Function<PluginInfo, String>() {
+        public String apply(PluginInfo pluginInfo) {
+            return pluginInfo.getName();
+        }
+    };
+
+    private static Function<PluginInfo, String> descriptionFunction = new Function<PluginInfo, String>() {
+        public String apply(PluginInfo pluginInfo) {
+            return pluginInfo.getDescription();
+        }
+    };
+
+    private static Function<PluginInfo, String> urlFunction = new Function<PluginInfo, String>() {
+        public String apply(PluginInfo pluginInfo) {
+            return pluginInfo.getUrl();
+        }
+    };
+
+    private static Function<PluginInfo, String> versionFunction = new Function<PluginInfo, String>() {
+        public String apply(PluginInfo pluginInfo) {
+            return pluginInfo.getVersion();
+        }
+    };
+
+    /**
+     * Check if a file exists
+     */
+    public static void assertFileExists(File file) {
+        assertThat("file/dir [" + file + "] should exist.", file.exists(), is(true));
+    }
+
+    /**
+     * Check if a file exists
+     */
+    public static void assertFileExists(Path file) {
+        assertFileExists(file.toFile());
+    }
+
+    /**
+     * Check if a directory exists
+     */
+    public static void assertDirectoryExists(File dir) {
+        assertFileExists(dir);
+    }
+
+    /**
+     * Check if a directory exists
+     */
+    public static void assertDirectoryExists(Path dir) {
+        assertFileExists(dir);
+    }
 }

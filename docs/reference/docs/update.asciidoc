@@ -53,7 +53,7 @@ We can also add a new field to the document:
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.text = \"some text\""
+    "script" : "ctx._source.name_of_new_field = \"value_of_new_field\""
 }'
 --------------------------------------------------
 
@@ -62,7 +62,7 @@ We can also remove a field from the document:
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.remove(\"text\")"
+    "script" : "ctx._source.remove(\"name_of_field\")"
 }'
 --------------------------------------------------
 
@@ -109,6 +109,26 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 If both `doc` and `script` is specified, then `doc` is ignored. Best is
 to put your field pairs of the partial document in the script itself.
 
+By default if `doc` is specified then the document is always updated even
+if the merging process doesn't cause any changes.  Specifying `detect_noop`
+as `true` will cause Elasticsearch to check if there are changes and, if
+there aren't, turn the update request into a noop. For example:
+[source,js]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
+    "doc" : {
+        "name" : "new_name"
+    },
+    "detect_noop": true
+}'
+--------------------------------------------------
+
+If `name` was `new_name` before the request was sent then the entire update
+request is ignored.
+
+[[upserts]]
+[float]
+=== Upserts
 There is also support for `upsert`. If the document does
 not already exists, the content of the `upsert` element will be used to
 index the fresh doc:
@@ -125,8 +145,36 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     }
 }'
 --------------------------------------------------
+If the document does not exist you may want your update script to
+run anyway in order to initialize the document contents using 
+business logic unknown to the client. In this case pass the
+new `scripted_upsert` parameter with the value `true`. 
 
-Last it also supports `doc_as_upsert`. So that the
+[source,js]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/sessions/session/dh3sgudg8gsrgl/_update' -d '{
+    "script_id" : "my_web_session_summariser",
+    "scripted_upsert":true,
+    "params" : {
+        "pageViewEvent" : {
+        	"url":"foo.com/bar",
+        	"response":404,
+        	"time":"2014-01-01 12:32"
+        }
+    },
+    "upsert" : {
+    }
+}'
+--------------------------------------------------
+The default `scripted_upsert` setting is `false` meaning the script is not executed for inserts.
+However, in scenarios like the one above we may be using a non-trivial script stored
+using the new "indexed scripts" feature. The script may be deriving properties 
+like the duration of our web session based on observing multiple page view events so the 
+client can supply a blank "upsert" document and allow the script to fill in most of the details
+using the events passed in the `params` element.  
+
+
+Last, the upsert facility also supports `doc_as_upsert`. So that the
 provided document will be inserted if the document does not already
 exist. This will reduce the amount of data that needs to be sent to
 elasticsearch.
@@ -140,6 +188,10 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     "doc_as_upsert" : true
 }'
 --------------------------------------------------
+
+
+[float]
+=== Parameters
 
 The update operation supports similar parameters as the index API,
 including:
@@ -157,9 +209,9 @@ including:
 
 `consistency`:: The write consistency of the index/delete operation.
 
-`refresh`::     Refresh the index immediately after the operation occurs,
-                so that the updated document appears in search results 
-                immediately.
+`refresh`::     Refresh the relevant primary and replica shards (not the whole
+                index) immediately after the operation occurs, so that the
+                updated document appears in search results  immediately.
 
 `fields`::      return the relevant fields from the updated document.
                 Support `_source` to return the full updated 
@@ -170,7 +222,7 @@ including:
                 during the update. You can use the `version` parameter to specify that the
                 document should only be updated if it's version matches the one specified.
                 By setting version type to `force` you can force the new version of the document
-                after update (use with care! with `force` there is no guaranty the document
+                after update (use with care! with `force` there is no guarantee the document
                 didn't change).Version types `external` & `external_gte` are not supported.
 
                 

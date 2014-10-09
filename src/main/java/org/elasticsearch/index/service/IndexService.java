@@ -21,6 +21,7 @@ package org.elasticsearch.index.service;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexShardMissingException;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.IndexEngine;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.mapper.MapperService;
@@ -49,6 +51,8 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
     IndexCache cache();
 
     IndexFieldDataService fieldData();
+
+    FixedBitSetFilterCache fixedBitSetFilterCache();
 
     IndexSettingsService settingsService();
 
@@ -79,12 +83,26 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
 
     boolean hasShard(int shardId);
 
+    /**
+     * Return the shard with the provided id, or null if there is no such shard.
+     */
+    @Nullable
     IndexShard shard(int shardId);
 
+    /**
+     * Return the shard with the provided id, or throw an exception if it doesn't exist.
+     */
     IndexShard shardSafe(int shardId) throws IndexShardMissingException;
 
+    /**
+     * Return the shard injector for the provided id, or null if there is no such shard.
+     */
+    @Nullable
     Injector shardInjector(int shardId);
 
+    /**
+     * Return the shard injector for the provided id, or throw an exception if there is no such shard.
+     */
     Injector shardInjectorSafe(int shardId) throws IndexShardMissingException;
 
     String indexUUID();

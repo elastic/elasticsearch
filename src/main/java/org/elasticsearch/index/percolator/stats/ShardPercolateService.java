@@ -20,8 +20,8 @@
 package org.elasticsearch.index.percolator.stats;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -60,11 +60,11 @@ public class ShardPercolateService extends AbstractIndexShardComponent {
         percolateMetric.inc(tookInNanos);
     }
 
-    public void addedQuery(HashedBytesRef id, Query previousQuery, Query newQuery) {
+    public void addedQuery(BytesRef id, Query previousQuery, Query newQuery) {
         numberOfQueries.inc();
     }
 
-    public void removedQuery(HashedBytesRef id, Query query) {
+    public void removedQuery(BytesRef id, Query query) {
         numberOfQueries.dec();
     }
 

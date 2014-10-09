@@ -19,8 +19,10 @@
 
 package org.elasticsearch.action.support.broadcast;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,26 +32,30 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequest> extends ActionRequest<T> {
+public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequest> extends ActionRequest<T> implements IndicesRequest.Replaceable {
 
     protected String[] indices;
-
-    private BroadcastOperationThreading operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
-    private IndicesOptions indicesOptions = IndicesOptions.strict();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
     protected BroadcastOperationRequest() {
 
+    }
+
+    protected BroadcastOperationRequest(ActionRequest originalRequest) {
+        super(originalRequest);
     }
 
     protected BroadcastOperationRequest(String[] indices) {
         this.indices = indices;
     }
 
+    @Override
     public String[] indices() {
         return indices;
     }
 
     @SuppressWarnings("unchecked")
+    @Override
     public final T indices(String... indices) {
         this.indices = indices;
         return (T) this;
@@ -60,29 +66,7 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
         return null;
     }
 
-    /**
-     * Controls the operation threading model.
-     */
-    public BroadcastOperationThreading operationThreading() {
-        return operationThreading;
-    }
-
-    /**
-     * Controls the operation threading model.
-     */
-    @SuppressWarnings("unchecked")
-    public final T operationThreading(BroadcastOperationThreading operationThreading) {
-        this.operationThreading = operationThreading;
-        return (T) this;
-    }
-
-    /**
-     * Controls the operation threading model.
-     */
-    public T operationThreading(String operationThreading) {
-        return operationThreading(BroadcastOperationThreading.fromString(operationThreading, this.operationThreading));
-    }
-
+    @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
     }
@@ -105,7 +89,9 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
-        out.writeByte(operationThreading.id());
+        if (out.getVersion().before(Version.V_1_2_0)) {
+            out.writeByte((byte) 2); // bwc operation threading
+        }
         indicesOptions.writeIndicesOptions(out);
     }
 
@@ -113,7 +99,9 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = in.readStringArray();
-        operationThreading = BroadcastOperationThreading.fromId(in.readByte());
+        if (in.getVersion().before(Version.V_1_2_0)) {
+            in.readByte(); // bwc operation threading
+        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 }

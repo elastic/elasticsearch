@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,19 +45,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeOperationAct
 
     @Inject
     public TransportGetSnapshotsAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                       ThreadPool threadPool, SnapshotsService snapshotsService) {
-        super(settings, transportService, clusterService, threadPool);
+                                       ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters) {
+        super(settings, GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.snapshotsService = snapshotsService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SNAPSHOT;
-    }
-
-    @Override
-    protected String transportAction() {
-        return GetSnapshotsAction.NAME;
     }
 
     @Override

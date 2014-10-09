@@ -25,8 +25,26 @@ import org.elasticsearch.ElasticsearchException;
  */
 public class CircuitBreakingException extends ElasticsearchException {
 
-    // TODO: maybe add more neat metrics here?
+    private final long bytesWanted;
+    private final long byteLimit;
+
     public CircuitBreakingException(String message) {
         super(message);
+        this.bytesWanted = 0;
+        this.byteLimit = 0;
+    }
+
+    public CircuitBreakingException(String message, long bytesWanted, long byteLimit) {
+        super(message);
+        this.bytesWanted = bytesWanted;
+        this.byteLimit = byteLimit;
+    }
+
+    public long getBytesWanted() {
+        return this.bytesWanted;
+    }
+
+    public long getByteLimit() {
+        return this.byteLimit;
     }
 }

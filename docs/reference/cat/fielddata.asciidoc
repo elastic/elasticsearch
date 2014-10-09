@@ -1,0 +1,34 @@
+[[cat-fielddata]]
+== cat fielddata
+
+`fielddata` shows information about currently loaded fielddata on a per-node
+basis.
+
+[source,shell]
+--------------------------------------------------
+% curl '192.168.56.10:9200/_cat/fielddata?v'
+id                     host    ip            node          total   body    text
+c223lARiSGeezlbrcugAYQ myhost1 10.20.100.200 Jessica Jones 385.6kb 159.8kb 225.7kb
+waPCbitNQaCL6xC8VxjAwg myhost2 10.20.100.201 Adversary     435.2kb 159.8kb 275.3kb
+yaDkp-G3R0q1AJ-HUEvkSQ myhost3 10.20.100.202 Microchip     284.6kb 109.2kb 175.3kb
+--------------------------------------------------
+
+Fields can be specified either as a query parameter, or in the URL path:
+
+[source,shell]
+--------------------------------------------------
+% curl '192.168.56.10:9200/_cat/fielddata?v&fields=body'
+id                     host    ip            node          total   body
+c223lARiSGeezlbrcugAYQ myhost1 10.20.100.200 Jessica Jones 385.6kb 159.8kb
+waPCbitNQaCL6xC8VxjAwg myhost2 10.20.100.201 Adversary     435.2kb 159.8kb
+yaDkp-G3R0q1AJ-HUEvkSQ myhost3 10.20.100.202 Microchip     284.6kb 109.2kb
+
+% curl '192.168.56.10:9200/_cat/fielddata/body,text?v'
+id                     host    ip            node          total   body    text
+c223lARiSGeezlbrcugAYQ myhost1 10.20.100.200 Jessica Jones 385.6kb 159.8kb 225.7kb
+waPCbitNQaCL6xC8VxjAwg myhost2 10.20.100.201 Adversary     435.2kb 159.8kb 275.3kb
+yaDkp-G3R0q1AJ-HUEvkSQ myhost3 10.20.100.202 Microchip     284.6kb 109.2kb 175.3kb
+--------------------------------------------------
+
+The output shows the total fielddata and then the individual fielddata for the
+`body` and `text` fields.

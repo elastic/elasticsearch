@@ -23,7 +23,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTimeConstants;
+import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeZone;
+import org.joda.time.DurationField;
 
 import java.io.IOException;
 
@@ -94,8 +96,8 @@ public abstract class TimeZoneRounding extends Rounding {
             return this;
         }
 
-        public TimeZoneRounding build() {
-            TimeZoneRounding timeZoneRounding;
+        public Rounding build() {
+            Rounding timeZoneRounding;
             if (unit != null) {
                 if (preTz.equals(DateTimeZone.UTC) && postTz.equals(DateTimeZone.UTC)) {
                     timeZoneRounding = new UTCTimeZoneRoundingFloor(unit);
@@ -114,10 +116,10 @@ public abstract class TimeZoneRounding extends Rounding {
                 }
             }
             if (preOffset != 0 || postOffset != 0) {
-                timeZoneRounding = new PrePostTimeZoneRounding(timeZoneRounding, preOffset, postOffset);
+                timeZoneRounding = new PrePostRounding(timeZoneRounding, preOffset, postOffset);
             }
             if (factor != 1.0f) {
-                timeZoneRounding = new FactorTimeZoneRounding(timeZoneRounding, factor);
+                timeZoneRounding = new FactorRounding(timeZoneRounding, factor);
             }
             return timeZoneRounding;
         }
@@ -128,6 +130,8 @@ public abstract class TimeZoneRounding extends Rounding {
         static final byte ID = 1;
 
         private DateTimeUnit unit;
+        private DateTimeField field;
+        private DurationField durationField;
         private DateTimeZone preTz;
         private DateTimeZone postTz;
 
@@ -136,6 +140,8 @@ public abstract class TimeZoneRounding extends Rounding {
 
         TimeTimeZoneRoundingFloor(DateTimeUnit unit, DateTimeZone preTz, DateTimeZone postTz) {
             this.unit = unit;
+            field = unit.field();
+            durationField = field.getDurationField();
             this.preTz = preTz;
             this.postTz = postTz;
         }
@@ -148,7 +154,7 @@ public abstract class TimeZoneRounding extends Rounding {
         @Override
         public long roundKey(long utcMillis) {
             long time = utcMillis + preTz.getOffset(utcMillis);
-            return unit.field().roundFloor(time);
+            return field.roundFloor(time);
         }
 
         @Override
@@ -162,12 +168,14 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long nextRoundingValue(long value) {
-            return unit.field().roundCeiling(value + 1);
+            return durationField.add(value, 1);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             unit = DateTimeUnit.resolve(in.readByte());
+            field = unit.field();
+            durationField = field.getDurationField();
             preTz = DateTimeZone.forID(in.readSharedString());
             postTz = DateTimeZone.forID(in.readSharedString());
         }
@@ -185,12 +193,16 @@ public abstract class TimeZoneRounding extends Rounding {
         final static byte ID = 2;
 
         private DateTimeUnit unit;
+        private DateTimeField field;
+        private DurationField durationField;
 
         UTCTimeZoneRoundingFloor() { // for serialization
         }
 
         UTCTimeZoneRoundingFloor(DateTimeUnit unit) {
             this.unit = unit;
+            field = unit.field();
+            durationField = field.getDurationField();
         }
 
         @Override
@@ -200,7 +212,7 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            return unit.field().roundFloor(utcMillis);
+            return field.roundFloor(utcMillis);
         }
 
         @Override
@@ -210,12 +222,14 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long nextRoundingValue(long value) {
-            return unit.field().roundCeiling(value + 1);
+            return durationField.add(value, 1);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             unit = DateTimeUnit.resolve(in.readByte());
+            field = unit.field();
+            durationField = field.getDurationField();
         }
 
         @Override
@@ -229,6 +243,8 @@ public abstract class TimeZoneRounding extends Rounding {
         final static byte ID = 3;
 
         private DateTimeUnit unit;
+        private DateTimeField field;
+        private DurationField durationField;
         private DateTimeZone preTz;
         private DateTimeZone postTz;
 
@@ -237,6 +253,8 @@ public abstract class TimeZoneRounding extends Rounding {
 
         DayTimeZoneRoundingFloor(DateTimeUnit unit, DateTimeZone preTz, DateTimeZone postTz) {
             this.unit = unit;
+            field = unit.field();
+            durationField = field.getDurationField();
             this.preTz = preTz;
             this.postTz = postTz;
         }
@@ -249,7 +267,7 @@ public abstract class TimeZoneRounding extends Rounding {
         @Override
         public long roundKey(long utcMillis) {
             long time = utcMillis + preTz.getOffset(utcMillis);
-            return unit.field().roundFloor(time);
+            return field.roundFloor(time);
         }
 
         @Override
@@ -262,12 +280,14 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long nextRoundingValue(long value) {
-            return unit.field().getDurationField().getUnitMillis() + value;
+            return durationField.add(value, 1);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             unit = DateTimeUnit.resolve(in.readByte());
+            field = unit.field();
+            durationField = field.getDurationField();
             preTz = DateTimeZone.forID(in.readSharedString());
             postTz = DateTimeZone.forID(in.readSharedString());
         }
@@ -437,108 +457,6 @@ public abstract class TimeZoneRounding extends Rounding {
             out.writeVLong(interval);
             out.writeSharedString(preTz.getID());
             out.writeSharedString(postTz.getID());
-        }
-    }
-
-    static class FactorTimeZoneRounding extends TimeZoneRounding {
-
-        final static byte ID = 7;
-
-        private TimeZoneRounding timeZoneRounding;
-
-        private float factor;
-
-        FactorTimeZoneRounding() { // for serialization
-        }
-
-        FactorTimeZoneRounding(TimeZoneRounding timeZoneRounding, float factor) {
-            this.timeZoneRounding = timeZoneRounding;
-            this.factor = factor;
-        }
-
-        @Override
-        public byte id() {
-            return ID;
-        }
-
-        @Override
-        public long roundKey(long utcMillis) {
-            return timeZoneRounding.roundKey((long) (factor * utcMillis));
-        }
-
-        @Override
-        public long valueForKey(long key) {
-            return timeZoneRounding.valueForKey(key);
-        }
-
-        @Override
-        public long nextRoundingValue(long value) {
-            return timeZoneRounding.nextRoundingValue(value);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            timeZoneRounding = (TimeZoneRounding) Rounding.Streams.read(in);
-            factor = in.readFloat();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            Rounding.Streams.write(timeZoneRounding, out);
-            out.writeFloat(factor);
-        }
-    }
-
-    static class PrePostTimeZoneRounding extends TimeZoneRounding {
-
-        final static byte ID = 8;
-
-        private TimeZoneRounding timeZoneRounding;
-
-        private long preOffset;
-        private long postOffset;
-
-        PrePostTimeZoneRounding() { // for serialization
-        }
-
-        PrePostTimeZoneRounding(TimeZoneRounding timeZoneRounding, long preOffset, long postOffset) {
-            this.timeZoneRounding = timeZoneRounding;
-            this.preOffset = preOffset;
-            this.postOffset = postOffset;
-        }
-
-        @Override
-        public byte id() {
-            return ID;
-        }
-
-        @Override
-        public long roundKey(long utcMillis) {
-            return timeZoneRounding.roundKey(utcMillis + preOffset);
-        }
-
-        @Override
-        public long valueForKey(long key) {
-            return postOffset + timeZoneRounding.valueForKey(key);
-        }
-
-        @Override
-        public long nextRoundingValue(long value) {
-            return postOffset + timeZoneRounding.nextRoundingValue(value - postOffset);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            timeZoneRounding = (TimeZoneRounding) Rounding.Streams.read(in);
-            preOffset = in.readVLong();
-            postOffset = in.readVLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            Rounding.Streams.write(timeZoneRounding, out);
-            out.writeVLong(preOffset);
-            out.writeVLong(postOffset);
         }
     }
 }

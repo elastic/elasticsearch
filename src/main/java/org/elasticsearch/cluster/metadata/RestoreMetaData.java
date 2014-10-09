@@ -397,7 +397,7 @@ public class RestoreMetaData implements MetaData.Custom {
     /**
      * Restore metadata factory
      */
-    public static class Factory implements MetaData.Custom.Factory<RestoreMetaData> {
+    public static class Factory extends MetaData.Custom.Factory<RestoreMetaData> {
 
         /**
          * {@inheritDoc}
@@ -512,15 +512,6 @@ public class RestoreMetaData implements MetaData.Custom {
             builder.endArray();
             builder.endObject();
         }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public boolean isPersistent() {
-            return false;
-        }
-
     }
 
 

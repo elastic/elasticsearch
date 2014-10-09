@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -32,7 +33,6 @@ import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.elasticsearch.common.lucene.search.Queries.optimizeQuery;
 
 /**
  *
@@ -132,7 +132,7 @@ public class BoolQueryParser implements QueryParser {
         }
 
         if (clauses.isEmpty()) {
-            return null;
+            return new MatchAllDocsQuery();
         }
 
         BooleanQuery booleanQuery = new BooleanQuery(disableCoord);
@@ -141,7 +141,7 @@ public class BoolQueryParser implements QueryParser {
         }
         booleanQuery.setBoost(boost);
         Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
-        Query query = optimizeQuery(adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery);
+        Query query = adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery;
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

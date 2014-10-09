@@ -20,10 +20,13 @@
 package org.elasticsearch.common.io;
 
 import com.google.common.base.Charsets;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.Callback;
 
 import java.io.*;
+import java.util.List;
 
 /**
  * Simple utility methods for file and stream copying.
@@ -296,5 +299,25 @@ public abstract class Streams {
             read += r;
         }
         return read;
+    }
+
+    public static List<String> readAllLines(InputStream input) throws IOException {
+        final List<String> lines = Lists.newArrayList();
+        readAllLines(input, new Callback<String>() {
+            @Override
+            public void handle(String line) {
+                lines.add(line);
+            }
+        });
+        return lines;
+    }
+
+    public static void readAllLines(InputStream input, Callback<String> callback) throws IOException {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, Charsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                callback.handle(line);
+            }
+        }
     }
 }

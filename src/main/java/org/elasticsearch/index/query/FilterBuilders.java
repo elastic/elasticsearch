@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -296,19 +297,6 @@ public abstract class FilterBuilders {
     }
 
     /**
-     * A filter that restricts search results to values that are within the given numeric range. Uses the
-     * field data cache (loading all the values for the specified field into memory)
-     *
-     * @param name The field name
-     * @deprecated The numeric_range filter will be removed at some point in time in favor for the range filter with
-     *             the execution mode <code>fielddata</code>.
-     */
-    @Deprecated
-    public static NumericRangeFilterBuilder numericRangeFilter(String name) {
-        return new NumericRangeFilterBuilder(name);
-    }
-
-    /**
      * A filter that simply wraps a query.
      *
      * @param queryBuilder The query to wrap as a filter
@@ -555,6 +543,15 @@ public abstract class FilterBuilders {
 
     public static WrapperFilterBuilder wrapperFilter(byte[] data, int offset, int length) {
         return new WrapperFilterBuilder(data, offset, length);
+    }
+
+    /**
+     * Constructs a bytes filter to generate a filter from a {@link BytesReference} source
+     *
+     * @param source The filter source
+     */
+    public static BytesFilterBuilder bytesFilter(BytesReference source) {
+        return new BytesFilterBuilder(source);
     }
 
     private FilterBuilders() {

@@ -38,6 +38,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -46,7 +47,7 @@ import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Service component for running benchmarks
@@ -56,16 +57,20 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportService transportService;
-    private final BenchmarkExecutor executor;
+    protected final BenchmarkExecutor executor;
+
+    public static final String ABORT_ACTION_NAME = "indices:data/benchmark/executor/abort";
+    public static final String STATUS_ACTION_NAME = "indices:data/benchmark/executor/status";
+    public static final String START_ACTION_NAME = "indices:data/benchmark/executor/start";
 
     /**
      * Constructs a service component for running benchmarks
      *
-     * @param settings          Settings
-     * @param clusterService    Cluster service
-     * @param threadPool        Thread pool
-     * @param client            Client
-     * @param transportService  Transport service
+     * @param settings         Settings
+     * @param clusterService   Cluster service
+     * @param threadPool       Thread pool
+     * @param client           Client
+     * @param transportService Transport service
      */
     @Inject
     public BenchmarkService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
@@ -75,37 +80,39 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         this.executor = new BenchmarkExecutor(client, clusterService);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        transportService.registerHandler(BenchExecutionHandler.ACTION, new BenchExecutionHandler());
-        transportService.registerHandler(AbortExecutionHandler.ACTION, new AbortExecutionHandler());
-        transportService.registerHandler(StatusExecutionHandler.ACTION, new StatusExecutionHandler());
+        transportService.registerHandler(START_ACTION_NAME, new BenchExecutionHandler());
+        transportService.registerHandler(ABORT_ACTION_NAME, new AbortExecutionHandler());
+        transportService.registerHandler(STATUS_ACTION_NAME, new StatusExecutionHandler());
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException { }
+    protected void doStart() throws ElasticsearchException {
+    }
 
     @Override
-    protected void doStop() throws ElasticsearchException { }
+    protected void doStop() throws ElasticsearchException {
+    }
 
     @Override
-    protected void doClose() throws ElasticsearchException { }
+    protected void doClose() throws ElasticsearchException {
+    }
 
     /**
      * Lists actively running benchmarks on the cluster
      *
-     * @param request   Status request
-     * @param listener  Response listener
+     * @param request  Status request
+     * @param listener Response listener
      */
     public void listBenchmarks(final BenchmarkStatusRequest request, final ActionListener<BenchmarkStatusResponse> listener) {
 
         final List<DiscoveryNode> nodes = availableBenchmarkNodes();
         if (nodes.size() == 0) {
-            listener.onFailure(new BenchmarkNodeMissingException("No available nodes for executing benchmarks"));
+            listener.onResponse(new BenchmarkStatusResponse());
         } else {
             BenchmarkStatusAsyncHandler async = new BenchmarkStatusAsyncHandler(nodes.size(), request, listener);
             for (DiscoveryNode node : nodes) {
-                if (isBenchmarkNode(node)) {
-                    transportService.sendRequest(node, StatusExecutionHandler.ACTION, new NodeStatusRequest(request), async);
-                }
+                assert isBenchmarkNode(node);
+                transportService.sendRequest(node, STATUS_ACTION_NAME, new NodeStatusRequest(request), async);
             }
         }
     }
@@ -113,10 +120,10 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     /**
      * Aborts actively running benchmarks on the cluster
      *
-     * @param benchmarkName Benchmark name to abort
-     * @param listener      Response listener
+     * @param benchmarkNames Benchmark name(s) to abort
+     * @param listener       Response listener
      */
-    public void abortBenchmark(final String benchmarkName, final ActionListener<AbortBenchmarkResponse> listener) {
+    public void abortBenchmark(final String[] benchmarkNames, final ActionListener<AbortBenchmarkResponse> listener) {
 
         final List<DiscoveryNode> nodes = availableBenchmarkNodes();
         if (nodes.size() == 0) {
@@ -124,25 +131,34 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         } else {
             BenchmarkStateListener benchmarkStateListener = new BenchmarkStateListener() {
                 @Override
-                public void onResponse(final ClusterState newState, final BenchmarkMetaData.Entry entry) {
-                    if (entry != null) {
+                public void onResponse(final ClusterState newState, final List<BenchmarkMetaData.Entry> changed) {
+                    if (!changed.isEmpty()) {
                         threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
                             @Override
                             public void run() {
+                                Set<String> names = new HashSet<>();
+                                Set<String> nodeNames = new HashSet<>();
                                 final ImmutableOpenMap<String, DiscoveryNode> nodes = newState.nodes().nodes();
-                                BenchmarkAbortAsyncHandler async = new BenchmarkAbortAsyncHandler(entry.nodes().length, benchmarkName, listener);
-                                for (String nodeId : entry.nodes()) {
+
+                                for (BenchmarkMetaData.Entry e : changed) {
+                                    names.add(e.benchmarkId());
+                                    nodeNames.addAll(Arrays.asList(e.nodes()));
+                                }
+                                BenchmarkAbortAsyncHandler asyncHandler = new BenchmarkAbortAsyncHandler(nodeNames.size(), listener);
+                                String[] benchmarkNames = names.toArray(new String[names.size()]);
+                                for (String nodeId : nodeNames) {
                                     final DiscoveryNode node = nodes.get(nodeId);
                                     if (node != null) {
-                                        transportService.sendRequest(node, AbortExecutionHandler.ACTION, new NodeAbortRequest(benchmarkName), async);
+                                        transportService.sendRequest(node, ABORT_ACTION_NAME, new NodeAbortRequest(benchmarkNames), asyncHandler);
                                     } else {
+                                        asyncHandler.countDown.countDown();
                                         logger.debug("Node for ID [" + nodeId + "] not found in cluster state - skipping");
                                     }
                                 }
                             }
                         });
                     } else {
-                        listener.onResponse(new AbortBenchmarkResponse(benchmarkName, "Benchmark with name [" + benchmarkName + "] not found"));
+                        listener.onFailure(new BenchmarkMissingException("No benchmarks found for " + Arrays.toString(benchmarkNames)));
                     }
                 }
 
@@ -151,16 +167,15 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                     listener.onFailure(t);
                 }
             };
-
-            clusterService.submitStateUpdateTask("abort_benchmark", new AbortBenchmarkTask(benchmarkName, benchmarkStateListener));
+            clusterService.submitStateUpdateTask("abort_benchmark", new AbortBenchmarkTask(benchmarkNames, benchmarkStateListener));
         }
     }
 
     /**
      * Executes benchmarks on the cluster
      *
-     * @param request   Benchmark request
-     * @param listener  Response listener
+     * @param request  Benchmark request
+     * @param listener Response listener
      */
     public void startBenchmark(final BenchmarkRequest request, final ActionListener<BenchmarkResponse> listener) {
 
@@ -171,10 +186,12 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         } else {
             final BenchmarkStateListener benchListener = new BenchmarkStateListener() {
                 @Override
-                public void onResponse(final ClusterState newState, final BenchmarkMetaData.Entry entry) {
+                public void onResponse(final ClusterState newState, final List<BenchmarkMetaData.Entry> entries) {
                     threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
                         @Override
                         public void run() {
+                            assert entries.size() == 1;
+                            BenchmarkMetaData.Entry entry = entries.get(0);
                             final ImmutableOpenMap<String, DiscoveryNode> nodes = newState.nodes().nodes();
                             final BenchmarkSearchAsyncHandler async = new BenchmarkSearchAsyncHandler(entry.nodes().length, request, listener);
                             for (String nodeId : entry.nodes()) {
@@ -184,7 +201,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                                             new ElasticsearchIllegalStateException("Node for ID [" + nodeId + "] not found in cluster state - skipping"));
                                 } else {
                                     logger.debug("Starting benchmark [{}] node [{}]", request.benchmarkName(), node.name());
-                                    transportService.sendRequest(node, BenchExecutionHandler.ACTION, new NodeBenchRequest(request), async);
+                                    transportService.sendRequest(node, START_ACTION_NAME, new NodeBenchRequest(request), async);
                                 }
                             }
                         }
@@ -205,7 +222,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         clusterService.submitStateUpdateTask("finish_benchmark", new FinishBenchmarkTask("finish_benchmark", benchmarkId, new BenchmarkStateListener() {
             @Override
-            public void onResponse(ClusterState newClusterState, BenchmarkMetaData.Entry changed) {
+            public void onResponse(ClusterState newClusterState, List<BenchmarkMetaData.Entry> changed) {
                 listener.onResponse(benchmarkResponse);
             }
 
@@ -213,7 +230,8 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
             public void onFailure(Throwable t) {
                 listener.onFailure(t);
             }
-        }, !benchmarkResponse.isAborted() && !benchmarkResponse.hasFailures()));
+        }, (benchmarkResponse.state() != BenchmarkResponse.State.ABORTED) &&
+                (benchmarkResponse.state() != BenchmarkResponse.State.FAILED)));
     }
 
     private final boolean isBenchmarkNode(DiscoveryNode node) {
@@ -246,8 +264,6 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
     private class BenchExecutionHandler extends BaseTransportRequestHandler<NodeBenchRequest> {
 
-        static final String ACTION = "benchmark/executor/start";
-
         @Override
         public NodeBenchRequest newInstance() {
             return new NodeBenchRequest();
@@ -267,8 +283,6 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
     private class StatusExecutionHandler extends BaseTransportRequestHandler<NodeStatusRequest> {
 
-        static final String ACTION = "benchmark/executor/status";
-
         @Override
         public NodeStatusRequest newInstance() {
             return new NodeStatusRequest();
@@ -283,13 +297,12 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         @Override
         public String executor() {
-            return ThreadPool.Names.BENCH;
+            // Perform management tasks on GENERIC so as not to block pending acquisition of a thread from BENCH.
+            return ThreadPool.Names.GENERIC;
         }
     }
 
     private class AbortExecutionHandler extends BaseTransportRequestHandler<NodeAbortRequest> {
-
-        static final String ACTION = "benchmark/executor/abort";
 
         @Override
         public NodeAbortRequest newInstance() {
@@ -298,22 +311,22 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         @Override
         public void messageReceived(NodeAbortRequest request, TransportChannel channel) throws Exception {
-            AbortBenchmarkNodeResponse nodeResponse = executor.abortBenchmark(request.benchmarkId);
-            nodeResponse.nodeName(clusterService.localNode().name());
+            AbortBenchmarkResponse nodeResponse = executor.abortBenchmark(request.benchmarkNames);
             channel.sendResponse(nodeResponse);
         }
 
         @Override
         public String executor() {
-            return ThreadPool.Names.BENCH;
+            // Perform management tasks on GENERIC so as not to block pending acquisition of a thread from BENCH.
+            return ThreadPool.Names.GENERIC;
         }
     }
 
     public static class NodeAbortRequest extends TransportRequest {
-        private String benchmarkId;
+        private String[] benchmarkNames;
 
-        public NodeAbortRequest(String benchmarkId) {
-            this.benchmarkId = benchmarkId;
+        public NodeAbortRequest(String[] benchmarkNames) {
+            this.benchmarkNames = benchmarkNames;
         }
 
         public NodeAbortRequest() {
@@ -323,13 +336,13 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            benchmarkId = in.readString();
+            benchmarkNames = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(benchmarkId);
+            out.writeStringArray(benchmarkNames);
         }
     }
 
@@ -393,6 +406,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         }
 
         public abstract T newInstance();
+
         protected abstract void sendResponse();
 
         @Override
@@ -406,6 +420,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         @Override
         public void handleException(TransportException t) {
             failures.add(t);
+            logger.error(t.getMessage(), t);
             if (countDown.countDown()) {
                 sendResponse();
             }
@@ -416,30 +431,30 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         }
     }
 
-    private class BenchmarkAbortAsyncHandler extends CountDownAsyncHandler<AbortBenchmarkNodeResponse> {
+    private class BenchmarkAbortAsyncHandler extends CountDownAsyncHandler<AbortBenchmarkResponse> {
 
-        private final String benchmarkName;
         private final ActionListener<AbortBenchmarkResponse> listener;
 
-        public BenchmarkAbortAsyncHandler(int size, String benchmarkName, ActionListener<AbortBenchmarkResponse> listener) {
+        public BenchmarkAbortAsyncHandler(int size, ActionListener<AbortBenchmarkResponse> listener) {
             super(size);
-            this.benchmarkName = benchmarkName;
             this.listener = listener;
         }
 
         @Override
-        public AbortBenchmarkNodeResponse newInstance() {
-            return new AbortBenchmarkNodeResponse();
+        public AbortBenchmarkResponse newInstance() {
+            return new AbortBenchmarkResponse();
         }
 
         @Override
         protected void sendResponse() {
-            AbortBenchmarkResponse abortResponse = new AbortBenchmarkResponse(benchmarkName);
-            // Merge all node responses into a single response
-            for (AbortBenchmarkNodeResponse nodeResponse : responses) {
-                abortResponse.addNodeResponse(nodeResponse);
+            boolean acked = true;
+            for (AbortBenchmarkResponse nodeResponse : responses) {
+                if (!nodeResponse.isAcknowledged()) {
+                    acked = false;
+                    break;
+                }
             }
-            listener.onResponse(abortResponse);
+            listener.onResponse(new AbortBenchmarkResponse(acked));
         }
     }
 
@@ -461,6 +476,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         @Override
         protected void sendResponse() {
+            int activeBenchmarks = 0;
             BenchmarkStatusResponse consolidatedResponse = new BenchmarkStatusResponse();
             Map<String, List<BenchmarkResponse>> nameNodeResponseMap = new HashMap<>();
 
@@ -474,6 +490,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                     }
                     benchmarkResponses.add(benchmarkResponse);
                 }
+                activeBenchmarks += nodeResponse.activeBenchmarks();
             }
 
             for (Map.Entry<String, List<BenchmarkResponse>> entry : nameNodeResponseMap.entrySet()) {
@@ -481,6 +498,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                 consolidatedResponse.addBenchResponse(consolidated);
             }
 
+            consolidatedResponse.totalActiveBenchmarks(activeBenchmarks);
             listener.onResponse(consolidatedResponse);
         }
     }
@@ -489,6 +507,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         BenchmarkResponse response = new BenchmarkResponse();
 
         // Merge node responses into a single consolidated response
+        List<String> errors = new ArrayList<>();
         for (BenchmarkResponse r : responses) {
             for (Map.Entry<String, CompetitionResult> entry : r.competitionResults.entrySet()) {
                 if (!response.competitionResults.containsKey(entry.getKey())) {
@@ -500,11 +519,21 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                 CompetitionResult cr = response.competitionResults.get(entry.getKey());
                 cr.nodeResults().addAll(entry.getValue().nodeResults());
             }
+            if (r.hasErrors()) {
+                for (String error : r.errors()) {
+                    errors.add(error);
+                }
+            }
 
             if (response.benchmarkName() == null) {
                 response.benchmarkName(r.benchmarkName());
             }
             assert response.benchmarkName().equals(r.benchmarkName());
+            if (!errors.isEmpty()) {
+                response.errors(errors.toArray(new String[errors.size()]));
+            }
+            response.mergeState(r.state());
+            assert errors.isEmpty() || response.state() != BenchmarkResponse.State.COMPLETE : "Response can't be complete since it has errors";
         }
 
         return response;
@@ -531,7 +560,6 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
             BenchmarkResponse response = consolidateBenchmarkResponses(responses);
             response.benchmarkName(request.benchmarkName());
             response.verbose(request.verbose());
-            response.state(BenchmarkResponse.State.COMPLETE);
             finishBenchmark(response, request.benchmarkName(), listener);
         }
 
@@ -545,7 +573,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
     public static interface BenchmarkStateListener {
 
-        void onResponse(ClusterState newClusterState, BenchmarkMetaData.Entry changed);
+        void onResponse(ClusterState newClusterState, List<BenchmarkMetaData.Entry> changed);
 
         void onFailure(Throwable t);
     }
@@ -553,7 +581,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     public final class StartBenchmarkTask extends BenchmarkStateChangeAction<BenchmarkRequest> {
 
         private final BenchmarkStateListener stateListener;
-        private BenchmarkMetaData.Entry newBenchmark = null;
+        private List<BenchmarkMetaData.Entry> newBenchmark = new ArrayList<>();
 
         public StartBenchmarkTask(BenchmarkRequest request, BenchmarkStateListener stateListener) {
             super(request);
@@ -569,7 +597,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
             if (bmd != null) {
                 for (BenchmarkMetaData.Entry entry : bmd.entries()) {
-                    if (request.benchmarkName().equals(entry.benchmarkId())){
+                    if (request.benchmarkName().equals(entry.benchmarkId())) {
                         if (entry.state() != BenchmarkMetaData.State.SUCCESS && entry.state() != BenchmarkMetaData.State.FAILED) {
                             throw new ElasticsearchException("A benchmark with ID [" + request.benchmarkName() + "] is already running in state [" + entry.state() + "]");
                         }
@@ -585,15 +613,16 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
             for (DiscoveryNode node : nodes) {
                 nodeIds[i++] = node.getId();
             }
-            newBenchmark = new BenchmarkMetaData.Entry(request.benchmarkName(), BenchmarkMetaData.State.STARTED, nodeIds);
-            bmd = new BenchmarkMetaData(builder.add(newBenchmark).build());
+            BenchmarkMetaData.Entry entry = new BenchmarkMetaData.Entry(request.benchmarkName(), BenchmarkMetaData.State.STARTED, nodeIds);
+            newBenchmark.add(entry);
+            bmd = new BenchmarkMetaData(builder.add(entry).build());
             mdBuilder.putCustom(BenchmarkMetaData.TYPE, bmd);
             return ClusterState.builder(currentState).metaData(mdBuilder).build();
         }
 
         @Override
         public void onFailure(String source, Throwable t) {
-            logger.warn("failed to start benchmark: [{}]", t, request.benchmarkName());
+            logger.warn("Failed to start benchmark: [{}]", t, request.benchmarkName());
             newBenchmark = null;
             stateListener.onFailure(t);
         }
@@ -623,7 +652,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         @Override
         protected BenchmarkMetaData.Entry process(BenchmarkMetaData.Entry entry) {
             BenchmarkMetaData.State state = entry.state();
-            assert state == BenchmarkMetaData.State.STARTED || state == BenchmarkMetaData.State.ABORTED :  "Expected state: STARTED or ABORTED but was: " + entry.state();
+            assert state == BenchmarkMetaData.State.STARTED || state == BenchmarkMetaData.State.ABORTED : "Expected state: STARTED or ABORTED but was: " + entry.state();
             if (success) {
                 return new BenchmarkMetaData.Entry(entry, BenchmarkMetaData.State.SUCCESS);
             } else {
@@ -633,31 +662,39 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     }
 
     public final class AbortBenchmarkTask extends UpdateBenchmarkStateTask {
-        public AbortBenchmarkTask(String benchmarkId, BenchmarkStateListener listener) {
-            super("abort_benchmark", benchmarkId, listener);
+        private final String[] patterns;
+
+        public AbortBenchmarkTask(String[] patterns, BenchmarkStateListener listener) {
+            super("abort_benchmark", null, listener);
+            this.patterns = patterns;
+        }
+
+        protected boolean match(BenchmarkMetaData.Entry entry) {
+            return entry.state() == BenchmarkMetaData.State.STARTED && Regex.simpleMatch(this.patterns, benchmarkId);
         }
 
         @Override
         protected BenchmarkMetaData.Entry process(BenchmarkMetaData.Entry entry) {
-            BenchmarkMetaData.State state = entry.state();
-            if (state != BenchmarkMetaData.State.STARTED) {
-                throw new ElasticsearchIllegalStateException("Can't abort benchmark for id: [" + benchmarkId + "] - illegal state [" + state + "]");
-            }
             return new BenchmarkMetaData.Entry(entry, BenchmarkMetaData.State.ABORTED);
         }
     }
 
-    public abstract class UpdateBenchmarkStateTask implements ProcessedClusterStateUpdateTask {
+    public abstract class UpdateBenchmarkStateTask extends ProcessedClusterStateUpdateTask {
 
         private final String reason;
         protected final String benchmarkId;
         private final BenchmarkStateListener listener;
-        private BenchmarkMetaData.Entry instance;
+        private final List<BenchmarkMetaData.Entry> instances = new ArrayList<>();
+
 
         protected UpdateBenchmarkStateTask(String reason, String benchmarkId, BenchmarkStateListener listener) {
             this.reason = reason;
             this.listener = listener;
             this.benchmarkId = benchmarkId;
+        }
+
+        protected boolean match(BenchmarkMetaData.Entry entry) {
+            return entry.benchmarkId().equals(this.benchmarkId);
         }
 
         @Override
@@ -667,17 +704,11 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
             MetaData.Builder mdBuilder = MetaData.builder(metaData);
             if (bmd != null && !bmd.entries().isEmpty()) {
                 ImmutableList.Builder<BenchmarkMetaData.Entry> builder = new ImmutableList.Builder<BenchmarkMetaData.Entry>();
-                boolean found = false;
                 for (BenchmarkMetaData.Entry e : bmd.entries()) {
-                    if (benchmarkId == null || e.benchmarkId().equals(benchmarkId)) {
+                    if (benchmarkId == null || match(e)) {
                         e = process(e);
-                        if (benchmarkId != null) {
-                            assert instance == null : "Illegal state more than one benchmark with he same id [" + benchmarkId + "]";
-                            instance = e;
-                        }
-                        found = true;
+                        instances.add(e);
                     }
-
                     // Don't keep finished benchmarks around in cluster state
                     if (e != null && (e.state() != BenchmarkMetaData.State.SUCCESS &&
                             e.state() != BenchmarkMetaData.State.ABORTED &&
@@ -685,7 +716,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                         builder.add(e);
                     }
                 }
-                if (!found) {
+                if (instances.isEmpty()) {
                     throw new ElasticsearchException("No Benchmark found for id: [" + benchmarkId + "]");
                 }
                 bmd = new BenchmarkMetaData(builder.build());
@@ -706,7 +737,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         @Override
         public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
-            listener.onResponse(newState, instance);
+            listener.onResponse(newState, instances);
         }
 
         public String reason() {
@@ -714,7 +745,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         }
     }
 
-    public abstract class BenchmarkStateChangeAction<R extends MasterNodeOperationRequest> implements TimeoutClusterStateUpdateTask {
+    public abstract class BenchmarkStateChangeAction<R extends MasterNodeOperationRequest> extends TimeoutClusterStateUpdateTask {
         protected final R request;
 
         public BenchmarkStateChangeAction(R request) {

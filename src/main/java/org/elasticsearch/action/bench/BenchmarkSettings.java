@@ -43,6 +43,7 @@ public class BenchmarkSettings implements Streamable {
     public static final int DEFAULT_NUM_SLOWEST = 1;
     public static final boolean DEFAULT_WARMUP = true;
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.DEFAULT;
+    public static final double[] DEFAULT_PERCENTILES = { 10, 25, 50, 75, 90, 99 };
 
     private int concurrency = DEFAULT_CONCURRENCY;
     private int iterations = DEFAULT_ITERATIONS;

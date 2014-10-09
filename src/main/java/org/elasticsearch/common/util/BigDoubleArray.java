@@ -22,7 +22,6 @@ package org.elasticsearch.common.util;
 import com.google.common.base.Preconditions;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 
 import java.util.Arrays;
 
@@ -37,8 +36,8 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     private double[][] pages;
 
     /** Constructor. */
-    public BigDoubleArray(long size, PageCacheRecycler recycler, boolean clearOnResize) {
-        super(DOUBLE_PAGE_SIZE, recycler, clearOnResize);
+    public BigDoubleArray(long size, BigArrays bigArrays, boolean clearOnResize) {
+        super(DOUBLE_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
         pages = new double[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {

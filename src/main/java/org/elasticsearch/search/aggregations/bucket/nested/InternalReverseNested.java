@@ -57,4 +57,8 @@ public class InternalReverseNested extends InternalSingleBucketAggregation imple
         return TYPE;
     }
 
+    @Override
+    protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
+        return new InternalReverseNested(name, docCount, subAggregations);
+    }
 }

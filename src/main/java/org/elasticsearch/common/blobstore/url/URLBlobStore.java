@@ -19,14 +19,15 @@
 
 package org.elasticsearch.common.blobstore.url;
 
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -36,8 +37,6 @@ import java.util.concurrent.Executor;
  * Read-only URL-based blob store
  */
 public class URLBlobStore extends AbstractComponent implements BlobStore {
-
-    private final Executor executor;
 
     private final URL path;
 
@@ -53,14 +52,12 @@ public class URLBlobStore extends AbstractComponent implements BlobStore {
      * </dl>
      *
      * @param settings settings
-     * @param executor executor for read operations
      * @param path     base URL
      */
-    public URLBlobStore(Settings settings, Executor executor, URL path) {
+    public URLBlobStore(Settings settings, URL path) {
         super(settings);
         this.path = path;
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
-        this.executor = executor;
     }
 
     /**
@@ -90,21 +87,12 @@ public class URLBlobStore extends AbstractComponent implements BlobStore {
     }
 
     /**
-     * Returns executor used for read operations
-     *
-     * @return executor
-     */
-    public Executor executor() {
-        return executor;
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
-    public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
+    public BlobContainer blobContainer(BlobPath path) {
         try {
-            return new URLImmutableBlobContainer(this, path, buildPath(path));
+            return new URLBlobContainer(this, path, buildPath(path));
         } catch (MalformedURLException ex) {
             throw new BlobStoreException("malformed URL " + path, ex);
         }

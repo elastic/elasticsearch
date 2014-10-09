@@ -65,7 +65,7 @@ setting the routing parameter.
 
 Note that deleting a parent document does not automatically delete its
 children. One way of deleting all child documents given a parent's id is
-to perform a <<docs-delete-by-query,delete by query>> on the child 
+to perform a <<docs-delete-by-query,delete by query>> on the child
 index with the automatically generated (and indexed)
 field _parent, which is in the format parent_type#parent_id.
 
@@ -74,7 +74,7 @@ field _parent, which is in the format parent_type#parent_id.
 === Automatic index creation
 
 The delete operation automatically creates an index if it has not been
-created before (check out the <<indices-create-index,create index API>> 
+created before (check out the <<indices-create-index,create index API>>
 for manually creating an index), and also automatically creates a
 dynamic type mapping for the specific type if it has not been created
 before (check out the <<indices-put-mapping,put mapping>>
@@ -117,11 +117,11 @@ is the same).
 [[delete-refresh]]
 === Refresh
 
-The `refresh` parameter can be set to `true` in order to refresh the
-relevant shard after the delete operation has occurred and make it
-searchable. Setting it to `true` should be done after careful thought
-and verification that this does not cause a heavy load on the system
-(and slows down indexing).
+The `refresh` parameter can be set to `true` in order to refresh the relevant
+primary and replica shards after the delete operation has occurred and make it
+searchable. Setting it to `true` should be done after careful thought and
+verification that this does not cause a heavy load on the system (and slows
+down indexing).
 
 [float]
 [[delete-timeout]]

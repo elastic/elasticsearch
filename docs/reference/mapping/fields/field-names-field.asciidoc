@@ -1,0 +1,9 @@
+[[mapping-field-names-field]]
+=== `_field_names`
+
+The `_field_names` field indexes the field names of a document, which can later
+be used to search for documents based on the fields that they contain typically
+using the `exists` and `missing` filters.
+
+`_field_names` is indexed by default for indices that have been created after
+Elasticsearch 1.3.0.

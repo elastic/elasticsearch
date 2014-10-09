@@ -43,8 +43,8 @@ doesn't take the query into account that is part of request.
     included or controls for what suggest text terms, suggestions should be
     suggested. Three possible values can be specified: 
 +    
-     ** `missing`:  Only suggest terms in the suggest text that aren't in
-                    the index. This is the default. 
+     ** `missing`:  Only provide suggestions for suggest text terms that are
+                    not in the index. This is the default. 
      ** `popular`:  Only suggest suggestions that occur in more docs then
                     the original suggest text term. 
      ** `always`:   Suggest any matching suggestions based on terms in the

@@ -23,7 +23,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.SuggestWord;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
@@ -40,7 +41,7 @@ import java.util.List;
 public final class TermSuggester extends Suggester<TermSuggestionContext> {
 
     @Override
-    public TermSuggestion innerExecute(String name, TermSuggestionContext suggestion, IndexReader indexReader, CharsRef spare) throws IOException {
+    public TermSuggestion innerExecute(String name, TermSuggestionContext suggestion, IndexReader indexReader, CharsRefBuilder spare) throws IOException {
         DirectSpellChecker directSpellChecker = SuggestUtils.getDirectSpellChecker(suggestion.getDirectSpellCheckerSettings());
 
         TermSuggestion response = new TermSuggestion(
@@ -74,13 +75,13 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
     }
 
 
-    private List<Token> queryTerms(SuggestionContext suggestion, CharsRef spare) throws IOException {
+    private List<Token> queryTerms(SuggestionContext suggestion, CharsRefBuilder spare) throws IOException {
         final List<Token> result = new ArrayList<>();
         final String field = suggestion.getField();
         SuggestUtils.analyze(suggestion.getAnalyzer(), suggestion.getText(), field, new SuggestUtils.TokenConsumer() {
             @Override
             public void nextToken() {
-                Term term = new Term(field, BytesRef.deepCopyOf(fillBytesRef(new BytesRef())));
+                Term term = new Term(field, BytesRef.deepCopyOf(fillBytesRef(new BytesRefBuilder())));
                 result.add(new Token(term, offsetAttr.startOffset(), offsetAttr.endOffset())); 
             }
         }, spare);

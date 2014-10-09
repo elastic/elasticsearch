@@ -36,8 +36,8 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 public class RestNodesShutdownAction extends BaseRestHandler {
 
     @Inject
-    public RestNodesShutdownAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestNodesShutdownAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         controller.registerHandler(RestRequest.Method.POST, "/_shutdown", this);
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/nodes/_shutdown", this);
@@ -45,7 +45,7 @@ public class RestNodesShutdownAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesShutdownRequest nodesShutdownRequest = new NodesShutdownRequest(nodesIds);
         nodesShutdownRequest.listenerThreaded(false);

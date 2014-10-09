@@ -1,7 +1,7 @@
 [[search]]
 == Search API
 
-The search API allows to execute a search query and get back search hits
+The search API allows one to execute a search query and get back search hits
 that match the query. It can be executed across one or more indices and
 across one or more types. The query can either be provided using the
 <<query-dsl-queries,query Java API>> or
@@ -76,7 +76,7 @@ while (true) {
 
 === Operation Threading
 
-The search API allows to set the threading model the operation will be
+The search API allows one to set the threading model the operation will be
 performed when the actual execution of the API is performed on the same
 node (the API is executed on a shard that is allocated on the same
 server).

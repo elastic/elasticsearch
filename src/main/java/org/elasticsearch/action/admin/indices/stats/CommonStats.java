@@ -24,10 +24,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.id.IdCacheStats;
+import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
@@ -111,6 +113,9 @@ public class CommonStats implements Streamable, ToXContent {
                 case Suggest:
                     suggest = new SuggestStats();
                     break;
+                case QueryCache:
+                    queryCache = new QueryCacheStats();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -174,6 +179,9 @@ public class CommonStats implements Streamable, ToXContent {
                 case Suggest:
                     suggest = indexShard.suggestStats();
                     break;
+                case QueryCache:
+                    queryCache = indexShard.queryCache().stats();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -230,6 +238,9 @@ public class CommonStats implements Streamable, ToXContent {
 
     @Nullable
     public SuggestStats suggest;
+
+    @Nullable
+    public QueryCacheStats queryCache;
 
     public void add(CommonStats stats) {
         if (docs == null) {
@@ -370,6 +381,14 @@ public class CommonStats implements Streamable, ToXContent {
         } else {
             suggest.add(stats.getSuggest());
         }
+        if (queryCache == null) {
+            if (stats.getQueryCache() != null) {
+                queryCache = new QueryCacheStats();
+                queryCache.add(stats.getQueryCache());
+            }
+        } else {
+            queryCache.add(stats.getQueryCache());
+        }
     }
 
     @Nullable
@@ -457,10 +476,42 @@ public class CommonStats implements Streamable, ToXContent {
         return suggest;
     }
 
+    @Nullable
+    public QueryCacheStats getQueryCache() {
+        return queryCache;
+    }
+
     public static CommonStats readCommonStats(StreamInput in) throws IOException {
         CommonStats stats = new CommonStats();
         stats.readFrom(in);
         return stats;
+    }
+
+    /**
+     * Utility method which computes total memory by adding
+     * FieldData, IdCache, Percolate, Segments (memory, index writer, version map)
+     */
+    public ByteSizeValue getTotalMemory() {
+        long size = 0;
+        if (this.getFieldData() != null) {
+            size += this.getFieldData().getMemorySizeInBytes();
+        }
+        if (this.getFilterCache() != null) {
+            size += this.getFilterCache().getMemorySizeInBytes();
+        }
+        if (this.getIdCache() != null) {
+            size += this.getIdCache().getMemorySizeInBytes();
+        }
+        if (this.getPercolate() != null) {
+            size += this.getPercolate().getMemorySizeInBytes();
+        }
+        if (this.getSegments() != null) {
+            size += this.getSegments().getMemoryInBytes() +
+                    this.getSegments().getIndexWriterMemoryInBytes() +
+                    this.getSegments().getVersionMapMemoryInBytes();
+        }
+
+        return new ByteSizeValue(size);
     }
 
     @Override
@@ -513,6 +564,9 @@ public class CommonStats implements Streamable, ToXContent {
         translog = in.readOptionalStreamable(new TranslogStats());
         if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
             suggest = in.readOptionalStreamable(new SuggestStats());
+        }
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            queryCache = in.readOptionalStreamable(new QueryCacheStats());
         }
     }
 
@@ -612,6 +666,9 @@ public class CommonStats implements Streamable, ToXContent {
         if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
             out.writeOptionalStreamable(suggest);
         }
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            out.writeOptionalStreamable(queryCache);
+        }
     }
 
     // note, requires a wrapping object
@@ -667,6 +724,9 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (suggest != null) {
             suggest.toXContent(builder, params);
+        }
+        if (queryCache != null) {
+            queryCache.toXContent(builder, params);
         }
         return builder;
     }

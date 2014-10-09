@@ -1,16 +1,13 @@
 [[mapping-root-object-type]]
 === Root Object Type
 
-The root object mapping is an
-<<mapping-object-type,object type mapping>> that
-maps the root object (the type itself). On top of all the different
-mappings that can be set using the
-<<mapping-object-type,object type mapping>>, it
-allows for additional, type level mapping definitions.
+The root object mapping is an <<mapping-object-type,object type mapping>> that
+maps the root object (the type itself). It supports all of the different
+mappings that can be set using the <<mapping-object-type,object type mapping>>.
 
-The root object mapping allows to index a JSON document that either
-starts with the actual mapping type, or only contains its fields. For
-example, the following `tweet` JSON can be indexed:
+The root object mapping allows to index a JSON document that only contains its
+fields. For example, the following `tweet` JSON can be indexed without
+specifying the `tweet` type in the document itself:
 
 [source,js]
 --------------------------------------------------
@@ -18,20 +15,6 @@ example, the following `tweet` JSON can be indexed:
     "message" : "This is a tweet!"
 }
 --------------------------------------------------
-
-But, also the following JSON can be indexed:
-
-[source,js]
---------------------------------------------------
-{
-    "tweet" : {
-        "message" : "This is a tweet!"
-    }
-}
---------------------------------------------------
-
-Out of the two, it is preferable to use the document *without* the type
-explicitly set.
 
 [float]
 ==== Index / Search Analyzers

@@ -28,6 +28,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -273,6 +274,7 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.COUNT)
                 .setQuery(QUERY)
                 .addAggregation(script.apply(terms("terms"), field)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .executionHint(StringTermsTests.randomExecutionHint())
                         .order(order)
                         .size(cardinality + randomInt(10))
@@ -289,6 +291,7 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
                     .setSearchType(SearchType.COUNT)
                     .setQuery(QUERY)
                     .addAggregation(script.apply(terms("terms"), field)
+                            .collectMode(randomFrom(SubAggCollectionMode.values()))
                             .executionHint(StringTermsTests.randomExecutionHint())
                             .order(order)
                             .size(size)

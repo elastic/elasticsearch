@@ -29,6 +29,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
@@ -40,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A {@link MergePolicy} that upgrades segments and can force merges.
+ * A {@link MergePolicy} that upgrades segments and can upgrade merges.
  * <p>
  * It can be useful to use the background merging process to upgrade segments,
  * for example when we perform internal changes that imply different index
@@ -51,11 +52,11 @@ import java.util.Map;
  * For now, this {@link MergePolicy} takes care of moving versions that used to
  * be stored as payloads to numeric doc values.
  */
-@SuppressWarnings("PMD.ProperCloneImplementation")
 public final class ElasticsearchMergePolicy extends MergePolicy {
 
     private final MergePolicy delegate;
-    private volatile boolean force;
+    private volatile boolean upgradeInProgress;
+    private static final int MAX_CONCURRENT_UPGRADE_MERGES = 5;
 
     /** @param delegate the merge policy to wrap */
     public ElasticsearchMergePolicy(MergePolicy delegate) {
@@ -105,11 +106,11 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
                 fieldNumber = Math.max(fieldNumber, fi.number + 1);
             }
             newVersionInfo = new FieldInfo(VersionFieldMapper.NAME, false, fieldNumber, false, true, false,
-                    IndexOptions.DOCS_ONLY, DocValuesType.NUMERIC, DocValuesType.NUMERIC, Collections.<String, String>emptyMap());
+                    IndexOptions.DOCS_ONLY, DocValuesType.NUMERIC, DocValuesType.NUMERIC, -1, Collections.<String, String>emptyMap());
         } else {
             newVersionInfo = new FieldInfo(VersionFieldMapper.NAME, versionInfo.isIndexed(), versionInfo.number,
                     versionInfo.hasVectors(), versionInfo.omitsNorms(), versionInfo.hasPayloads(),
-                    versionInfo.getIndexOptions(), versionInfo.getDocValuesType(), versionInfo.getNormType(), versionInfo.attributes());
+                    versionInfo.getIndexOptions(), versionInfo.getDocValuesType(), versionInfo.getNormType(), versionInfo.getDocValuesGen(), versionInfo.attributes());
         }
         final ArrayList<FieldInfo> fieldInfoList = new ArrayList<>();
         for (FieldInfo info : fieldInfos) {
@@ -189,64 +190,59 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
 
     @Override
     public MergeSpecification findMerges(MergeTrigger mergeTrigger,
-        SegmentInfos segmentInfos) throws IOException {
-      return upgradedMergeSpecification(delegate.findMerges(mergeTrigger, segmentInfos));
+        SegmentInfos segmentInfos, IndexWriter writer) throws IOException {
+      return upgradedMergeSpecification(delegate.findMerges(mergeTrigger, segmentInfos, writer));
     }
 
     @Override
     public MergeSpecification findForcedMerges(SegmentInfos segmentInfos,
-        int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge)
+        int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge, IndexWriter writer)
         throws IOException {
-      if (force) {
-          List<SegmentCommitInfo> segments = Lists.newArrayList();
+
+      if (upgradeInProgress) {
+          MergeSpecification spec = new IndexUpgraderMergeSpecification();
           for (SegmentCommitInfo info : segmentInfos) {
-              if (segmentsToMerge.containsKey(info)) {
-                  segments.add(info);
+              if (Version.CURRENT.luceneVersion.minor > info.info.getVersion().minor) {
+                  // TODO: Use IndexUpgradeMergePolicy instead.  We should be comparing codecs,
+                  // for now we just assume every minor upgrade has a new format.
+                  spec.add(new OneMerge(Lists.newArrayList(info)));
+              }
+              if (spec.merges.size() == MAX_CONCURRENT_UPGRADE_MERGES) {
+                  // hit our max upgrades, so return the spec.  we will get a cascaded call to continue.
+                  return spec;
               }
           }
-          if (!segments.isEmpty()) {
-              MergeSpecification spec = new IndexUpgraderMergeSpecification();
-              spec.add(new OneMerge(segments));
+          // We must have less than our max upgrade merges, so the next return will be our last in upgrading mode.
+          upgradeInProgress = false;
+          if (spec.merges.isEmpty() == false) {
               return spec;
           }
+          // fall through, so when we don't have any segments to upgrade, the delegate policy
+          // has a chance to decide what to do (e.g. collapse the segments to satisfy maxSegmentCount)
       }
-      return upgradedMergeSpecification(delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge));
+
+      return upgradedMergeSpecification(delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, writer));
     }
 
     @Override
-    public MergeSpecification findForcedDeletesMerges(SegmentInfos segmentInfos)
+    public MergeSpecification findForcedDeletesMerges(SegmentInfos segmentInfos, IndexWriter writer)
         throws IOException {
-      return upgradedMergeSpecification(delegate.findForcedDeletesMerges(segmentInfos));
+      return upgradedMergeSpecification(delegate.findForcedDeletesMerges(segmentInfos, writer));
     }
 
     @Override
-    public MergePolicy clone() {
-      return new ElasticsearchMergePolicy(delegate.clone());
-    }
-
-    @Override
-    public void close() {
-      delegate.close();
-    }
-
-    @Override
-    public boolean useCompoundFile(SegmentInfos segments,
-                                   SegmentCommitInfo newSegment) throws IOException {
-      return delegate.useCompoundFile(segments, newSegment);
-    }
-
-    @Override
-    public void setIndexWriter(IndexWriter writer) {
-      delegate.setIndexWriter(writer);
+    public boolean useCompoundFile(SegmentInfos segments, SegmentCommitInfo newSegment, IndexWriter writer) throws IOException {
+      return delegate.useCompoundFile(segments, newSegment, writer);
     }
 
     /**
-     * When <code>force</code> is true, running a force merge will cause a merge even if there
-     * is a single segment in the directory. This will apply to all calls to
-     * {@link IndexWriter#forceMerge} that are handled by this {@link MergePolicy}.
+     * When <code>upgrade</code> is true, running a force merge will upgrade any segments written
+     * with older versions. This will apply to the next call to
+     * {@link IndexWriter#forceMerge} that is handled by this {@link MergePolicy}, as well as
+     * cascading calls made by {@link IndexWriter}.
      */
-    public void setForce(boolean force) {
-        this.force = force;
+    public void setUpgradeInProgress(boolean upgrade) {
+        this.upgradeInProgress = upgrade;
     }
 
     @Override

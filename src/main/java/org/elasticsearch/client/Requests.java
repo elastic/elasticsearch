@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -51,16 +52,17 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
+import org.elasticsearch.action.exists.ExistsRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 
 /**
@@ -150,6 +152,28 @@ public class Requests {
     }
 
     /**
+     * Creates a exists request which checks if any of the hits matched against a query exists. Note, the query itself must be set
+     * either using the JSON source of the query, or using a {@link org.elasticsearch.index.query.QueryBuilder} (using {@link org.elasticsearch.index.query.QueryBuilders}).
+     *
+     * @param indices The indices to count matched documents against a query. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @return The exists request
+     * @see org.elasticsearch.client.Client#exists(org.elasticsearch.action.exists.ExistsRequest)
+     */
+    public static ExistsRequest existsRequest(String... indices) {
+        return new ExistsRequest(indices);
+    }
+
+    /**
+     * Creates a suggest request for getting suggestions from provided <code>indices</code>.
+     * The suggest query has to be set using the JSON source using {@link org.elasticsearch.action.suggest.SuggestRequest#suggest(org.elasticsearch.common.bytes.BytesReference)}.
+     * @param indices The indices to suggest from. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @see org.elasticsearch.client.Client#suggest(org.elasticsearch.action.suggest.SuggestRequest)
+     */
+    public static SuggestRequest suggestRequest(String... indices) {
+        return new SuggestRequest(indices);
+    }
+
+    /**
      * More like this request represents a request to search for documents that are "like" the provided (fetched)
      * document.
      *
@@ -182,17 +206,6 @@ public class Requests {
      */
     public static SearchScrollRequest searchScrollRequest(String scrollId) {
         return new SearchScrollRequest(scrollId);
-    }
-
-    /**
-     * Creates an indices status request.
-     *
-     * @param indices The indices to query status about. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
-     * @return The indices status request
-     * @see org.elasticsearch.client.IndicesAdminClient#status(org.elasticsearch.action.admin.indices.status.IndicesStatusRequest)
-     */
-    public static IndicesStatusRequest indicesStatusRequest(String... indices) {
-        return new IndicesStatusRequest(indices);
     }
 
     public static IndicesSegmentsRequest indicesSegmentsRequest(String... indices) {
@@ -487,6 +500,16 @@ public class Requests {
      */
     public static DeleteRepositoryRequest deleteRepositoryRequest(String name) {
         return new DeleteRepositoryRequest(name);
+    }
+
+    /**
+     * Verifies snapshot repository
+     *
+     * @param name repository name
+     * @return repository verification request
+     */
+    public static VerifyRepositoryRequest verifyRepositoryRequest(String name) {
+        return new VerifyRepositoryRequest(name);
     }
 
 

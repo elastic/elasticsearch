@@ -42,8 +42,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestIndexPutAliasAction extends BaseRestHandler {
 
     @Inject
-    public RestIndexPutAliasAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestIndexPutAliasAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(PUT, "/{index}/_alias/{name}", this);
         controller.registerHandler(PUT, "/_alias/{name}", this);
         controller.registerHandler(PUT, "/{index}/_aliases/{name}", this);
@@ -60,7 +60,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String alias = request.param("name");
         Map<String, Object> filter = null;

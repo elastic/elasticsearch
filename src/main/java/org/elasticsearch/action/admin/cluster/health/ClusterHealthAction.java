@@ -27,7 +27,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class ClusterHealthAction extends ClusterAction<ClusterHealthRequest, ClusterHealthResponse, ClusterHealthRequestBuilder> {
 
     public static final ClusterHealthAction INSTANCE = new ClusterHealthAction();
-    public static final String NAME = "cluster/health";
+    public static final String NAME = "cluster:monitor/health";
 
     private ClusterHealthAction() {
         super(NAME);

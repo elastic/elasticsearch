@@ -49,7 +49,7 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
     @Test
     public void testBooleanQuery() throws IOException {
         Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random())));
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
         String[] firstNames = new String[]{
                 "simon", "paul"
         };
@@ -102,20 +102,21 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
     @Test
     public void testDismaxQuery() throws IOException {
         Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random())));
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
         String[] username = new String[]{
                 "foo fighters", "some cool fan", "cover band"};
         String[] song = new String[]{
                 "generator", "foo fighers - generator", "foo fighters generator"
         };
+        final boolean omitNorms = random().nextBoolean();
         FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);
         ft.setIndexOptions(random().nextBoolean() ? FieldInfo.IndexOptions.DOCS_ONLY : FieldInfo.IndexOptions.DOCS_AND_FREQS);
-        ft.setOmitNorms(random().nextBoolean());
+        ft.setOmitNorms(omitNorms);
         ft.freeze();
 
         FieldType ft1 = new FieldType(TextField.TYPE_NOT_STORED);
         ft1.setIndexOptions(random().nextBoolean() ? FieldInfo.IndexOptions.DOCS_ONLY : FieldInfo.IndexOptions.DOCS_AND_FREQS);
-        ft1.setOmitNorms(random().nextBoolean());
+        ft1.setOmitNorms(omitNorms);
         ft1.freeze();
         for (int i = 0; i < username.length; i++) {
             Document d = new Document();

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +37,7 @@ public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<ThaiAnal
     @Inject
     public ThaiAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-	analyzer = new ThaiAnalyzer(version, Analysis.parseStopWords(env, settings, ThaiAnalyzer.getDefaultStopSet(), version));
+        analyzer = new ThaiAnalyzer(version, Analysis.parseStopWords(env, settings, ThaiAnalyzer.getDefaultStopSet(), version));
     }
 
     @Override

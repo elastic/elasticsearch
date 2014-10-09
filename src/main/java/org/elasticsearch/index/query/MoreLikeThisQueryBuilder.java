@@ -20,9 +20,19 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * A more like this query that finds documents that are "like" the provided {@link #likeText(String)}
@@ -30,10 +40,92 @@ import java.io.IOException;
  */
 public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<MoreLikeThisQueryBuilder> {
 
+    /**
+     * A single get item. Pure delegate to multi get.
+     */
+    public static final class Item extends MultiGetRequest.Item implements ToXContent {
+        private BytesReference doc;
+
+        public Item() {
+            super();
+        }
+
+        public Item(String index, @Nullable String type, String id) {
+            super(index, type, id);
+        }
+
+        public BytesReference doc() {
+            return doc;
+        }
+
+        public Item doc(XContentBuilder doc) {
+            this.doc = doc.bytes();
+            return this;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (this.index() != null) {
+                builder.field("_index", this.index());
+            }
+            if (this.id() != null) {
+                builder.field("_id", this.id());
+            }
+            if (this.doc() != null) {
+                XContentType contentType = XContentFactory.xContentType(doc);
+                if (contentType == builder.contentType()) {
+                    builder.rawField("doc", doc);
+                } else {
+                    XContentParser parser = XContentFactory.xContent(contentType).createParser(doc);
+                    parser.nextToken();
+                    builder.field("doc");
+                    builder.copyCurrentStructure(parser);
+                }
+            }
+            if (this.type() != null) {
+                builder.field("_type", this.type());
+            }
+            if (this.fields() != null) {
+                builder.array("fields", this.fields());
+            }
+            if (this.routing() != null) {
+                builder.field("_routing", this.routing());
+            }
+            if (this.fetchSourceContext() != null) {
+                FetchSourceContext source = this.fetchSourceContext();
+                String[] includes = source.includes();
+                String[] excludes = source.excludes();
+                if (includes.length == 0 && excludes.length == 0) {
+                    builder.field("_source", source.fetchSource());
+                } else if (includes.length > 0 && excludes.length == 0) {
+                    builder.array("_source", source.includes());
+                } else if (excludes.length > 0) {
+                    builder.startObject("_source");
+                    if (includes.length > 0) {
+                        builder.array("includes", source.includes());
+                    }
+                    builder.array("excludes", source.excludes());
+                    builder.endObject();
+                }
+            }
+            if (this.version() != Versions.MATCH_ANY) {
+                builder.field("_version", this.version());
+            }
+            if (this.versionType() != VersionType.INTERNAL) {
+                builder.field("_version_type", this.versionType().toString().toLowerCase(Locale.ROOT));
+            }
+            return builder.endObject();
+        }
+    }
+
     private final String[] fields;
 
     private String likeText;
-    private float percentTermsToMatch = -1;
+    private List<String> ids = new ArrayList<>();
+    private List<Item> docs = new ArrayList<>();
+    private Boolean include = null;
+    private String minimumShouldMatch = null;
     private int minTermFreq = -1;
     private int maxQueryTerms = -1;
     private String[] stopWords = null;
@@ -71,12 +163,43 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         return this;
     }
 
+    public MoreLikeThisQueryBuilder ids(String... ids) {
+        this.ids = Arrays.asList(ids);
+        return this;
+    }
+
+    public MoreLikeThisQueryBuilder docs(Item... docs) {
+        this.docs = Arrays.asList(docs);
+        return this;
+    }
+
+    public MoreLikeThisQueryBuilder addItem(Item item) {
+        this.docs.add(item);
+        return this;
+    }
+
+    public MoreLikeThisQueryBuilder include(boolean include) {
+        this.include = include;
+        return this;
+    }
+
+    /**
+     * Number of terms that must match the generated query expressed in the
+     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     *
+     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
+     */
+    public MoreLikeThisQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
     /**
      * The percentage of terms to match. Defaults to <tt>0.3</tt>.
      */
+    @Deprecated
     public MoreLikeThisQueryBuilder percentTermsToMatch(float percentTermsToMatch) {
-        this.percentTermsToMatch = percentTermsToMatch;
-        return this;
+        return minimumShouldMatch(Math.round(percentTermsToMatch * 100) + "%");
     }
 
     /**
@@ -192,13 +315,13 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             }
             builder.endArray();
         }
-        if (likeText == null) {
-            throw new ElasticsearchIllegalArgumentException("moreLikeThis requires '"+
-                    MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName() +"' to be provided");
+        if (likeText == null && this.docs.isEmpty() && this.ids.isEmpty()) {
+                throw new ElasticsearchIllegalArgumentException("more_like_this requires either '"+
+                    MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName() +"' or 'docs/ids' to be provided");
         }
         builder.field(MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName(), likeText);
-        if (percentTermsToMatch != -1) {
-            builder.field(MoreLikeThisQueryParser.Fields.PERCENT_TERMS_TO_MATCH.getPreferredName(), percentTermsToMatch);
+        if (minimumShouldMatch != null) {
+            builder.field(MoreLikeThisQueryParser.Fields.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
         }
         if (minTermFreq != -1) {
             builder.field(MoreLikeThisQueryParser.Fields.MIN_TERM_FREQ.getPreferredName(), minTermFreq);
@@ -239,6 +362,15 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         }
         if (queryName != null) {
             builder.field("_name", queryName);
+        }
+        if (!ids.isEmpty()) {
+            builder.array("ids", ids.toArray());
+        }
+        if (!docs.isEmpty()) {
+            builder.array("docs", docs.toArray());
+        }
+        if (include != null) {
+            builder.field("include", include);
         }
         builder.endObject();
     }

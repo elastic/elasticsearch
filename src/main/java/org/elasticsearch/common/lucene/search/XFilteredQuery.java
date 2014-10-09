@@ -225,7 +225,7 @@ public final class XFilteredQuery extends Query {
             // CHANGE: handle "default" value
             if (threshold == -1) {
                 // default  value, don't iterate on only apply filter after query if its not a "fast" docIdSet
-                if (!DocIdSets.isFastIterator(docIdSet)) {
+                if (!DocIdSets.isFastIterator(ApplyAcceptedDocsFilter.unwrap(docIdSet))) {
                     return FilteredQuery.QUERY_FIRST_FILTER_STRATEGY.filteredScorer(context, weight, docIdSet);
                 }
             }

@@ -35,14 +35,14 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 public class RestOpenIndexAction extends BaseRestHandler {
 
     @Inject
-    public RestOpenIndexAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestOpenIndexAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.POST, "/_open", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_open", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         openIndexRequest.listenerThreaded(false);
         openIndexRequest.timeout(request.paramAsTime("timeout", openIndexRequest.timeout()));

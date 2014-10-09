@@ -18,28 +18,28 @@
  */
 package org.elasticsearch.index.query;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  *
  */
-public class SpanMultiTermQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder{
+public class SpanMultiTermQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder {
 
-	private MultiTermQueryBuilder multiTermQueryBuilder;
-	
-	public SpanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
-		this.multiTermQueryBuilder = multiTermQueryBuilder;
-	}
+    private MultiTermQueryBuilder multiTermQueryBuilder;
 
-	@Override
-	protected void doXContent(XContentBuilder builder, Params params)
-			throws IOException {
+    public SpanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
+        this.multiTermQueryBuilder = multiTermQueryBuilder;
+    }
+
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params)
+            throws IOException {
         builder.startObject(SpanMultiTermQueryParser.NAME);
         builder.field(SpanMultiTermQueryParser.MATCH_NAME);
         multiTermQueryBuilder.toXContent(builder, params);
-        builder.endObject();		
-	}
+        builder.endObject();
+    }
 
 }

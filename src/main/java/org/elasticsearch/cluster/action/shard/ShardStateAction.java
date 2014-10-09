@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -54,6 +54,9 @@ import static org.elasticsearch.cluster.routing.ImmutableShardRouting.readShardR
  */
 public class ShardStateAction extends AbstractComponent {
 
+    public static final String SHARD_STARTED_ACTION_NAME = "internal:cluster/shard/failure";
+    public static final String SHARD_FAILED_ACTION_NAME = "internal:cluster/shard/started";
+
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final AllocationService allocationService;
@@ -71,42 +74,67 @@ public class ShardStateAction extends AbstractComponent {
         this.allocationService = allocationService;
         this.threadPool = threadPool;
 
-        transportService.registerHandler(ShardStartedTransportHandler.ACTION, new ShardStartedTransportHandler());
-        transportService.registerHandler(ShardFailedTransportHandler.ACTION, new ShardFailedTransportHandler());
+        transportService.registerHandler(SHARD_STARTED_ACTION_NAME, new ShardStartedTransportHandler());
+        transportService.registerHandler(SHARD_FAILED_ACTION_NAME, new ShardFailedTransportHandler());
     }
 
     public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason) throws ElasticsearchException {
+        DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
+        if (masterNode == null) {
+            logger.warn("can't send shard failed for {}. no master known.", shardRouting);
+            return;
+        }
+        shardFailed(shardRouting, indexUUID, reason, masterNode);
+    }
+
+    public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason, final DiscoveryNode masterNode) throws ElasticsearchException {
+        logger.warn("{} sending failed shard for {}, indexUUID [{}], reason [{}]", shardRouting.shardId(), shardRouting, indexUUID, reason);
+        innerShardFailed(shardRouting, indexUUID, reason, masterNode);
+    }
+
+    public void resendShardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason, final DiscoveryNode masterNode) throws ElasticsearchException {
+        logger.trace("{} re-sending failed shard for {}, indexUUID [{}], reason [{}]", shardRouting.shardId(), shardRouting, indexUUID, reason);
+        innerShardFailed(shardRouting, indexUUID, reason, masterNode);
+    }
+
+    private void innerShardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason, final DiscoveryNode masterNode) {
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason);
-        logger.warn("{} sending failed shard for {}", shardRouting.shardId(), shardRoutingEntry);
-        DiscoveryNodes nodes = clusterService.state().nodes();
-        if (nodes.localNodeMaster()) {
+        if (clusterService.localNode().equals(masterNode)) {
             innerShardFailed(shardRoutingEntry);
         } else {
-            transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    ShardFailedTransportHandler.ACTION, shardRoutingEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+            transportService.sendRequest(masterNode,
+                    SHARD_FAILED_ACTION_NAME, shardRoutingEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleException(TransportException exp) {
-                    logger.warn("failed to send failed shard to [{}]", exp, clusterService.state().nodes().masterNode());
+                    logger.warn("failed to send failed shard to {}", exp, masterNode);
                 }
             });
         }
     }
 
     public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String reason) throws ElasticsearchException {
+        DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
+        if (masterNode == null) {
+            logger.warn("can't send shard started for {}. no master known.", shardRouting);
+            return;
+        }
+        shardStarted(shardRouting, indexUUID, reason, masterNode);
+    }
+
+    public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String reason, final DiscoveryNode masterNode) throws ElasticsearchException {
 
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason);
 
         logger.debug("sending shard started for {}", shardRoutingEntry);
 
-        DiscoveryNodes nodes = clusterService.state().nodes();
-        if (nodes.localNodeMaster()) {
+        if (clusterService.localNode().equals(masterNode)) {
             innerShardStarted(shardRoutingEntry);
         } else {
-            transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                    ShardStartedTransportHandler.ACTION, new ShardRoutingEntry(shardRouting, indexUUID, reason), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+            transportService.sendRequest(masterNode,
+                    SHARD_STARTED_ACTION_NAME, new ShardRoutingEntry(shardRouting, indexUUID, reason), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleException(TransportException exp) {
-                    logger.warn("failed to send shard started to [{}]", exp, clusterService.state().nodes().masterNode());
+                    logger.warn("failed to send shard started to [{}]", exp, masterNode);
                 }
             });
         }
@@ -266,8 +294,6 @@ public class ShardStateAction extends AbstractComponent {
 
     private class ShardFailedTransportHandler extends BaseTransportRequestHandler<ShardRoutingEntry> {
 
-        static final String ACTION = "cluster/shardFailure";
-
         @Override
         public ShardRoutingEntry newInstance() {
             return new ShardRoutingEntry();
@@ -286,8 +312,6 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     class ShardStartedTransportHandler extends BaseTransportRequestHandler<ShardRoutingEntry> {
-
-        static final String ACTION = "cluster/shardStarted";
 
         @Override
         public ShardRoutingEntry newInstance() {

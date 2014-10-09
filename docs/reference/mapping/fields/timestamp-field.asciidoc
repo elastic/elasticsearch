@@ -4,7 +4,7 @@
 The `_timestamp` field allows to automatically index the timestamp of a
 document. It can be provided externally via the index request or in the
 `_source`. If it is not provided externally it will be automatically set
-to the date the document was processed by the indexing chain.
+to a <<mapping-timestamp-field-default,default date>>.
 
 [float]
 ==== enabled
@@ -56,10 +56,11 @@ Will cause `2009-11-15T14:12:12` to be used as the timestamp value for:
 }
 --------------------------------------------------
 
-Note, using `path` without explicit timestamp value provided require an
+Note, using `path` without explicit timestamp value provided requires an
 additional (though quite fast) parsing phase.
 
 [float]
+[[mapping-timestamp-field-format]]
 ==== format
 
 You can define the <<mapping-date-format,date
@@ -80,3 +81,46 @@ format>> used to parse the provided timestamp value. For example:
 
 Note, the default format is `dateOptionalTime`. The timestamp value will
 first be parsed as a number and if it fails the format will be tried.
+
+[float]
+[[mapping-timestamp-field-default]]
+==== default
+
+You can define a default value for when timestamp is not provided
+within the index request or in the `_source` document.
+
+By default, the default value is `now` which means the date the document was processed by the indexing chain.
+
+You can disable that default value by setting `default` to `null`. It means that `timestamp` is mandatory:
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "_timestamp" : {
+            "enabled" : true,
+            "default" : null
+        }
+    }
+}
+--------------------------------------------------
+
+If you don't provide any timestamp value, indexation will fail.
+
+You can also set the default value to any date respecting <<mapping-timestamp-field-format,timestamp format>>:
+
+[source,js]
+--------------------------------------------------
+{
+    "tweet" : {
+        "_timestamp" : {
+            "enabled" : true,
+            "format" : "YYYY-MM-dd",
+            "default" : "1970-01-01"
+        }
+    }
+}
+--------------------------------------------------
+
+If you don't provide any timestamp value, indexation will fail.
+

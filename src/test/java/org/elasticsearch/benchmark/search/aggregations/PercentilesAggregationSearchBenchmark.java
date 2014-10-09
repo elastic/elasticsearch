@@ -19,6 +19,8 @@
 
 package org.elasticsearch.benchmark.search.aggregations;
 
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
+
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -34,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles.Percentile;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;

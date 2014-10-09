@@ -23,12 +23,11 @@ import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * Snapshots status request builder
  */
-public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBuilder<SnapshotsStatusRequest, SnapshotsStatusResponse, SnapshotsStatusRequestBuilder> {
+public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBuilder<SnapshotsStatusRequest, SnapshotsStatusResponse, SnapshotsStatusRequestBuilder, ClusterAdminClient> {
 
     /**
      * Constructs the new snapshotstatus request
@@ -36,7 +35,7 @@ public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBui
      * @param clusterAdminClient cluster admin client
      */
     public SnapshotsStatusRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super((InternalClusterAdminClient) clusterAdminClient, new SnapshotsStatusRequest());
+        super(clusterAdminClient, new SnapshotsStatusRequest());
     }
 
     /**
@@ -46,7 +45,7 @@ public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBui
      * @param repository         repository name
      */
     public SnapshotsStatusRequestBuilder(ClusterAdminClient clusterAdminClient, String repository) {
-        super((InternalClusterAdminClient) clusterAdminClient, new SnapshotsStatusRequest(repository));
+        super(clusterAdminClient, new SnapshotsStatusRequest(repository));
     }
 
     /**
@@ -84,6 +83,6 @@ public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBui
 
     @Override
     protected void doExecute(ActionListener<SnapshotsStatusResponse> listener) {
-        ((ClusterAdminClient) client).snapshotsStatus(request, listener);
+        client.snapshotsStatus(request, listener);
     }
 }

@@ -21,16 +21,21 @@ package org.elasticsearch.indexing;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -47,21 +52,45 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
      * while the index is being created.
      */
     @Test
+    @TestLogging("action.search:TRACE,indices.recovery:TRACE,index.shard.service:TRACE")
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = randomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
+            Throwable firstError = null;
             createIndex("test");
             int numOfDocs = randomIntBetween(10, 100);
+            logger.info("indexing [{}] docs", numOfDocs);
             List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
             for (int j = 0; j < numOfDocs; j++) {
                 builders.add(client().prepareIndex("test", "type").setSource("field", "value"));
             }
             indexRandom(true, builders);
-            int numOfChecks = randomIntBetween(5, 10);
+            logger.info("verifying indexed content");
+            int numOfChecks = randomIntBetween(8, 12);
             for (int j = 0; j < numOfChecks; j++) {
-                assertHitCount(client().prepareSearch("test").get(), numOfDocs);
+                try {
+                    logger.debug("running search with all types");
+                    assertHitCount(client().prepareSearch("test").get(), numOfDocs);
+                } catch (Throwable t) {
+                    logger.error("search for all docs types failed", t);
+                    if (firstError == null) {
+                        firstError = t;
+                    }
+                }
+                try {
+                    logger.debug("running search with a specific type");
+                    assertHitCount(client().prepareSearch("test").setTypes("type").get(), numOfDocs);
+                } catch (Throwable t) {
+                    logger.error("search for all docs of a specific type failed", t);
+                    if (firstError == null) {
+                        firstError = t;
+                    }
+                }
             }
-            cluster().wipeIndices("test");
+            if (firstError != null) {
+                fail(firstError.getMessage());
+            }
+            internalCluster().wipeIndices("test");
         }
     }
 
@@ -129,6 +158,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         for (int i=0;i<docCount;i++) {
             assertThat(createdCounts.get(i), lessThanOrEqualTo(1));
         }
+        terminate(threadPool);
     }
 
     @Test
@@ -151,5 +181,40 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         assertThat(bulkResponse.getItems().length, equalTo(1));
         IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
         assertTrue(indexResponse.isCreated());
+    }
+
+    @Test
+    public void testCreateIndexWithLongName() {
+        int min = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES + 1;
+        int max = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES * 2;
+        try {
+            createIndex(randomAsciiOfLengthBetween(min, max).toLowerCase(Locale.ROOT));
+            fail("exception should have been thrown on too-long index name");
+        } catch (InvalidIndexNameException e) {
+            assertThat("exception contains message about index name too long: " + e.getMessage(),
+                    e.getMessage().contains("index name is too long,"), equalTo(true));
+        }
+
+        try {
+            client().prepareIndex(randomAsciiOfLengthBetween(min, max).toLowerCase(Locale.ROOT), "mytype").setSource("foo", "bar").get();
+            fail("exception should have been thrown on too-long index name");
+        } catch (InvalidIndexNameException e) {
+            assertThat("exception contains message about index name too long: " + e.getMessage(),
+                    e.getMessage().contains("index name is too long,"), equalTo(true));
+        }
+
+        try {
+            // Catch chars that are more than a single byte
+            client().prepareIndex(randomAsciiOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES -1).toLowerCase(Locale.ROOT) +
+                            "Ϟ".toLowerCase(Locale.ROOT),
+                    "mytype").setSource("foo", "bar").get();
+            fail("exception should have been thrown on too-long index name");
+        } catch (InvalidIndexNameException e) {
+            assertThat("exception contains message about index name too long: " + e.getMessage(),
+                    e.getMessage().contains("index name is too long,"), equalTo(true));
+        }
+
+        // we can create an index of max length
+        createIndex(randomAsciiOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES).toLowerCase(Locale.ROOT));
     }
 }

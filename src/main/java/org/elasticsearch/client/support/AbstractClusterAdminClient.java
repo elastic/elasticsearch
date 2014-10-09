@@ -57,6 +57,10 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryActi
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequestBuilder;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
@@ -101,15 +105,15 @@ import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
+import org.elasticsearch.client.ClusterAdminClient;
 
 /**
  *
  */
-public abstract class AbstractClusterAdminClient implements InternalClusterAdminClient {
+public abstract class AbstractClusterAdminClient implements ClusterAdminClient {
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(ClusterAction<Request, Response, RequestBuilder> action) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> RequestBuilder prepareExecute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action) {
         return action.newRequestBuilder(this);
     }
 
@@ -372,6 +376,21 @@ public abstract class AbstractClusterAdminClient implements InternalClusterAdmin
     @Override
     public DeleteRepositoryRequestBuilder prepareDeleteRepository(String name) {
         return new DeleteRepositoryRequestBuilder(this, name);
+    }
+
+    @Override
+    public ActionFuture<VerifyRepositoryResponse> verifyRepository(VerifyRepositoryRequest request) {
+        return execute(VerifyRepositoryAction.INSTANCE, request);
+    }
+
+    @Override
+    public void verifyRepository(VerifyRepositoryRequest request, ActionListener<VerifyRepositoryResponse> listener) {
+        execute(VerifyRepositoryAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public VerifyRepositoryRequestBuilder prepareVerifyRepository(String name) {
+        return new VerifyRepositoryRequestBuilder(this, name);
     }
 
     @Override

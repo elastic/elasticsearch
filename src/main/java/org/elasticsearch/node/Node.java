@@ -20,6 +20,7 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -31,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
  *
  *
  */
-public interface Node {
+public interface Node extends Releasable{
 
     /**
      * The settings that were used to create the node.

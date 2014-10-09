@@ -22,18 +22,52 @@ package org.elasticsearch.action.termvector;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.util.Map;
 
 /**
  */
-public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorRequest, TermVectorResponse, TermVectorRequestBuilder> {
+public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorRequest, TermVectorResponse, TermVectorRequestBuilder, Client> {
 
     public TermVectorRequestBuilder(Client client) {
-        super((InternalClient) client, new TermVectorRequest());
+        super(client, new TermVectorRequest());
     }
 
     public TermVectorRequestBuilder(Client client, String index, String type, String id) {
-        super((InternalClient) client, new TermVectorRequest(index, type, id));
+        super(client, new TermVectorRequest(index, type, id));
+    }
+
+    /**
+     * Sets the index where the document is located.
+     */
+    public TermVectorRequestBuilder setIndex(String index) {
+        request.index(index);
+        return this;
+    }
+
+    /**
+     * Sets the type of the document.
+     */
+    public TermVectorRequestBuilder setType(String type) {
+        request.type(type);
+        return this;
+    }
+
+    /**
+     * Sets the id of the document.
+     */
+    public TermVectorRequestBuilder setId(String id) {
+        request.id(id);
+        return this;
+    }
+
+    /**
+     * Sets the artificial document from which to generate term vectors.
+     */
+    public TermVectorRequestBuilder setDoc(XContentBuilder xContent) {
+        request.doc(xContent);
+        return this;
     }
 
     /**
@@ -94,8 +128,18 @@ public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorReq
         return this;
     }
 
+    public TermVectorRequestBuilder setRealtime(Boolean realtime) {
+        request.realtime(realtime);
+        return this;
+    }
+
+    public TermVectorRequestBuilder setPerFieldAnalyzer(Map<String, String> perFieldAnalyzer) {
+        request.perFieldAnalyzer(perFieldAnalyzer);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<TermVectorResponse> listener) {
-        ((Client) client).termVector(request, listener);
+        client.termVector(request, listener);
     }
 }

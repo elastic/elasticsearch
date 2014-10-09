@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,10 +38,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
 public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
 
     private String scrollId;
-
     private Scroll scroll;
-
-    private SearchOperationThreading operationThreading = SearchOperationThreading.THREAD_PER_SHARD;
 
     public SearchScrollRequest() {
     }
@@ -56,21 +54,6 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
             validationException = addValidationError("scrollId is missing", validationException);
         }
         return validationException;
-    }
-
-    /**
-     * Controls the the search operation threading model.
-     */
-    public SearchOperationThreading operationThreading() {
-        return this.operationThreading;
-    }
-
-    /**
-     * Controls the the search operation threading model.
-     */
-    public SearchScrollRequest operationThreading(SearchOperationThreading operationThreading) {
-        this.operationThreading = operationThreading;
-        return this;
     }
 
     /**
@@ -117,7 +100,9 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        operationThreading = SearchOperationThreading.fromId(in.readByte());
+        if (in.getVersion().before(Version.V_1_2_0)) {
+            in.readByte(); // backward comp. for operation threading
+        }
         scrollId = in.readString();
         if (in.readBoolean()) {
             scroll = readScroll(in);
@@ -127,7 +112,9 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(operationThreading.id());
+        if (out.getVersion().before(Version.V_1_2_0)) {
+            out.writeByte((byte) 2); // operation threading
+        }
         out.writeString(scrollId);
         if (scroll == null) {
             out.writeBoolean(false);

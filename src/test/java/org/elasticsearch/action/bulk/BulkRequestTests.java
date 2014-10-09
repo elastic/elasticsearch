@@ -21,13 +21,18 @@ package org.elasticsearch.action.bulk;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
@@ -97,5 +102,19 @@ public class BulkRequestTests extends ElasticsearchTestCase {
 
         bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk5.json");
         new BulkRequest().add(new BytesArray(bulkAction.getBytes(Charsets.UTF_8)), true, "test", null, false);
+    }
+
+    @Test
+    public void testBulkAddIterable() {
+        BulkRequest bulkRequest = Requests.bulkRequest();
+        List<ActionRequest> requests = new ArrayList<>();
+        requests.add(new IndexRequest("test", "test", "id").source("field", "value"));
+        requests.add(new UpdateRequest("test", "test", "id").doc("field", "value"));
+        requests.add(new DeleteRequest("test", "test", "id"));
+        bulkRequest.add(requests);
+        assertThat(bulkRequest.requests().size(), equalTo(3));
+        assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+        assertThat(bulkRequest.requests().get(1), instanceOf(UpdateRequest.class));
+        assertThat(bulkRequest.requests().get(2), instanceOf(DeleteRequest.class));
     }
 }

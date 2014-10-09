@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.Collection;
@@ -45,6 +44,9 @@ public interface Range extends MultiBucketsAggregation {
         Number getTo();
     }
 
+    /**
+     * Return the buckets of this range aggregation.
+     */
     Collection<? extends Bucket> getBuckets();
 
     @Override

@@ -26,10 +26,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -42,13 +41,13 @@ import java.util.Map;
  */
 final class QueriesLoaderCollector extends Collector {
 
-    private final Map<HashedBytesRef, Query> queries = Maps.newHashMap();
+    private final Map<BytesRef, Query> queries = Maps.newHashMap();
     private final JustSourceFieldsVisitor fieldsVisitor = new JustSourceFieldsVisitor();
     private final PercolatorQueriesRegistry percolator;
-    private final IndexFieldData idFieldData;
+    private final IndexFieldData<?> idFieldData;
     private final ESLogger logger;
 
-    private BytesValues idValues;
+    private SortedBinaryDocValues idValues;
     private AtomicReader reader;
 
     QueriesLoaderCollector(PercolatorQueriesRegistry percolator, ESLogger logger, MapperService mapperService, IndexFieldDataService indexFieldDataService) {
@@ -58,7 +57,7 @@ final class QueriesLoaderCollector extends Collector {
         this.idFieldData = indexFieldDataService.getForField(idMapper);
     }
 
-    public Map<HashedBytesRef, Query> queries() {
+    public Map<BytesRef, Query> queries() {
         return this.queries;
     }
 
@@ -66,8 +65,10 @@ final class QueriesLoaderCollector extends Collector {
     public void collect(int doc) throws IOException {
         // the _source is the query
 
-        if (idValues.setDocument(doc) > 0) {
-            BytesRef id = idValues.nextValue();
+        idValues.setDocument(doc);
+        if (idValues.count() > 0) {
+            assert idValues.count() == 1;
+            BytesRef id = idValues.valueAt(0);
             fieldsVisitor.reset();
             reader.document(doc, fieldsVisitor);
 
@@ -75,7 +76,7 @@ final class QueriesLoaderCollector extends Collector {
                 // id is only used for logging, if we fail we log the id in the catch statement
                 final Query parseQuery = percolator.parsePercolatorDocument(null, fieldsVisitor.source());
                 if (parseQuery != null) {
-                    queries.put(new HashedBytesRef(idValues.copyShared(), idValues.currentValueHash()), parseQuery);
+                    queries.put(BytesRef.deepCopyOf(id), parseQuery);
                 } else {
                     logger.warn("failed to add query [{}] - parser returned null", id);
                 }
@@ -89,7 +90,7 @@ final class QueriesLoaderCollector extends Collector {
     @Override
     public void setNextReader(AtomicReaderContext context) throws IOException {
         reader = context.reader();
-        idValues = idFieldData.load(context).getBytesValues(true);
+        idValues = idFieldData.load(context).getBytesValues();
     }
 
     @Override

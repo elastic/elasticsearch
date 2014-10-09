@@ -53,7 +53,7 @@ public class BenchmarkNettyLargeMessages {
 
         NetworkService networkService = new NetworkService(settings);
 
-        final ThreadPool threadPool = new ThreadPool();
+        final ThreadPool threadPool = new ThreadPool("BenchmarkNettyLargeMessages");
         final TransportService transportServiceServer = new TransportService(new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT), threadPool).start();
         final TransportService transportServiceClient = new TransportService(new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT), threadPool).start();
 

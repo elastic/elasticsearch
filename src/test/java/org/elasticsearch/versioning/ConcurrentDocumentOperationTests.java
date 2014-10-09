@@ -73,7 +73,7 @@ public class ConcurrentDocumentOperationTests extends ElasticsearchIntegrationTe
 
         logger.info("done indexing, check all have the same field value");
         Map masterSource = client().prepareGet("test", "type1", "1").execute().actionGet().getSourceAsMap();
-        for (int i = 0; i < (immutableCluster().size() * 5); i++) {
+        for (int i = 0; i < (cluster().size() * 5); i++) {
             assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().getSourceAsMap(), equalTo(masterSource));
         }
     }

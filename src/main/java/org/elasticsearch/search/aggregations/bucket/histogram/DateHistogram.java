@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.joda.time.DateTime;
 
-import java.util.Collection;
+import java.util.List;
 
 /**
  * A {@code date_histogram} aggregation.
@@ -37,7 +37,7 @@ public interface DateHistogram extends Histogram {
     }
 
     @Override
-    Collection<? extends DateHistogram.Bucket> getBuckets();
+    List<? extends DateHistogram.Bucket> getBuckets();
 
     @Override
     Bucket getBucketByKey(String key);

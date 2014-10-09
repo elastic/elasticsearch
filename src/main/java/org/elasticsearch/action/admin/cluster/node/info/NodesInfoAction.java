@@ -27,7 +27,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class NodesInfoAction extends ClusterAction<NodesInfoRequest, NodesInfoResponse, NodesInfoRequestBuilder> {
 
     public static final NodesInfoAction INSTANCE = new NodesInfoAction();
-    public static final String NAME = "cluster/nodes/info";
+    public static final String NAME = "cluster:monitor/nodes/info";
 
     private NodesInfoAction() {
         super(NAME);

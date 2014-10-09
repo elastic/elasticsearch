@@ -28,3 +28,7 @@ include::tokenizers/uaxurlemail-tokenizer.asciidoc[]
 
 include::tokenizers/pathhierarchy-tokenizer.asciidoc[]
 
+include::tokenizers/classic-tokenizer.asciidoc[]
+
+include::tokenizers/thai-tokenizer.asciidoc[]
+

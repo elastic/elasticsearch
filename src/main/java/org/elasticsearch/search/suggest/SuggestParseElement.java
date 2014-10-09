@@ -61,7 +61,7 @@ public final class SuggestParseElement implements SearchParseElement {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
                 if ("text".equals(fieldName)) {
-                    globalText = parser.bytes();
+                    globalText = parser.utf8Bytes();
                 } else {
                     throw new ElasticsearchIllegalArgumentException("[suggest] does not support [" + fieldName + "]");
                 }
@@ -75,7 +75,7 @@ public final class SuggestParseElement implements SearchParseElement {
                         fieldName = parser.currentName();
                     } else if (token.isValue()) {
                         if ("text".equals(fieldName)) {
-                            suggestText = parser.bytes();
+                            suggestText = parser.utf8Bytes();
                         } else {
                             throw new ElasticsearchIllegalArgumentException("[suggest] does not support [" + fieldName + "]");
                         }

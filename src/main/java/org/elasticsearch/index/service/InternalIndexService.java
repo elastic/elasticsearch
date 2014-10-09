@@ -34,6 +34,9 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.filter.ShardFilterCacheModule;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
+import org.elasticsearch.index.cache.fixedbitset.ShardFixedBitSetFilterCacheModule;
+import org.elasticsearch.index.cache.query.ShardQueryCacheModule;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineModule;
@@ -49,6 +52,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
+import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.PercolatorShardModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -113,6 +117,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final IndexFieldDataService indexFieldData;
 
+    private final FixedBitSetFilterCache fixedBitSetFilterCache;
+
     private final IndexEngine indexEngine;
 
     private final IndexGateway indexGateway;
@@ -131,7 +137,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv, ThreadPool threadPool,
                                 AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
                                 SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache, IndexEngine indexEngine,
-                                IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService, IndexFieldDataService indexFieldData) {
+                                IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService, IndexFieldDataService indexFieldData,
+                                FixedBitSetFilterCache fixedBitSetFilterCache) {
         super(index, indexSettings);
         this.injector = injector;
         this.threadPool = threadPool;
@@ -147,6 +154,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.indexGateway = indexGateway;
         this.indexStore = indexStore;
         this.settingsService = settingsService;
+        this.fixedBitSetFilterCache = fixedBitSetFilterCache;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
         this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
@@ -154,6 +162,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         // inject workarounds for cyclic dep
         indexCache.filter().setIndexService(this);
         indexFieldData.setIndexService(this);
+        fixedBitSetFilterCache.setIndexService(this);
     }
 
     @Override
@@ -218,6 +227,11 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     @Override
     public IndexFieldDataService fieldData() {
         return indexFieldData;
+    }
+
+    @Override
+    public FixedBitSetFilterCache fixedBitSetFilterCache() {
+        return fixedBitSetFilterCache;
     }
 
     @Override
@@ -328,6 +342,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         modules.add(new MergePolicyModule(indexSettings));
         modules.add(new MergeSchedulerModule(indexSettings));
         modules.add(new ShardFilterCacheModule());
+        modules.add(new ShardQueryCacheModule());
+        modules.add(new ShardFixedBitSetFilterCacheModule());
         modules.add(new ShardFieldDataModule());
         modules.add(new TranslogModule(indexSettings));
         modules.add(new EngineModule(indexSettings));
@@ -368,6 +384,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         if (shardInjector == null) {
             return;
         }
+
+        logger.debug("closing... (reason: [{}])", reason);
         shardsInjectors = ImmutableMap.copyOf(tmpShardInjectors);
         Map<Integer, IndexShard> tmpShardsMap = newHashMap(shards);
         indexShard = tmpShardsMap.remove(shardId);
@@ -404,6 +422,12 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             // ignore
         }
         try {
+            shardInjector.getInstance(MergeSchedulerProvider.class).close();
+        } catch (Throwable e) {
+            logger.debug("failed to close merge policy scheduler", e);
+            // ignore
+        }
+        try {
             shardInjector.getInstance(MergePolicyProvider.class).close();
         } catch (Throwable e) {
             logger.debug("failed to close merge policy provider", e);
@@ -431,7 +455,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         }
 
         // call this before we close the store, so we can release resources for it
-        indicesLifecycle.afterIndexShardClosed(sId);
+        indicesLifecycle.afterIndexShardClosed(sId, indexShard);
         // if we delete or have no gateway or the store is not persistent, clean the store...
         Store store = shardInjector.getInstance(Store.class);
         // and close it
@@ -441,5 +465,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             logger.warn("failed to close store on shard deletion", e);
         }
         Injectors.close(injector);
+
+        logger.debug("closed (reason: [{}])", reason);
     }
 }

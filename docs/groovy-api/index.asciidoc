@@ -30,7 +30,7 @@ For example, you can define the latest version in your `pom.xml` file:
 --------------------------------------------------
 <dependency>
     <groupId>org.elasticsearch</groupId>
-    <artifactId>elasticsearch-client-groovy</artifactId>
+    <artifactId>elasticsearch-lang-groovy</artifactId>
     <version>${es.version}</version>
 </dependency>
 --------------------------------------------------

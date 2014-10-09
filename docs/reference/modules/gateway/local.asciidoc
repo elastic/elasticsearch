@@ -18,9 +18,8 @@ For example:
 [source,js]
 --------------------------------------------------
 gateway:
-    recover_after_nodes: 1
-    recover_after_time: 5m
-    expected_nodes: 2
+    recover_after_nodes: 3
+    expected_nodes: 5
 --------------------------------------------------
 
 [float]

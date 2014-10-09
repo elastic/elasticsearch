@@ -22,12 +22,11 @@ package org.elasticsearch.action.admin.cluster.repositories.delete;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  * Builder for unregister repository request
  */
-public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<DeleteRepositoryRequest, DeleteRepositoryResponse, DeleteRepositoryRequestBuilder> {
+public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<DeleteRepositoryRequest, DeleteRepositoryResponse, DeleteRepositoryRequestBuilder, ClusterAdminClient> {
 
     /**
      * Constructs unregister repository request builder
@@ -35,7 +34,7 @@ public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<D
      * @param clusterAdminClient cluster admin client
      */
     public DeleteRepositoryRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super((InternalClusterAdminClient) clusterAdminClient, new DeleteRepositoryRequest());
+        super(clusterAdminClient, new DeleteRepositoryRequest());
     }
 
     /**
@@ -44,7 +43,7 @@ public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<D
      * @param clusterAdminClient cluster adming client
      */
     public DeleteRepositoryRequestBuilder(ClusterAdminClient clusterAdminClient, String name) {
-        super((InternalClusterAdminClient) clusterAdminClient, new DeleteRepositoryRequest(name));
+        super(clusterAdminClient, new DeleteRepositoryRequest(name));
     }
 
     /**
@@ -59,6 +58,6 @@ public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<D
 
     @Override
     protected void doExecute(ActionListener<DeleteRepositoryResponse> listener) {
-        ((ClusterAdminClient) client).deleteRepository(request, listener);
+        client.deleteRepository(request, listener);
     }
 }

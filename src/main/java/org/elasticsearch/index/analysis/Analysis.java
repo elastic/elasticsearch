@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.NumericTokenStream;
@@ -29,6 +28,7 @@ import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
 import org.apache.lucene.analysis.ca.CatalanAnalyzer;
+import org.apache.lucene.analysis.ckb.SoraniAnalyzer;
 import org.apache.lucene.analysis.cz.CzechAnalyzer;
 import org.apache.lucene.analysis.da.DanishAnalyzer;
 import org.apache.lucene.analysis.de.GermanAnalyzer;
@@ -39,18 +39,21 @@ import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.apache.lucene.analysis.fa.PersianAnalyzer;
 import org.apache.lucene.analysis.fi.FinnishAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
+import org.apache.lucene.analysis.ga.IrishAnalyzer;
 import org.apache.lucene.analysis.gl.GalicianAnalyzer;
 import org.apache.lucene.analysis.hi.HindiAnalyzer;
 import org.apache.lucene.analysis.hu.HungarianAnalyzer;
 import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
 import org.apache.lucene.analysis.id.IndonesianAnalyzer;
 import org.apache.lucene.analysis.it.ItalianAnalyzer;
+import org.apache.lucene.analysis.lv.LatvianAnalyzer;
 import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.apache.lucene.analysis.no.NorwegianAnalyzer;
 import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
+import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
@@ -107,10 +110,10 @@ public class Analysis {
                 return new CharArraySet(version, Strings.commaDelimitedListToSet(value), false);
             }
         }
-        String[] stopWords = settings.getAsArray("stem_exclusion", null);
-        if (stopWords != null) {
+        String[] stemExclusion = settings.getAsArray("stem_exclusion", null);
+        if (stemExclusion != null) {
             // LUCENE 4 UPGRADE: Should be settings.getAsBoolean("stem_exclusion_case", false)?
-            return new CharArraySet(version, ImmutableList.of(stopWords), false);
+            return new CharArraySet(version, Arrays.asList(stemExclusion), false);
         } else {
             return defaultStemExclusion;
         }
@@ -135,14 +138,18 @@ public class Analysis {
             .put("_hindi_", HindiAnalyzer.getDefaultStopSet())
             .put("_hungarian_", HungarianAnalyzer.getDefaultStopSet())
             .put("_indonesian_", IndonesianAnalyzer.getDefaultStopSet())
+            .put("_irish_", IrishAnalyzer.getDefaultStopSet())
             .put("_italian_", ItalianAnalyzer.getDefaultStopSet())
+            .put("_latvian_", LatvianAnalyzer.getDefaultStopSet())
             .put("_norwegian_", NorwegianAnalyzer.getDefaultStopSet())
             .put("_persian_", PersianAnalyzer.getDefaultStopSet())
             .put("_portuguese_", PortugueseAnalyzer.getDefaultStopSet())
             .put("_romanian_", RomanianAnalyzer.getDefaultStopSet())
             .put("_russian_", RussianAnalyzer.getDefaultStopSet())
+            .put("_sorani_", SoraniAnalyzer.getDefaultStopSet())
             .put("_spanish_", SpanishAnalyzer.getDefaultStopSet())
             .put("_swedish_", SwedishAnalyzer.getDefaultStopSet())
+            .put("_thai_", ThaiAnalyzer.getDefaultStopSet())
             .put("_turkish_", TurkishAnalyzer.getDefaultStopSet())
             .immutableMap();
 

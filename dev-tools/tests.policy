@@ -27,10 +27,11 @@ grant {
   permission java.io.FilePermission "${junit4.childvm.cwd}", "read,execute,write";
   permission java.io.FilePermission "${junit4.childvm.cwd}${/}-", "read,execute,write,delete";
   permission java.io.FilePermission "${junit4.tempDir}${/}*", "read,execute,write,delete";
-  
+  permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
+
   // Allow connecting to the internet anywhere
   permission java.net.SocketPermission "*", "accept,listen,connect,resolve";
-  
+
   // Basic permissions needed for Lucene / Elasticsearch to work:
   permission java.util.PropertyPermission "*", "read,write";
   permission java.lang.reflect.ReflectPermission "*";

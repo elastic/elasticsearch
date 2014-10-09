@@ -33,9 +33,6 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     SearchScript script;
     ValueType scriptValueType;
     boolean unmapped = false;
-    boolean needsHashes = false;
-    boolean ensureUnique = false;
-    boolean ensureSorted = false;
     String formatPattern;
     ValueFormat format;
 
@@ -75,11 +72,6 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
     public ValuesSourceConfig<VS> unmapped(boolean unmapped) {
         this.unmapped = unmapped;
-        return this;
-    }
-
-    public ValuesSourceConfig<VS> needsHashes(boolean needsHashes) {
-        this.needsHashes = needsHashes;
         return this;
     }
 

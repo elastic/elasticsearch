@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -35,7 +34,6 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -173,31 +171,6 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     }
 
     @Override
-    public void validate(ParseContext context) throws MapperParsingException {
-        String routing = context.sourceToParse().routing();
-        if (path != null && routing != null) {
-            // we have a path, check if we can validate we have the same routing value as the one in the doc...
-            String value = null;
-            Field field = (Field) context.doc().getField(path);
-            if (field != null) {
-                value = field.stringValue();
-                if (value == null) {
-                    // maybe its a numeric field...
-                    if (field instanceof NumberFieldMapper.CustomNumericField) {
-                        value = ((NumberFieldMapper.CustomNumericField) field).numericAsString();
-                    }
-                }
-            }
-            if (value == null) {
-                value = context.ignoredValue(path);
-            }
-            if (!routing.equals(value)) {
-                throw new MapperParsingException("External routing [" + routing + "] and document path routing [" + value + "] mismatch");
-            }
-        }
-    }
-
-    @Override
     public void preParse(ParseContext context) throws IOException {
         super.parse(context);
     }
@@ -227,7 +200,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
                     context.ignoredValue(names.indexName(), routing);
                     return;
                 }
-                fields.add(new XStringField(names.indexName(), routing, fieldType));
+                fields.add(new Field(names.indexName(), routing, fieldType));
             }
         }
     }

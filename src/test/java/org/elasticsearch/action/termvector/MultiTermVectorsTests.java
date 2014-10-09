@@ -30,7 +30,7 @@ public class MultiTermVectorsTests extends AbstractTermVectorTests {
     @Test
     public void testDuelESLucene() throws Exception {
         AbstractTermVectorTests.TestFieldSetting[] testFieldSettings = getFieldSettings();
-        createIndexBasedOnFieldSettings("test", testFieldSettings);
+        createIndexBasedOnFieldSettings("test", "alias", testFieldSettings);
         //we generate as many docs as many shards we have
         TestDoc[] testDocs = generateTestDocs(getNumShards("test").numPrimaries, testFieldSettings);
 

@@ -38,8 +38,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteMappingAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteMappingAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestDeleteMappingAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(DELETE, "/{index}/{type}/_mapping", this);
         controller.registerHandler(DELETE, "/{index}/{type}", this);
         controller.registerHandler(DELETE, "/{index}/_mapping/{type}", this);
@@ -50,7 +50,7 @@ public class RestDeleteMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         DeleteMappingRequest deleteMappingRequest = deleteMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteMappingRequest.listenerThreaded(false);
         deleteMappingRequest.types(Strings.splitStringByCommaToArray(request.param("type")));

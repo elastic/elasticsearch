@@ -1,7 +1,7 @@
 [[query-dsl-and-filter]]
 === And Filter
 
-A filter that matches documents using `AND` boolean operator on other
+A filter that matches documents using the `AND` boolean operator on other
 filters. Can be placed within queries that accept a filter.
 
 [source,js]

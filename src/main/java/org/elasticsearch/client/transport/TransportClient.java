@@ -54,10 +54,9 @@ import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.cache.recycler.CacheRecycler;
-import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.AdminClient;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.support.InternalTransportClient;
 import org.elasticsearch.cluster.ClusterNameModule;
@@ -75,6 +74,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginsModule;
@@ -98,19 +98,15 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  */
 public class TransportClient extends AbstractClient {
 
-    private final Injector injector;
+    private static final String CLIENT_TYPE = "transport";
+
+    final Injector injector;
 
     private final Settings settings;
-
     private final Environment environment;
-
-
     private final PluginsService pluginsService;
-
     private final TransportClientNodesService nodesService;
-
     private final InternalTransportClient internalClient;
-
 
     /**
      * Constructs a new transport client with settings loaded either from the classpath or the file system (the
@@ -163,6 +159,7 @@ public class TransportClient extends AbstractClient {
         Settings settings = settingsBuilder().put(tuple.v1())
                 .put("network.server", false)
                 .put("node.client", true)
+                .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
                 .build();
         this.environment = tuple.v2();
 
@@ -175,7 +172,6 @@ public class TransportClient extends AbstractClient {
 
         ModulesBuilder modules = new ModulesBuilder();
         modules.add(new Version.Module(version));
-        modules.add(new CacheRecyclerModule(settings));
         modules.add(new PluginsModule(this.settings, pluginsService));
         modules.add(new EnvironmentModule(environment));
         modules.add(new SettingsModule(this.settings));
@@ -186,6 +182,7 @@ public class TransportClient extends AbstractClient {
         modules.add(new TransportModule(this.settings));
         modules.add(new ActionModule(true));
         modules.add(new ClientTransportModule());
+        modules.add(new CircuitBreakerModule(this.settings));
 
         injector = modules.createInjector();
 
@@ -193,6 +190,10 @@ public class TransportClient extends AbstractClient {
 
         nodesService = injector.getInstance(TransportClientNodesService.class);
         internalClient = injector.getInstance(InternalTransportClient.class);
+    }
+
+    TransportClientNodesService nodeService() {
+        return nodesService;
     }
 
     /**
@@ -278,21 +279,12 @@ public class TransportClient extends AbstractClient {
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             injector.getInstance(plugin).close();
         }
-
-        injector.getInstance(ThreadPool.class).shutdown();
         try {
-            injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-            Thread.currentThread().interrupt();
-        }
-        try {
-            injector.getInstance(ThreadPool.class).shutdownNow();
+            ThreadPool.terminate(injector.getInstance(ThreadPool.class), 10, TimeUnit.SECONDS);
         } catch (Exception e) {
             // ignore
         }
 
-        injector.getInstance(CacheRecycler.class).close();
         injector.getInstance(PageCacheRecycler.class).close();
 
         CachedStreams.clear();
@@ -314,12 +306,12 @@ public class TransportClient extends AbstractClient {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder> action, Request request) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, Client> action, Request request) {
         return internalClient.execute(action, request);
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> void execute(Action<Request, Response, RequestBuilder, Client> action, Request request, ActionListener<Response> listener) {
         internalClient.execute(action, request, listener);
     }
 

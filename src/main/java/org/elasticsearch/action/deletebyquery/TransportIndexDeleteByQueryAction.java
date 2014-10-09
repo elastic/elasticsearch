@@ -20,6 +20,7 @@
 package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,24 +30,20 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
 /**
- *
+ * Internal transport action that broadcasts a delete by query request to all of the shards that belong to an index.
  */
 public class TransportIndexDeleteByQueryAction extends TransportIndexReplicationOperationAction<IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
-    @Inject
-    public TransportIndexDeleteByQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                             ThreadPool threadPool, TransportShardDeleteByQueryAction shardDeleteByQueryAction) {
-        super(settings, transportService, clusterService, threadPool, shardDeleteByQueryAction);
-    }
+    private static final String ACTION_NAME = DeleteByQueryAction.NAME + "[index]";
 
-    @Override
-    protected IndexDeleteByQueryRequest newRequestInstance() {
-        return new IndexDeleteByQueryRequest();
+    @Inject
+    public TransportIndexDeleteByQueryAction(Settings settings, ClusterService clusterService,
+                                             ThreadPool threadPool, TransportShardDeleteByQueryAction shardDeleteByQueryAction, ActionFilters actionFilters) {
+        super(settings, ACTION_NAME, clusterService, threadPool, shardDeleteByQueryAction, actionFilters);
     }
 
     @Override
@@ -57,11 +54,6 @@ public class TransportIndexDeleteByQueryAction extends TransportIndexReplication
     @Override
     protected boolean accumulateExceptions() {
         return true;
-    }
-
-    @Override
-    protected String transportAction() {
-        return DeleteByQueryAction.NAME + "/index";
     }
 
     @Override

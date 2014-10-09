@@ -46,8 +46,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetFieldMappingAction extends BaseRestHandler {
 
     @Inject
-    public RestGetFieldMappingAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestGetFieldMappingAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_mapping/field/{fields}", this);
         controller.registerHandler(GET, "/_mapping/{type}/field/{fields}", this);
         controller.registerHandler(GET, "/{index}/_mapping/field/{fields}", this);
@@ -56,7 +56,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));

@@ -1,0 +1,37 @@
+[[analysis-keep-types-tokenfilter]]
+=== Keep Types Token Filter
+
+A token filter of type `keep_types` that only keeps tokens with a token type 
+contained in a predefined set.
+
+
+[float]
+=== Options
+[horizontal]
+types:: a list of types to keep
+
+
+[float]
+=== Settings example
+
+[source,js]
+--------------------------------------------------
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "my_analyzer" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["standard", "lowercase", "extract_numbers"]
+                },
+            },
+            "filter" : {
+                "extract_numbers" : {
+                    "type" : "keep_types",
+                    "types" : [ "<NUM>" ]
+                },
+            }
+        }
+    }
+}
+--------------------------------------------------

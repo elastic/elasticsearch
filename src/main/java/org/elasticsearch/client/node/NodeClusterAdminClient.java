@@ -23,11 +23,11 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.admin.cluster.ClusterAction;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.support.AbstractClusterAdminClient;
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
@@ -35,15 +35,18 @@ import java.util.Map;
 /**
  *
  */
-public class NodeClusterAdminClient extends AbstractClusterAdminClient implements InternalClusterAdminClient {
+public class NodeClusterAdminClient extends AbstractClusterAdminClient implements ClusterAdminClient {
 
     private final ThreadPool threadPool;
 
     private final ImmutableMap<ClusterAction, TransportAction> actions;
 
+    private final Headers headers;
+
     @Inject
-    public NodeClusterAdminClient(Settings settings, ThreadPool threadPool, Map<GenericAction, TransportAction> actions) {
+    public NodeClusterAdminClient(ThreadPool threadPool, Map<GenericAction, TransportAction> actions, Headers headers) {
         this.threadPool = threadPool;
+        this.headers = headers;
         MapBuilder<ClusterAction, TransportAction> actionsBuilder = new MapBuilder<>();
         for (Map.Entry<GenericAction, TransportAction> entry : actions.entrySet()) {
             if (entry.getKey() instanceof ClusterAction) {
@@ -60,15 +63,17 @@ public class NodeClusterAdminClient extends AbstractClusterAdminClient implement
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(ClusterAction<Request, Response, RequestBuilder> action, Request request) {
-        TransportAction<Request, Response> transportAction = actions.get(action);
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request) {
+        headers.applyTo(request);
+        TransportAction<Request, Response> transportAction = actions.get((ClusterAction)action);
         return transportAction.execute(request);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(ClusterAction<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-        TransportAction<Request, Response> transportAction = actions.get(action);
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> void execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request, ActionListener<Response> listener) {
+        headers.applyTo(request);
+        TransportAction<Request, Response> transportAction = actions.get((ClusterAction)action);
         transportAction.execute(request, listener);
     }
 }

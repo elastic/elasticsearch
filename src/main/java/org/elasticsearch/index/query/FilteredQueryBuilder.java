@@ -40,10 +40,10 @@ public class FilteredQueryBuilder extends BaseQueryBuilder implements BoostableQ
     /**
      * A query that applies a filter to the results of another query.
      *
-     * @param queryBuilder  The query to apply the filter to
+     * @param queryBuilder  The query to apply the filter to (Can be null)
      * @param filterBuilder The filter to apply on the query (Can be null)
      */
-    public FilteredQueryBuilder(QueryBuilder queryBuilder, @Nullable FilterBuilder filterBuilder) {
+    public FilteredQueryBuilder(@Nullable QueryBuilder queryBuilder, @Nullable FilterBuilder filterBuilder) {
         this.queryBuilder = queryBuilder;
         this.filterBuilder = filterBuilder;
     }
@@ -68,8 +68,10 @@ public class FilteredQueryBuilder extends BaseQueryBuilder implements BoostableQ
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FilteredQueryParser.NAME);
-        builder.field("query");
-        queryBuilder.toXContent(builder, params);
+        if (queryBuilder != null) {
+            builder.field("query");
+            queryBuilder.toXContent(builder, params);
+        }
         if (filterBuilder != null) {
             builder.field("filter");
             filterBuilder.toXContent(builder, params);

@@ -16,38 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
-/**
- *
- */
 public abstract class MetricsAggregator extends Aggregator {
 
-    private MetricsAggregator(String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
+    protected MetricsAggregator(String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
         super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, estimatedBucketsCount, context, parent);
-    }
-
-    public static abstract class SingleValue extends MetricsAggregator {
-
-        protected SingleValue(String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
-            super(name, estimatedBucketsCount, context, parent);
-        }
-
-        public abstract double metric(long owningBucketOrd);
-    }
-
-    public static abstract class MultiValue extends MetricsAggregator {
-
-        protected MultiValue(String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
-            super(name, estimatedBucketsCount, context, parent);
-        }
-
-        public abstract boolean hasMetric(String name);
-
-        public abstract double metric(String name, long owningBucketOrd);
     }
 }

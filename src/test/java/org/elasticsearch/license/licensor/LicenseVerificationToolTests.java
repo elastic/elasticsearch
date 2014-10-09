@@ -6,13 +6,11 @@
 package org.elasticsearch.license.licensor;
 
 import org.apache.commons.io.FileUtils;
+import org.elasticsearch.license.AbstractLicensingTestBase;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseUtils;
-import org.elasticsearch.license.licensor.tools.KeyPairGeneratorTool;
 import org.elasticsearch.license.licensor.tools.LicenseVerificationTool;
-import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -21,30 +19,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class LicenseVerificationToolTests {
-
-    private static String pubKeyPath = null;
-    private static String priKeyPath = null;
-
-    @BeforeClass
-    public static void setup() throws IOException {
-
-        // Generate temp KeyPair spec
-        File privateKeyFile = File.createTempFile("privateKey", ".key");
-        File publicKeyFile = File.createTempFile("publicKey", ".key");
-        LicenseVerificationToolTests.pubKeyPath = publicKeyFile.getAbsolutePath();
-        LicenseVerificationToolTests.priKeyPath = privateKeyFile.getAbsolutePath();
-        assert privateKeyFile.delete();
-        assert publicKeyFile.delete();
-
-        // Generate keyPair
-        String[] args = new String[4];
-        args[0] = "--publicKeyPath";
-        args[1] = LicenseVerificationToolTests.pubKeyPath;
-        args[2] = "--privateKeyPath";
-        args[3] = LicenseVerificationToolTests.priKeyPath;
-        KeyPairGeneratorTool.main(args);
-    }
+public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
 
     @Test
     public void testEffectiveLicenseGeneration() throws Exception {
@@ -63,13 +38,7 @@ public class LicenseVerificationToolTests {
         signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
         String secondLicenseFile = getAsFilePath(signedLicense);
 
-        String[] args = new String[4];
-        args[0] = "--licensesFiles";
-        args[1] = firstLicenseFile + ":" + secondLicenseFile;
-        args[2] = "--publicKeyPath";
-        args[3] = pubKeyPath;
-
-        String effectiveLicenseStr = runLicenseVerificationTool(args);
+        String effectiveLicenseStr = runLicenseVerificationTool(new String[]{firstLicenseFile, secondLicenseFile});
         ESLicenses effectiveLicense = LicenseUtils.readLicensesFromString(effectiveLicenseStr);
 
         map.put(ESLicenses.FeatureType.SHIELD, featureWithLongerExpiryDate);
@@ -95,13 +64,7 @@ public class LicenseVerificationToolTests {
         signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
         String secondLicenseFile = getAsFilePath(signedLicense);
 
-        String[] args = new String[4];
-        args[0] = "--licensesFiles";
-        args[1] = firstLicenseFile + ":" + secondLicenseFile;
-        args[2] = "--publicKeyPath";
-        args[3] = pubKeyPath;
-
-        String effectiveLicenseStr = runLicenseVerificationTool(args);
+        String effectiveLicenseStr = runLicenseVerificationTool(new String[]{firstLicenseFile, secondLicenseFile});
         ESLicenses effectiveLicense = LicenseUtils.readLicensesFromString(effectiveLicenseStr);
 
         // verify that the effective license contains both feature licenses
@@ -134,13 +97,7 @@ public class LicenseVerificationToolTests {
         signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
         String secondLicenseFile = getAsFilePath(signedLicense);
 
-        String[] args = new String[4];
-        args[0] = "--licensesFiles";
-        args[1] = firstLicenseFile + ":" + secondLicenseFile;
-        args[2] = "--publicKeyPath";
-        args[3] = pubKeyPath;
-
-        String effectiveLicenseStr = runLicenseVerificationTool(args);
+        String effectiveLicenseStr = runLicenseVerificationTool(new String[]{firstLicenseFile, secondLicenseFile});
         ESLicenses effectiveLicense = LicenseUtils.readLicensesFromString(effectiveLicenseStr);
 
         map.put(ESLicenses.FeatureType.SHIELD, shieldFeatureWithLongerExpiryDate);
@@ -150,7 +107,19 @@ public class LicenseVerificationToolTests {
         TestUtils.verifyESLicenses(effectiveLicense, map);
     }
 
-    public static String runLicenseVerificationTool(String[] args) throws IOException {
+    public static String runLicenseVerificationTool(String[] licenseFiles) throws IOException {
+        StringBuilder licenseFilePathString = new StringBuilder();
+        for (int i = 0; i < licenseFiles.length; i++) {
+            licenseFilePathString.append(licenseFiles[i]);
+            if (i != licenseFiles.length - 1) {
+                licenseFilePathString.append(":");
+            }
+        }
+        String[] args = new String[4];
+        args[0] = "--licensesFiles";
+        args[1] = licenseFilePathString.toString();
+        args[2] = "--publicKeyPath";
+        args[3] = pubKeyPath;
         File temp = File.createTempFile("temp", ".out");
         temp.deleteOnExit();
         try (FileOutputStream outputStream = new FileOutputStream(temp)) {
@@ -159,16 +128,8 @@ public class LicenseVerificationToolTests {
         return FileUtils.readFileToString(temp);
     }
 
-    public static String runLicenseGenerationTool(String licenseInput) throws IOException {
-        String args[] = new String[6];
-        args[0] = "--license";
-        args[1] = licenseInput;
-        args[2] = "--publicKeyPath";
-        args[3] = pubKeyPath;
-        args[4] = "--privateKeyPath";
-        args[5] = priKeyPath;
-
-        return TestUtils.runLicenseGenerationTool(args);
+    public String runLicenseGenerationTool(String licenseInput) throws IOException {
+        return TestUtils.runLicenseGenerationTool(licenseInput, pubKeyPath, priKeyPath);
     }
 
     private static String getAsFilePath(String content) throws IOException {

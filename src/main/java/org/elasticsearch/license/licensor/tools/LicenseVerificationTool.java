@@ -95,7 +95,7 @@ public class LicenseVerificationTool {
         Options options = parse(args);
 
         // verify licenses
-        ESLicenseManager licenseManager = new ESLicenseManager(options.licenses, options.publicKeyFilePath);
+        ESLicenseManager licenseManager = ESLicenseManager.createLocalBasedInstance(options.licenses, options.publicKeyFilePath);
         licenseManager.verifyLicenses();
 
         // dump effective licences

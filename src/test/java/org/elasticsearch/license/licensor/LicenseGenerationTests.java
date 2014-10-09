@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.license.licensor;
 
+import org.elasticsearch.license.AbstractLicensingTestBase;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseUtils;
-import org.elasticsearch.license.licensor.tools.KeyPairGeneratorTool;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.HashMap;
@@ -22,30 +20,7 @@ import static org.elasticsearch.license.core.ESLicenses.FeatureType;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class LicenseGenerationTests {
-
-    private static String pubKeyPath = null;
-    private static String priKeyPath = null;
-
-    @BeforeClass
-    public static void setup() throws IOException {
-
-        // Generate temp KeyPair spec
-        File privateKeyFile = File.createTempFile("privateKey", ".key");
-        File publicKeyFile = File.createTempFile("publicKey", ".key");
-        LicenseGenerationTests.pubKeyPath = publicKeyFile.getAbsolutePath();
-        LicenseGenerationTests.priKeyPath = privateKeyFile.getAbsolutePath();
-        assert privateKeyFile.delete();
-        assert publicKeyFile.delete();
-
-        // Generate keyPair
-        String[] args = new String[4];
-        args[0] = "--publicKeyPath";
-        args[1] = LicenseGenerationTests.pubKeyPath;
-        args[2] = "--privateKeyPath";
-        args[3] = LicenseGenerationTests.priKeyPath;
-        KeyPairGeneratorTool.main(args);
-    }
+public class LicenseGenerationTests extends AbstractLicensingTestBase {
 
     @Test
     public void testSimpleLicenseGeneration() throws ParseException, IOException {
@@ -54,17 +29,7 @@ public class LicenseGenerationTests {
                 new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-12-13");
         map.put(FeatureType.SHIELD, featureAttributes);
 
-        String licenseString = TestUtils.generateESLicenses(map);
-
-        String[] args = new String[6];
-        args[0] = "--license";
-        args[1] = licenseString;
-        args[2] = "--publicKeyPath";
-        args[3] = pubKeyPath;
-        args[4] = "--privateKeyPath";
-        args[5] = priKeyPath;
-
-        String licenseOutput = TestUtils.runLicenseGenerationTool(args);
+        String licenseOutput = generateSignedLicenses(map);
 
         ESLicenses esLicensesOutput = LicenseUtils.readLicensesFromString(licenseOutput);
 
@@ -82,16 +47,7 @@ public class LicenseGenerationTests {
         map.put(FeatureType.SHIELD, shildFeatureAttributes);
         map.put(FeatureType.MARVEL, marvelFeatureAttributes);
 
-        String licenseString = TestUtils.generateESLicenses(map);
-        String[] args = new String[6];
-        args[0] = "--license";
-        args[1] = licenseString;
-        args[2] = "--publicKeyPath";
-        args[3] = pubKeyPath;
-        args[4] = "--privateKeyPath";
-        args[5] = priKeyPath;
-
-        String licenseOutput = TestUtils.runLicenseGenerationTool(args);
+        String licenseOutput = generateSignedLicenses(map);
 
         ESLicenses esLicensesOutput = LicenseUtils.readLicensesFromString(licenseOutput);
 

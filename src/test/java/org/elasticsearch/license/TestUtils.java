@@ -48,6 +48,18 @@ public class TestUtils {
 
     }
 
+    public static String runLicenseGenerationTool(String licenseInput, String pubKeyPath, String priKeyPath) throws IOException {
+        String args[] = new String[6];
+        args[0] = "--license";
+        args[1] = licenseInput;
+        args[2] = "--publicKeyPath";
+        args[3] = pubKeyPath;
+        args[4] = "--privateKeyPath";
+        args[5] = priKeyPath;
+
+        return runLicenseGenerationTool(args);
+    }
+
     public static String runLicenseGenerationTool(String[] args) throws IOException {
         File temp = File.createTempFile("temp", ".out");
         temp.deleteOnExit();

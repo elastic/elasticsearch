@@ -61,7 +61,7 @@ public class TransportDeleteLicenseAction extends TransportMasterNodeOperationAc
         //listener.onResponse(new DeleteLicenseResponse(licenses));
 
         //TODO:: add features of the license to be deleted
-        licensesService.unregisteredLicenses(clusterService, "delete_licenses []", request, new ActionListener<ClusterStateUpdateResponse>() {
+        licensesService.unregisteredLicenses("delete_licenses []", request, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
                 listener.onResponse(new DeleteLicenseResponse(clusterStateUpdateResponse.isAcknowledged()));

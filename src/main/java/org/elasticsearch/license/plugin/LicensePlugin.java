@@ -11,11 +11,14 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
+import org.elasticsearch.license.plugin.action.delete.TransportDeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
 import org.elasticsearch.license.plugin.action.get.TransportGetLicenseAction;
 import org.elasticsearch.license.plugin.action.put.PutLicenseAction;
 import org.elasticsearch.license.plugin.action.put.TransportPutLicenseAction;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
+import org.elasticsearch.license.plugin.rest.RestDeleteLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestGetLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestPutLicenseAction;
 import org.elasticsearch.license.plugin.core.LicensesService;
@@ -24,7 +27,6 @@ import org.elasticsearch.rest.RestModule;
 
 import java.util.Collection;
 
-//TODO: plugin hooks
 public class LicensePlugin extends AbstractPlugin {
 
     static {
@@ -45,11 +47,13 @@ public class LicensePlugin extends AbstractPlugin {
         // Register REST endpoint
         module.addRestAction(RestPutLicenseAction.class);
         module.addRestAction(RestGetLicenseAction.class);
+        module.addRestAction(RestDeleteLicenseAction.class);
     }
 
     public void onModule(ActionModule module) {
         module.registerAction(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class);
         module.registerAction(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class);
+        module.registerAction(DeleteLicenseAction.INSTANCE, TransportDeleteLicenseAction.class);
     }
 
     @Override
@@ -62,5 +66,4 @@ public class LicensePlugin extends AbstractPlugin {
     public Collection<Class<? extends Module>> modules() {
         return ImmutableSet.<Class<? extends Module>>of(LicenseModule.class);
     }
-    //TODO: module binding? (LicenseModule)
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license.plugin.rest;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -38,7 +39,6 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
     @Inject
     public RestDeleteLicenseAction(Settings settings, RestController controller, Client client, TransportDeleteLicenseAction transportDeleteLicenseAction) {
         super(settings, controller, client);
-        controller.registerHandler(DELETE, "/_cluster/license/", this);
         controller.registerHandler(DELETE, "/_cluster/license/{features}", this);
         this.transportDeleteLicenseAction = transportDeleteLicenseAction;
     }
@@ -47,10 +47,11 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] features = Strings.splitStringByCommaToArray(request.param("features"));
-
+        if (features.length == 0) {
+            throw new ElasticsearchIllegalArgumentException("no features specified for license deletion");
+        }
         DeleteLicenseRequest deleteLicenseRequest = new DeleteLicenseRequest(getFeaturesToDelete(features));
         deleteLicenseRequest.listenerThreaded(false);
-        //deleteLicenseRequest.license(request.content().toUtf8());
         transportDeleteLicenseAction.execute(deleteLicenseRequest, new AcknowledgedRestListener<DeleteLicenseResponse>(channel));
     }
 
@@ -64,7 +65,6 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
                 break;
             } else {
                 result.add(FeatureType.fromString(feature).string());
-
             }
         }
         return result.toArray(new String[result.size()]);

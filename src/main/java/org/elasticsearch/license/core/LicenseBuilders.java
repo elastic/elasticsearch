@@ -49,6 +49,16 @@ public class LicenseBuilders {
         }
     }
 
+    public static ESLicenses removeFeatures(ESLicenses licenses, Set<FeatureType> featureTypesToDelete) {
+        final LicensesBuilder licensesBuilder = licensesBuilder();
+        for (ESLicense license : licenses) {
+            if (!featureTypesToDelete.contains(license.feature())) {
+                licensesBuilder.license(license);
+            }
+        }
+        return licensesBuilder.build();
+    }
+
     public static class LicensesBuilder {
         private Map<FeatureType, ESLicense> licenseMap = new HashMap<>();
 

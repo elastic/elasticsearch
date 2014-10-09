@@ -40,6 +40,5 @@ public class RestPutLicenseAction extends BaseRestHandler {
         putLicenseRequest.listenerThreaded(false);
         putLicenseRequest.license(request.content().toUtf8());
         transportPutLicensesAction.execute(putLicenseRequest, new AcknowledgedRestListener<PutLicenseResponse>(channel));
-     //   client.admin().cluster().execute(PutLicenseAction.INSTANCE, putLicenseRequest, );
     }
 }

@@ -11,7 +11,7 @@ import org.elasticsearch.license.plugin.core.LicensesService;
 public class LicenseModule extends AbstractModule {
     @Override
     protected void configure() {
-        //requestInjection(LicensesService.class);
+        //TODO: bind LicensesManagementService and LicensesValidationService to LicensesServices instead
         bind(LicensesService.class).asEagerSingleton();
     }
 }

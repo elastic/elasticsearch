@@ -46,8 +46,10 @@ public class LicensesMetaData implements MetaData.Custom, ESLicenses {
 
     private static ImmutableMap<FeatureType, ESLicense> map(Iterable<ESLicense> esLicenses) {
         final ImmutableMap.Builder<FeatureType, ESLicense> builder = ImmutableMap.builder();
-        for (ESLicense esLicense : esLicenses) {
-            builder.put(esLicense.feature(), esLicense);
+        if (esLicenses != null) {
+            for (ESLicense esLicense : esLicenses) {
+                builder.put(esLicense.feature(), esLicense);
+            }
         }
         return builder.build();
     }

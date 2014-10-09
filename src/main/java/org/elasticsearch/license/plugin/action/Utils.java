@@ -27,8 +27,9 @@ public class Utils {
             for (int i = 0; i < size; i++) {
                 licensesBuilder.licenseAsIs(licenseFromMap(in.readMap()));
             }
+            return licensesBuilder.build();
         }
-        return licensesBuilder.build();
+        return null;
     }
 
     public static void writeLicensesTo(ESLicenses esLicenses, StreamOutput out) throws IOException {

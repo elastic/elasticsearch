@@ -52,6 +52,5 @@ public class RestGetLicenseAction extends BaseRestHandler {
                 return new BytesRestResponse(OK, builder);
             }
         });
-        //client.admin().cluster().execute(GetLicenseAction.INSTANCE, getLicenseRequest, )
     }
 }

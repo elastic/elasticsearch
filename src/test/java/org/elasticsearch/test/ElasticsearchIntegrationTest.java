@@ -605,13 +605,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
             logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
             success = true;
-        } catch (OutOfMemoryError e) {
-            if (e.getMessage().contains("unable to create new native thread")) {
-                ElasticsearchTestCase.printStackDump(logger);
-            }
-            throw e;
         } finally {
             if (!success || CurrentTestFailedMarker.testFailed()) {
+
+                logger.info("[{}#{}]: now dump all thread stacks on failure", getTestClass().getSimpleName(), getTestName());
+                ElasticsearchTestCase.printStackDump(logger);
+                logger.info("[{}#{}]: done dump all thread stacks on failure", getTestClass().getSimpleName(), getTestName());
+
                 // if we failed that means that something broke horribly so we should
                 // clear all clusters and if the current cluster is the global we shut that one
                 // down as well to prevent subsequent tests from failing due to the same problem.

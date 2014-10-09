@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -48,7 +47,7 @@ public class Ec2Discovery extends ZenDiscovery {
                         DiscoveryNodeService discoveryNodeService, AwsEc2Service ec2Service, DiscoverySettings discoverySettings,
                         ElectMasterService electMasterService) {
         super(settings, clusterName, threadPool, transportService, clusterService, nodeSettingsService,
-                discoveryNodeService, pingService, electMasterService, Version.CURRENT, discoverySettings);
+                discoveryNodeService, pingService, electMasterService, discoverySettings);
         if (settings.getAsBoolean("cloud.enabled", true)) {
             ImmutableList<? extends ZenPing> zenPings = pingService.zenPings();
             UnicastZenPing unicastZenPing = null;

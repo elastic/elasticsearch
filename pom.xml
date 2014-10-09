@@ -34,6 +34,7 @@
     <properties>
         <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
         <lucene.version>4.10.1</lucene.version>
+        <amazonaws.version>1.7.13</amazonaws.version>
         <tests.output>onerror</tests.output>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -85,7 +86,7 @@
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk</artifactId>
-            <version>1.7.13</version>
+            <version>${amazonaws.version}</version>
             <scope>compile</scope>
             <exclusions>
                 <!-- jackson is optional -->

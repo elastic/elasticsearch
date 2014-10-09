@@ -21,6 +21,8 @@ package org.elasticsearch.search.reducers;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.InternalSlidingWindow;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowReducer;
+import org.elasticsearch.search.reducers.metric.delta.DeltaReducer;
+import org.elasticsearch.search.reducers.metric.delta.InternalDelta;
 
 /**
  * A module that registers all the transport streams for the addAggregation
@@ -33,8 +35,10 @@ public class TransportReductionModule extends AbstractModule {
         // NOCOMMIT register internalAggregation streams for reducers
 //        InternalMetricReduction.registerStreams();
         InternalSlidingWindow.registerStreams();
+        InternalDelta.registerStreams();
         
         // NOCOMMIT register reducerFactoryStreams
         SlidingWindowReducer.registerStreams();
+        DeltaReducer.registerStreams();
     }
 }

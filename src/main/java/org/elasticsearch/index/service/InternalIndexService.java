@@ -34,6 +34,8 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.filter.ShardFilterCacheModule;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
+import org.elasticsearch.index.cache.fixedbitset.ShardFixedBitSetFilterCacheModule;
 import org.elasticsearch.index.cache.query.ShardQueryCacheModule;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.engine.Engine;
@@ -54,8 +56,6 @@ import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.PercolatorShardModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
-import org.elasticsearch.index.cache.fixedbitset.ShardFixedBitSetFilterCacheModule;
 import org.elasticsearch.index.search.stats.ShardSearchModule;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
@@ -384,6 +384,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         if (shardInjector == null) {
             return;
         }
+
+        logger.debug("closing... (reason: [{}])", reason);
         shardsInjectors = ImmutableMap.copyOf(tmpShardInjectors);
         Map<Integer, IndexShard> tmpShardsMap = newHashMap(shards);
         indexShard = tmpShardsMap.remove(shardId);
@@ -463,5 +465,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             logger.warn("failed to close store on shard deletion", e);
         }
         Injectors.close(injector);
+
+        logger.debug("closed (reason: [{}])", reason);
     }
 }

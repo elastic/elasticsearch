@@ -326,6 +326,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             return;
         }
 
+        logger.debug("[{}] closing ... (reason [{}])", index, reason);
         Map<String, IndexService> tmpMap = newHashMap(indices);
         indexService = tmpMap.remove(index);
         indices = ImmutableMap.copyOf(tmpMap);
@@ -336,21 +337,31 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             indexInjector.getInstance(closeable).close();
         }
 
+        logger.debug("[{}] closing index service", index, reason);
         ((InternalIndexService) indexService).close(reason, executor);
 
+        logger.debug("[{}] closing index cache", index, reason);
         indexInjector.getInstance(IndexCache.class).close();
+        logger.debug("[{}] clearing index field data", index, reason);
         indexInjector.getInstance(IndexFieldDataService.class).clear();
+        logger.debug("[{}] closing analysis service", index, reason);
         indexInjector.getInstance(AnalysisService.class).close();
+        logger.debug("[{}] closing index engine", index, reason);
         indexInjector.getInstance(IndexEngine.class).close();
 
+        logger.debug("[{}] closing index gateway", index, reason);
         indexInjector.getInstance(IndexGateway.class).close();
+        logger.debug("[{}] closing mapper service", index, reason);
         indexInjector.getInstance(MapperService.class).close();
+        logger.debug("[{}] closing index query parser service", index, reason);
         indexInjector.getInstance(IndexQueryParserService.class).close();
 
+        logger.debug("[{}] closing index service", index, reason);
         indexInjector.getInstance(IndexStore.class).close();
 
         Injectors.close(injector);
 
+        logger.debug("[{}] closed... (reason [{}])", index, reason);
         indicesLifecycle.afterIndexClosed(indexService.index());
     }
 

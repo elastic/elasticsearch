@@ -31,5 +31,13 @@ public class SmartChineseAnalysisBinderProcessor extends AnalysisModule.Analysis
     @Override
     public void processTokenizers(TokenizersBindings tokenizersBindings) {
         tokenizersBindings.processTokenizer("smartcn_tokenizer", SmartChineseTokenizerTokenizerFactory.class);
+        // This is an alias to "smartcn_tokenizer"; it's here for backwards compat
+        tokenizersBindings.processTokenizer("smartcn_sentence", SmartChineseTokenizerTokenizerFactory.class);
+    }
+
+    @Override
+    public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
+        // This is a noop token filter; it's here for backwards compat before we had "smartcn_tokenizer"
+        tokenFiltersBindings.processTokenFilter("smartcn_word", SmartChineseNoOpTokenFilterFactory.class);
     }
 }

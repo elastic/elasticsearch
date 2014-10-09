@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.HasAggregations;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 
 import java.util.List;
@@ -36,7 +37,7 @@ public interface BucketReducerAggregation extends Aggregation {
      * A bucket represents a criteria to which all documents that fall in it adhere to. It is also uniquely identified
      * by a key, and can potentially hold sub-aggregations computed over all documents in it.
      */
-    public interface Selection extends HasAggregations, ToXContent, Streamable {
+    public interface Selection extends MultiBucketsAggregation, HasAggregations, ToXContent, Streamable {
 
         /**
          * @return  The key associated with the bucket as a string

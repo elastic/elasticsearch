@@ -44,7 +44,7 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
     private List<InternalSelection> selections;
     private Map<String, Selection> selectionMap;
 
-    public static class InternalSelection implements Selection, MultiBucketsAggregation {
+    public static class InternalSelection implements Selection {
 
         private String key;
         private BytesReference bucketType;
@@ -123,7 +123,9 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
                 bucket.toXContent(builder, params);
             }
             builder.endArray();
-            aggregations.toXContent(builder, params);
+            builder.startObject("reductions");
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
             builder.endObject();
             return builder;
         }

@@ -110,26 +110,26 @@ public class ReducerParsers {
                 final String fieldName = parser.currentName();
 
                 token = parser.nextToken();
-//                if (token != XContentParser.Token.START_OBJECT) {
-//                    throw new SearchParseException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] under [" + fieldName + "], but got a [" + token + "] in [" + reductionName + "]");
-//                } FIXME
-
-                switch (fieldName) {
-                    case "reducers":
+                if (token == XContentParser.Token.START_ARRAY) {
+                    if ("reducers".equals(fieldName)) {
                         if (subFactories != null) {
                             throw new SearchParseException(context, "Found two sub aggregation definitions under [" + reductionName + "]");
                         }
                         subFactories = parseReducers(parser, context, level+1);
-                        break;
-                    default:
-                        if (factory != null) {
-                            throw new SearchParseException(context, "Found two reduction type definitions in [" + reductionName + "]: [" + factory.type + "] and [" + fieldName + "]");
-                        }
-                        Reducer.Parser reducerParser = parser(fieldName);
-                        if (reducerParser == null) {
-                            throw new SearchParseException(context, "Could not find reducer type [" + fieldName + "] in [" + reductionName + "]");
-                        }
-                        factory = reducerParser.parse(reductionName, parser, context);
+                    } else {
+                        throw new SearchParseException(context, "Expected [" + XContentParser.Token.START_ARRAY + "] for field [reducers], but got a [" + token + "] in [" + reductionName + "]");
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if (factory != null) {
+                        throw new SearchParseException(context, "Found two reduction type definitions in [" + reductionName + "]: [" + factory.type + "] and [" + fieldName + "]");
+                    }
+                    Reducer.Parser reducerParser = parser(fieldName);
+                    if (reducerParser == null) {
+                        throw new SearchParseException(context, "Could not find reducer type [" + fieldName + "] in [" + reductionName + "]");
+                    }
+                    factory = reducerParser.parse(reductionName, parser, context);
+                } else {
+                    throw new SearchParseException(context, "Unexpected token [" + token + "] for field [" + fieldName + "] in [" + reductionName + "]");
                 }
             }
 

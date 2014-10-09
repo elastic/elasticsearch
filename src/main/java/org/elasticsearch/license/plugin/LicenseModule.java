@@ -6,6 +6,7 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.core.LicensesService;
 
 public class LicenseModule extends AbstractModule {
@@ -13,5 +14,6 @@ public class LicenseModule extends AbstractModule {
     protected void configure() {
         //TODO: bind LicensesManagementService and LicensesValidationService to LicensesServices instead
         bind(LicensesService.class).asEagerSingleton();
+        bind(LicensesManagerService.class).to(LicensesService.class).asEagerSingleton();
     }
 }

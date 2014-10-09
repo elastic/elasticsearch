@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseBuilders;
 import org.elasticsearch.license.manager.ESLicenseManager;
+import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.node.Node;
@@ -25,6 +26,8 @@ import org.elasticsearch.node.internal.InternalNode;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.license.plugin.core.TrialLicensesBuilder.EMPTY;
+
 /**
  * Service responsible for maintaining and providing access to licenses on nodes.
  *
@@ -32,13 +35,15 @@ import java.util.Set;
  *  - implement logic in clusterChanged
  *  - interface with LicenseManager
  */
-public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener {
+public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener, LicensesManagerService, LicensesValidatorService {
 
     private ESLicenseManager esLicenseManager;
 
     private InternalNode node;
 
     private ClusterService clusterService;
+
+    private volatile TrialLicenses trialLicenses = EMPTY;
 
     @Inject
     public LicensesService(Settings settings, Node node) {
@@ -52,9 +57,11 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      * This method can be only called on the master node. It tries to create a new licenses on the master
      * and if it was successful it adds the license to cluster metadata.
      */
-    public void registerLicenses(String source, final PutLicenseRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    @Override
+    public void registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener) {
+        final PutLicenseRequest request = requestHolder.request;
         final LicensesMetaData newLicenseMetaData = new LicensesMetaData(request.license());
-        clusterService.submitStateUpdateTask(source, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+        clusterService.submitStateUpdateTask(requestHolder.source, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                 return new ClusterStateUpdateResponse(acknowledged);
@@ -73,6 +80,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                     currentLicenses = newLicenseMetaData;
                 } else {
                     // merge previous license with new one
+                    //TODO: proper merge for trial licenses
                     currentLicenses = new LicensesMetaData(LicenseBuilders.merge(currentLicenses, newLicenseMetaData));
                 }
 
@@ -83,9 +91,11 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     }
 
-    public void unregisteredLicenses(String source, final DeleteLicenseRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    @Override
+    public void unregisterLicenses(final DeleteLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener) {
+        final DeleteLicenseRequest request = requestHolder.request;
         final Set<ESLicenses.FeatureType> featuresToDelete = asFeatureTypes(request.features());
-        clusterService.submitStateUpdateTask(source, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+        clusterService.submitStateUpdateTask(requestHolder.source, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                 return new ClusterStateUpdateResponse(acknowledged);
@@ -98,6 +108,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 LicensesMetaData currentLicenses = metaData.custom(LicensesMetaData.TYPE);
 
                 if (currentLicenses != null) {
+                    //TODO: proper delete for trial licenses
                     currentLicenses = new LicensesMetaData(LicenseBuilders.removeFeatures(currentLicenses, featuresToDelete));
                 }
                 mdBuilder.putCustom(LicensesMetaData.TYPE, currentLicenses);
@@ -118,17 +129,36 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     @Override
     protected void doStop() throws ElasticsearchException {
-        //TODO
     }
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        //TODO
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         //TODO
+
+        // check for registered plugin
+        // if appropriate registered plugin is found; push one-time trial license
+
+        // check for cluster status (recovery)
+        // switch validation enforcement
+    }
+
+    @Override
+    public boolean checkLicenseExpiry(String feature) {
+        //TODO make validation cluster state aware
+        //check trial license existence
+        // if found; use it to do the check
+
+        return esLicenseManager.hasLicenseForFeature(ESLicenses.FeatureType.fromString(feature));
+    }
+
+    @Override
+    public boolean checkMaxNode(String feature) {
+        //TODO make validation cluster state aware
+        return false;
     }
 
     private static Set<ESLicenses.FeatureType> asFeatureTypes(Set<String> featureTypeStrings) {
@@ -137,5 +167,25 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             featureTypes.add(ESLicenses.FeatureType.fromString(featureString));
         }
         return featureTypes;
+    }
+
+    public static class PutLicenseRequestHolder {
+        private final PutLicenseRequest request;
+        private final String source;
+
+        public PutLicenseRequestHolder(PutLicenseRequest request, String source) {
+            this.request = request;
+            this.source = source;
+        }
+    }
+
+    public static class DeleteLicenseRequestHolder {
+        private final DeleteLicenseRequest request;
+        private final String source;
+
+        public DeleteLicenseRequestHolder(DeleteLicenseRequest request, String source) {
+            this.request = request;
+            this.source = source;
+        }
     }
 }

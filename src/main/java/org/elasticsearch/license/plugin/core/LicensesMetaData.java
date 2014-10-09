@@ -22,8 +22,10 @@ import static org.elasticsearch.license.plugin.action.Utils.*;
 
 /**
  * Contains metadata about registered licenses
+ *
+ * TODO: add trial licenses to MetaData
  */
-public class LicensesMetaData implements MetaData.Custom, ESLicenses {
+public class LicensesMetaData implements MetaData.Custom, ESLicenses, TrialLicenses {
 
     public static final String TYPE = "licenses";
 
@@ -64,6 +66,7 @@ public class LicensesMetaData implements MetaData.Custom, ESLicenses {
         return licenses.keySet();
     }
 
+
     @Override
     public ESLicense get(FeatureType featureType) {
         return licenses.get(featureType);
@@ -72,6 +75,18 @@ public class LicensesMetaData implements MetaData.Custom, ESLicenses {
     @Override
     public Iterator<ESLicense> iterator() {
         return licenses.values().iterator();
+    }
+
+    @Override
+    public Collection<TrialLicense> trialLicenses() {
+        //todo trial license functionality
+        return null;
+    }
+
+    @Override
+    public TrialLicense getTrialLicense(FeatureType featureType) {
+        //todo trial license functionality
+        return null;
     }
 
     /**
@@ -147,7 +162,7 @@ public class LicensesMetaData implements MetaData.Custom, ESLicenses {
 
         @Override
         public EnumSet<MetaData.XContentContext> context() {
-            return EnumSet.of(MetaData.XContentContext.API);
+            return MetaData.API_ONLY;
         }
 
 

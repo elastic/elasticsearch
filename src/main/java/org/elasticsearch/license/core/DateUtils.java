@@ -22,6 +22,23 @@ public class DateUtils {
         return dateFormat;
     }
 
+    public static long expiryDateAfterDays(long startDate, int days) {
+        Date dateObj = new Date(startDate);
+
+        Calendar calendar = Calendar.getInstance();
+        calendar.clear();
+        calendar.setTimeZone(TIME_ZONE);
+        calendar.setTimeInMillis(dateObj.getTime());
+
+        calendar.add(Calendar.DAY_OF_YEAR, days);
+
+        calendar.set(Calendar.HOUR, 23);
+        calendar.set(Calendar.MINUTE, 59);
+        calendar.set(Calendar.SECOND, 59);
+
+        return calendar.getTimeInMillis();
+    }
+
     public static long longExpiryDateFromDate(long date) {
         Date dateObj = new Date(date);
 

@@ -71,6 +71,9 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
                 //If we can't replace because we got an empty set, we can only throw exception.
                 //Downside of this is that a single item exception is going to its composite requests fail as a whole.
                 if (indices == null || indices.isEmpty()) {
+                    if (MetaData.isAllIndices(indicesRequest.indices())) {
+                        throw new IndexMissingException(new Index(MetaData.ALL));
+                    }
                     throw new IndexMissingException(new Index(Arrays.toString(indicesRequest.indices())));
                 }
                 ((IndicesRequest.Replaceable)indicesRequest).indices(indices.toArray(new String[indices.size()]));

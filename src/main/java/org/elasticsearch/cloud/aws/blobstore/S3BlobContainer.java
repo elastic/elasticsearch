@@ -23,7 +23,6 @@ import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -35,17 +34,18 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 
 /**
  *
  */
-public class AbstractS3BlobContainer extends AbstractBlobContainer {
+public class S3BlobContainer extends AbstractBlobContainer {
 
     protected final S3BlobStore blobStore;
 
     protected final String keyPath;
 
-    public AbstractS3BlobContainer(BlobPath path, S3BlobStore blobStore) {
+    public S3BlobContainer(BlobPath path, S3BlobStore blobStore) {
         super(path);
         this.blobStore = blobStore;
         String keyPath = path.buildAsString("/");
@@ -74,38 +74,22 @@ public class AbstractS3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void readBlob(final String blobName, final ReadBlobListener listener) {
-        blobStore.executor().execute(new Runnable() {
-            @Override
-            public void run() {
-                InputStream is;
-                try {
-                    S3Object object = blobStore.client().getObject(blobStore.bucket(), buildKey(blobName));
-                    is = object.getObjectContent();
-                } catch (AmazonS3Exception e) {
-                    if (e.getStatusCode() == 404) {
-                        listener.onFailure(new FileNotFoundException(e.getMessage()));
-                    } else {
-                        listener.onFailure(e);
-                    }
-                    return;
-                } catch (Throwable e) {
-                    listener.onFailure(e);
-                    return;
-                }
-                byte[] buffer = new byte[blobStore.bufferSizeInBytes()];
-                try {
-                    int bytesRead;
-                    while ((bytesRead = is.read(buffer)) != -1) {
-                        listener.onPartial(buffer, 0, bytesRead);
-                    }
-                    listener.onCompleted();
-                } catch (Throwable e) {
-                    IOUtils.closeWhileHandlingException(is);
-                    listener.onFailure(e);
-                }
+    public InputStream openInput(String blobName) throws IOException {
+        try {
+            S3Object s3Object = blobStore.client().getObject(blobStore.bucket(), buildKey(blobName));
+            return s3Object.getObjectContent();
+        } catch (AmazonS3Exception e) {
+            if (e.getStatusCode() == 404) {
+                throw new FileNotFoundException(e.getMessage());
             }
-        });
+            throw e;
+        }
+    }
+
+    @Override
+    public OutputStream createOutput(final String blobName) throws IOException {
+        // UploadS3OutputStream does buffering internally
+        return new DefaultS3OutputStream(blobStore, blobStore.bucket(), buildKey(blobName), blobStore.bufferSizeInBytes(), blobStore.numberOfRetries(), blobStore.serverSideEncryption());
     }
 
     @Override
@@ -143,10 +127,6 @@ public class AbstractS3BlobContainer extends AbstractBlobContainer {
 
     protected String buildKey(String blobName) {
         return keyPath + blobName;
-    }
-
-    protected boolean shouldRetry(AmazonS3Exception e) {
-        return e.getStatusCode() == 400 && "RequestTimeout".equals(e.getErrorCode());
     }
 
 }

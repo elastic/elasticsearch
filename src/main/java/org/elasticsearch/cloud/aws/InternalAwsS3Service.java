@@ -22,6 +22,7 @@ package org.elasticsearch.cloud.aws;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.*;
+import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
@@ -192,5 +193,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         for (AmazonS3Client client : clients.values()) {
             client.shutdown();
         }
+
+        // Ensure that IdleConnectionReaper is shutdown
+        IdleConnectionReaper.shutdown();
     }
 }

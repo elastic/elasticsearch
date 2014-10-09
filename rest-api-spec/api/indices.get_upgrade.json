@@ -1,7 +1,7 @@
 {
-  "indices.upgrade": {
+  "indices.get_upgrade": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-upgrade.html",
-    "methods": ["POST"],
+    "methods": ["GET"],
     "url": {
       "path": "/_upgrade",
       "paths": ["/_upgrade", "/{index}/_upgrade"],
@@ -25,10 +25,6 @@
             "options" : ["open","closed"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
-        },
-        "wait_for_completion": {
-          "type" : "boolean",
-          "description" : "Specify whether the request should block until the all segments are upgraded (default: true)"
         }
       }
     },

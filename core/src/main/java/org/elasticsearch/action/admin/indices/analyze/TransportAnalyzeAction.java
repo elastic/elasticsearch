@@ -49,13 +49,16 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.CustomAnalyzerProvider;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -183,11 +186,12 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers,
                         analysisRegistry, environment);
 
-            TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
-            tokenFilterFactories = getTokenFilterFactories(request, indexSettings, analysisRegistry, environment, tokenFilterFactories);
-
             CharFilterFactory[] charFilterFactories = new CharFilterFactory[0];
             charFilterFactories = getCharFilterFactories(request, indexSettings, analysisRegistry, environment, charFilterFactories);
+
+            TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
+            tokenFilterFactories = getTokenFilterFactories(request, indexSettings, analysisRegistry, environment,
+                tokenFilterFactories, tokenizerFactory, charFilterFactories);
 
             analyzer = new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(), charFilterFactories, tokenFilterFactories);
             closeAnalyzer = true;
@@ -509,9 +513,13 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     }
 
     private static TokenFilterFactory[] getTokenFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
-                                                                Environment environment, TokenFilterFactory[] tokenFilterFactories) throws IOException {
+                                                                Environment environment, TokenFilterFactory[] tokenFilterFactories,
+                                                                Tuple<String, TokenizerFactory> tokenizerFactory, CharFilterFactory[] charFilterFactories
+                                                                ) throws IOException {
         if (request.tokenFilters() != null && request.tokenFilters().size() > 0) {
             tokenFilterFactories = new TokenFilterFactory[request.tokenFilters().size()];
+            SynonymTokenFilterFactory.Factory synonymTokenFilterFactory;
+            List<TokenFilterFactory> tokenFiltersListForSynonym;
             for (int i = 0; i < request.tokenFilters().size(); i++) {
                 final AnalyzeRequest.NameOrDefinition tokenFilter = request.tokenFilters().get(i);
                 // parse anonymous settings
@@ -528,6 +536,21 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     }
                     // Need to set anonymous "name" of tokenfilter
                     tokenFilterFactories[i] = tokenFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_tokenfilter_[" + i + "]", settings);
+
+                    // TODO refactoring with CustomAnalyzerProvider
+                    if (tokenFilterFactories[i] instanceof SynonymTokenFilterFactory) {
+                        int positionIncrementGap = indexSettings.getSettings().getAsInt("position_increment_gap",
+                            TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
+                        int offsetGap = indexSettings.getSettings().getAsInt("offset_gap", -1);
+                        tokenFiltersListForSynonym = new ArrayList<>(tokenFilterFactories.length);
+                        synonymTokenFilterFactory = ((SynonymTokenFilterFactory) tokenFilterFactories[i]).createPerAnalyzerFactory(
+                            new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
+                                charFilterFactories,
+                                tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
+                                positionIncrementGap,
+                                offsetGap));
+                        tokenFilterFactories[i] = synonymTokenFilterFactory;
+                    }
                 } else {
                     AnalysisModule.AnalysisProvider<TokenFilterFactory> tokenFilterFactoryFactory;
                     if (indexSettings == null) {
@@ -544,6 +567,21 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         tokenFilterFactories[i] = tokenFilterFactoryFactory.get(indexSettings, environment, tokenFilter.name,
                             AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
                                 AnalysisRegistry.INDEX_ANALYSIS_FILTER + "." + tokenFilter.name));
+
+                        // TODO refactoring with CustomAnalyzerProvider
+                        if (tokenFilterFactories[i] instanceof SynonymTokenFilterFactory) {
+                            int positionIncrementGap = indexSettings.getSettings().getAsInt("position_increment_gap",
+                                TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
+                            int offsetGap = indexSettings.getSettings().getAsInt("offset_gap", -1);
+                            tokenFiltersListForSynonym = new ArrayList<>(tokenFilterFactories.length);
+                            synonymTokenFilterFactory = ((SynonymTokenFilterFactory) tokenFilterFactories[i]).createPerAnalyzerFactory(
+                                new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
+                                    charFilterFactories,
+                                    tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
+                                    positionIncrementGap,
+                                    offsetGap));
+                            tokenFilterFactories[i] = synonymTokenFilterFactory;
+                        }
                     }
                 }
                 if (tokenFilterFactories[i] == null) {

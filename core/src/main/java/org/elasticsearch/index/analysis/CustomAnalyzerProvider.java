@@ -65,21 +65,34 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             charFiltersList.add(charFilter);
         }
 
+        int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+
+        positionIncrementGap = analyzerSettings.getAsInt("position_increment_gap", positionIncrementGap);
+
+        int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);
+
         String[] tokenFilterNames = analyzerSettings.getAsArray("filter");
         List<TokenFilterFactory> tokenFilterList = new ArrayList<>(tokenFilterNames.length);
+        SynonymTokenFilterFactory.Factory synonymTokenFilterFactory;
+        List<TokenFilterFactory> tokenFiltersListForSynonym;
         for (String tokenFilterName : tokenFilterNames) {
             TokenFilterFactory tokenFilter = tokenFilters.get(tokenFilterName);
             if (tokenFilter == null) {
                 throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find filter under name [" + tokenFilterName + "]");
             }
+            if (tokenFilter instanceof SynonymTokenFilterFactory) {
+                tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
+                synonymTokenFilterFactory = ((SynonymTokenFilterFactory) tokenFilter).createPerAnalyzerFactory(
+                    new CustomAnalyzer(tokenizer,
+                        charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
+                        tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
+                        positionIncrementGap,
+                        offsetGap));
+                tokenFilter = synonymTokenFilterFactory;
+            }
             tokenFilterList.add(tokenFilter);
         }
 
-        int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
-
-        positionIncrementGap = analyzerSettings.getAsInt("position_increment_gap", positionIncrementGap);
-
-        int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);;
         this.customAnalyzer = new CustomAnalyzer(tokenizerName, tokenizer,
                 charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                 tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()]),

@@ -34,11 +34,18 @@ PUT /test_index
 The above configures a `synonym` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
 `synonym` analyzer is then configured with the filter. Additional
-settings are: `ignore_case` (defaults to `false`), and `expand`
-(defaults to `true`).
+settings is: `expand` (defaults to `true`).
+
+This filter tokenize synonyms with whatever tokenizer and token filters
+appear before it in the chain.
+
+[float]
+==== `tokenizer` and `ignore_case` deprecated
 
 The `tokenizer` parameter controls the tokenizers that will be used to
-tokenize the synonym, and defaults to the `whitespace` tokenizer.
+tokenize the synonym, this parameter is for backwards compatibility.
+And `ignore_case` parameter works with `tokenizer` parameter only.
+If you need same behavior in 1.x, `tokenizer` parameter should be set `whitespace`.
 
 Two synonym formats are supported: Solr, WordNet.
 

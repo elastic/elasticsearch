@@ -3,11 +3,11 @@
         "analysis":{
             "analyzer":{
                 "synonymAnalyzer":{
-                    "tokenizer":"standard",
+                    "tokenizer":"whitespace",
                     "filter":[ "synonym" ]
                 },
                 "synonymAnalyzer_file":{
-                    "tokenizer":"standard",
+                    "tokenizer":"whitespace",
                     "filter":[ "synonym_file" ]
                 },
                 "synonymAnalyzerWordnet":{
@@ -21,6 +21,35 @@
                 "synonymAnalyzerWithsettings":{
                     "tokenizer":"trigram",
                     "filter":["synonymWithTokenizerSettings"]
+                },
+                "synonymAnalyzerWithCharfilter": {
+                    "char_filter": ["mapping"],
+                    "tokenizer":"whitespace",
+                    "filter":["synonym_within_upper"]
+                },
+                "synonymAnalyzerWithStopBeforeSynonym": {
+                    "tokenizer":"whitespace",
+                    "filter":["stop","synonym"]
+                },
+                "synonymAnalyzerWithStopAfterSynonym":{
+                    "tokenizer":"whitespace",
+                    "filter":["synonym","stop"]
+                },
+                "synonymAnalyzerWithStopSynonymAfterSynonym":{
+                    "tokenizer":"whitespace",
+                    "filter":["synonym","stop_within_synonym"]
+                },
+                "synonymAnalyzerExpand":{
+                    "tokenizer": "whitespace",
+                    "filter":["synonym_expand"]
+                },
+                "synonymAnalyzerExpandWithStopAfterSynonym":{
+                    "tokenizer": "whitespace",
+                    "filter":["synonym_expand", "stop_within_synonym"]
+                },
+                "synonymAnalyzerWithTokenizerFactory":{
+                    "tokenizer": "whitespace",
+                    "filter":["stop_within_synonym", "synonym_with_tokenizer"]
                 }
             },
             "tokenizer":{
@@ -61,10 +90,49 @@
                     "type":"synonym",
                     "synonyms":[
                         "kimchy => shay"
+                    ]
+                },
+                "synonym_within_upper":{
+                    "type":"synonym",
+                    "synonyms":[
+                        "kimchy => shAy",
+                        "dude => elasticsearch",
+                        "Acides => man!"
+                    ]
+                },
+                "stop":{
+                    "type": "stop",
+                    "stopwords":["stop","synonym"]
+                },
+                "stop_within_synonym":{
+                    "type": "stop",
+                    "stopwords":["kimchy", "elasticsearch"]
+                },
+                "synonym_expand":{
+                    "type":"synonym",
+                    "synonyms":[
+                        "kimchy , shay",
+                        "dude , elasticsearch",
+                        "abides , man!"
+                    ]
+                },
+                "synonym_with_tokenizer":{
+                    "type":"synonym",
+                    "synonyms":[
+                        "kimchy => shay",
+                        "dude => elasticsearch",
+                        "abides => man!"
                     ],
-                    "tokenizer" : "trigram",
-                    "min_gram" : 3,
-                    "max_gram" : 3
+                    "tokenizer": "standard"
+                }
+            },
+            "char_filter": {
+                "mapping": {
+                    "type": "mapping",
+                    "mappings": [
+                        "A=>a",
+                        "B=>c"
+                    ]
                 }
             }
         }

@@ -9,7 +9,7 @@ SYNOPSIS
 DESCRIPTION
 
     This tool manages all native security aspects in elasticsearch, saving
-    the administratorfrom needing to modify security related fiels manually.
+    the administrator from needing to modify security related fiels manually.
     This tool provides several commands for different security management
     tasks
 

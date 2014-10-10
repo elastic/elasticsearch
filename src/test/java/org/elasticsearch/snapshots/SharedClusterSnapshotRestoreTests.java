@@ -805,6 +805,27 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
+    public void snapshotSingleClosedIndexTest() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", newTempDir(LifecycleScope.SUITE))));
+
+        createIndex("test-idx");
+        ensureGreen();
+        logger.info("-->  closing index test-idx");
+        assertAcked(client.admin().indices().prepareClose("test-idx"));
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
+                .setWaitForCompletion(true).setIndices("test-idx").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().indices().size(), equalTo(1));
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.FAILED));
+    }
+
+    @Test
     public void renameOnRestoreTest() throws Exception {
         Client client = client();
 

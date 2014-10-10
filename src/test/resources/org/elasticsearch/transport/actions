@@ -50,9 +50,6 @@ indices:monitor/segments
 indices:monitor/settings/get
 indices:monitor/stats
 indices:monitor/status
-indices:data/benchmark/abort
-indices:data/benchmark/start
-indices:data/benchmark/status
 indices:data/read/count
 indices:data/read/exists
 indices:data/read/explain

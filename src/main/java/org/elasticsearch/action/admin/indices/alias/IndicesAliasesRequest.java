@@ -304,7 +304,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 }
             } else {
                 validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH)
-                        + "]: [index] may not be null", validationException);
+                        + "]: Property [index] was either missing or null", validationException);
             }
         }
         return validationException;

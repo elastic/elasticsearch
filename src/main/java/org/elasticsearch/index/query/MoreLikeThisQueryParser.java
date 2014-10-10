@@ -56,7 +56,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
     private MoreLikeThisFetchService fetchService = null;
 
     public static class Fields {
-        public static final ParseField LIKE_TEXT = new ParseField("like_text");
+        public static final ParseField LIKE_TEXT = new ParseField("like_text");  // deprecated in 1.5 in favor to "like"
         public static final ParseField MIN_TERM_FREQ = new ParseField("min_term_freq");
         public static final ParseField MAX_QUERY_TERMS = new ParseField("max_query_terms");
         public static final ParseField MIN_WORD_LENGTH = new ParseField("min_word_length", "min_word_len");
@@ -68,9 +68,9 @@ public class MoreLikeThisQueryParser implements QueryParser {
         public static final ParseField PERCENT_TERMS_TO_MATCH = new ParseField("percent_terms_to_match");
         public static final ParseField FAIL_ON_UNSUPPORTED_FIELD = new ParseField("fail_on_unsupported_field");
         public static final ParseField STOP_WORDS = new ParseField("stop_words");
-        public static final ParseField DOCUMENT_IDS = new ParseField("ids");
-        public static final ParseField DOCUMENTS = new ParseField("docs");
-        public static final ParseField LIKE = new ParseField("like");
+        public static final ParseField DOCUMENT_IDS = new ParseField("ids");  // deprecated in 1.5 in favor to "like"
+        public static final ParseField DOCUMENTS = new ParseField("docs");  // deprecated in 1.5 in favor to "like"
+        public static final ParseField LIKE = new ParseField("like");  // this is now the only required option
         public static final ParseField INCLUDE = new ParseField("include");
     }
 

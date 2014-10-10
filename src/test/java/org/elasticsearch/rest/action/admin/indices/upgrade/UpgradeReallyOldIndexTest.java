@@ -62,17 +62,17 @@ public class UpgradeReallyOldIndexTest extends ElasticsearchIntegrationTest {
     public File prepareBackwardsDataDir(File backwardsIndex) throws IOException {
         File dataDir = new File(newTempDir(), "data");
         TestUtil.unzip(backwardsIndex, dataDir.getParentFile());
-        assertThat(dataDir.exists(), is(true));
+        assertTrue(dataDir.exists());
         String[] list = dataDir.list();
         if (list == null || list.length > 1) {
             throw new IllegalStateException("Backwards index must contain exactly one cluster");
         }
         File src = new File(dataDir, list[0]);
         File dest = new File(dataDir, internalCluster().getClusterName());
-        assertThat(src.exists(), is(true));
+        assertTrue(src.exists());
         src.renameTo(dest);
-        assertThat(src.exists(), is(false));
-        assertThat(dest.exists(), is(true));
+        assertFalse(src.exists());
+        assertTrue(dest.exists());
         return dataDir;
     }
 
@@ -85,24 +85,34 @@ public class UpgradeReallyOldIndexTest extends ElasticsearchIntegrationTest {
                 .put("gateway.type", "local") // this is important we need to recover from gateway
                 .put(InternalNode.HTTP_ENABLED, true)
                 .build());
+       
+        sanityCheckIndex();
+        
+        HttpRequestBuilder httpClient = httpClient();
+
+        UpgradeTest.checkNotUpgraded(httpClient, "test");
+        UpgradeTest.runUpgrade(httpClient, "test", "wait_for_completion", "true");
+        UpgradeTest.checkUpgraded(httpClient, "test");
+    }
+    
+    void sanityCheckIndex() {
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().get();
+        logger.info("Found indices: {}", Arrays.toString(getIndexResponse.indices()));
+        assertEquals(1, getIndexResponse.indices().length);
+        assertEquals("test", getIndexResponse.indices()[0]);
+        ensureYellow("test");
+        SearchResponse test = client().prepareSearch("test").get();
+        assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1l));
+    }
+
+    static HttpRequestBuilder httpClient() {
         NodeInfo info = nodeInfo(client());
         info.getHttp().address().boundAddress();
         TransportAddress publishAddress = info.getHttp().address().publishAddress();
         assertEquals(1, publishAddress.uniqueAddressTypeId());
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().get();
-        logger.info("Found indices: {}", Arrays.toString(getIndexResponse.indices()));
-        assertThat(getIndexResponse.indices().length, equalTo(1));
-        assertThat(getIndexResponse.indices()[0], equalTo("test"));
-        ensureYellow("test");
-        SearchResponse test = client().prepareSearch("test").get();
-        assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1l));
         InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
-        HttpRequestBuilder httpClient = new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
-        HttpResponse rsp = httpClient.method("GET").path("/_upgrade").addParam("pretty", "true").execute();
-        logger.info("RESPONSE: \n" + rsp.getBody());
+        return new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
     }
-
-
 
     static NodeInfo nodeInfo(final Client client) {
         final NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().get();
@@ -110,10 +120,4 @@ public class UpgradeReallyOldIndexTest extends ElasticsearchIntegrationTest {
         assertEquals(1, nodes.length);
         return nodes[0];
     }
-
-    /*HttpRequestBuilder httpClient(Node ) {
-        InetSocketAddress[] addresses = cluster().httpAddresses();
-        InetSocketAddress address = addresses[randomInt(addresses.length - 1)];
-        return new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
-    }*/
 }

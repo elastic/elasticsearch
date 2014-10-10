@@ -21,81 +21,152 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  *
  */
-public class RecoveryStatus {
 
-    final String RECOVERY_PREFIX = "recovery.";
 
-    final ShardId shardId;
-    final long recoveryId;
-    final InternalIndexShard indexShard;
-    final RecoveryState recoveryState;
-    final DiscoveryNode sourceNode;
-    final String tempFilePrefix;
+public class RecoveryStatus implements AutoCloseable {
 
-    public RecoveryStatus(long recoveryId, InternalIndexShard indexShard, DiscoveryNode sourceNode) {
-        this.recoveryId = recoveryId;
-        this.indexShard = indexShard;
-        this.sourceNode = sourceNode;
-        this.shardId = indexShard.shardId();
-        this.recoveryState = new RecoveryState(shardId);
-        this.recoveryState.getTimer().startTime(System.currentTimeMillis());
-        this.tempFilePrefix = RECOVERY_PREFIX + recoveryState.getTimer().startTime() + ".";
-    }
+    private final ESLogger logger;
 
-    volatile Thread recoveryThread;
-    private volatile boolean canceled;
-    volatile boolean sentCanceledToSource;
+    private final static AtomicLong idGenerator = new AtomicLong();
+
+    private final String RECOVERY_PREFIX = "recovery.";
+
+    private final ShardId shardId;
+    private final long recoveryId;
+    private final InternalIndexShard indexShard;
+    private final RecoveryState state;
+    private final DiscoveryNode sourceNode;
+    private final String tempFilePrefix;
+    private final Store store;
+    private final RecoveryTarget.RecoveryListener listener;
+
+    private AtomicReference<Thread> waitingRecoveryThread = new AtomicReference<>();
+
+    AtomicBoolean finished = new AtomicBoolean();
+
+    // we start with 1 which will be decremented on cancel/close
+    final AtomicInteger refCount = new AtomicInteger(1);
 
     private volatile ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     public final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
 
+    public RecoveryStatus(InternalIndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
+        this.recoveryId = idGenerator.incrementAndGet();
+        this.listener = listener;
+        this.logger = Loggers.getLogger(getClass(), indexShard.indexSettings(), indexShard.shardId());
+        this.indexShard = indexShard;
+        this.sourceNode = sourceNode;
+        this.shardId = indexShard.shardId();
+        this.state = state;
+        this.state.getTimer().startTime(System.currentTimeMillis());
+        this.tempFilePrefix = RECOVERY_PREFIX + this.state.getTimer().startTime() + ".";
+        this.store = indexShard.store();
+        // make sure the store is not release until we are done.
+        store.incRef();
+    }
+
     private final Set<String> tempFileNames = ConcurrentCollections.newConcurrentSet();
+
+    public long recoveryId() {
+        return recoveryId;
+    }
+
+    public ShardId shardId() {
+        return shardId;
+    }
+
+    public InternalIndexShard indexShard() {
+        return indexShard;
+    }
 
     public DiscoveryNode sourceNode() {
         return this.sourceNode;
     }
 
-    public RecoveryState recoveryState() {
-        return recoveryState;
+    public RecoveryState state() {
+        return state;
+    }
+
+    public Store store() {
+        return store;
+    }
+
+    public void setWaitingRecoveryThread(Thread thread) {
+        waitingRecoveryThread.set(thread);
+    }
+
+    public void clearWaitingRecoveryThread(Thread threadToClear) {
+        waitingRecoveryThread.compareAndSet(threadToClear, null);
     }
 
     public void stage(RecoveryState.Stage stage) {
-        recoveryState.setStage(stage);
+        state.setStage(stage);
     }
 
     public RecoveryState.Stage stage() {
-        return recoveryState.getStage();
+        return state.getStage();
     }
 
-    public boolean isCanceled() {
-        return canceled;
-    }
-    
-    public synchronized void cancel() {
-        canceled = true;
-    }
-    
-    public IndexOutput getOpenIndexOutput(String key) {
-        final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
-        if (canceled || outputs == null) {
-            return null;
+    public void cancel(String reason) {
+        if (finished.compareAndSet(false, true)) {
+            logger.debug("recovery canceled (reason: [{}])", reason);
+            // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+            decRef();
+
+            Thread thread = waitingRecoveryThread.get();
+            if (thread != null) {
+                thread.interrupt();
+            }
         }
-        return outputs.get(key);
+    }
+
+    public void fail(RecoveryFailedException e, boolean sendShardFailure) {
+        if (finished.compareAndSet(false, true)) {
+            // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+            decRef();
+            listener.onRecoveryFailure(state, e, sendShardFailure);
+        }
+
+    }
+
+    public void markAsDone() {
+        if (finished.compareAndSet(false, true)) {
+            // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+            decRef();
+            listener.onRecoveryDone(state);
+        }
+    }
+
+
+    public IndexOutput getOpenIndexOutput(String key) {
+        validateRecoveryStatus();
+        return openIndexOutputs.get(key);
     }
 
     /**
@@ -124,18 +195,6 @@ public class RecoveryStatus {
         return tempFile.substring(tempFilePrefix.length());
     }
 
-    public synchronized Set<Entry<String, IndexOutput>> cancelAndClearOpenIndexInputs() {
-        cancel();
-        final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
-        openIndexOutputs = null;
-        if (outputs == null) {
-            return null;
-        }
-        Set<Entry<String, IndexOutput>> entrySet = outputs.entrySet();
-        return entrySet;
-    }
-    
-
     public IndexOutput removeOpenIndexOutputs(String name) {
         final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
         if (outputs == null) {
@@ -144,13 +203,106 @@ public class RecoveryStatus {
         return outputs.remove(name);
     }
 
-    public synchronized IndexOutput openAndPutIndexOutput(String key, String fileName, StoreFileMetaData metaData, Store store) throws IOException {
-        if (isCanceled()) {
-            return null;
-        }
-        final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
-        IndexOutput indexOutput = store.createVerifyingOutput(fileName, IOContext.DEFAULT, metaData);
-        outputs.put(key, indexOutput);
+    public IndexOutput openAndPutIndexOutput(String key, String fileName, StoreFileMetaData metaData, Store store) throws IOException {
+        validateRecoveryStatus();
+        String tempFileName = getTempNameForFile(fileName);
+        // add first, before it's created
+        tempFileNames.add(tempFileName);
+        IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, IOContext.DEFAULT, metaData);
+        openIndexOutputs.put(key, indexOutput);
         return indexOutput;
+    }
+
+    /** validates that the recovery is still ongoing. throws exceptions o.w. * */
+    public void validateRecoveryStatus() {
+        if (finished.get()) {
+            throw new IndexShardClosedException(shardId);
+        }
+        if (indexShard.state() == IndexShardState.CLOSED) {
+            throw new IndexShardClosedException(shardId);
+        }
+    }
+
+    /**
+     * Used when holding a reference to this recovery status. Does *not* mean the recovery is done or finished.
+     * For that use {@link #cancel(String)} or {@link #markAsDone()}
+     *
+     * @throws Exception
+     */
+    @Override
+    public void close() throws Exception {
+        decRef();
+    }
+
+    /**
+     * Increment the refCount of this RecoveryStatus instance. This method raise an exception if the Recovery is already done or canceled.
+     * Be sure to always call a corresponding {@link #decRef}, in a finally clause; otherwise the status may never be closed.
+     *
+     * @see #decRef()
+     */
+    public final void incRef() {
+        validateRecoveryStatus();
+        if (!tryIncRef()) {
+            throw new IndexShardClosedException(shardId);
+        }
+    }
+
+    /**
+     * Tries to increment the refCount of this RecoveryStatus instance. This method will return <tt>true</tt> iff the refCount was
+     * incremented successfully otherwise <tt>false</tt>. Be sure to always call a corresponding {@link #decRef}, in a finally clause;
+     *
+     * @see #decRef()
+     */
+    public final boolean tryIncRef() {
+        do {
+            int i = refCount.get();
+            if (i > 0) {
+                if (refCount.compareAndSet(i, i + 1)) {
+                    return true;
+                }
+            } else {
+                return false;
+            }
+        } while (true);
+    }
+
+    /**
+     * Decreases the refCount of this Store instance.If the refCount drops to 0, the recovery process this status represents
+     * is seen as done and resources and temporary files are deleted.
+     *
+     * @see #tryIncRef
+     */
+    public final void decRef() {
+        int i = refCount.decrementAndGet();
+        assert i >= 0;
+        if (i == 0) {
+            closeInternal();
+        }
+    }
+
+    private void closeInternal() {
+        try {
+            // clean open index outputs
+            Iterator<Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, IndexOutput> entry = iterator.next();
+                IOUtils.closeWhileHandlingException(entry.getValue());
+                iterator.remove();
+            }
+            // trash temporary files
+            for (String file : tempFileNames) {
+                logger.trace("cleaning temporary file [{}]", file);
+                store.deleteQuiet(file);
+            }
+        } finally {
+            // free store. increment happens in constructor
+            store.decRef();
+        }
+        legacyChecksums.clear();
+    }
+
+    @Override
+    public String toString() {
+        return shardId + " [" + recoveryId + "]";
     }
 }

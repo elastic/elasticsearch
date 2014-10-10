@@ -89,7 +89,7 @@ import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
-import org.elasticsearch.indices.recovery.RecoveryStatus;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -146,7 +146,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private volatile ScheduledFuture mergeScheduleFuture;
     private volatile ShardRouting shardRouting;
 
-    private RecoveryStatus recoveryStatus;
+    @Nullable
+    private RecoveryState recoveryState;
 
     private ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
 
@@ -733,15 +734,15 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     /**
-     * The peer recovery status if this shard recovered from a peer shard.
+     * The peer recovery state if this shard recovered from a peer shard, null o.w.
      */
-    public RecoveryStatus recoveryStatus() {
-        return this.recoveryStatus;
+    public RecoveryState recoveryState() {
+        return this.recoveryState;
     }
 
-    public void performRecoveryFinalization(boolean withFlush, RecoveryStatus recoveryStatus) throws ElasticsearchException {
+    public void performRecoveryFinalization(boolean withFlush, RecoveryState recoveryState) throws ElasticsearchException {
         performRecoveryFinalization(withFlush);
-        this.recoveryStatus = recoveryStatus;
+        this.recoveryState = recoveryState;
     }
 
     public void performRecoveryFinalization(boolean withFlush) throws ElasticsearchException {

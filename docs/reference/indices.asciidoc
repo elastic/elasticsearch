@@ -55,6 +55,7 @@ and warmers.
 * <<indices-refresh>>
 * <<indices-flush>>
 * <<indices-optimize>>
+* <<indices-upgrade>>
 
 --
 

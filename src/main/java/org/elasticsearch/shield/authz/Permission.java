@@ -9,6 +9,10 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.CacheLoader;
+import org.elasticsearch.common.cache.LoadingCache;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authz.indicesresolver.DefaultIndicesResolver;
@@ -144,6 +148,34 @@ public interface Permission {
             }
         };
 
+        private final LoadingCache<String, Predicate<String>> allowedIndicesMatchersForAction = CacheBuilder.newBuilder()
+                .build(new CacheLoader<String, Predicate<String>>() {
+                    @Override
+                    public Predicate<String> load(String action) throws Exception {
+                        ImmutableList.Builder<String> indices = ImmutableList.builder();
+                        for (Group group : groups) {
+                            if (group.actionMatcher.apply(action)) {
+                                indices.add(group.indices);
+                            }
+                        }
+                        return new AutomatonPredicate(Automatons.patterns(indices.build()));
+                    }
+                });
+
+        private final LoadingCache<Privilege.Index, Predicate<String>> allowedIndicesMatchersForPrivilege = CacheBuilder.newBuilder()
+                .build(new CacheLoader<Privilege.Index, Predicate<String>>() {
+                    @Override
+                    public Predicate<String> load(Privilege.Index privilege) throws Exception {
+                        ImmutableList.Builder<String> indices = ImmutableList.builder();
+                        for (Group group : groups) {
+                            if (group.privilege.implies(privilege)) {
+                                indices.add(group.indices);
+                            }
+                        }
+                        return new AutomatonPredicate(Automatons.patterns(indices.build()));
+                    }
+                });
+
         private final IndicesResolver[] indicesResolvers;
         private final Group[] groups;
 
@@ -151,7 +183,6 @@ public interface Permission {
             this.indicesResolvers = new IndicesResolver[0];
             this.groups = new Group[0];
         }
-
 
         public Indices(AuthorizationService authzService, Collection<Group> groups) {
             this.groups = groups.toArray(new Group[groups.size()]);
@@ -170,13 +201,7 @@ public interface Permission {
          *          has the given privilege for.
          */
         public Predicate<String> allowedIndicesMatcher(Privilege.Index privilege) {
-            ImmutableList.Builder<String> indices = ImmutableList.builder();
-            for (Group group : groups) {
-                if (group.privilege.implies(privilege)) {
-                    indices.add(group.indices);
-                }
-            }
-            return new AutomatonPredicate(Automatons.patterns(indices.build()));
+            return allowedIndicesMatchersForPrivilege.getUnchecked(privilege);
         }
 
         /**
@@ -184,13 +209,7 @@ public interface Permission {
          *          has the privilege for executing the given action on.
          */
         public Predicate<String> allowedIndicesMatcher(String action) {
-            ImmutableList.Builder<String> indices = ImmutableList.builder();
-            for (Group group : groups) {
-                if (group.actionMatcher.apply(action)) {
-                    indices.add(group.indices);
-                }
-            }
-            return new AutomatonPredicate(Automatons.patterns(indices.build()));
+            return allowedIndicesMatchersForAction.getUnchecked(action);
         }
 
         @Override @SuppressWarnings("unchecked")

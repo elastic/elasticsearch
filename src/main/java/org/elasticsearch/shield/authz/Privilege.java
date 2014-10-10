@@ -47,6 +47,23 @@ public abstract class Privilege<P extends Privilege<P>> {
         return name;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Privilege privilege = (Privilege) o;
+
+        if (name != null ? !name.equals(privilege.name) : privilege.name != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return name != null ? name.hashCode() : 0;
+    }
+
     public abstract Predicate<String> predicate();
 
     public abstract boolean implies(P other);

@@ -37,8 +37,22 @@ public class PermissionTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testAllowedIndicesMatcher_Privilege_Caching() throws Exception {
+        Predicate<String> matcher1 = permission.indices().allowedIndicesMatcher(GET.plus(SEARCH).plus(WRITE));
+        Predicate<String> matcher2 = permission.indices().allowedIndicesMatcher(GET.plus(SEARCH).plus(WRITE));
+        assertThat(matcher1, is(matcher2));
+    }
+
+    @Test
     public void testAllowedIndicesMatcher_Action() throws Exception {
         testAllowedIndicesMatcher(permission.indices().allowedIndicesMatcher(GetAction.NAME));
+    }
+
+    @Test
+    public void testAllowedIndicesMatcher_Action_Caching() throws Exception {
+        Predicate<String> matcher1 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
+        Predicate<String> matcher2 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
+        assertThat(matcher1, is(matcher2));
     }
 
     private void testAllowedIndicesMatcher(Predicate<String> indicesMatcher) {

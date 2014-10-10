@@ -754,9 +754,31 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         assertThat(existsResponse.exists(), equalTo(false));
     }
 
-    @Test(expected = IndexMissingException.class)
-    public void testAddAliasNullIndex() {
-        admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, "alias1")).get();
+    @Test
+    public void testAddAliasNullWithoutExistingIndices() {
+        try {
+            assertAcked(admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, "alias1")));
+            fail("create alias should have failed due to null index");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Validation Failed: 1: Alias action [add]: [index] may not be null;"));
+        }
+
+    }
+
+    @Test
+    public void testAddAliasNullWithExistingIndices() throws Exception {
+        logger.info("--> creating index [test]");
+        createIndex("test");
+        ensureGreen();
+
+        logger.info("--> aliasing index [null] with [empty-alias]");
+
+        try {
+            assertAcked(admin().indices().prepareAliases().addAlias((String) null, "empty-alias"));
+            fail("create alias should have failed due to null index");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Validation Failed: 1: Alias action [add]: [index] may not be null;"));
+        }
     }
 
     @Test(expected = ActionRequestValidationException.class)
@@ -781,7 +803,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
             assertTrue("Should throw " + ActionRequestValidationException.class.getSimpleName(), false);
         } catch (ActionRequestValidationException e) {
             assertThat(e.validationErrors(), notNullValue());
-            assertThat(e.validationErrors().size(), equalTo(1));
+            assertThat(e.validationErrors().size(), equalTo(2));
         }
     }
 
@@ -938,7 +960,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
                 .addAlias("test", "a", FilterBuilders.matchAllFilter()) // <-- no fail, b/c no field mentioned
                 .get();
     }
-
+    
     private void checkAliases() {
         GetAliasesResponse getAliasesResponse = admin().indices().prepareGetAliases("alias1").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(1));

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authc.support;
 
+import org.elasticsearch.common.os.OsUtils;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -20,7 +21,11 @@ public class HasherTests extends ElasticsearchTestCase {
         assertTrue(hasher.verify(passwd, "$2a$05$zxnP0vdREMxnEpkLCDI2OuSaSk/QEKA2.A42iOpI6U2u.RLLOWm1e".toCharArray()));
         assertTrue(hasher.verify(passwd, "$2a$10$FMhmFjwU5.qxQ/BsEciS9OqcJVkFMgXMo4uH5CelOR1j4N9zIv67e".toCharArray()));
         assertTrue(hasher.verify(passwd, "$apr1$R3DdqiAZ$aljIkaIVPSarmDMlJUBBP.".toCharArray()));
-        assertTrue(hasher.verify(passwd, "hsP1PYSLsEEvs".toCharArray()));
+        if (!Hasher.CRYPT_SUPPORTED) {
+            assertTrue(hasher.verify(passwd, "test123".toCharArray()));
+        } else {
+            assertTrue(hasher.verify(passwd, "hsP1PYSLsEEvs".toCharArray()));
+        }
         assertTrue(hasher.verify(passwd, "{plain}test123".toCharArray()));
         assertTrue(hasher.verify(passwd, "{SHA}cojt0Pw//L6ToM8G41aOKFIWh7w=".toCharArray()));
     }

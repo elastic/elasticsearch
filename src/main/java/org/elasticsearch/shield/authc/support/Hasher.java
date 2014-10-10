@@ -63,7 +63,7 @@ public enum Hasher {
     private static final String BCRYPT_PREFIX_Y = "$2y$";
     private static final String SHA1_PREFIX = "{SHA}";
     private static final String PLAIN_PREFIX = "{plain}";
-    private static final boolean CRYPT_SUPPORTED = !OsUtils.WINDOWS;
+    static final boolean CRYPT_SUPPORTED = !OsUtils.WINDOWS;
 
     public static Hasher resolve(String name, Hasher defaultHasher) {
         if (name == null) {

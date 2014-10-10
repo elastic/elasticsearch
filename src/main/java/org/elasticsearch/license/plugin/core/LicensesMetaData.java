@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.license.plugin.core;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -14,39 +14,87 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.core.ESLicenses;
+import org.elasticsearch.license.core.LicenseBuilders;
 
 import java.io.IOException;
 import java.util.*;
 
+import static org.elasticsearch.license.core.ESLicenses.ESLicense;
+import static org.elasticsearch.license.core.ESLicenses.FeatureType;
 import static org.elasticsearch.license.plugin.action.Utils.*;
+import static org.elasticsearch.license.plugin.core.TrialLicenses.TrialLicense;
 
 /**
  * Contains metadata about registered licenses
  *
- * TODO: add trial licenses to MetaData
+ * TODO: store only signatures rather than the whole licenses json in cluster state
  */
-public class LicensesMetaData implements MetaData.Custom, ESLicenses, TrialLicenses {
+public class LicensesMetaData implements MetaData.Custom {
 
     public static final String TYPE = "licenses";
 
     public static final Factory FACTORY = new Factory();
 
-    private final ImmutableMap<FeatureType, ESLicense> licenses;
+    private final ImmutableMap<FeatureType, ESLicense> licensesMap;
+
+    private final ImmutableMap<FeatureType, TrialLicense> trialLicensesMap;
 
     /**
      * Constructs new licenses metadata
      *
      * @param esLicenses list of esLicense
      */
-    public LicensesMetaData(List<ESLicense> esLicenses) {
-        this.licenses = map(esLicenses);
+    public LicensesMetaData(ESLicenses esLicenses, TrialLicenses trialLicenses) {
+        this.licensesMap = map(esLicenses);
+        this.trialLicensesMap = map(trialLicenses);
     }
 
-    public LicensesMetaData(ESLicenses esLicenses) {
-        this.licenses = map(esLicenses);
+
+    public ESLicenses getLicenses() {
+        return new ESLicenses() {
+            @Override
+            public Collection<ESLicense> licenses() {
+                return licensesMap.values();
+            }
+
+            @Override
+            public Set<FeatureType> features() {
+                return licensesMap.keySet();
+            }
+
+            @Override
+            public ESLicense get(FeatureType featureType) {
+                return licensesMap.get(featureType);
+            }
+
+            @Override
+            public Iterator<ESLicense> iterator() {
+                return licensesMap.values().iterator();
+            }
+        };
     }
 
-    private static ImmutableMap<FeatureType, ESLicense> map(Iterable<ESLicense> esLicenses) {
+    public TrialLicenses getTrialLicenses() {
+        return new TrialLicenses() {
+            @Override
+            public Collection<TrialLicense> trialLicenses() {
+                return trialLicensesMap.values();
+            }
+
+            @Override
+            public TrialLicense getTrialLicense(FeatureType featureType) {
+                return trialLicensesMap.get(featureType);
+            }
+
+            @Override
+            public Iterator<TrialLicense> iterator() {
+                return trialLicensesMap.values().iterator();
+            }
+        };
+    }
+
+
+    private static ImmutableMap<FeatureType, ESLicense> map(ESLicenses esLicenses) {
         final ImmutableMap.Builder<FeatureType, ESLicense> builder = ImmutableMap.builder();
         if (esLicenses != null) {
             for (ESLicense esLicense : esLicenses) {
@@ -56,37 +104,14 @@ public class LicensesMetaData implements MetaData.Custom, ESLicenses, TrialLicen
         return builder.build();
     }
 
-    @Override
-    public Collection<ESLicense> licenses() {
-        return licenses.values();
-    }
-
-    @Override
-    public Set<FeatureType> features() {
-        return licenses.keySet();
-    }
-
-
-    @Override
-    public ESLicense get(FeatureType featureType) {
-        return licenses.get(featureType);
-    }
-
-    @Override
-    public Iterator<ESLicense> iterator() {
-        return licenses.values().iterator();
-    }
-
-    @Override
-    public Collection<TrialLicense> trialLicenses() {
-        //todo trial license functionality
-        return null;
-    }
-
-    @Override
-    public TrialLicense getTrialLicense(FeatureType featureType) {
-        //todo trial license functionality
-        return null;
+    private static ImmutableMap<FeatureType, TrialLicense> map(TrialLicenses trialLicenses) {
+        final ImmutableMap.Builder<FeatureType, TrialLicense> builder = ImmutableMap.builder();
+        if (trialLicenses != null) {
+            for (TrialLicense esLicense : trialLicenses) {
+                builder.put(esLicense.feature(), esLicense);
+            }
+        }
+        return builder.build();
     }
 
     /**
@@ -107,7 +132,13 @@ public class LicensesMetaData implements MetaData.Custom, ESLicenses, TrialLicen
          */
         @Override
         public LicensesMetaData readFrom(StreamInput in) throws IOException {
-            return new LicensesMetaData(readLicensesFrom(in));
+            ESLicenses esLicenses = null;
+            TrialLicenses trialLicenses = null;
+            if (in.readBoolean()) {
+                esLicenses = readGeneratedLicensesFrom(in);
+                trialLicenses = readTrialLicensesFrom(in);
+            }
+            return new LicensesMetaData(esLicenses, trialLicenses);
         }
 
         /**
@@ -115,7 +146,13 @@ public class LicensesMetaData implements MetaData.Custom, ESLicenses, TrialLicen
          */
         @Override
         public void writeTo(LicensesMetaData licensesMetaData, StreamOutput out) throws IOException {
-            writeLicensesTo(licensesMetaData, out);
+            if (licensesMetaData == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                writeGeneratedLicensesTo(licensesMetaData.getLicenses(), out);
+                writeTrialLicensesTo(licensesMetaData.getTrialLicenses(), out);
+            }
         }
 
         /**
@@ -125,25 +162,27 @@ public class LicensesMetaData implements MetaData.Custom, ESLicenses, TrialLicen
         public LicensesMetaData fromXContent(XContentParser parser) throws IOException {
 
             XContentParser.Token token;
-            List<ESLicense> licenses = null;
+            final LicenseBuilders.LicensesBuilder licensesBuilder = LicenseBuilders.licensesBuilder();
+            final TrialLicensesBuilder trialLicensesBuilder = TrialLicensesBuilder.trialLicensesBuilder();
             String fieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     fieldName = parser.currentName();
                 }
-                if (fieldName != null && fieldName.equals(Fields.LICENSES)) {
-                    if (licenses == null) {
-                        licenses = new ArrayList<>();
+                if (fieldName != null) {
+                    if (fieldName.equals(Fields.LICENSES)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            licensesBuilder.license(licenseFromMap(parser.map()));
+                        }
                     }
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        licenses.add(licenseFromMap(parser.map()));
+                    if (fieldName.equals(Fields.TRIAL_LICENSES)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            trialLicensesBuilder.license(trialLicenseFromMap(parser.map()));
+                        }
                     }
                 }
             }
-            if (licenses == null) {
-                throw new ElasticsearchParseException("failed to parse licenses: expected ['" + Fields.LICENSES + "']");
-            }
-            return new LicensesMetaData(licenses);
+            return new LicensesMetaData(licensesBuilder.build(), trialLicensesBuilder.build());
         }
 
         /**
@@ -153,8 +192,14 @@ public class LicensesMetaData implements MetaData.Custom, ESLicenses, TrialLicen
         public void toXContent(LicensesMetaData licensesMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.startArray(Fields.LICENSES);
-            for (ESLicense license : licensesMetaData.licenses()) {
+            for (ESLicense license : licensesMetaData.getLicenses()) {
                 builder.map(licenseAsMap(license));
+            }
+            builder.endArray();
+
+            builder.startArray(Fields.TRIAL_LICENSES);
+            for (TrialLicense license : licensesMetaData.getTrialLicenses()) {
+                builder.map(trialLicenseAsMap(license));
             }
             builder.endArray();
             builder.endObject();
@@ -168,6 +213,7 @@ public class LicensesMetaData implements MetaData.Custom, ESLicenses, TrialLicen
 
         private final static class Fields {
             private static final String LICENSES = "licenses";
+            private static final String TRIAL_LICENSES = "trial_licenses";
         }
 
 

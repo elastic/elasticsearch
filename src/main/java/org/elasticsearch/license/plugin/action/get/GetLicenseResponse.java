@@ -13,8 +13,8 @@ import org.elasticsearch.license.core.LicenseBuilders;
 
 import java.io.IOException;
 
-import static org.elasticsearch.license.plugin.action.Utils.readLicensesFrom;
-import static org.elasticsearch.license.plugin.action.Utils.writeLicensesTo;
+import static org.elasticsearch.license.plugin.action.Utils.readGeneratedLicensesFrom;
+import static org.elasticsearch.license.plugin.action.Utils.writeGeneratedLicensesTo;
 
 public class GetLicenseResponse extends ActionResponse {
 
@@ -34,13 +34,13 @@ public class GetLicenseResponse extends ActionResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        licenses = readLicensesFrom(in);
+        licenses = readGeneratedLicensesFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeLicensesTo(licenses, out);
+        writeGeneratedLicensesTo(licenses, out);
     }
 
 }

@@ -252,7 +252,15 @@ public class ESLicenseManager {
         return convertToESLicense(license);
     }
 
+    ESLicense decryptAndVerifyESLicense(SignedLicense signedLicense, String signature) {
+        return convertToESLicense(this.licenseManager.decryptAndVerifyLicense(signedLicense), signature);
+    }
+
     static ESLicense convertToESLicense(License license) {
+        return convertToESLicense(license, null);
+    }
+
+    static ESLicense convertToESLicense(License license, String signature) {
         final LicenseBuilders.LicenseBuilder licenseBuilder = LicenseBuilders.licenseBuilder(false);
         licenseBuilder
                 .expiryDate(license.getGoodBeforeDate())
@@ -260,6 +268,10 @@ public class ESLicenseManager {
                 .uid(license.getProductKey())
                 .issuedTo(license.getHolder())
                 .issuer(license.getIssuer());
+
+        if (signature != null) {
+            licenseBuilder.signature(signature);
+        }
 
         assert license.getFeatures().size() == 4 : "one license should have only four feature";
         String maxNodesPrefix = "maxNodes:";

@@ -53,6 +53,10 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadOperationA
     protected void masterOperation(final GetLicenseRequest request, ClusterState state, final ActionListener<GetLicenseResponse> listener) throws ElasticsearchException {
         MetaData metaData = state.metaData();
         LicensesMetaData licenses = metaData.custom(LicensesMetaData.TYPE);
-        listener.onResponse(new GetLicenseResponse(licenses));
+        if (licenses != null) {
+            listener.onResponse(new GetLicenseResponse(licenses.getLicenses()));
+        } else {
+            listener.onResponse(new GetLicenseResponse());
+        }
     }
 }

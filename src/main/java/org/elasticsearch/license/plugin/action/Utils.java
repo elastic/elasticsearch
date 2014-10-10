@@ -10,16 +10,19 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseBuilders;
+import org.elasticsearch.license.plugin.core.TrialLicenses;
+import org.elasticsearch.license.plugin.core.TrialLicensesBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.license.core.ESLicenses.*;
+import static org.elasticsearch.license.plugin.core.TrialLicenses.TrialLicense;
 
 public class Utils {
 
 
-    public static ESLicenses readLicensesFrom(StreamInput in) throws IOException {
+    public static ESLicenses readGeneratedLicensesFrom(StreamInput in) throws IOException {
         final LicenseBuilders.LicensesBuilder licensesBuilder = LicenseBuilders.licensesBuilder();
         boolean exists = in.readBoolean();
         if (exists) {
@@ -32,7 +35,7 @@ public class Utils {
         return null;
     }
 
-    public static void writeLicensesTo(ESLicenses esLicenses, StreamOutput out) throws IOException {
+    public static void writeGeneratedLicensesTo(ESLicenses esLicenses, StreamOutput out) throws IOException {
         if (esLicenses == null) {
             out.writeBoolean(false);
             return;
@@ -42,6 +45,52 @@ public class Utils {
         for (ESLicense esLicense : esLicenses) {
             out.writeMap(licenseAsMap(esLicense));
         }
+    }
+
+    public static TrialLicenses readTrialLicensesFrom(StreamInput in) throws IOException {
+        final TrialLicensesBuilder licensesBuilder = TrialLicensesBuilder.trialLicensesBuilder();
+        boolean exists = in.readBoolean();
+        if (exists) {
+            int size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                licensesBuilder.license(trialLicenseFromMap(in.readMap()));
+            }
+            return licensesBuilder.build();
+        }
+        return null;
+    }
+
+    public static void writeTrialLicensesTo(TrialLicenses trialLicenses, StreamOutput out) throws IOException {
+        if (trialLicenses == null) {
+            out.writeBoolean(false);
+            return;
+        }
+        out.writeBoolean(true);
+        out.writeVInt(trialLicenses.trialLicenses().size());
+        for (TrialLicense trialLicense : trialLicenses) {
+            out.writeMap(trialLicenseAsMap(trialLicense));
+        }
+    }
+
+    public static Map<String, Object> trialLicenseAsMap(TrialLicense trialLicense) {
+        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
+        builder.put(TrialLicenseFields.UID, trialLicense.uid());
+        builder.put(TrialLicenseFields.ISSUE_DATE, trialLicense.issueDate());
+        builder.put(TrialLicenseFields.EXPIRY_DATE, trialLicense.expiryDate());
+        builder.put(TrialLicenseFields.MAX_NODES, trialLicense.maxNodes());
+        builder.put(TrialLicenseFields.FEATURE, trialLicense.feature().string());
+        return builder.build();
+    }
+
+    public static TrialLicense trialLicenseFromMap(Map<String, Object> map) {
+        return TrialLicensesBuilder.trialLicenseBuilder()
+                .uid((String) map.get(TrialLicenseFields.UID))
+                .maxNodes((int) map.get(TrialLicenseFields.MAX_NODES))
+                .feature(FeatureType.fromString((String) map.get(TrialLicenseFields.FEATURE)))
+                .issueDate((long) map.get(TrialLicenseFields.ISSUE_DATE))
+                .expiryDate((long) map.get(TrialLicenseFields.EXPIRY_DATE))
+                .build();
+
     }
 
     public static Map<String, Object> licenseAsMap(ESLicense esLicense) {
@@ -70,6 +119,15 @@ public class Utils {
                 .issuedTo((String) map.get(LicenseFields.ISSUED_TO))
                 .signature((String) map.get(LicenseFields.SIGNATURE))
                 .build();
+
+    }
+
+    final static class TrialLicenseFields {
+        private final static String UID = "uid";
+        private final static String ISSUE_DATE = "issue_date";
+        private final static String EXPIRY_DATE = "expiry_date";
+        private final static String MAX_NODES = "max_nodes";
+        private final static String FEATURE = "feature";
 
     }
 

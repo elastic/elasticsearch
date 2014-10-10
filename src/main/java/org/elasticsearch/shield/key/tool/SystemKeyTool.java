@@ -27,7 +27,8 @@ import static org.elasticsearch.common.cli.CliToolConfig.config;
 public class SystemKeyTool extends CliTool {
 
     public static void main(String[] args) throws Exception {
-        new SystemKeyTool().execute(args);
+        int status = new SystemKeyTool().execute(args);
+        System.exit(status);
     }
 
     private static final CliToolConfig CONFIG = config("syskey", SystemKeyTool.class)

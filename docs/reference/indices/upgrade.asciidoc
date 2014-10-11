@@ -5,32 +5,38 @@ The upgrade API allows to upgrade one or more indices to the latest format
 through an API. The upgrade process converts any segments written
 with previous formats.
 
-[source,js]
+[float]
 === Start an upgrade
+
+[source,sh]
 --------------------------------------------------
 $ curl -XPOST 'http://localhost:9200/twitter/_upgrade'
 --------------------------------------------------
 
-Note that upgrading is an I/O intensive operation, and is limited to processing
-a single shard per node at a time.  It also is not allowed to run at the same time
-as optimize.
+NOTE: Upgrading is an I/O intensive operation, and is limited to processing a
+single shard per node at a time.  It also is not allowed to run at the same
+time as optimize.
 
 [float]
 [[upgrade-parameters]]
 ==== Request Parameters
 
-The upgrade API accepts the following request parameters:
+The `upgrade` API accepts the following request parameters:
 
 [horizontal]
 `wait_for_completion`:: Should the request wait the upgrade to complete. Defaults
 to `false`.
 
+[float]
 === Check upgrade status
+
 Use a `GET` request to monitor how much of an index is upgraded.  This
 can also be used prior to starting an upgrade to identify which indices
 you want to upgrade at the same time.
+
+[source,sh]
 --------------------------------------------------
-$ curl 'http://localhost:9200/twitter/_upgrade?human'
+curl 'http://localhost:9200/twitter/_upgrade?human'
 --------------------------------------------------
 
 [source,js]

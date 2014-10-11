@@ -32,6 +32,8 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.license.core.ESLicenses.FeatureType;
+import static org.elasticsearch.license.plugin.core.TrialLicenses.TrialLicense;
 import static org.elasticsearch.license.plugin.core.TrialLicensesBuilder.EMPTY;
 
 /**
@@ -100,7 +102,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     @Override
     public void unregisterLicenses(final DeleteLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener) {
         final DeleteLicenseRequest request = requestHolder.request;
-        final Set<ESLicenses.FeatureType> featuresToDelete = asFeatureTypes(request.features());
+        final Set<FeatureType> featuresToDelete = asFeatureTypes(request.features());
         clusterService.submitStateUpdateTask(requestHolder.source, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -125,7 +127,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     }
 
     //TODO: hook this up
-    private void registerTrialLicense(final TrialLicenses.TrialLicense trialLicense) {
+    private void registerTrialLicense(final TrialLicense trialLicense) {
         clusterService.submitStateUpdateTask("register trial license []", new ProcessedClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
@@ -151,6 +153,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                     // had no license meta data
                     currentLicenses = new LicensesMetaData(null, newTrialLicenses.build());
                 }
+                trialLicenses = currentLicenses.getTrialLicenses();
                 mdBuilder.putCustom(LicensesMetaData.TYPE, currentLicenses);
                 return ClusterState.builder(currentState).metaData(mdBuilder).build();
             }
@@ -187,6 +190,9 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         // check for registered plugin
         // if appropriate registered plugin is found; push one-time trial license
 
+        // generate one-time trial license
+        // registerTrialLicense(generateTrialLicense(feature, 30, 1000));
+
         // check for cluster status (recovery)
         // switch validation enforcement
     }
@@ -197,7 +203,11 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         //check trial license existence
         // if found; use it to do the check
 
-        return esLicenseManager.hasLicenseForFeature(ESLicenses.FeatureType.fromString(feature));
+        final TrialLicense trialLicense = trialLicenses.getTrialLicense(FeatureType.fromString(feature));
+        if (trialLicense != null) {
+            return trialLicense.expiryDate() > System.currentTimeMillis();
+        }
+        return esLicenseManager.hasLicenseForFeature(FeatureType.fromString(feature));
     }
 
     @Override
@@ -206,10 +216,10 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         return false;
     }
 
-    private static Set<ESLicenses.FeatureType> asFeatureTypes(Set<String> featureTypeStrings) {
-        Set<ESLicenses.FeatureType> featureTypes = new HashSet<>(featureTypeStrings.size());
+    private static Set<FeatureType> asFeatureTypes(Set<String> featureTypeStrings) {
+        Set<FeatureType> featureTypes = new HashSet<>(featureTypeStrings.size());
         for (String featureString : featureTypeStrings) {
-            featureTypes.add(ESLicenses.FeatureType.fromString(featureString));
+            featureTypes.add(FeatureType.fromString(featureString));
         }
         return featureTypes;
     }
@@ -234,35 +244,12 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         }
     }
 
-    private TrialLicenses.TrialLicense generateTrialLicense(String feature, int durationInDays, int maxNodes) {
+    private TrialLicense generateTrialLicense(String feature, int durationInDays, int maxNodes) {
         return TrialLicensesBuilder.trialLicenseBuilder()
                 .issueDate(System.currentTimeMillis())
                 .durationInDays(durationInDays)
-                .feature(ESLicenses.FeatureType.fromString(feature))
+                .feature(FeatureType.fromString(feature))
                 .maxNodes(maxNodes)
                 .build();
-    }
-
-    private class PutTrialLicenseRequest extends AcknowledgedRequest<PutTrialLicenseRequest> {
-
-        private PutTrialLicenseRequest() {
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readTimeout(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeTimeout(out);
-        }
     }
 }

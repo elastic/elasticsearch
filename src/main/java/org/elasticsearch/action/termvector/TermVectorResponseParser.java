@@ -19,14 +19,17 @@
 
 package org.elasticsearch.action.termvector;
 
-import org.apache.lucene.analysis.core.KeywordAnalyzer;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.index.*;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.termvector.TermVectorFields.TermVectorDocsAndPosEnum;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -41,7 +44,7 @@ import java.util.Map;
 */
 public class TermVectorResponseParser {
 
-    public class ParsedTermVectorResponse {
+    public static class ParsedTermVectorResponse {
 
         private final String index;
 
@@ -110,32 +113,184 @@ public class TermVectorResponseParser {
     }
 
     private Fields parseTermVectors() throws IOException {
-        MemoryIndex index = new MemoryIndex();
+        Map<String, Terms> termVectors = new HashMap<>();
         XContentParser.Token token;
-        String currentFieldName = null;
+        String currentFieldName;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+                Map<String, Object> terms = null;
+                Map<String, Object> fieldStatistics = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (parser.currentName().equals("field_statistics")) {
-                        parser.skipChildren(); // not implemented
-                    } else if (parser.currentName().equals("terms")) {
+                    if (parser.currentName().equals("terms")) {
                         parser.nextToken();
-                        addToMemoryIndex(index, currentFieldName, parser.map());
+                        terms = parser.map();
                     }
+                    if (parser.currentName().equals("field_statistics")) {
+                        parser.nextToken();
+                        fieldStatistics = parser.map();
+                    }
+                }
+                if (terms != null) {
+                    termVectors.put(currentFieldName, makeTermVector(terms, fieldStatistics));
                 }
             }
         }
-        return MultiFields.getFields(index.createSearcher().getIndexReader());
+        return makeTermVectors(termVectors);
     }
 
-    private void addToMemoryIndex(MemoryIndex index, String fieldName, Map<String, Object> termInfo) throws IOException {
-        for (Map.Entry<String, Object> term : termInfo.entrySet()) {
-            int termFreq = (int) ((Map) (term.getValue())).get("term_freq");
-            for (int i = 0; i < termFreq; i++) {
-                index.addField(fieldName, term.getKey(), new KeywordAnalyzer());
+    private Terms makeTermVector(final Map<String, Object> terms, final Map<String, Object> fieldStatistics) {
+        return new Terms() {
+            @Override
+            public TermsEnum iterator(TermsEnum reuse) throws IOException {
+                return makeTermsEnum(terms);
             }
-        }
+
+            @Override
+            public Comparator<BytesRef> getComparator() {
+                return BytesRef.getUTF8SortedAsUnicodeComparator();
+            }
+
+            @Override
+            public long size() throws IOException {
+                return terms.size();
+            }
+
+            @Override
+            public long getSumTotalTermFreq() throws IOException {
+                return fieldStatistics != null ? (long) fieldStatistics.get("sum_ttf") : -1;
+            }
+
+            @Override
+            public long getSumDocFreq() throws IOException {
+                return fieldStatistics != null ? (long) fieldStatistics.get("sum_doc_freq") : -1;
+            }
+
+            @Override
+            public int getDocCount() throws IOException {
+                return fieldStatistics != null ? (int) fieldStatistics.get("doc_count") : -1;
+            }
+
+            @Override
+            public boolean hasFreqs() {
+                return true;
+            }
+
+            @Override
+            public boolean hasOffsets() {
+                return false;
+            }
+
+            @Override
+            public boolean hasPositions() {
+                return false;
+            }
+
+            @Override
+            public boolean hasPayloads() {
+                return false;
+            }
+        };
+    }
+
+    private TermsEnum makeTermsEnum(final Map<String, Object> terms) {
+        final Iterator<String> iterator = terms.keySet().iterator();
+        return new TermsEnum() {
+            BytesRef currentTerm;
+            int termFreq = -1;
+            int docFreq = -1;
+            long totalTermFreq = -1;
+
+            @Override
+            public BytesRef next() throws IOException {
+                if (iterator.hasNext()) {
+                    String term = iterator.next();
+                    setTermStats(term);
+                    currentTerm = new BytesRef(term);
+                    return currentTerm;
+                } else {
+                    return null;
+                }
+            }
+
+            private void setTermStats(String term) {
+                // we omit positions, offsets and payloads
+                Map<String, Object> termStats = (Map<String, Object>) terms.get(term);
+                termFreq = (int) termStats.get("term_freq");
+                if (termStats.containsKey("doc_freq")) {
+                    docFreq = (int) termStats.get("doc_freq");
+                }
+                if (termStats.containsKey("total_term_freq")) {
+                    totalTermFreq = (int) termStats.get("total_term_freq");
+                }
+            }
+
+            @Override
+            public BytesRef term() throws IOException {
+                return currentTerm;
+            }
+
+            @Override
+            public SeekStatus seekCeil(BytesRef text) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void seekExact(long ord) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long ord() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int docFreq() throws IOException {
+                return docFreq;
+            }
+
+            @Override
+            public long totalTermFreq() throws IOException {
+                return totalTermFreq;
+            }
+
+            @Override
+            public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
+                return docsAndPositions(liveDocs, reuse instanceof DocsAndPositionsEnum ? (DocsAndPositionsEnum) reuse : null, 0);
+            }
+
+            @Override
+            public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
+                final TermVectorDocsAndPosEnum retVal = reuse instanceof TermVectorDocsAndPosEnum ? (TermVectorDocsAndPosEnum) reuse
+                        : new TermVectorDocsAndPosEnum();
+                return retVal.reset(null, null, null, null, termFreq);  // only care about term freq
+            }
+
+            @Override
+            public Comparator<BytesRef> getComparator() {
+                return BytesRef.getUTF8SortedAsUnicodeComparator();
+            }
+        };
+    }
+
+    private Fields makeTermVectors(final Map<String, Terms> termVectors) {
+        return new Fields() {
+            @Override
+            public Iterator<String> iterator() {
+                return termVectors.keySet().iterator();
+            }
+
+            @Override
+            public Terms terms(String field) throws IOException {
+                return termVectors.get(field);
+            }
+
+            @Override
+            public int size() {
+                return termVectors.size();
+            }
+        };
     }
 }
 

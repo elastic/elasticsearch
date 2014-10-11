@@ -391,7 +391,7 @@ public final class TermVectorFields extends Fields {
         }
     }
 
-    private final class TermVectorDocsAndPosEnum extends DocsAndPositionsEnum {
+    public static final class TermVectorDocsAndPosEnum extends DocsAndPositionsEnum {
         private boolean hasPositions;
         private boolean hasOffsets;
         private boolean hasPayloads;
@@ -403,7 +403,7 @@ public final class TermVectorFields extends Fields {
         private BytesRefBuilder[] payloads;
         private int[] endOffsets;
 
-        private DocsAndPositionsEnum reset(int[] positions, int[] startOffsets, int[] endOffsets, BytesRefBuilder[] payloads, int freq) {
+        DocsAndPositionsEnum reset(int[] positions, int[] startOffsets, int[] endOffsets, BytesRefBuilder[] payloads, int freq) {
             curPos = -1;
             doc = -1;
             this.hasPositions = positions != null;

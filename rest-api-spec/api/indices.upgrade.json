@@ -22,17 +22,9 @@
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },
-        "flush": {
-          "type" : "boolean",
-          "description" : "Specify whether the index should be flushed after performing the operation (default: true)"
-        },
         "ignore_unavailable": {
             "type" : "boolean",
             "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
-        },
-        "max_num_segments": {
-          "type" : "number",
-          "description" : "The number of segments the index should be merged into (default: dynamic)"
         },
         "wait_for_completion": {
           "type" : "boolean",

@@ -43,6 +43,12 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
  */
 public class DiscoveryNode implements Streamable, Serializable {
 
+    /**
+     * Minimum version of a node to communicate with. This version corresponds to the minimum compatibility version
+     * of the current elasticsearch major version.
+     */
+    public static final Version MINIMUM_DISCOVERY_NODE_VERSION = Version.CURRENT.minimumCompatibilityVersion();
+
     public static boolean localNode(Settings settings) {
         if (settings.get("node.local") != null) {
             return settings.getAsBoolean("node.local", false);
@@ -98,14 +104,56 @@ public class DiscoveryNode implements Streamable, Serializable {
     DiscoveryNode() {
     }
 
+    /**
+     * Creates a new {@link DiscoveryNode}
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link #MINIMUM_DISCOVERY_NODE_VERSION} should be used.
+     * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     * @param nodeId the nodes unique id.
+     * @param address the nodes transport address
+     * @param version the version of the node.
+     */
     public DiscoveryNode(String nodeId, TransportAddress address, Version version) {
         this("", nodeId, address, ImmutableMap.<String, String>of(), version);
     }
 
+    /**
+     * Creates a new {@link DiscoveryNode}
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link #MINIMUM_DISCOVERY_NODE_VERSION} should be used.
+     * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     * @param nodeName the nodes name
+     * @param nodeId the nodes unique id.
+     * @param address the nodes transport address
+     * @param attributes node attributes
+     * @param version the version of the node.
+     */
     public DiscoveryNode(String nodeName, String nodeId, TransportAddress address, Map<String, String> attributes, Version version) {
         this(nodeName, nodeId, NetworkUtils.getLocalHostName(""), NetworkUtils.getLocalHostAddress(""), address, attributes, version);
     }
 
+    /**
+     * Creates a new {@link DiscoveryNode}
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link #MINIMUM_DISCOVERY_NODE_VERSION} should be used.
+     * it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     * @param nodeName the nodes name
+     * @param nodeId the nodes unique id.
+     * @param hostName the nodes hostname
+     * @param hostAddress the nodes host address
+     * @param address the nodes transport address
+     * @param attributes node attributes
+     * @param version the version of the node.
+     */
     public DiscoveryNode(String nodeName, String nodeId, String hostName, String hostAddress, TransportAddress address, Map<String, String> attributes, Version version) {
         if (nodeName != null) {
             this.nodeName = nodeName.intern();

@@ -22,6 +22,13 @@ package org.elasticsearch.rest.action.admin.indices.upgrade;
 import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.segments.IndexSegments;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -39,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
     
@@ -77,8 +85,8 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             }
             indexRandom(true, builder);
             ensureGreen(indexName);
-            flushAndRefresh();
-
+            assertNoFailures(client().admin().indices().prepareFlush(indexName).setWaitIfOngoing(true).execute().actionGet());
+            
             // index more docs that won't be flushed
             numDocs = scaledRandomIntBetween(100, 1000);
             builder = new ArrayList<>();
@@ -126,20 +134,16 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
     static void checkNotUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
         for (UpgradeStatus status : getUpgradeStatus(httpClient, upgradePath(index))) {
             assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
-            assertTrue("total bytes must be >= upgrade bytes", status.totalBytes >= status.toUpgradeBytes);
-            assertTrue("index " + status.indexName + " should need upgrading",
-                       status.toUpgradeBytes != 0);
-            // nocommit: get the non flushed addition of docs working above so this check can work
-            //assertTrue("index " + status.indexName + " should have recovered some segments from transaction log",
-            //    status.totalBytes != status.toUpgradeBytes);
+            assertTrue("index " + status.indexName + " should have recovered some segments from transaction log",
+                       status.totalBytes > status.toUpgradeBytes);
+            assertTrue("index " + status.indexName + " should need upgrading", status.toUpgradeBytes != 0);
         }
     }
 
     static void checkUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
         for (UpgradeStatus status : getUpgradeStatus(httpClient, upgradePath(index))) {
             assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
-            assertTrue("total bytes must be >= upgrade bytes", status.totalBytes >= status.toUpgradeBytes);
-            assertEquals("index " + status.indexName + " should need upgrading",
+            assertEquals("index " + status.indexName + " should be upgraded",
                 0, status.toUpgradeBytes);
         }
     }

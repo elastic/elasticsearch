@@ -620,7 +620,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             return;
         }
 
-        logger.info("found old metadata state, loading metadata from [{}] and converting to new metadata location and strucutre...", metaDataFile.getAbsolutePath());
+        logger.info("found old metadata state, loading metadata from [{}] and converting to new metadata location and structure...", metaDataFile.getAbsolutePath());
 
         writeGlobalState("upgrade", MetaData.builder(metaData).version(version).build(), null);
         for (IndexMetaData indexMetaData : metaData) {
@@ -674,7 +674,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 if (remove == null) {
                     return;
                 }
-                logger.info("[{}] deleting dangling index", index);
+                logger.warn("[{}] deleting dangling index", index);
                 FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(index)));
             }
         }

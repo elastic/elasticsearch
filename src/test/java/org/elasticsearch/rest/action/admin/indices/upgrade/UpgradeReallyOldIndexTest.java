@@ -62,7 +62,7 @@ public class UpgradeReallyOldIndexTest extends ElasticsearchIntegrationTest {
     }
 
 
-    public void test() throws Exception {
+    public void testUpgrade_0_20() throws Exception {
         File dataDir = prepareBackwardsDataDir(new File(getClass().getResource("index-0.20.zip").toURI()));
         internalCluster().startNode(ImmutableSettings.builder()
                 .put("path.data", dataDir.getPath())

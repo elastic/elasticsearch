@@ -23,11 +23,17 @@ import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.segments.IndexSegments;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -60,7 +66,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         int numIndexes = randomIntBetween(2, 4);
         String[] indexNames = new String[numIndexes];
         for (int i = 0; i < numIndexes; ++i) {
-            String indexName = "test" + i;
+            final String indexName = "test" + i;
             indexNames[i] = indexName;
             
             Settings settings = ImmutableSettings.builder()
@@ -83,7 +89,16 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             }
             indexRandom(true, builder);
             ensureGreen(indexName);
-            flush(indexName);
+            if (globalCompatibilityVersion().before(Version.V_1_4_0_Beta1)) {
+                awaitBusy(new Predicate<Object>() {
+                    @Override
+                    public boolean apply(Object o) {
+                        return flush(indexName).getFailedShards() == 0;
+                    }
+                });
+            } else {
+                assertEquals(0, flush(indexName).getFailedShards());
+            }
             
             // index more docs that won't be flushed
             numDocs = scaledRandomIntBetween(100, 1000);
@@ -132,8 +147,10 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
     static void assertNotUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
         for (UpgradeStatus status : getUpgradeStatus(httpClient, upgradePath(index))) {
             assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
+            // TODO: it would be better for this to be strictly greater, but sometimes an extra flush
+            // mysteriously happens after the second round of docs are indexed
             assertTrue("index " + status.indexName + " should have recovered some segments from transaction log",
-                       status.totalBytes > status.toUpgradeBytes);
+                       status.totalBytes >= status.toUpgradeBytes);
             assertTrue("index " + status.indexName + " should need upgrading", status.toUpgradeBytes != 0);
         }
     }
@@ -143,6 +160,24 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
             assertEquals("index " + status.indexName + " should be upgraded",
                 0, status.toUpgradeBytes);
+        }
+        
+        // double check using the segments api that all segments are actually upgraded
+        IndicesSegmentResponse segsRsp;
+        if (index == null) {
+            segsRsp = client().admin().indices().prepareSegments().execute().actionGet();
+        } else {
+            segsRsp = client().admin().indices().prepareSegments(index).execute().actionGet();
+        }
+        for (IndexSegments indexSegments : segsRsp.getIndices().values()) {
+            for (IndexShardSegments shard : indexSegments) {
+                for (ShardSegments segs : shard.getShards()) {
+                    for (Segment seg : segs.getSegments()) {
+                        assertEquals("Index " + indexSegments.getIndex() + " has unupgraded segment " + seg.toString(),
+                                     Version.CURRENT.luceneVersion, seg.version);
+                    }
+                }
+            }
         }
     }
     

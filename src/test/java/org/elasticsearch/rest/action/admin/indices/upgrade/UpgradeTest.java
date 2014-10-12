@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.upgrade;
 import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +31,7 @@ import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.json.JsonPath;
+import org.junit.BeforeClass;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -39,6 +41,12 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
+
+    @BeforeClass
+    public static void checkUpgradeVersion() {
+        boolean luceneVersionMatches = globalCompatibilityVersion().luceneVersion.equals(Version.CURRENT.luceneVersion);
+        assumeFalse("lucene versions must be different to run upgrade test", luceneVersionMatches);
+    }
 
     @Override
     protected int minExternalNodes() {
@@ -106,7 +114,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
             assertTrue("total bytes must be >= upgrade bytes", status.totalBytes >= status.toUpgradeBytes);
             assertEquals("index " + status.indexName + " should need upgrading",
-                         status.totalBytes, status.toUpgradeBytes);
+                status.totalBytes, status.toUpgradeBytes);
         }
     }
 

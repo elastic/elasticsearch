@@ -23,7 +23,6 @@ import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -39,6 +38,7 @@ import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.json.JsonPath;
+import org.junit.BeforeClass;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -46,9 +46,14 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
+    
+    @BeforeClass
+    public static void checkUpgradeVersion() {
+        boolean luceneVersionMatches = globalCompatibilityVersion().luceneVersion.equals(Version.CURRENT.luceneVersion);
+        assumeFalse("lucene versions must be different to run upgrade test", luceneVersionMatches);
+    }
 
     @Override
     protected int minExternalNodes() {

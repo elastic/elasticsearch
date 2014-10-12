@@ -26,7 +26,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.logging.ESLogger;
@@ -49,12 +48,6 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
-    
-    @BeforeClass
-    public static void checkUpgradeVersion() {
-        boolean luceneVersionMatches = globalCompatibilityVersion().luceneVersion.equals(Version.CURRENT.luceneVersion);
-        assumeFalse("lucene versions must be different to run upgrade test", luceneVersionMatches);
-    }
 
     @BeforeClass
     public static void checkUpgradeVersion() {

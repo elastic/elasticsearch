@@ -90,16 +90,16 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
         }
 
         @Override
-        public ChannelPipelineFactory configureServerChannelPipelineFactory() {
-            return new ErrorPipelineFactory(this);
+        public ChannelPipelineFactory configureServerChannelPipelineFactory(String name, Settings groupSettings) {
+            return new ErrorPipelineFactory(this, name, groupSettings);
         }
 
-        private static class ErrorPipelineFactory extends ServerChannelPipeFactory {
+        private static class ErrorPipelineFactory extends ServerChannelPipelineFactory {
 
             private final ESLogger logger;
 
-            public ErrorPipelineFactory(ExceptionThrowingNettyTransport exceptionThrowingNettyTransport) {
-                super(exceptionThrowingNettyTransport);
+            public ErrorPipelineFactory(ExceptionThrowingNettyTransport exceptionThrowingNettyTransport, String name, Settings groupSettings) {
+                super(exceptionThrowingNettyTransport, name, groupSettings);
                 this.logger = exceptionThrowingNettyTransport.logger;
             }
 

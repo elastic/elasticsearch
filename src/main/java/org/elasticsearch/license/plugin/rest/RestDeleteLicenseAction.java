@@ -10,14 +10,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseResponse;
-import org.elasticsearch.license.plugin.action.delete.TransportDeleteLicenseAction;
-import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
-import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
-import org.elasticsearch.license.plugin.action.put.TransportPutLicenseAction;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -29,18 +24,13 @@ import java.util.Set;
 
 import static org.elasticsearch.license.core.ESLicenses.FeatureType;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestDeleteLicenseAction extends BaseRestHandler {
 
-    private final TransportDeleteLicenseAction transportDeleteLicenseAction;
-
     @Inject
-    public RestDeleteLicenseAction(Settings settings, RestController controller, Client client, TransportDeleteLicenseAction transportDeleteLicenseAction) {
+    public RestDeleteLicenseAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
         controller.registerHandler(DELETE, "/_cluster/license/{features}", this);
-        this.transportDeleteLicenseAction = transportDeleteLicenseAction;
     }
 
 
@@ -52,7 +42,7 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
         }
         DeleteLicenseRequest deleteLicenseRequest = new DeleteLicenseRequest(getFeaturesToDelete(features));
         deleteLicenseRequest.listenerThreaded(false);
-        transportDeleteLicenseAction.execute(deleteLicenseRequest, new AcknowledgedRestListener<DeleteLicenseResponse>(channel));
+        client.admin().cluster().execute(DeleteLicenseAction.INSTANCE, deleteLicenseRequest, new AcknowledgedRestListener<DeleteLicenseResponse>(channel));
     }
 
     private static String[] getFeaturesToDelete(String[] features) {

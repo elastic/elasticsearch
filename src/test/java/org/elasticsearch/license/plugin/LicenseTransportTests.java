@@ -6,25 +6,20 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseBuilders;
 import org.elasticsearch.license.core.LicenseUtils;
-import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
-import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
+import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseResponse;
-import org.elasticsearch.license.plugin.action.delete.TransportDeleteLicenseAction;
-import org.elasticsearch.license.plugin.action.get.GetLicenseRequest;
+import org.elasticsearch.license.plugin.action.get.GetLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
-import org.elasticsearch.license.plugin.action.get.TransportGetLicenseAction;
-import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
+import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
-import org.elasticsearch.license.plugin.action.put.TransportPutLicenseAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.InternalTestCluster;
-import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -36,12 +31,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.MatcherAssert.assertThat;
 
 @ClusterScope(scope = SUITE, numDataNodes = 10)
 public class LicenseTransportTests extends ElasticsearchIntegrationTest {
@@ -55,6 +48,12 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
                 .put("plugins.load_classpath_plugins", false)
                 .put("plugin.types", LicensePlugin.class.getName())
                 .build();
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        // Plugin should be loaded on the transport client as well
+        return nodeSettings(0);
     }
 
     @BeforeClass
@@ -72,11 +71,12 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testEmptyGetLicense() throws Exception {
-        final ActionFuture<DeleteLicenseResponse> deleteFuture = licenseDeleteAction().execute(new DeleteLicenseRequest("marvel", "shield"));
+        DeleteLicenseRequestBuilder deleteLicenseRequestBuilder = new DeleteLicenseRequestBuilder(client().admin().cluster()).setFeatures(ImmutableSet.of("marvel", "shield"));
+        final ActionFuture<DeleteLicenseResponse> deleteFuture = deleteLicenseRequestBuilder.execute();
         final DeleteLicenseResponse deleteLicenseResponse = deleteFuture.get();
         assertTrue(deleteLicenseResponse.isAcknowledged());
 
-        final ActionFuture<GetLicenseResponse> getLicenseFuture = licenseGetAction().execute(new GetLicenseRequest());
+        final ActionFuture<GetLicenseResponse> getLicenseFuture = new GetLicenseRequestBuilder(client().admin().cluster()).execute();
 
         final GetLicenseResponse getLicenseResponse = getLicenseFuture.get();
 
@@ -93,20 +93,20 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
         String licenseString = TestUtils.generateESLicenses(map);
         String licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
 
-        PutLicenseRequest putLicenseRequest = new PutLicenseRequest();
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster());
         //putLicenseRequest.license(licenseString);
         final ESLicenses putLicenses = LicenseUtils.readLicensesFromString(licenseOutput);
-        putLicenseRequest.license(putLicenses);
+        putLicenseRequestBuilder.setLicense(putLicenses);
         //LicenseUtils.printLicense(putLicenses);
         ensureGreen();
 
-        final ActionFuture<PutLicenseResponse> putLicenseFuture = licensePutAction().execute(putLicenseRequest);
+        final ActionFuture<PutLicenseResponse> putLicenseFuture = putLicenseRequestBuilder.execute();
 
         final PutLicenseResponse putLicenseResponse = putLicenseFuture.get();
 
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
 
-        ActionFuture<GetLicenseResponse> getLicenseFuture = licenseGetAction().execute(new GetLicenseRequest());
+        ActionFuture<GetLicenseResponse> getLicenseFuture = new GetLicenseRequestBuilder(client().admin().cluster()).execute();
 
         GetLicenseResponse getLicenseResponse = getLicenseFuture.get();
 
@@ -116,29 +116,14 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
         assertTrue(isSame(putLicenses, getLicenseResponse.licenses()));
 
 
-        final ActionFuture<DeleteLicenseResponse> deleteFuture = licenseDeleteAction().execute(new DeleteLicenseRequest("marvel", "shield"));
+        final ActionFuture<DeleteLicenseResponse> deleteFuture = new DeleteLicenseRequestBuilder(client().admin().cluster())
+                .setFeatures(ImmutableSet.of("marvel", "shield")).execute();
         final DeleteLicenseResponse deleteLicenseResponse = deleteFuture.get();
         assertTrue(deleteLicenseResponse.isAcknowledged());
 
-        getLicenseResponse = licenseGetAction().execute(new GetLicenseRequest()).get();
+        getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).execute().get();
         assertTrue(isSame(getLicenseResponse.licenses(), LicenseBuilders.licensesBuilder().build()));
     }
-
-    public TransportGetLicenseAction licenseGetAction() {
-        final InternalTestCluster clients = internalCluster();
-        return clients.getInstance(TransportGetLicenseAction.class);
-    }
-
-    public TransportPutLicenseAction licensePutAction() {
-        final InternalTestCluster clients = internalCluster();
-        return clients.getInstance(TransportPutLicenseAction.class);
-    }
-
-    public TransportDeleteLicenseAction licenseDeleteAction() {
-        final InternalTestCluster clients = internalCluster();
-        return clients.getInstance(TransportDeleteLicenseAction.class);
-    }
-
 
     //TODO: convert to asserts
     public static boolean isSame(ESLicenses firstLicenses, ESLicenses secondLicenses) {

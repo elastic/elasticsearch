@@ -7,10 +7,13 @@ package org.elasticsearch.license.plugin.core;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.common.inject.ImplementedBy;
+import org.elasticsearch.common.inject.Singleton;
 
 import static org.elasticsearch.license.plugin.core.LicensesService.DeleteLicenseRequestHolder;
 import static org.elasticsearch.license.plugin.core.LicensesService.PutLicenseRequestHolder;
 
+@ImplementedBy(LicensesService.class)
 public interface LicensesManagerService {
 
     public void registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener);

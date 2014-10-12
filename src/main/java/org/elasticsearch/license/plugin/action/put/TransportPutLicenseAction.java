@@ -17,22 +17,20 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
-import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.node.Node;
 
 import static org.elasticsearch.license.plugin.core.LicensesService.PutLicenseRequestHolder;
 
 public class TransportPutLicenseAction extends TransportMasterNodeOperationAction<PutLicenseRequest, PutLicenseResponse> {
 
-    private final LicensesManagerService LicensesManagerService;
+    private final LicensesManagerService licensesManagerService;
 
     @Inject
     public TransportPutLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     LicensesManagerService LicensesManagerService, ThreadPool threadPool, ActionFilters actionFilters) {
+                                     LicensesManagerService licensesManagerService, ThreadPool threadPool, ActionFilters actionFilters) {
         super(settings, PutLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters);
-        this.LicensesManagerService = LicensesManagerService;
+        this.licensesManagerService = licensesManagerService;
     }
 
 
@@ -59,7 +57,7 @@ public class TransportPutLicenseAction extends TransportMasterNodeOperationActio
     @Override
     protected void masterOperation(final PutLicenseRequest request, ClusterState state, final ActionListener<PutLicenseResponse> listener) throws ElasticsearchException {
         final PutLicenseRequestHolder requestHolder = new PutLicenseRequestHolder(request, "put licenses []");
-        LicensesManagerService.registerLicenses(requestHolder, new ActionListener<ClusterStateUpdateResponse>() {
+        licensesManagerService.registerLicenses(requestHolder, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
                 listener.onResponse(new PutLicenseResponse(clusterStateUpdateResponse.isAcknowledged()));

@@ -8,9 +8,13 @@ package org.elasticsearch.license.plugin;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.admin.cluster.ClusterAction;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.delete.TransportDeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
@@ -29,8 +33,15 @@ import java.util.Collection;
 
 public class LicensePlugin extends AbstractPlugin {
 
+    private final boolean isClient;
+
     static {
         MetaData.registerFactory(LicensesMetaData.TYPE, LicensesMetaData.FACTORY);
+    }
+
+    @Inject
+    public LicensePlugin(Settings settings) {
+        this.isClient = DiscoveryNode.clientNode(settings);
     }
 
     @Override
@@ -58,12 +69,19 @@ public class LicensePlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> services() {
-        return ImmutableSet.<Class<? extends LifecycleComponent>>of(LicensesService.class);
+        Collection<Class<? extends LifecycleComponent>> services = Lists.newArrayList();
+        if (!isClient) {
+            services.add(LicensesService.class);
+        }
+        return services;
     }
 
 
     @Override
     public Collection<Class<? extends Module>> modules() {
+        if (isClient) {
+            return ImmutableSet.of();
+        }
         return ImmutableSet.<Class<? extends Module>>of(LicenseModule.class);
     }
 }

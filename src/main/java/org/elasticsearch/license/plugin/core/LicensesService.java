@@ -7,8 +7,6 @@ package org.elasticsearch.license.plugin.core;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -16,19 +14,15 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.inject.Provides;
+import org.elasticsearch.common.inject.Singleton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseBuilders;
 import org.elasticsearch.license.manager.ESLicenseManager;
-import org.elasticsearch.license.plugin.action.delete.DeleteLicenseAction;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalNode;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -43,20 +37,19 @@ import static org.elasticsearch.license.plugin.core.TrialLicensesBuilder.EMPTY;
  *  - implement logic in clusterChanged
  *  - interface with LicenseManager
  */
+@Singleton
 public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener, LicensesManagerService, LicensesValidatorService {
 
     private ESLicenseManager esLicenseManager;
-
-    private InternalNode node;
 
     private ClusterService clusterService;
 
     private volatile TrialLicenses trialLicenses = EMPTY;
 
     @Inject
-    public LicensesService(Settings settings, Node node) {
+    public LicensesService(Settings settings, ClusterService clusterService) {
         super(settings);
-        this.node = (InternalNode) node;
+        this.clusterService = clusterService;
     }
 
     /**
@@ -167,10 +160,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        clusterService = node.injector().getInstance(ClusterService.class);
         esLicenseManager = ESLicenseManager.createClusterStateBasedInstance(clusterService);
-
-        if (DiscoveryNode.dataNode(settings) || DiscoveryNode.masterNode(settings)) {
+        if ( DiscoveryNode.dataNode(settings) || DiscoveryNode.masterNode(settings)) {
             clusterService.add(this);
         }
     }

@@ -49,8 +49,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
-    
-    static ESLogger logger = Loggers.getLogger(UpgradeTest.class);
 
     @Override
     protected int minExternalNodes() {
@@ -58,7 +56,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
     }
 
     public void testUpgrade() throws Exception {
-        
+
         int numIndexes = randomIntBetween(2, 4);
         String[] indexNames = new String[numIndexes];
         for (int i = 0; i < numIndexes; ++i) {
@@ -85,7 +83,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             }
             indexRandom(true, builder);
             ensureGreen(indexName);
-            assertNoFailures(client().admin().indices().prepareFlush(indexName).setWaitIfOngoing(true).execute().actionGet());
+            flush(indexName);
             
             // index more docs that won't be flushed
             numDocs = scaledRandomIntBetween(100, 1000);
@@ -149,6 +147,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
     }
     
     static boolean isUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
+        ESLogger logger = Loggers.getLogger(UpgradeTest.class);
         int toUpgrade = 0;
         for (UpgradeStatus status : getUpgradeStatus(httpClient, upgradePath(index))) {
             logger.info("Index: " + status.indexName + ", total: " + status.totalBytes + ", toUpgrade: " + status.toUpgradeBytes);

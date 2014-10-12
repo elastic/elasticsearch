@@ -10,3 +10,25 @@ The <<alias-retrieving, get alias api>> will, by default produce an error respon
 if a requested index does not exist. This change brings the defaults for this API in 
 line with the other Indices APIs. The <<multi-index>> options can be used on a request 
 to change this behavior
+
+=== Routing
+
+The default hash function that is used for routing has been changed from djb2 to
+murmur3. This change should be transparent unless you relied on very specific
+properties of djb2. This will help ensure a better balance of the document counts
+between shards.
+
+In addition, the following node settings related to routing have been deprecated:
+
+[horizontal]
+
+`cluster.routing.operation.hash.type`::
+
+  This was an undocumented setting that allowed to configure which hash function
+  to use for routing. `murmur3` is now enforced on new indices.
+
+`cluster.routing.operation.use_type`::
+
+  This was an undocumented setting that allowed to take the `_type` of the
+  document into account when computing its shard (default: `false`). `false` is
+  now enforced on new indices.

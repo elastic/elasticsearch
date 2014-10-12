@@ -56,6 +56,12 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         assumeFalse("lucene versions must be different to run upgrade test", luceneVersionMatches);
     }
 
+    @BeforeClass
+    public static void checkUpgradeVersion() {
+        boolean luceneVersionMatches = globalCompatibilityVersion().luceneVersion.equals(Version.CURRENT.luceneVersion);
+        assumeFalse("lucene versions must be different to run upgrade test", luceneVersionMatches);
+    }
+
     @Override
     protected int minExternalNodes() {
         return 2;

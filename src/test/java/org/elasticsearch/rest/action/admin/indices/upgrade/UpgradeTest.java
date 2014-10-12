@@ -23,11 +23,6 @@ import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.segments.IndexSegments;
-import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
-import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -107,7 +102,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         
         final HttpRequestBuilder httpClient = httpClient();
 
-        checkNotUpgraded(httpClient, null);
+        assertNotUpgraded(httpClient, null);
         final String indexToUpgrade = "test" + randomInt(numIndexes - 1);
         
         runUpgrade(httpClient, indexToUpgrade);
@@ -123,7 +118,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         });
         
         runUpgrade(httpClient, null, "wait_for_completion", "true");
-        checkUpgraded(httpClient, null);
+        assertUpgraded(httpClient, null);
     }
     
     static String upgradePath(String index) {
@@ -134,7 +129,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         return path;
     }
     
-    static void checkNotUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
+    static void assertNotUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
         for (UpgradeStatus status : getUpgradeStatus(httpClient, upgradePath(index))) {
             assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
             assertTrue("index " + status.indexName + " should have recovered some segments from transaction log",
@@ -143,7 +138,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         }
     }
 
-    static void checkUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
+    static void assertUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
         for (UpgradeStatus status : getUpgradeStatus(httpClient, upgradePath(index))) {
             assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
             assertEquals("index " + status.indexName + " should be upgraded",

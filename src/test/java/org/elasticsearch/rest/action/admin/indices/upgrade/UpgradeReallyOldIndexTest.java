@@ -26,34 +26,19 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.Before;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
 
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
 public class UpgradeReallyOldIndexTest extends ElasticsearchIntegrationTest {
@@ -86,16 +71,16 @@ public class UpgradeReallyOldIndexTest extends ElasticsearchIntegrationTest {
                 .put(InternalNode.HTTP_ENABLED, true)
                 .build());
        
-        sanityCheckIndex();
+        assertIndexSanity();
         
         HttpRequestBuilder httpClient = httpClient();
 
-        UpgradeTest.checkNotUpgraded(httpClient, "test");
+        UpgradeTest.assertNotUpgraded(httpClient, "test");
         UpgradeTest.runUpgrade(httpClient, "test", "wait_for_completion", "true");
-        UpgradeTest.checkUpgraded(httpClient, "test");
+        UpgradeTest.assertUpgraded(httpClient, "test");
     }
     
-    void sanityCheckIndex() {
+    void assertIndexSanity() {
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().get();
         logger.info("Found indices: {}", Arrays.toString(getIndexResponse.indices()));
         assertEquals(1, getIndexResponse.indices().length);

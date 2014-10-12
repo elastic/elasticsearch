@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -115,7 +114,6 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
         searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-        System.out.println("TYPES IN REQUEST: " + StringUtils.join(searchRequest.types(), ", "));
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));

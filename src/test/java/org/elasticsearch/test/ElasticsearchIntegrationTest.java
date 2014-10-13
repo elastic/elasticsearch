@@ -1160,27 +1160,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     /**
      * Flushes and refreshes all indices in the cluster
      */
-    protected final void flushAndRefresh() {
-        flush(true);
+    protected final void flushAndRefresh(String... indices) {
+        flush(indices);
         refresh();
     }
 
     /**
-     * Flushes all indices in the cluster
+     * Flush some or all indices in the cluster.
      */
-    protected final FlushResponse flush() {
-        return flush(true);
-    }
-
-    private FlushResponse flush(boolean ignoreNotAllowed) {
+    protected final FlushResponse flush(String... indices) {
         waitForRelocation();
-        FlushResponse actionGet = client().admin().indices().prepareFlush().setWaitIfOngoing(true).execute().actionGet();
-        if (ignoreNotAllowed) {
-            for (ShardOperationFailedException failure : actionGet.getShardFailures()) {
-                assertThat("unexpected flush failure " + failure.reason(), failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            }
-        } else {
-            assertNoFailures(actionGet);
+        FlushResponse actionGet = client().admin().indices().prepareFlush(indices).setWaitIfOngoing(true).execute().actionGet();
+        for (ShardOperationFailedException failure : actionGet.getShardFailures()) {
+            assertThat("unexpected flush failure " + failure.reason(), failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
         return actionGet;
     }

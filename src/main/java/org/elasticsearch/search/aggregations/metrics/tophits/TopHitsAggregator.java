@@ -33,6 +33,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -52,17 +53,17 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
     }
 
     private final FetchPhase fetchPhase;
-    private final TopHitsContext topHitsContext;
+    private final SubSearchContext subSearchContext;
     private final LongObjectPagedHashMap<TopDocsAndLeafCollector> topDocsCollectors;
 
     private Scorer currentScorer;
     private LeafReaderContext currentContext;
 
-    public TopHitsAggregator(FetchPhase fetchPhase, TopHitsContext topHitsContext, String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+    public TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
         super(name, estimatedBucketsCount, context, parent, metaData);
         this.fetchPhase = fetchPhase;
         topDocsCollectors = new LongObjectPagedHashMap<>(estimatedBucketsCount, context.bigArrays());
-        this.topHitsContext = topHitsContext;
+        this.subSearchContext = subSearchContext;
         context.registerScorerAware(this);
     }
 
@@ -82,41 +83,41 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
                 return buildEmptyAggregation();
             }
 
-            topHitsContext.queryResult().topDocs(topDocs);
+            subSearchContext.queryResult().topDocs(topDocs);
             int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                 docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
             }
-            topHitsContext.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
-            fetchPhase.execute(topHitsContext);
-            FetchSearchResult fetchResult = topHitsContext.fetchResult();
+            subSearchContext.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
+            fetchPhase.execute(subSearchContext);
+            FetchSearchResult fetchResult = subSearchContext.fetchResult();
             InternalSearchHit[] internalHits = fetchResult.fetchResult().hits().internalHits();
             for (int i = 0; i < internalHits.length; i++) {
                 ScoreDoc scoreDoc = topDocs.scoreDocs[i];
                 InternalSearchHit searchHitFields = internalHits[i];
-                searchHitFields.shard(topHitsContext.shardTarget());
+                searchHitFields.shard(subSearchContext.shardTarget());
                 searchHitFields.score(scoreDoc.score);
                 if (scoreDoc instanceof FieldDoc) {
                     FieldDoc fieldDoc = (FieldDoc) scoreDoc;
                     searchHitFields.sortValues(fieldDoc.fields);
                 }
             }
-            return new InternalTopHits(name, topHitsContext.from(), topHitsContext.size(), topDocs, fetchResult.hits());
+            return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, fetchResult.hits());
         }
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalTopHits(name, topHitsContext.from(), topHitsContext.size(), Lucene.EMPTY_TOP_DOCS, InternalSearchHits.empty());
+        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), Lucene.EMPTY_TOP_DOCS, InternalSearchHits.empty());
     }
 
     @Override
     public void collect(int docId, long bucketOrdinal) throws IOException {
         TopDocsAndLeafCollector collectors = topDocsCollectors.get(bucketOrdinal);
         if (collectors == null) {
-            Sort sort = topHitsContext.sort();
-            int topN = topHitsContext.from() + topHitsContext.size();
-            TopDocsCollector<?> topLevelCollector = sort != null ? TopFieldCollector.create(sort, topN, true, topHitsContext.trackScores(), topHitsContext.trackScores(), false) : TopScoreDocCollector.create(topN, false);
+            Sort sort = subSearchContext.sort();
+            int topN = subSearchContext.from() + subSearchContext.size();
+            TopDocsCollector<?> topLevelCollector = sort != null ? TopFieldCollector.create(sort, topN, true, subSearchContext.trackScores(), subSearchContext.trackScores(), false) : TopScoreDocCollector.create(topN, false);
             collectors = new TopDocsAndLeafCollector(topLevelCollector);
             collectors.leafCollector = collectors.topLevelCollector.getLeafCollector(currentContext);
             collectors.leafCollector.setScorer(currentScorer);
@@ -157,17 +158,17 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
     public static class Factory extends AggregatorFactory {
 
         private final FetchPhase fetchPhase;
-        private final TopHitsContext topHitsContext;
+        private final SubSearchContext subSearchContext;
 
-        public Factory(String name, FetchPhase fetchPhase, TopHitsContext topHitsContext) {
+        public Factory(String name, FetchPhase fetchPhase, SubSearchContext subSearchContext) {
             super(name, InternalTopHits.TYPE.name());
             this.fetchPhase = fetchPhase;
-            this.topHitsContext = topHitsContext;
+            this.subSearchContext = subSearchContext;
         }
 
         @Override
         public Aggregator createInternal(AggregationContext aggregationContext, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
-            return new TopHitsAggregator(fetchPhase, topHitsContext, name, expectedBucketsCount, aggregationContext, parent, metaData);
+            return new TopHitsAggregator(fetchPhase, subSearchContext, name, expectedBucketsCount, aggregationContext, parent, metaData);
         }
 
         @Override

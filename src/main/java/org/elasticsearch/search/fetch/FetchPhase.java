@@ -48,6 +48,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -80,9 +81,11 @@ public class FetchPhase implements SearchPhase {
     @Inject
     public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsFetchSubPhase scriptFieldsPhase,
                       MatchedQueriesFetchSubPhase matchedQueriesPhase, ExplainFetchSubPhase explainPhase, VersionFetchSubPhase versionPhase,
-                      FetchSourceSubPhase fetchSourceSubPhase, FieldDataFieldsFetchSubPhase fieldDataFieldsFetchSubPhase) {
+                      FetchSourceSubPhase fetchSourceSubPhase, FieldDataFieldsFetchSubPhase fieldDataFieldsFetchSubPhase, 
+                      InnerHitsFetchSubPhase innerHitsFetchSubPhase) {
+        innerHitsFetchSubPhase.setFetchPhase(this);
         this.fetchSubPhases = new FetchSubPhase[]{scriptFieldsPhase, matchedQueriesPhase, explainPhase, highlightPhase,
-                fetchSourceSubPhase, versionPhase, fieldDataFieldsFetchSubPhase};
+                fetchSourceSubPhase, versionPhase, fieldDataFieldsFetchSubPhase, innerHitsFetchSubPhase};
     }
 
     @Override
@@ -262,7 +265,10 @@ public class FetchPhase implements SearchPhase {
 
     private InternalSearchHit createNestedSearchHit(SearchContext context, int nestedTopDocId, int nestedSubDocId, int rootSubDocId, List<String> extractFieldNames, boolean loadAllStored, Set<String> fieldNames, LeafReaderContext subReaderContext) throws IOException {
         final FieldsVisitor rootFieldsVisitor;
-        if (context.sourceRequested() || extractFieldNames != null) {
+        if (context.sourceRequested() || extractFieldNames != null || context.highlight() != null) {
+            // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
+            // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
+            // because the entire _source is only stored with the root document.
             rootFieldsVisitor = new UidAndSourceFieldsVisitor();
         } else {
             rootFieldsVisitor = new JustUidFieldsVisitor();

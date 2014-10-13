@@ -165,11 +165,13 @@ public class NestedQueryParser implements QueryParser {
         }
     }
 
-    static ThreadLocal<LateBindingParentFilter> parentFilterContext = new ThreadLocal<>();
+    // TODO: Change this mechanism in favour of how parent nested object type is resolved in nested and reverse_nested agg
+    // with this also proper validation can be performed on what is a valid nested child nested object type to be used
+    public static ThreadLocal<LateBindingParentFilter> parentFilterContext = new ThreadLocal<>();
 
-    static class LateBindingParentFilter extends BitDocIdSetFilter {
+    public static class LateBindingParentFilter extends BitDocIdSetFilter {
 
-        BitDocIdSetFilter filter;
+        public BitDocIdSetFilter filter;
 
         @Override
         public int hashCode() {
@@ -178,7 +180,8 @@ public class NestedQueryParser implements QueryParser {
 
         @Override
         public boolean equals(Object obj) {
-            return filter.equals(obj);
+            if (!(obj instanceof LateBindingParentFilter)) return false;
+            return filter.equals(((LateBindingParentFilter) obj).filter);
         }
 
         @Override

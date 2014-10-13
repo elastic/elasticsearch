@@ -41,7 +41,7 @@ import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsContext;
+import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.List;
@@ -244,7 +244,7 @@ public class SortParseElement implements SearchParseElement {
                 if (!objectMapper.nested().isNested()) {
                     throw new ElasticsearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
                 }
-            } else if (!(context instanceof TopHitsContext)) {
+            } else if (!(context instanceof SubSearchContext)) {
                 // Only automatically resolve nested path when sort isn't defined for top_hits
                 objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
             }

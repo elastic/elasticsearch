@@ -113,24 +113,24 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatEmptyFileIsParsed() throws Exception {
-        assertInvalidInputIsSilentlyIngored("");
-        assertInvalidInputIsSilentlyIngored("#");
+        assertInvalidInputIsSilentlyIgnored("");
+        assertInvalidInputIsSilentlyIgnored("#");
     }
 
     @Test
     public void testThatEmptyUserNameDoesNotThrowException() throws Exception {
-        assertInvalidInputIsSilentlyIngored(":role1,role2");
-        assertInvalidInputIsSilentlyIngored(" :role1,role2");
+        assertInvalidInputIsSilentlyIgnored(":role1,role2");
+        assertInvalidInputIsSilentlyIgnored(" :role1,role2");
     }
 
     @Test
     public void testThatEmptyRoleDoesNotThrowException() throws Exception {
-        assertInvalidInputIsSilentlyIngored("user:");
-        assertInvalidInputIsSilentlyIngored("user: ");
-        assertInvalidInputIsSilentlyIngored("user: , ");
+        assertInvalidInputIsSilentlyIgnored("user:");
+        assertInvalidInputIsSilentlyIgnored("user: ");
+        assertInvalidInputIsSilentlyIgnored("user: , ");
     }
 
-    private void assertInvalidInputIsSilentlyIngored(String input) throws Exception {
+    private void assertInvalidInputIsSilentlyIgnored(String input) throws Exception {
         File file = tempFolder.newFile();
         com.google.common.io.Files.write(input.getBytes(Charsets.UTF_8), file);
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file.toPath(), null);

@@ -63,6 +63,7 @@ import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
@@ -184,6 +185,8 @@ public class DefaultSearchContext extends SearchContext {
     private volatile long lastAccessTime = -1;
 
     private volatile boolean useSlowScroll;
+
+    private InnerHitsContext innerHitsContext;
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
@@ -737,5 +740,15 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public Counter timeEstimateCounter() {
         return timeEstimateCounter;
+    }
+
+    @Override
+    public void innerHits(InnerHitsContext innerHitsContext) {
+        this.innerHitsContext = innerHitsContext;
+    }
+
+    @Override
+    public InnerHitsContext innerHits() {
+        return innerHitsContext;
     }
 }

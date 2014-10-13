@@ -34,6 +34,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -836,6 +837,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    public SearchRequestBuilder addInnerHit(String name, InnerHitsBuilder.InnerHit innerHit) {
+        innerHitsBuilder().addInnerHit(name, innerHit);
+        return this;
+    }
+
     /**
      * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#setText(String)}.
      */
@@ -1125,6 +1131,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     private HighlightBuilder highlightBuilder() {
         return sourceBuilder().highlighter();
+    }
+
+    private InnerHitsBuilder innerHitsBuilder() {
+        return sourceBuilder().innerHitsBuilder();
     }
 
     private SuggestBuilder suggestBuilder() {

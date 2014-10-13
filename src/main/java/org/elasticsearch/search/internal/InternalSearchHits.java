@@ -115,7 +115,7 @@ public class InternalSearchHits implements SearchHits {
 
     public void shardTarget(SearchShardTarget shardTarget) {
         for (InternalSearchHit hit : hits) {
-            hit.shardTarget(shardTarget);
+            hit.shard(shardTarget);
         }
     }
 

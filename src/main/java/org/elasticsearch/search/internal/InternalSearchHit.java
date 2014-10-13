@@ -41,11 +41,13 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -92,6 +94,8 @@ public class InternalSearchHit implements SearchHit {
     private Map<String, Object> sourceAsMap;
     private byte[] sourceAsBytes;
 
+    private Map<String, InternalSearchHits> innerHits;
+
     private InternalSearchHit() {
 
     }
@@ -117,6 +121,11 @@ public class InternalSearchHit implements SearchHit {
 
     public void shardTarget(SearchShardTarget shardTarget) {
         this.shard = shardTarget;
+        if (innerHits != null) {
+            for (InternalSearchHits searchHits : innerHits.values()) {
+                searchHits.shardTarget(shardTarget);
+            }
+        }
     }
 
     public void score(float score) {
@@ -392,6 +401,15 @@ public class InternalSearchHit implements SearchHit {
         return this.matchedQueries;
     }
 
+    @SuppressWarnings("unchecked")
+    public Map<String, SearchHits> getInnerHits() {
+        return (Map) innerHits;
+    }
+
+    public void setInnerHits(Map<String, InternalSearchHits> innerHits) {
+        this.innerHits = innerHits;
+    }
+
     public static class Fields {
         static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
@@ -406,16 +424,21 @@ public class InternalSearchHit implements SearchHit {
         static final XContentBuilderString VALUE = new XContentBuilderString("value");
         static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
         static final XContentBuilderString DETAILS = new XContentBuilderString("details");
+        static final XContentBuilderString INNER_HITS = new XContentBuilderString("inner_hits");
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (explanation() != null) {
+        // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
+        // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
+        if (explanation() != null && shard != null) {
             builder.field("_shard", shard.shardId());
             builder.field("_node", shard.nodeIdText());
         }
-        builder.field(Fields._INDEX, shard.indexText());
+        if (shard != null) {
+            builder.field(Fields._INDEX, shard.indexText());
+        }
         builder.field(Fields._TYPE, type);
         builder.field(Fields._ID, id);
         if (nestedIdentity != null) {
@@ -490,6 +513,15 @@ public class InternalSearchHit implements SearchHit {
         if (explanation() != null) {
             builder.field(Fields._EXPLANATION);
             buildExplanation(builder, explanation());
+        }
+        if (innerHits != null) {
+            builder.startObject(Fields.INNER_HITS);
+            for (Map.Entry<String, InternalSearchHits> entry : innerHits.entrySet()) {
+                builder.startObject(entry.getKey());
+                entry.getValue().toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endObject();
         }
         builder.endObject();
         return builder;
@@ -652,6 +684,18 @@ public class InternalSearchHit implements SearchHit {
                 shard = context.handleShardLookup().get(lookupId);
             }
         }
+
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            size = in.readVInt();
+            if (size > 0) {
+                innerHits = new HashMap<>(size);
+                for (int i = 0; i < size; i++) {
+                    String key = in.readString();
+                    InternalSearchHits value = InternalSearchHits.readSearchHits(in, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.NO_STREAM));
+                    innerHits.put(key, value);
+                }
+            }
+        }
     }
 
     @Override
@@ -755,6 +799,18 @@ public class InternalSearchHit implements SearchHit {
                 out.writeVInt(0);
             } else {
                 out.writeVInt(context.shardHandleLookup().get(shard));
+            }
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            if (innerHits == null) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(innerHits.size());
+                for (Map.Entry<String, InternalSearchHits> entry : innerHits.entrySet()) {
+                    out.writeString(entry.getKey());
+                    entry.getValue().writeTo(out, InternalSearchHits.streamContext().streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.NO_STREAM));
+                }
             }
         }
     }

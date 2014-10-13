@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -117,6 +118,8 @@ public class SearchSourceBuilder implements ToXContent {
     private HighlightBuilder highlightBuilder;
 
     private SuggestBuilder suggestBuilder;
+
+    private InnerHitsBuilder innerHitsBuilder;
 
     private List<RescoreBuilder> rescoreBuilders;
     private Integer defaultRescoreWindowSize;
@@ -492,6 +495,13 @@ public class SearchSourceBuilder implements ToXContent {
         return this;
     }
 
+    public InnerHitsBuilder innerHitsBuilder() {
+        if (innerHitsBuilder == null) {
+            innerHitsBuilder = new InnerHitsBuilder();
+        }
+        return innerHitsBuilder;
+    }
+
     public SuggestBuilder suggest() {
         if (suggestBuilder == null) {
             suggestBuilder = new SuggestBuilder("suggest");
@@ -740,7 +750,12 @@ public class SearchSourceBuilder implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
 
+    public void innerToXContent(XContentBuilder builder, Params params) throws IOException{
         if (from != -1) {
             builder.field("from", from);
         }
@@ -930,6 +945,10 @@ public class SearchSourceBuilder implements ToXContent {
             highlightBuilder.toXContent(builder, params);
         }
 
+        if (innerHitsBuilder != null) {
+            innerHitsBuilder.toXContent(builder, params);
+        }
+
         if (suggestBuilder != null) {
             suggestBuilder.toXContent(builder, params);
         }
@@ -973,9 +992,6 @@ public class SearchSourceBuilder implements ToXContent {
             }
             builder.endArray();
         }
-
-        builder.endObject();
-        return builder;
     }
 
     private static class ScriptField {

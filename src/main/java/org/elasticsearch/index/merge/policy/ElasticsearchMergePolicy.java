@@ -202,7 +202,10 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
       if (upgradeInProgress) {
           MergeSpecification spec = new IndexUpgraderMergeSpecification();
           for (SegmentCommitInfo info : segmentInfos) {
-              if (Version.CURRENT.luceneVersion.minor > info.info.getVersion().minor) {
+              org.apache.lucene.util.Version old = info.info.getVersion();
+              org.apache.lucene.util.Version cur = Version.CURRENT.luceneVersion;
+              if (cur.major > old.major ||
+                  cur.major == old.major && cur.minor > old.minor) {
                   // TODO: Use IndexUpgradeMergePolicy instead.  We should be comparing codecs,
                   // for now we just assume every minor upgrade has a new format.
                   spec.add(new OneMerge(Lists.newArrayList(info)));

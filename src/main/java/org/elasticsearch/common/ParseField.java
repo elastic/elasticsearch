@@ -29,6 +29,7 @@ public class ParseField {
     private final String camelCaseName;
     private final String underscoreName;
     private final String[] deprecatedNames;
+    private String replacedWith;
 
     public static final EnumSet<Flag> EMPTY_FLAGS = EnumSet.noneOf(Flag.class);
 
@@ -50,7 +51,16 @@ public class ParseField {
             this.deprecatedNames = set.toArray(new String[0]);
         }
     }
-    
+
+    /**
+     * Create a ParseField where the field name given by {@code value} is deprecated
+     * and replaced with {@code replacedWith} if {@code deprecated} is set to true.
+     */
+    public ParseField(String value, boolean deprecated, String replacedWith) {
+        this(value, deprecated ? value : null);
+        this.replacedWith = deprecated ? replacedWith : null;
+    }
+
     public String getPreferredName(){
         return underscoreName;
     }
@@ -74,13 +84,18 @@ public class ParseField {
     }
     
     public boolean match(String currentFieldName, EnumSet<Flag> flags) {
-        if (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName)) {
+        if (replacedWith == null & (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName))) {
             return true;
         }
+        String msg;
         for (String depName : deprecatedNames) {
             if (currentFieldName.equals(depName)) {
                 if (flags.contains(Flag.STRICT)) {
-                    throw new ElasticsearchIllegalArgumentException("Deprecated field [" + currentFieldName + "] used expected [" + underscoreName + "] instead");
+                    msg = "Deprecated field [" + currentFieldName + "] used, expected [" + underscoreName + "] instead";
+                    if (replacedWith != null) {
+                        msg = "Deprecated field [" + currentFieldName + "] used, replaced by [" + replacedWith + "]";
+                    }
+                    throw new ElasticsearchIllegalArgumentException(msg);
                 }
                 return true;
             }

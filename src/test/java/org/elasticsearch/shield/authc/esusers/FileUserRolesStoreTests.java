@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authc.esusers;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Charsets;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -83,7 +84,7 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
             assertThat(roles, notNullValue());
             assertThat(roles.length, is(3));
             assertThat(roles, arrayContaining("role1", "role2", "role3"));
-            assertThat(store.roles("user4"), nullValue());
+            assertThat(store.roles("user4"), equalTo(Strings.EMPTY_ARRAY));
 
             watcherService.start();
 
@@ -112,6 +113,27 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testThatEmptyRolesDoesNotCauseNPE() throws Exception {
+        ThreadPool threadPool = null;
+        try {
+            threadPool = new ThreadPool("test");
+            File usersRoles = writeUsersRoles("admin:role1");
+            Settings settings = ImmutableSettings.builder()
+                    .put("watcher.enabled", "false")
+                    .put("shield.authc.esusers.files.users_roles", usersRoles.toPath().toAbsolutePath())
+                    .build();
+            Environment env = new Environment(settings);
+            ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
+            FileUserRolesStore store = new FileUserRolesStore(settings, env, watcherService);
+            assertThat(store.roles("user"), equalTo(Strings.EMPTY_ARRAY));
+        } finally {
+            if (threadPool != null) {
+                threadPool.shutdownNow();
+            }
+        }
+    }
+
+    @Test
     public void testThatEmptyFileIsParsed() throws Exception {
         assertInvalidInputIsSilentlyIgnored("");
         assertInvalidInputIsSilentlyIgnored("#");
@@ -128,6 +150,12 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
         assertInvalidInputIsSilentlyIgnored("user:");
         assertInvalidInputIsSilentlyIgnored("user: ");
         assertInvalidInputIsSilentlyIgnored("user: , ");
+    }
+
+    private File writeUsersRoles(String input) throws Exception {
+        File file = tempFolder.newFile();
+        com.google.common.io.Files.write(input.getBytes(Charsets.UTF_8), file);
+        return file;
     }
 
     private void assertInvalidInputIsSilentlyIgnored(String input) throws Exception {

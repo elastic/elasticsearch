@@ -62,7 +62,11 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
     }
 
     public String[] roles(String username) {
-        return userRoles != null ? userRoles.get(username) : null;
+        if (userRoles == null) {
+            return Strings.EMPTY_ARRAY;
+        }
+        String[] roles = userRoles.get(username);
+        return roles == null ? Strings.EMPTY_ARRAY : userRoles.get(username);
     }
 
     public static Path resolveFile(Settings settings, Environment env) {
@@ -86,7 +90,7 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
             return ImmutableMap.of();
         }
 
-        List<String> lines = null;
+        List<String> lines;
         try {
             lines = Files.readAllLines(path, Charsets.UTF_8);
         } catch (IOException ioe) {

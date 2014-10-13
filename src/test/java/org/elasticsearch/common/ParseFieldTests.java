@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.common;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Test;
 
 import java.util.EnumSet;
 
@@ -27,22 +29,22 @@ import static org.hamcrest.CoreMatchers.*;
 
 public class ParseFieldTests extends ElasticsearchTestCase {
 
+    @Test
     public void testParse() {
         String[] values = new String[]{"foo_bar", "fooBar"};
         ParseField field = new ParseField(randomFrom(values));
         String[] deprecated = new String[]{"barFoo", "bar_foo"};
-        ParseField withDepredcations = field.withDeprecation("Foobar", randomFrom(deprecated));
-        assertThat(field, not(sameInstance(withDepredcations)));
+        ParseField withDeprecations = field.withDeprecation("Foobar", randomFrom(deprecated));
+        assertThat(field, not(sameInstance(withDeprecations)));
         assertThat(field.match(randomFrom(values), ParseField.EMPTY_FLAGS), is(true));
         assertThat(field.match("foo bar", ParseField.EMPTY_FLAGS), is(false));
         assertThat(field.match(randomFrom(deprecated), ParseField.EMPTY_FLAGS), is(false));
         assertThat(field.match("barFoo", ParseField.EMPTY_FLAGS), is(false));
 
-
-        assertThat(withDepredcations.match(randomFrom(values), ParseField.EMPTY_FLAGS), is(true));
-        assertThat(withDepredcations.match("foo bar", ParseField.EMPTY_FLAGS), is(false));
-        assertThat(withDepredcations.match(randomFrom(deprecated), ParseField.EMPTY_FLAGS), is(true));
-        assertThat(withDepredcations.match("barFoo", ParseField.EMPTY_FLAGS), is(true));
+        assertThat(withDeprecations.match(randomFrom(values), ParseField.EMPTY_FLAGS), is(true));
+        assertThat(withDeprecations.match("foo bar", ParseField.EMPTY_FLAGS), is(false));
+        assertThat(withDeprecations.match(randomFrom(deprecated), ParseField.EMPTY_FLAGS), is(true));
+        assertThat(withDeprecations.match("barFoo", ParseField.EMPTY_FLAGS), is(true));
 
         // now with strict mode
         EnumSet<ParseField.Flag> flags = EnumSet.of(ParseField.Flag.STRICT);
@@ -51,24 +53,50 @@ public class ParseFieldTests extends ElasticsearchTestCase {
         assertThat(field.match(randomFrom(deprecated), flags), is(false));
         assertThat(field.match("barFoo", flags), is(false));
 
-
-        assertThat(withDepredcations.match(randomFrom(values), flags), is(true));
-        assertThat(withDepredcations.match("foo bar", flags), is(false));
+        assertThat(withDeprecations.match(randomFrom(values), flags), is(true));
+        assertThat(withDeprecations.match("foo bar", flags), is(false));
         try {
-            withDepredcations.match(randomFrom(deprecated), flags);
+            withDeprecations.match(randomFrom(deprecated), flags);
             fail();
         } catch (ElasticsearchIllegalArgumentException ex) {
 
         }
 
         try {
-            withDepredcations.match("barFoo", flags);
+            withDeprecations.match("barFoo", flags);
             fail();
         } catch (ElasticsearchIllegalArgumentException ex) {
 
         }
-
-
     }
 
+    @Test
+    public void testAllDeprecated() {
+        String[] values = new String[]{"like_text", "likeText"};
+
+        boolean withDeprecatedNames = randomBoolean();
+        String[] deprecated = new String[]{"text", "same_as_text"};
+        String[] allValues = values;
+        if (withDeprecatedNames) {
+            allValues = ArrayUtils.addAll(values, deprecated);
+        }
+
+        ParseField field = new ParseField(randomFrom(values));
+        if (withDeprecatedNames) {
+            field = field.withDeprecation(deprecated);
+        }
+        field = field.withAllDeprecated("like");
+
+        // strict mode off
+        assertThat(field.match(randomFrom(allValues), ParseField.EMPTY_FLAGS), is(true));
+        assertThat(field.match("not a field name", ParseField.EMPTY_FLAGS), is(false));
+
+        // now with strict mode
+        EnumSet<ParseField.Flag> flags = EnumSet.of(ParseField.Flag.STRICT);
+        try {
+            field.match(randomFrom(allValues), flags);
+            fail();
+        } catch (ElasticsearchIllegalArgumentException ex) {
+        }
+    }
 }

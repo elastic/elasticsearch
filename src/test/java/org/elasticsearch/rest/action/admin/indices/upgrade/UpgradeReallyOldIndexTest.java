@@ -67,7 +67,6 @@ public class UpgradeReallyOldIndexTest extends ElasticsearchIntegrationTest {
         File dataDir = prepareBackwardsDataDir(new File(getClass().getResource("index-0.20.zip").toURI()));
         internalCluster().startNode(ImmutableSettings.builder()
                 .put("path.data", dataDir.getPath())
-                .put("node.mode", "network")
                 .put("gateway.type", "local") // this is important we need to recover from gateway
                 .put(InternalNode.HTTP_ENABLED, true)
                 .build());

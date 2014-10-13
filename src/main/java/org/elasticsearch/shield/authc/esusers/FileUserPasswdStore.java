@@ -105,6 +105,9 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
         int lineNr = 0;
         for (String line : lines) {
             lineNr++;
+            if (line.startsWith("#")) { // comment
+                continue;
+            }
             int i = line.indexOf(":");
             if (i <= 0 || i == line.length() - 1) {
                 if (logger != null) {

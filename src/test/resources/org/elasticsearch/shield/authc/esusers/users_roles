@@ -1,3 +1,6 @@
-user1:role1,role2,role3
-user2 : role2 , role3
-user3:role3
+role1:user1
+role2: user1,user2
+# this is a comment line
+role3: user1, user2 , user3
+# another comment line
+# and another one

@@ -90,7 +90,7 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
 
             try (BufferedWriter writer = Files.newBufferedWriter(tmp, Charsets.UTF_8, StandardOpenOption.APPEND)) {
                 writer.newLine();
-                writer.append("user4:role4,role5");
+                writer.append("role4:user4\nrole5:user4\n");
             }
 
             if (!latch.await(5, TimeUnit.SECONDS)) {
@@ -141,15 +141,15 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatEmptyUserNameDoesNotThrowException() throws Exception {
-        assertInvalidInputIsSilentlyIgnored(":role1,role2");
-        assertInvalidInputIsSilentlyIgnored(" :role1,role2");
+        assertInvalidInputIsSilentlyIgnored(":user1,user2");
+        assertInvalidInputIsSilentlyIgnored(" :user1,user2");
     }
 
     @Test
     public void testThatEmptyRoleDoesNotThrowException() throws Exception {
-        assertInvalidInputIsSilentlyIgnored("user:");
-        assertInvalidInputIsSilentlyIgnored("user: ");
-        assertInvalidInputIsSilentlyIgnored("user: , ");
+        assertInvalidInputIsSilentlyIgnored("role:");
+        assertInvalidInputIsSilentlyIgnored("role: ");
+        assertInvalidInputIsSilentlyIgnored("role: , ");
     }
 
     private File writeUsersRoles(String input) throws Exception {

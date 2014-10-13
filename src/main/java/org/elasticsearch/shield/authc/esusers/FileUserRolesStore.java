@@ -28,9 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Pattern;
 
 /**
@@ -38,7 +36,7 @@ import java.util.regex.Pattern;
  */
 public class FileUserRolesStore extends AbstractComponent implements UserRolesStore {
 
-    private static final Pattern ROLES_DELIM = Pattern.compile("\\s*,\\s*");
+    private static final Pattern USERS_DELIM = Pattern.compile("\\s*,\\s*");
 
     private final Path file;
 
@@ -79,7 +77,8 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
 
     /**
      * parses the users_roles file. Should never return return {@code null}, if the file doesn't exist
-     * an empty map is returned
+     * an empty map is returned. The read file holds a mapping per line of the form "role -> users" while the returned
+     * map holds entries of the form  "user -> roles".
      */
     public static ImmutableMap<String, String[]> parseFile(Path path, @Nullable ESLogger logger) {
         if (logger != null) {
@@ -97,49 +96,79 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
             throw new ElasticsearchException("Could not read users file [" + path.toAbsolutePath() + "]", ioe);
         }
 
-        ImmutableMap.Builder<String, String[]> usersRoles = ImmutableMap.builder();
+        Map<String, List<String>> userToRoles = new HashMap<>();
 
         int lineNr = 0;
         for (String line : lines) {
             lineNr++;
+            if (line.startsWith("#")) {  //comment
+                continue;
+            }
             int i = line.indexOf(":");
             if (i <= 0 || i == line.length() - 1) {
                 if (logger != null) {
-                    logger.error("Invalid entry in users file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                    logger.error("Invalid entry in users_roles file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
                 }
                 continue;
             }
-            String username = line.substring(0, i).trim();
-            if (Strings.isEmpty(username)) {
+            String role = line.substring(0, i).trim();
+            if (Strings.isEmpty(role)) {
                 if (logger != null) {
-                    logger.error("Invalid username entry in users file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                    logger.error("Invalid username entry in users_roles file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
                 }
                 continue;
             }
-            String rolesStr = line.substring(i + 1).trim();
-            if (Strings.isEmpty(rolesStr)) {
+            String usersStr = line.substring(i + 1).trim();
+            if (Strings.isEmpty(usersStr)) {
                 if (logger != null) {
-                    logger.error("Invalid roles entry in users file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                    logger.error("Invalid roles entry in users_roles file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
                 }
                 continue;
             }
-            String[] roles = ROLES_DELIM.split(rolesStr);
-            if (roles.length == 0) {
+            String[] roleUsers = USERS_DELIM.split(usersStr);
+            if (roleUsers.length == 0) {
                 if (logger != null) {
-                    logger.error("Invalid roles entry in users file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
+                    logger.error("Invalid roles entry in users_roles file [" + path.toAbsolutePath() + "], line [" + lineNr + "]. Skipping...");
                 }
                 continue;
             }
-            usersRoles.put(username, roles);
+
+            for (String user : roleUsers) {
+                List<String> roles = userToRoles.get(user);
+                if (roles == null) {
+                    roles = new ArrayList<>();
+                    userToRoles.put(user, roles);
+                }
+                roles.add(role);
+            }
+        }
+
+        ImmutableMap.Builder<String, String[]> usersRoles = ImmutableMap.builder();
+        for (Map.Entry<String, List<String>> entry : userToRoles.entrySet()) {
+            usersRoles.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
         }
 
         return usersRoles.build();
     }
 
-    public static void writeFile(Map<String, String[]> userRoles, Path path) {
+    /**
+     * Accepts a mapping of user -> list of roles
+     */
+    public static void writeFile(Map<String, String[]> userToRoles, Path path) {
+        HashMap<String, List<String>> roleToUsers = new HashMap<>();
+        for (Map.Entry<String, String[]> entry : userToRoles.entrySet()) {
+            for (String role : entry.getValue()) {
+                List<String> users = roleToUsers.get(role);
+                if (users == null) {
+                    users = new ArrayList<>();
+                    roleToUsers.put(role, users);
+                }
+                users.add(entry.getKey());
+            }
+        }
         try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(path, Charsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE, StandardOpenOption.WRITE))) {
-            for (Map.Entry<String, String[]> entry : userRoles.entrySet()) {
-                writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), Strings.arrayToCommaDelimitedString(entry.getValue()), System.lineSeparator());
+            for (Map.Entry<String, List<String>> entry : roleToUsers.entrySet()) {
+                writer.printf(Locale.ROOT, "%s:%s%s", entry.getKey(), Strings.collectionToCommaDelimitedString(entry.getValue()), System.lineSeparator());
             }
         } catch (IOException ioe) {
             throw new ElasticsearchException("Could not write users file [" + path.toAbsolutePath() + "], please check file permissions");

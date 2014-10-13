@@ -122,17 +122,6 @@ public class RestUpgradeAction extends BaseRestHandler {
         }
         return new Tuple<>(total_bytes, to_upgrade_bytes);
     }
-    
-    // this is a silly class which should just be a standalone function, but java doesn't even have a standard Pair that could
-    // be used to return 2 values from a function...
-    static class UpgradeSummary {
-        public long total_bytes;
-        public long to_upgrade_bytes;
-        
-        UpgradeSummary(IndexSegments indexSegments) {
-            
-        }
-    }
 
     static final XContentBuilderString SIZE = new XContentBuilderString("size");
     static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");

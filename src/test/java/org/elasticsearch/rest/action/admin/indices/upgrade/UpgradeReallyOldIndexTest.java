@@ -20,6 +20,8 @@
 package org.elasticsearch.rest.action.admin.indices.upgrade;
 
 import org.apache.http.impl.client.HttpClients;
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -41,6 +43,7 @@ import java.util.Arrays;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@SuppressCodecs({"Lucene3x", "MockFixedIntBlock", "MockVariableIntBlock", "MockSep", "MockRandom", "Lucene40", "Lucene41", "Appending", "Lucene42", "Lucene45", "Lucene46", "Lucene49"})
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
 public class UpgradeReallyOldIndexTest extends ElasticsearchIntegrationTest {
 
@@ -62,8 +65,9 @@ public class UpgradeReallyOldIndexTest extends ElasticsearchIntegrationTest {
         return dataDir;
     }
 
-    @Ignore
     public void testUpgrade_0_20() throws Exception {
+        // If this assert trips it means we are not suppressing enough codecs up above:
+        assertFalse("test infra is broken!", LuceneTestCase.OLD_FORMAT_IMPERSONATION_IS_ACTIVE);
         File dataDir = prepareBackwardsDataDir(new File(getClass().getResource("index-0.20.zip").toURI()));
         internalCluster().startNode(ImmutableSettings.builder()
                 .put("path.data", dataDir.getPath())

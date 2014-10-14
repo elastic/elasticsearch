@@ -17,6 +17,8 @@ public interface TrialLicenses extends Iterable<TrialLicenses.TrialLicense> {
 
     public interface TrialLicense {
 
+        public String issuedTo();
+
         public FeatureType feature();
 
         public long issueDate();

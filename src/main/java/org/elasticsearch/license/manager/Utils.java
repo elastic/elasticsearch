@@ -8,6 +8,7 @@ package org.elasticsearch.license.manager;
 import net.nicholaswilliams.java.licensing.ObjectSerializer;
 import net.nicholaswilliams.java.licensing.SignedLicense;
 import org.apache.commons.codec.binary.Base64;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseBuilders;
 
@@ -19,15 +20,9 @@ import static org.elasticsearch.license.core.ESLicenses.ESLicense;
 
 public class Utils {
 
-    public static ESLicenses getESLicensesFromSignatures(final Set<String> signatures) {
-        final LicenseBuilders.LicensesBuilder licensesBuilder = LicenseBuilders.licensesBuilder();
-        for (String signature : signatures) {
-            licensesBuilder.license(getESLicenseFromSignature(signature));
-        }
-        return licensesBuilder.build();
-    }
 
-    private static ESLicense getESLicenseFromSignature(String signature) {
+
+    public static ESLicense getESLicenseFromSignature(String signature) {
         byte[] signatureBytes = Base64.decodeBase64(signature);
         ByteBuffer byteBuffer = ByteBuffer.wrap(signatureBytes);
         byteBuffer = (ByteBuffer) byteBuffer.position(13);

@@ -25,8 +25,8 @@ public class RestPutLicenseAction extends BaseRestHandler {
     @Inject
     public RestPutLicenseAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
-        controller.registerHandler(PUT, "/_cluster/license", this);
-        controller.registerHandler(POST, "/_cluster/license", this);
+        controller.registerHandler(PUT, "/licenses", this);
+        controller.registerHandler(POST, "/licenses", this);
     }
 
 

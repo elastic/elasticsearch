@@ -54,7 +54,7 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadOperationA
         MetaData metaData = state.metaData();
         LicensesMetaData licenses = metaData.custom(LicensesMetaData.TYPE);
         if (licenses != null) {
-            listener.onResponse(new GetLicenseResponse(licenses.getLicenses()));
+            listener.onResponse(new GetLicenseResponse(licenses.getLicenses(), licenses.getTrialLicenses()));
         } else {
             listener.onResponse(new GetLicenseResponse());
         }

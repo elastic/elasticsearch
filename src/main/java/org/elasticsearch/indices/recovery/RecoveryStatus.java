@@ -74,7 +74,7 @@ public class RecoveryStatus implements AutoCloseable {
     final AtomicInteger refCount = new AtomicInteger(1);
 
     private volatile ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
-    public final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
+    private final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
 
     public RecoveryStatus(InternalIndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
         this.recoveryId = idGenerator.incrementAndGet();
@@ -136,6 +136,10 @@ public class RecoveryStatus implements AutoCloseable {
 
     public RecoveryState.Stage stage() {
         return state.getStage();
+    }
+
+    public Store.LegacyChecksums legacyChecksums() {
+        return legacyChecksums;
     }
 
     /** renames all temporary files to their true name, potentially overriding existing files */
@@ -208,51 +212,43 @@ public class RecoveryStatus implements AutoCloseable {
         }
     }
 
+    private String getTempNameForFile(String origFile) {
+        return tempFilePrefix + origFile;
+    }
+
+    /** return true if the give file is a temporary file name issued by this recovery */
+    private boolean isTempFile(String filename) {
+        return tempFileNames.contains(filename);
+    }
 
     public IndexOutput getOpenIndexOutput(String key) {
         return openIndexOutputs.get(key);
     }
 
-    /**
-     * returns a temporary file for the given file name. the temporary file is unique to this recovery and is later retrievable via
-     * {@link #getTempFiles()} *
-     */
-    public String getTempNameForFile(String origFile) {
-        String s = tempFilePrefix + origFile;
-        tempFileNames.add(s);
-        return s;
-    }
-
-    /** returns the temporary files created fro this recovery so far */
-    public String[] getTempFiles() {
-        return tempFileNames.toArray(new String[tempFileNames.size()]);
-    }
-
-    /** return true if the give file is a temporary file name issued by this recovery */
-    public boolean isTempFile(String filename) {
-        return tempFileNames.contains(filename);
-    }
-
     /** returns the original file name for a temporary file name issued by this recovery */
-    public String originalNameForTempFile(String tempFile) {
+    private String originalNameForTempFile(String tempFile) {
         assert isTempFile(tempFile);
         return tempFile.substring(tempFilePrefix.length());
     }
 
+    /** remove and {@link org.apache.lucene.store.IndexOutput} for a given file. It is the caller's responsibility to close it */
     public IndexOutput removeOpenIndexOutputs(String name) {
-        final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
-        if (outputs == null) {
-            return null;
-        }
-        return outputs.remove(name);
+        return openIndexOutputs.remove(name);
     }
 
-    public IndexOutput openAndPutIndexOutput(String key, String fileName, StoreFileMetaData metaData, Store store) throws IOException {
+    /**
+     * Creates an {@link org.apache.lucene.store.IndexOutput} for the given file name. Note that the
+     * IndexOutput actually point at a temporary file.
+     * <p/>
+     * Note: You can use {@link #getOpenIndexOutput(String)} with the same filename to retrieve the same IndexOutput
+     * at a later stage
+     */
+    public IndexOutput openAndPutIndexOutput(String fileName, StoreFileMetaData metaData, Store store) throws IOException {
         String tempFileName = getTempNameForFile(fileName);
         // add first, before it's created
         tempFileNames.add(tempFileName);
         IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, IOContext.DEFAULT, metaData);
-        openIndexOutputs.put(key, indexOutput);
+        openIndexOutputs.put(fileName, indexOutput);
         return indexOutput;
     }
 

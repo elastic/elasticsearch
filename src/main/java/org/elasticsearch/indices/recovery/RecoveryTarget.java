@@ -22,7 +22,6 @@ package org.elasticsearch.indices.recovery;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
@@ -48,7 +47,6 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesLifecycle;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -78,20 +76,17 @@ public class RecoveryTarget extends AbstractComponent {
 
     private final TransportService transportService;
 
-    private final IndicesService indicesService;
-
     private final RecoverySettings recoverySettings;
     private final ClusterService clusterService;
 
     private final RecoveriesCollection onGoingRecoveries;
 
     @Inject
-    public RecoveryTarget(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
+    public RecoveryTarget(Settings settings, ThreadPool threadPool, TransportService transportService,
                           IndicesLifecycle indicesLifecycle, RecoverySettings recoverySettings, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
-        this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
         this.onGoingRecoveries = new RecoveriesCollection(logger);
@@ -407,7 +402,7 @@ public class RecoveryTarget extends AbstractComponent {
                 onGoingRecovery.renameAllTempFiles();
                 final Store store = onGoingRecovery.store();
                 // now write checksums
-                onGoingRecovery.legacyChecksums.write(store);
+                onGoingRecovery.legacyChecksums().write(store);
 
                 for (String existingFile : store.directory().listAll()) {
                     // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
@@ -443,23 +438,7 @@ public class RecoveryTarget extends AbstractComponent {
                 final Store store = onGoingRecovery.store();
                 IndexOutput indexOutput;
                 if (request.position() == 0) {
-                    // first request
-                    onGoingRecovery.legacyChecksums.remove(request.name());
-                    indexOutput = onGoingRecovery.removeOpenIndexOutputs(request.name());
-                    IOUtils.closeWhileHandlingException(indexOutput);
-                    // we create an output with no checksum, this is because the pure binary data of the file is not
-                    // the checksum (because of seek). We will create the checksum file once copying is done
-
-                    // also, we check if the file already exists, if it does, we create a file name based
-                    // on the current recovery "id" and later we make the switch, the reason for that is that
-                    // we only want to overwrite the index files once we copied all over, and not create a
-                    // case where the index is half moved
-
-                    String fileName = request.name();
-                    if (store.directory().fileExists(fileName)) {
-                        fileName = onGoingRecovery.getTempNameForFile(fileName);
-                    }
-                    indexOutput = onGoingRecovery.openAndPutIndexOutput(request.name(), fileName, request.metadata(), store);
+                    indexOutput = onGoingRecovery.openAndPutIndexOutput(request.name(), request.metadata(), store);
                 } else {
                     indexOutput = onGoingRecovery.getOpenIndexOutput(request.name());
                 }
@@ -481,7 +460,7 @@ public class RecoveryTarget extends AbstractComponent {
                     // we are done
                     indexOutput.close();
                     // write the checksum
-                    onGoingRecovery.legacyChecksums.add(request.metadata());
+                    onGoingRecovery.legacyChecksums().add(request.metadata());
                     store.directory().sync(Collections.singleton(request.name()));
                     IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
                     onGoingRecovery.state().getIndex().addRecoveredFileCount(1);

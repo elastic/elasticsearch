@@ -180,6 +180,11 @@ is used as `score`. Also the `text` field uses the `output` of your
 indexed suggestion, if configured, otherwise the matched part of the
 `input` field.
 
+The basic completion suggester query supports the following two parameters:
+
+`field`:: The name of the field on which to run the query (required).
+`size`::  The number of suggestions to return (defaults to `5`).
+
 NOTE: The completion suggester considers all documents in the index.
 See <<suggester-context>> for an explanation of how to query a subset of
 documents instead.

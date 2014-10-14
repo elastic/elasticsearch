@@ -87,7 +87,7 @@ public class MapperService extends AbstractIndexComponent  {
     );
 
     public static final String FIELD_MAPPERS_COLLECTION_SWITCH = "index.mapper.field_mappers_collection_switch";
-    public static final int DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH = 100;
+    private static final int DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH = 100;
 
     public static int getFieldMappersCollectionSwitch(@Nullable Settings settings) {
         if (settings == null) {

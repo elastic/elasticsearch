@@ -39,7 +39,7 @@ disables dynamic field creation for a `tweet`:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/tweet/_mapping' -d '
+$ curl -XPUT 'http://localhost:9200/twitter/_mapping/tweet' -d '
 {
     "tweet" : {
         "dynamic": "strict",
@@ -76,4 +76,3 @@ chance that the wrong field type will be used.
 This requirement can be disabled by setting
 `index.query.parse.allow_unmapped_fields` to `true`, in which case you run the
 risk that your query or filter might not work correctly.
-

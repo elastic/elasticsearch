@@ -13,6 +13,8 @@ import org.elasticsearch.transport.TransportResponse;
  */
 public interface TransportFilter {
 
+    static final TransportFilter NOOP = new Base();
+
     /**
      * Called just before the given request is about to be sent. Any exception thrown
      * by this method will stop the request from being sent.

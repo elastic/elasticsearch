@@ -86,9 +86,6 @@ public class MapperService extends AbstractIndexComponent  {
             "_size", "_timestamp", "_ttl"
     );
 
-    public static final String FIELD_MAPPERS_COLLECTION_SWITCH = "index.mapper.field_mappers_collection_switch";
-    public static final int DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH = 100;
-
     private final AnalysisService analysisService;
     private final IndexFieldDataService fieldDataService;
 

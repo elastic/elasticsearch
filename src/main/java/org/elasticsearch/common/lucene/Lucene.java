@@ -427,10 +427,14 @@ public class Lucene {
                 try {
                     return Version.parseLeniently(toParse);
                 } catch (IllegalArgumentException e) {
-                    final String parsedMatchVersion = toParse
-                            .toUpperCase(Locale.ROOT)
-                            .replaceFirst("^(\\d+)\\.(\\d+)(.(\\d+))+$", "LUCENE_$1_$2");
-                    return Version.valueOf(parsedMatchVersion);
+                    try {
+                        final String parsedMatchVersion = toParse
+                                .toUpperCase(Locale.ROOT)
+                                .replaceFirst("^(\\d+)\\.(\\d+)(.(\\d+))+$", "LUCENE_$1_$2");
+                        return Version.valueOf(parsedMatchVersion);
+                    } catch (IllegalArgumentException ex) {
+                        // just move on and return the default
+                    }
                 }
             }
             return defaultValue;

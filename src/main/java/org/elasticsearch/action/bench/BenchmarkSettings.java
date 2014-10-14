@@ -28,9 +28,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Settings that define how a benchmark should be executed.
@@ -55,7 +54,7 @@ public class BenchmarkSettings implements Streamable {
     private ClearCachesSettings clearCachesSettings = null;
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
-    private List<SearchRequest> searchRequests = new ArrayList<>();
+    private SearchTaskSpecification taskSpec;
 
     private boolean concurrencyFinalized = false;
     private boolean iterationsFinalized = false;
@@ -229,15 +228,25 @@ public class BenchmarkSettings implements Streamable {
      * @return  Search requests
      */
     public List<SearchRequest> searchRequests() {
-        return searchRequests;
+        return taskSpec.getSearchRequests();
     }
 
     /**
      * Adds a search request to benchmark
      * @param searchRequest Search request
      */
-    public void addSearchRequest(SearchRequest... searchRequest) {
-        searchRequests.addAll(Arrays.asList(searchRequest));
+    public void putSearchTask(Map<SearchRequest, Evaluator> task) {
+        taskSpec.putAllSearchTasks(task);
+    }
+    
+    /**
+     * Returns the full search task specification including search
+     * requests and potential evaluation function. If no such 
+     * function is given expected evaluation is simple time based
+     * benchmarking.
+     * */
+    public SearchTaskSpecification getSearchTask() {
+        return taskSpec;
     }
 
     /**
@@ -291,7 +300,7 @@ public class BenchmarkSettings implements Streamable {
     }
 
     public void buildSearchRequestsFromSettings() {
-        for (SearchRequest searchRequest : searchRequests) {
+        for (SearchRequest searchRequest : taskSpec.getSearchRequests()) {
             searchRequest.indices(indices);
             searchRequest.types(types);
             searchRequest.searchType(searchType);
@@ -367,12 +376,7 @@ public class BenchmarkSettings implements Streamable {
         types = in.readStringArray();
         searchType = SearchType.fromId(in.readByte());
         clearCaches = in.readOptionalStreamable(new ClearIndicesCacheRequest());
-        final int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            SearchRequest searchRequest = new SearchRequest();
-            searchRequest.readFrom(in);
-            searchRequests.add(searchRequest);
-        }
+        taskSpec.readFrom(in);
     }
 
     @Override
@@ -386,9 +390,6 @@ public class BenchmarkSettings implements Streamable {
         out.writeStringArray(types);
         out.writeByte(searchType.id());
         out.writeOptionalStreamable(clearCaches);
-        out.writeVInt(searchRequests.size());
-        for (SearchRequest searchRequest : searchRequests) {
-            searchRequest.writeTo(out);
-        }
+        taskSpec.writeTo(out);
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.quality;
 
+import org.elasticsearch.action.bench.Evaluator;
 import org.elasticsearch.search.SearchHit;
 
 /**
@@ -27,16 +28,22 @@ import org.elasticsearch.search.SearchHit;
  * 
  * RelevancyLevel specifies the type of object determining the relevancy level of some known docid.
  * */
-public interface RankedListQualityMetric {
+public interface RankedListQualityMetric extends Evaluator {
 
     /**
      * Returns a single metric representing the ranking quality of a set of returned documents
      * wrt. to a set of document Ids labeled as relevant for this search.
      *
-     * @param intent set of doc Ids considered relevant
      * @param hits the result hits as returned by some search
      * @return some metric representing the quality of the result hit list wrt. to relevant doc ids.
      * */
-    public IntentQuality evaluate(Intent intent, SearchHit[] hits);
+    public IntentQuality evaluate(SearchHit[] hits);
+
+    /**
+     * Adds state to a ranked quality metric by initialising it with a search intent to compare against.
+     * @param intent the search intent to compare results against
+     * @return ready to use search metric
+     * */
+    public RankedListQualityMetric initialize(Intent intent);
 
 }

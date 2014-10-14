@@ -21,8 +21,6 @@ package org.elasticsearch.action.bench;
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -32,6 +30,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.*;
 
 /**
@@ -39,7 +38,7 @@ import java.util.concurrent.*;
  */
 public class BenchmarkExecutor {
 
-    private static final ESLogger logger = Loggers.getLogger(BenchmarkExecutor.class);
+    static final ESLogger logger = Loggers.getLogger(BenchmarkExecutor.class);
 
     private final Client client;
     private String nodeName;
@@ -148,11 +147,9 @@ public class BenchmarkExecutor {
                 competitionResult.addCompetitionNodeResult(competitionNodeResult);
                 benchmarkResponse.competitionResults.put(competitor.name(), competitionResult);
 
-                final List<SearchRequest> searchRequests = competitor.settings().searchRequests();
-
                 if (settings.warmup()) {
                     final long beforeWarmup = System.nanoTime();
-                    final List<String> warmUpErrors = warmUp(competitor, searchRequests, semaphore);
+                    final List<String> warmUpErrors = warmUp(competitor, semaphore);
                     final long afterWarmup = System.nanoTime();
                     competitionNodeResult.warmUpTime(TimeUnit.MILLISECONDS.convert(afterWarmup - beforeWarmup, TimeUnit.NANOSECONDS));
                     if (!warmUpErrors.isEmpty()) {
@@ -160,8 +157,8 @@ public class BenchmarkExecutor {
                     }
                 }
 
-                final int numMeasurements = settings.multiplier() * searchRequests.size();
-                final long[] timeBuckets = new long[numMeasurements];
+                final int numMeasurements = settings.multiplier() * competitor.settings().searchRequests().size();
+                final Object[] timeBuckets = new Object[numMeasurements];
                 final long[] docBuckets = new long[numMeasurements];
 
                 for (int i = 0; i < iterations; i++) {
@@ -175,12 +172,13 @@ public class BenchmarkExecutor {
 
                     // Run the iteration
                     CompetitionIteration ci =
-                            runIteration(competitor, searchRequests, timeBuckets, docBuckets, semaphore);
+                            runIteration(competitor, timeBuckets, docBuckets, semaphore);
                     ci.percentiles(request.percentiles());
                     competitionIterations.add(ci);
                     competitionNodeResult.incrementCompletedIterations();
                 }
-
+                
+                final List<SearchRequest> searchRequests = competitor.settings().searchRequests();
                 competitionNodeResult.totalExecutedQueries(settings.multiplier() * searchRequests.size() * iterations);
             }
 
@@ -206,8 +204,9 @@ public class BenchmarkExecutor {
         return benchmarkResponse;
     }
 
-    private List<String> warmUp(BenchmarkCompetitor competitor, List<SearchRequest> searchRequests, StoppableSemaphore stoppableSemaphore)
+    private List<String> warmUp(BenchmarkCompetitor competitor, StoppableSemaphore stoppableSemaphore)
             throws InterruptedException {
+        List<SearchRequest> searchRequests = competitor.settings().searchRequests();
         final StoppableSemaphore semaphore = stoppableSemaphore.reset(competitor.settings().concurrency());
         final CountDownLatch totalCount = new CountDownLatch(searchRequests.size());
         final CopyOnWriteArrayList<String> errorMessages = new CopyOnWriteArrayList<>();
@@ -220,33 +219,35 @@ public class BenchmarkExecutor {
         return errorMessages;
     }
 
-    private CompetitionIteration runIteration(BenchmarkCompetitor competitor, List<SearchRequest> searchRequests,
-                                              final long[] timeBuckets, final long[] docBuckets,
+    private CompetitionIteration runIteration(BenchmarkCompetitor competitor, 
+                                              final Object[] statsBuckets, final long[] docBuckets,
                                               StoppableSemaphore stoppableSemaphore) throws InterruptedException {
-
-        assert timeBuckets.length == competitor.settings().multiplier() * searchRequests.size();
-        assert docBuckets.length == competitor.settings().multiplier() * searchRequests.size();
+        
+        int requestCount = competitor.settings().searchRequests().size();
+        assert statsBuckets.length == competitor.settings().multiplier() * requestCount;
+        assert docBuckets.length == competitor.settings().multiplier() * requestCount;
 
         final StoppableSemaphore semaphore = stoppableSemaphore.reset(competitor.settings().concurrency());
 
-        Arrays.fill(timeBuckets, -1);   // wipe CPU cache     ;)
+        Arrays.fill(statsBuckets, -1);   // wipe CPU cache     ;)
         Arrays.fill(docBuckets, -1);    // wipe CPU cache     ;)
 
         int id = 0;
-        final CountDownLatch totalCount = new CountDownLatch(timeBuckets.length);
+        final CountDownLatch totalCount = new CountDownLatch(statsBuckets.length);
         final CopyOnWriteArrayList<String> errorMessages = new CopyOnWriteArrayList<>();
         final long beforeRun = System.nanoTime();
 
         for (int i = 0; i < competitor.settings().multiplier(); i++) {
-            for (SearchRequest searchRequest : searchRequests) {
-                StatisticCollectionActionListener statsListener =
-                        new StatisticCollectionActionListener(semaphore, timeBuckets, docBuckets, id++, totalCount, errorMessages);
+            for (Entry<SearchRequest, Evaluator> task : competitor.settings().getSearchTask().getSearchTasks().entrySet()) {
+                StatisticCollectionActionListener statsListener = new StatisticCollectionActionListener(
+                                semaphore, statsBuckets, docBuckets, id++, task.getValue(), totalCount, errorMessages);
+                
                 semaphore.acquire();
-                client.search(searchRequest, statsListener);
+                client.search(task.getKey(), statsListener);
             }
         }
         totalCount.await();
-        assert id == timeBuckets.length;
+        assert id == statsBuckets.length;
         final long afterRun = System.nanoTime();
         if (!errorMessages.isEmpty()) {
             throw new BenchmarkExecutionException("Too many execution failures", errorMessages);
@@ -254,17 +255,17 @@ public class BenchmarkExecutor {
 
         final long totalTime = TimeUnit.MILLISECONDS.convert(afterRun - beforeRun, TimeUnit.NANOSECONDS);
 
-        CompetitionIterationData iterationData = new CompetitionIterationData(timeBuckets);
+        CompetitionIterationData iterationData = new CompetitionIterationData(statsBuckets);
         long sumDocs = new CompetitionIterationData(docBuckets).sum();
 
         // Don't track slowest request if there is only one request as that is redundant
         CompetitionIteration.SlowRequest[] topN = null;
         if ((competitor.settings().numSlowest() > 0) && (searchRequests.size() > 1)) {
-            topN = getTopN(timeBuckets, searchRequests, competitor.settings().multiplier(), competitor.settings().numSlowest());
+            topN = getTopN(statsBuckets, searchRequests, competitor.settings().multiplier(), competitor.settings().numSlowest());
         }
 
         CompetitionIteration round =
-                new CompetitionIteration(topN, totalTime, timeBuckets.length, sumDocs, iterationData);
+                new CompetitionIteration(topN, totalTime, statsBuckets.length, sumDocs, iterationData);
         return round;
     }
 
@@ -328,81 +329,7 @@ public class BenchmarkExecutor {
         }
     }
 
-    private static abstract class BoundsManagingActionListener<Response> implements ActionListener<Response> {
-
-        private final StoppableSemaphore semaphore;
-        private final CountDownLatch latch;
-        private final CopyOnWriteArrayList<String> errorMessages;
-
-        public BoundsManagingActionListener(StoppableSemaphore semaphore, CountDownLatch latch, CopyOnWriteArrayList<String> errorMessages) {
-            this.semaphore = semaphore;
-            this.latch = latch;
-            this.errorMessages = errorMessages;
-        }
-
-        private void manage() {
-            try {
-                semaphore.release();
-            } finally {
-                latch.countDown();
-            }
-        }
-
-        public void onResponse(Response response) {
-            manage();
-        }
-
-        public void onFailure(Throwable e) {
-            try {
-                if (errorMessages.size() < 5) {
-                    logger.debug("Failed to execute benchmark [{}]", e.getMessage(), e);
-                    e = ExceptionsHelper.unwrapCause(e);
-                    errorMessages.add(e.getLocalizedMessage());
-                }
-            } finally {
-                manage(); // first add the msg then call the count down on the latch otherwise we might iss one error
-            }
-
-        }
-    }
-
-    private static class StatisticCollectionActionListener extends BoundsManagingActionListener<SearchResponse> {
-
-        private final long[] timeBuckets;
-        private final int bucketId;
-        private final long[] docBuckets;
-
-        public StatisticCollectionActionListener(StoppableSemaphore semaphore, long[] timeBuckets, long[] docs,
-                                                 int bucketId, CountDownLatch totalCount,
-                                                 CopyOnWriteArrayList<String> errorMessages) {
-            super(semaphore, totalCount, errorMessages);
-            this.bucketId = bucketId;
-            this.timeBuckets = timeBuckets;
-            this.docBuckets = docs;
-        }
-
-        @Override
-        public void onResponse(SearchResponse searchResponse) {
-            super.onResponse(searchResponse);
-            timeBuckets[bucketId] = searchResponse.getTookInMillis();
-            if (searchResponse.getHits() != null) {
-                docBuckets[bucketId] = searchResponse.getHits().getTotalHits();
-            }
-        }
-
-        @Override
-        public void onFailure(Throwable e) {
-            try {
-                timeBuckets[bucketId] = -1;
-                docBuckets[bucketId] = -1;
-            } finally {
-                super.onFailure(e);
-            }
-
-        }
-    }
-
-    private final static class StoppableSemaphore {
+    final static class StoppableSemaphore {
         private Semaphore semaphore;
         private volatile boolean stopped = false;
 

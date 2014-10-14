@@ -24,7 +24,6 @@ import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.quality.PrecisionAtN.Rating;
-import org.elasticsearch.action.quality.QualityResponse.QualityResult;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchHit;

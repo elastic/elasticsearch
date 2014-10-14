@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -57,10 +58,10 @@ public class TransportQualityAction extends TransportAction<QualityRequest, Qual
 
     @Inject
     public TransportQualityAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, 
-            TransportSearchAction transportSearchAction, TransportService transportService) {
+            TransportSearchAction transportSearchAction, TransportService transportService, Client client) {
         super(settings, QualityAction.NAME, threadPool, actionFilters);
         this.transportSearchAction = transportSearchAction;
-        transportService.registerHandler(QualityAction.NAME, new TransportQualityHandler());
+        transportService.registerHandler(QualityAction.NAME, new TransportQualityHandler(client));
     }
 
     @Override
@@ -92,7 +93,8 @@ public class TransportQualityAction extends TransportAction<QualityRequest, Qual
                 ActionFuture<SearchResponse> searchResponse = transportSearchAction.execute(templated);
                 SearchHits hits = searchResponse.actionGet().getHits();
 
-                IntentQuality intentQuality = metric.evaluate(intent, hits.getHits());
+                metric.initialize(intent);
+                IntentQuality intentQuality = metric.evaluate(hits.getHits());
                 qualitySum += intentQuality.getQualityLevel();
                 unknownDocs.put(intent.getIntentId(), intentQuality.getUnknownDocs());
             }

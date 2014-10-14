@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.action.bench;
 
+import org.elasticsearch.action.bench.BenchmarkSettings.ClearCachesSettings;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.bench.BenchmarkSettings.ClearCachesSettings;
+
+import java.util.Map;
 
 /**
  * Builder for a benchmark competitor
@@ -105,8 +107,8 @@ public class BenchmarkCompetitorBuilder {
      * @param searchRequest     Search request
      * @return                  this
      */
-    public BenchmarkCompetitorBuilder addSearchRequest(SearchRequest... searchRequest) {
-        competitor.settings().addSearchRequest(searchRequest);
+    public BenchmarkCompetitorBuilder putSearchTask(Map<SearchRequest, Evaluator> task) {
+        competitor.settings().putSearchTask(task);
         return this;
     }
 

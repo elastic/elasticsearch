@@ -30,8 +30,8 @@ import java.util.Collection;
  * Each QA run is based on a set of queries to send to the index and multiple QA specifications that define how to translate the query
  * intents into elastic search queries. In addition it contains the quality metrics to compute.
  * */
-public class QualityTask {
 
+public class QualityTask {
     /** Collection of query intents to check against including expected document ids.*/
     private Collection<Intent> intents;
     /** Collection of query specifications, that is e.g. search request templates to use for query translation. */

@@ -21,8 +21,12 @@ package org.elasticsearch.action.quality;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
+import org.elasticsearch.action.bench.Evaluator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
@@ -38,7 +42,17 @@ import javax.naming.directory.SearchResult;
 public class PrecisionAtN implements RankedListQualityMetric {
     
     /** Number of results to check against a given set of relevant results. */
-    private final int n;
+    private int n;
+    
+    /** Search results to compare against */
+    private Intent intent;
+    
+    /**
+     * Initialises n with 10
+     * */
+    public PrecisionAtN() {
+        this.n = 10;
+    }
      
     /**
      * @param n number of top results to check against a given set of relevant results.
@@ -46,7 +60,23 @@ public class PrecisionAtN implements RankedListQualityMetric {
     public PrecisionAtN(int n) {
         this.n= n;
     }
-    
+
+    @Override
+    public Evaluator getInstance() {
+        return new PrecisionAtN(0);
+    }
+
+    public void setN(int n) {
+        this.n = n;
+    }
+
+    @Override
+    public RankedListQualityMetric initialize(Intent intent) {
+        PrecisionAtN result = new PrecisionAtN(n);
+        result.intent = intent;
+        return result;
+    }
+
     /**
      * Return number of search results to check for quality.
      * */
@@ -59,7 +89,8 @@ public class PrecisionAtN implements RankedListQualityMetric {
      * @param hits hits as returned for some query
      * @return precision at n for above {@link SearchResult} list.
      **/
-    public IntentQuality evaluate(Intent intent, SearchHit[] hits) {
+    @Override
+    public IntentQuality evaluate(SearchHit[] hits) {
         Map<String, Integer> ratedDocIds = intent.getRatedDocuments();
         Collection<String> relevantDocIds = Maps.filterEntries(ratedDocIds, new Predicate<Entry<String, Integer>> () {
             @Override
@@ -116,4 +147,13 @@ public class PrecisionAtN implements RankedListQualityMetric {
             return Rating.IRRELEVANT;
         }
     }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+    }
+
 }

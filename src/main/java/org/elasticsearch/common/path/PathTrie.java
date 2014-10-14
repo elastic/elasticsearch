@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 
 import java.util.Map;
 
+import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
@@ -180,9 +181,16 @@ public class PathTrie<T> {
             if (index == (path.length - 1)) {
                 return node.value;
             }
-
+            Map<String, String> formerParams = newHashMap();
+            if (params != null) {
+                formerParams.putAll(params);
+            }
             T res = node.retrieve(path, index + 1, params);
             if (res == null && !usedWildcard) {
+                if (params != null) {
+                    params.clear();
+                    params.putAll(formerParams);
+                }
                 node = children.get(wildcard);
                 if (node != null) {
                     put(params, node, token);

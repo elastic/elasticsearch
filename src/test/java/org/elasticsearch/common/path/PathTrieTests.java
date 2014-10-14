@@ -26,6 +26,7 @@ import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -160,5 +161,17 @@ public class PathTrieTests extends ElasticsearchTestCase {
         params = newHashMap();
         assertThat(trie.retrieve("a/*/_endpoint", params), equalTo("test5"));
         assertThat(params.get("test"), equalTo("*"));
+    }
+
+    @Test
+    public void testNamedWildcardWithParams() {
+        PathTrie<String> trie = new PathTrie<>();
+        trie.insert("/a/{x}/b", "test1");
+        trie.insert("/{y}/c/d", "test2");
+
+        Map<String, String> params = newHashMap();
+        assertThat(trie.retrieve("/a/c/d", params), equalTo("test2"));
+        assertThat(params.size(), is(1));
+        assertThat(params.get("y"), equalTo("a"));
     }
 }

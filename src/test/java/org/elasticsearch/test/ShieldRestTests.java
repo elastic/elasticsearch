@@ -52,8 +52,8 @@ public class ShieldRestTests extends ElasticsearchRestTests {
 
     public static final String CONFIG_IPFILTER_ALLOW_ALL = "allow: all\n";
     public static final String CONFIG_STANDARD_USER = DEFAULT_USER_NAME + ":{plain}" + DEFAULT_PASSWORD + "\n";
-    public static final String CONFIG_STANDARD_USER_ROLES = DEFAULT_USER_NAME + ":" + DEFAULT_ROLE + "\n";
-    public static final String CONFIG_ROLE_ALLOW_ALL = "user:\n" +
+    public static final String CONFIG_STANDARD_USER_ROLES = DEFAULT_ROLE + ":" + DEFAULT_USER_NAME+ "\n";
+    public static final String CONFIG_ROLE_ALLOW_ALL = DEFAULT_ROLE + ":\n" +
             "  cluster: ALL\n" +
             "  indices:\n" +
             "    '.*': ALL\n";

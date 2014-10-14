@@ -20,9 +20,7 @@
 package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -54,10 +52,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
-import java.io.FileNotFoundException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -352,7 +348,6 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveryStatus onGoingRecovery = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 for (Translog.Operation operation : request.operations()) {
-                    onGoingRecovery.validateRecoveryStatus();
                     onGoingRecovery.indexShard().performRecoveryOperation(operation);
                     onGoingRecovery.state().getTranslog().incrementTranslogOperations();
                 }
@@ -406,34 +401,11 @@ public class RecoveryTarget extends AbstractComponent {
         @Override
         public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel) throws Exception {
             try (RecoveryStatus onGoingRecovery = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
-                final Store store = onGoingRecovery.indexShard().store();
                 // first, we go and move files that were created with the recovery id suffix to
                 // the actual names, its ok if we have a corrupted index here, since we have replicas
                 // to recover from in case of a full cluster shutdown just when this code executes...
-                Set<String> filesToRename = Sets.newHashSet();
-                for (String existingFile : store.directory().listAll()) {
-                    if (onGoingRecovery.isTempFile(existingFile)) {
-                        filesToRename.add(existingFile);
-                    }
-                }
-                if (!filesToRename.isEmpty()) {
-                    // first, go and delete the existing ones
-                    final Directory directory = store.directory();
-                    for (String tempFile : filesToRename) {
-                        String origFile = onGoingRecovery.originalNameForTempFile(tempFile);
-                        try {
-                            directory.deleteFile(origFile);
-                        } catch (FileNotFoundException e) {
-
-                        } catch (Throwable ex) {
-                            logger.debug("failed to delete file [{}]", ex, origFile);
-                        }
-                    }
-                    for (String tempFile : filesToRename) {
-                        // now, rename the files... and fail it it won't work
-                        store.renameFile(tempFile, onGoingRecovery.originalNameForTempFile(tempFile));
-                    }
-                }
+                onGoingRecovery.renameAllTempFiles();
+                final Store store = onGoingRecovery.store();
                 // now write checksums
                 onGoingRecovery.legacyChecksums.write(store);
 

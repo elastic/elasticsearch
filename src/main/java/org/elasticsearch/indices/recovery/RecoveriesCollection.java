@@ -30,6 +30,7 @@ import java.util.Map;
 
 public class RecoveriesCollection {
 
+    /** This is the single source of truth for ongoing recoveries. If it's not here, it was canceled or done */
     private final Map<Long, RecoveryStatus> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
     final private ESLogger logger;
@@ -38,6 +39,11 @@ public class RecoveriesCollection {
         this.logger = logger;
     }
 
+    /**
+     * Starts are new recovery for the given shard, source node and state
+     *
+     * @return the id of the new recovery.
+     */
     public long startRecovery(InternalIndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
         RecoveryStatus status = new RecoveryStatus(indexShard, sourceNode, state, listener);
         onGoingRecoveries.put(status.recoveryId(), status);
@@ -66,17 +72,11 @@ public class RecoveriesCollection {
         if (status == null) {
             throw new IndexShardClosedException(shardId);
         }
-        // to be safe
-        try {
-            status.validateRecoveryStatus();
-        } catch (Exception e) {
-            status.decRef();
-            throw e;
-        }
         assert status.shardId().equals(shardId);
         return status;
     }
 
+    /** cancel the recovery with the given id (if found) and remove it from the recovery collection */
     public void cancelRecovery(long id, String reason) {
         RecoveryStatus removed = onGoingRecoveries.remove(id);
         if (removed != null) {
@@ -86,6 +86,13 @@ public class RecoveriesCollection {
         }
     }
 
+    /**
+     * fail the recovery with the given id (if found) and remove it from the recovery collection
+     *
+     * @param id id of the recovery to fail
+     * @param e  exception with reason for the failure
+     * @param sendShardFailure true a shard failed message should be sent to the master
+     */
     public void failRecovery(long id, RecoveryFailedException e, boolean sendShardFailure) {
         RecoveryStatus removed = onGoingRecoveries.remove(id);
         if (removed != null) {
@@ -94,7 +101,7 @@ public class RecoveriesCollection {
         }
     }
 
-
+    /** mark the recovery with the given id as done (if found) */
     public void markRecoveryAsDone(long id) {
         RecoveryStatus removed = onGoingRecoveries.remove(id);
         if (removed != null) {
@@ -103,6 +110,9 @@ public class RecoveriesCollection {
         }
     }
 
+    /**
+     * Try to find an ongoing recovery for a given shard. returns null if not found.
+     */
     @Nullable
     public RecoveryStatus findRecoveryByShard(IndexShard indexShard) {
         for (RecoveryStatus recoveryStatus : onGoingRecoveries.values()) {
@@ -118,6 +128,7 @@ public class RecoveriesCollection {
     }
 
 
+    /** cancel all ongoing recoveries for the given shard. typically because the shards is closed */
     public void cancelRecoveriesForShard(ShardId shardId, String reason) {
         for (RecoveryStatus status : onGoingRecoveries.values()) {
             if (status.shardId().equals(shardId)) {

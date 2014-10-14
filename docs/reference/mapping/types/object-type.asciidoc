@@ -43,6 +43,7 @@ The following is an example of explicit mapping for the above JSON:
                 "type" : "object",
                 "properties" : {
                     "name" : {
+                        "type" : "object",
                         "properties" : {
                             "first_name" : {"type" : "string"},
                             "last_name" : {"type" : "string"}

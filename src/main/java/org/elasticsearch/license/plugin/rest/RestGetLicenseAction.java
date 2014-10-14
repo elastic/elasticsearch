@@ -13,12 +13,12 @@ import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
 import org.elasticsearch.license.plugin.action.get.GetLicenseRequest;
 import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
-import org.elasticsearch.license.plugin.core.TrialLicenses;
+import org.elasticsearch.license.plugin.core.trial.TrialLicenses;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.license.plugin.action.Utils.licenseAsMap;
-import static org.elasticsearch.license.plugin.action.Utils.trialLicenseAsMap;
+import static org.elasticsearch.license.plugin.core.trial.TrialLicenseUtils.trialLicenseAsMap;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 

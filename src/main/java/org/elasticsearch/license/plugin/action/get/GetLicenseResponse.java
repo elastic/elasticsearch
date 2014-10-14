@@ -10,8 +10,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseBuilders;
-import org.elasticsearch.license.plugin.core.TrialLicenses;
-import org.elasticsearch.license.plugin.core.TrialLicensesBuilder;
+import org.elasticsearch.license.plugin.core.trial.TrialLicenseUtils;
+import org.elasticsearch.license.plugin.core.trial.TrialLicenses;
+import org.elasticsearch.license.plugin.core.trial.TrialLicensesBuilder;
 
 import java.io.IOException;
 
@@ -42,14 +43,14 @@ public class GetLicenseResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         licenses = readGeneratedLicensesFrom(in);
-        trialLicenses = readTrialLicensesFrom(in);
+        trialLicenses = TrialLicenseUtils.readTrialLicensesFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeGeneratedLicensesTo(licenses, out);
-        writeTrialLicensesTo(trialLicenses, out);
+        TrialLicenseUtils.writeTrialLicensesTo(trialLicenses, out);
     }
 
 }

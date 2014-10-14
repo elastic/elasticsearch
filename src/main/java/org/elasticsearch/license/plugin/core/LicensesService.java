@@ -21,13 +21,15 @@ import org.elasticsearch.license.core.LicenseBuilders;
 import org.elasticsearch.license.manager.ESLicenseManager;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
+import org.elasticsearch.license.plugin.core.trial.TrialLicenses;
+import org.elasticsearch.license.plugin.core.trial.TrialLicensesBuilder;
 
 import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.license.core.ESLicenses.FeatureType;
-import static org.elasticsearch.license.plugin.core.TrialLicenses.TrialLicense;
-import static org.elasticsearch.license.plugin.core.TrialLicensesBuilder.EMPTY;
+import static org.elasticsearch.license.plugin.core.trial.TrialLicenses.TrialLicense;
+import static org.elasticsearch.license.plugin.core.trial.TrialLicensesBuilder.EMPTY;
 
 /**
  * Service responsible for maintaining and providing access to licenses on nodes.

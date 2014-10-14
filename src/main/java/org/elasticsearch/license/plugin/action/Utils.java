@@ -11,18 +11,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseBuilders;
-import org.elasticsearch.license.plugin.core.TrialLicenses;
-import org.elasticsearch.license.plugin.core.TrialLicensesBuilder;
 
 import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.license.core.ESLicenses.*;
 import static org.elasticsearch.license.manager.Utils.getESLicenseFromSignature;
-import static org.elasticsearch.license.plugin.core.TrialLicenses.TrialLicense;
-import static org.elasticsearch.license.plugin.core.TrialLicensesBuilder.fromEncodedTrialLicense;
-import static org.elasticsearch.license.plugin.core.TrialLicensesBuilder.toEncodedTrialLicense;
-import static org.elasticsearch.license.plugin.core.TrialLicensesBuilder.trialLicensesBuilder;
 
 public class Utils {
 
@@ -38,41 +32,6 @@ public class Utils {
             out.writeBoolean(true);
             out.writeStringArray(toSignatures(esLicenses));
         }
-    }
-
-    public static TrialLicenses readTrialLicensesFromMetaData(StreamInput in) throws IOException {
-        boolean exists = in.readBoolean();
-        return exists ? fromEncodedTrialLicenses(in.readStringArray()) : null;
-
-    }
-
-    public static void writeTrialLicensesToMetaData(TrialLicenses trialLicenses, StreamOutput out) throws IOException {
-        if (trialLicenses == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeStringArray(toEncodedTrialLicenses(trialLicenses));
-        }
-    }
-
-    public static String[] toEncodedTrialLicenses(TrialLicenses trialLicenses) {
-        Set<String> encodedTrialLicenses = new HashSet<>();
-        for (TrialLicense trialLicense : trialLicenses) {
-            encodedTrialLicenses.add(toEncodedTrialLicense(trialLicense));
-        }
-        return encodedTrialLicenses.toArray(new String[encodedTrialLicenses.size()]);
-    }
-
-    public static TrialLicenses fromEncodedTrialLicenses(String[] encodedTrialLicenses) {
-        final TrialLicensesBuilder trialLicensesBuilder = trialLicensesBuilder();
-        for (String encodedTrialLicense : encodedTrialLicenses) {
-            trialLicensesBuilder.license(fromEncodedTrialLicense(encodedTrialLicense));
-        }
-        return trialLicensesBuilder.build();
-    }
-
-    public static TrialLicenses fromEncodedTrialLicenses(Set<String> encodedTrialLicenses) {
-        return fromEncodedTrialLicenses(encodedTrialLicenses.toArray(new String[encodedTrialLicenses.size()]));
     }
 
     public static String[] toSignatures(ESLicenses esLicenses) {
@@ -120,57 +79,6 @@ public class Utils {
         }
     }
 
-    public static TrialLicenses readTrialLicensesFrom(StreamInput in) throws IOException {
-        final TrialLicensesBuilder licensesBuilder = TrialLicensesBuilder.trialLicensesBuilder();
-        boolean exists = in.readBoolean();
-        if (exists) {
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                licensesBuilder.license(trialLicenseFromMap(in.readMap()));
-            }
-            return licensesBuilder.build();
-        }
-        return null;
-    }
-
-    public static void writeTrialLicensesTo(TrialLicenses trialLicenses, StreamOutput out) throws IOException {
-        if (trialLicenses == null) {
-            out.writeBoolean(false);
-            return;
-        }
-        out.writeBoolean(true);
-        out.writeVInt(trialLicenses.trialLicenses().size());
-        for (TrialLicense trialLicense : trialLicenses) {
-            out.writeMap(trialLicenseAsMap(trialLicense));
-        }
-    }
-
-    // TODO: make sure field order is preserved
-    public static Map<String, Object> trialLicenseAsMap(TrialLicense trialLicense) {
-        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
-        builder.put(TrialLicenseFields.UID, trialLicense.uid());
-        builder.put(TrialLicenseFields.TYPE, Type.TRIAL.string());
-        builder.put(TrialLicenseFields.SUBSCRIPTION_TYPE, SubscriptionType.NONE.string());
-        builder.put(TrialLicenseFields.ISSUE_DATE, trialLicense.issueDate());
-        builder.put(TrialLicenseFields.FEATURE, trialLicense.feature().string());
-        builder.put(TrialLicenseFields.EXPIRY_DATE, trialLicense.expiryDate());
-        builder.put(TrialLicenseFields.MAX_NODES, trialLicense.maxNodes());
-        builder.put(TrialLicenseFields.ISSUED_TO, trialLicense.issuedTo());
-        return builder.build();
-    }
-
-    public static TrialLicense trialLicenseFromMap(Map<String, Object> map) {
-        return TrialLicensesBuilder.trialLicenseBuilder()
-                .uid((String) map.get(TrialLicenseFields.UID))
-                .issuedTo((String) map.get(TrialLicenseFields.ISSUED_TO))
-                .maxNodes((int) map.get(TrialLicenseFields.MAX_NODES))
-                .feature(FeatureType.fromString((String) map.get(TrialLicenseFields.FEATURE)))
-                .issueDate((long) map.get(TrialLicenseFields.ISSUE_DATE))
-                .expiryDate((long) map.get(TrialLicenseFields.EXPIRY_DATE))
-                .build();
-
-    }
-
     // TODO: make sure field order is preserved
     public static Map<String, Object> licenseAsMap(ESLicense esLicense) {
         ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
@@ -199,17 +107,6 @@ public class Utils {
                 .signature((String) map.get(LicenseFields.SIGNATURE))
                 .build();
 
-    }
-
-    final static class TrialLicenseFields {
-        private final static String UID = "uid";
-        private final static String TYPE = "type";
-        private final static String SUBSCRIPTION_TYPE = "subscription_type";
-        private final static String ISSUE_DATE = "issue_date";
-        private final static String FEATURE = "feature";
-        private final static String ISSUED_TO = "issued_to";
-        private final static String MAX_NODES = "max_nodes";
-        private final static String EXPIRY_DATE = "expiry_date";
     }
 
     final static class LicenseFields {

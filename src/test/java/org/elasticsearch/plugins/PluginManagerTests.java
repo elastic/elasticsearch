@@ -418,7 +418,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Network
     public void testInstallPluginWithElasticsearchDownloadService() throws IOException {
         assumeTrue(isDownloadServiceWorking("download.elasticsearch.org", 80, "/elasticsearch/ci-test.txt"));
-        singlePluginInstallAndRemove("elasticsearch/elasticsearch-transport-thrift/1.5.0", null);
+        singlePluginInstallAndRemove("elasticsearch/elasticsearch-transport-thrift/2.4.0", null);
     }
 
     /**
@@ -431,7 +431,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Network
     public void testInstallPluginWithMavenCentral() throws IOException {
         assumeTrue(isDownloadServiceWorking("search.maven.org", 80, "/"));
-        singlePluginInstallAndRemove("org.elasticsearch/elasticsearch-transport-thrift/1.5.0", null);
+        assumeTrue(isDownloadServiceWorking("repo1.maven.org", 443, "/maven2/org/elasticsearch/elasticsearch-transport-thrift/2.4.0/elasticsearch-transport-thrift-2.4.0.pom"));
+        singlePluginInstallAndRemove("org.elasticsearch/elasticsearch-transport-thrift/2.4.0", null);
     }
 
     /**

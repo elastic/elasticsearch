@@ -27,7 +27,6 @@ import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -67,14 +66,11 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
@@ -502,15 +498,15 @@ public class ScriptService extends AbstractComponent {
             if (logger.isDebugEnabled()) {
                 logger.debug("notifying script services of script removal due to: [{}]", notification.getCause());
             }
-            List<Exception> errors = newArrayList();
             for (ScriptEngineService service : scriptEngines.values()) {
                 try {
                     service.scriptRemoved(notification.getValue());
                 } catch (Exception e) {
-                    errors.add(e);
+                    logger.warn("exception calling script removal listener for script service", e);
+                    // We don't rethrow because Guava would just catch the
+                    // exception and log it, which we have already done
                 }
             }
-            ExceptionsHelper.maybeThrowRuntimeAndSuppress(errors);
         }
     }
 

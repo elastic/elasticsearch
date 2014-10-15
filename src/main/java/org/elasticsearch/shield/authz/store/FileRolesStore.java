@@ -75,7 +75,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
     public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("files.roles");
         if (location == null) {
-            return ShieldPlugin.resolveConfigFile(env, ".roles.yml");
+            return ShieldPlugin.resolveConfigFile(env, "roles.yml");
         }
 
         return Paths.get(location);

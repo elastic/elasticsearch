@@ -38,7 +38,7 @@ public class InternalKeyService extends AbstractComponent implements KeyService 
     public static final String KEY_ALGO = "HmacSHA512";
     public static final int KEY_SIZE = 1024;
 
-    static final String FILE_NAME = ".system_key";
+    static final String FILE_NAME = "system_key";
     static final String HMAC_ALGO = "HmacSHA1";
 
     private static final Pattern SIG_PATTERN = Pattern.compile("\\$\\$[0-9]+\\$\\$.+");

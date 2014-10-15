@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
 public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2NAuthenticator {
 
     private static final Pattern COMMA_DELIM = Pattern.compile("\\s*,\\s*");
-    private static final String DEFAULT_FILE = ".ip_filter.yml";
+    private static final String DEFAULT_FILE = "ip_filter.yml";
     private static final IpFilterRule[] NO_RULES = new IpFilterRule[0];
 
     private final Path file;

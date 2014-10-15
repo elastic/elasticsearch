@@ -76,7 +76,7 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
     public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("shield.authc.esusers.files.users");
         if (location == null) {
-            return ShieldPlugin.resolveConfigFile(env, ".users");
+            return ShieldPlugin.resolveConfigFile(env, "users");
         }
         return Paths.get(location);
     }

@@ -70,7 +70,7 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
     public static Path resolveFile(Settings settings, Environment env) {
         String location = settings.get("shield.authc.esusers.files.users_roles");
         if (location == null) {
-            return ShieldPlugin.resolveConfigFile(env, ".users_roles");
+            return ShieldPlugin.resolveConfigFile(env, "users_roles");
         }
         return Paths.get(location);
     }

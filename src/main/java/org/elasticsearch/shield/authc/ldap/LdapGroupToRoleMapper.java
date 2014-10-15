@@ -33,7 +33,7 @@ import java.util.*;
  */
 public class LdapGroupToRoleMapper extends AbstractComponent {
 
-    public static final String DEFAULT_FILE_NAME = ".role_mapping";
+    public static final String DEFAULT_FILE_NAME = "role_mapping";
     public static final String ROLE_MAPPING_FILE_SETTING = "files.role_mapping";
     public static final String USE_UNMAPPED_GROUPS_AS_ROLES_SETTING = "unmapped_groups_as_roles";
 

@@ -90,7 +90,7 @@ public class SystemKeyToolTests extends CliToolTestCase {
         File config = tempFolder.newFolder();
         File shieldConfig = new File(config, ShieldPlugin.NAME);
         shieldConfig.mkdirs();
-        Path path = new File(shieldConfig, ".system_key").toPath();
+        Path path = new File(shieldConfig, "system_key").toPath();
         when(env.configFile()).thenReturn(config);
         Generate generate = new Generate(terminal, null);
         CliTool.ExitStatus status = generate.execute(ImmutableSettings.EMPTY, env);

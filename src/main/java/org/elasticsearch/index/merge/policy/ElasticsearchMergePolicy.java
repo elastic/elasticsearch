@@ -31,6 +31,8 @@ import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 
@@ -53,6 +55,8 @@ import java.util.Map;
  * be stored as payloads to numeric doc values.
  */
 public final class ElasticsearchMergePolicy extends MergePolicy {
+    
+    private static ESLogger logger = Loggers.getLogger(ElasticsearchMergePolicy.class);
 
     private final MergePolicy delegate;
     private volatile boolean upgradeInProgress;
@@ -167,7 +171,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
 
         @Override
         public void add(OneMerge merge) {
-          super.add(new IndexUpgraderOneMerge(merge.segments));
+            super.add(new IndexUpgraderOneMerge(merge.segments));
         }
 
         @Override
@@ -183,7 +187,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         }
         MergeSpecification upgradedSpec = new IndexUpgraderMergeSpecification();
         for (OneMerge merge : spec.merges) {
-          upgradedSpec.add(merge);
+            upgradedSpec.add(merge);
         }
         return upgradedSpec;
     }
@@ -191,7 +195,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     @Override
     public MergeSpecification findMerges(MergeTrigger mergeTrigger,
         SegmentInfos segmentInfos, IndexWriter writer) throws IOException {
-      return upgradedMergeSpecification(delegate.findMerges(mergeTrigger, segmentInfos, writer));
+        return upgradedMergeSpecification(delegate.findMerges(mergeTrigger, segmentInfos, writer));
     }
 
     @Override
@@ -199,43 +203,46 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge, IndexWriter writer)
         throws IOException {
 
-      if (upgradeInProgress) {
-          MergeSpecification spec = new IndexUpgraderMergeSpecification();
-          for (SegmentCommitInfo info : segmentInfos) {
-              org.apache.lucene.util.Version old = info.info.getVersion();
-              org.apache.lucene.util.Version cur = Version.CURRENT.luceneVersion;
-              if (cur.major > old.major ||
-                  cur.major == old.major && cur.minor > old.minor) {
-                  // TODO: Use IndexUpgradeMergePolicy instead.  We should be comparing codecs,
-                  // for now we just assume every minor upgrade has a new format.
-                  spec.add(new OneMerge(Lists.newArrayList(info)));
-              }
-              if (spec.merges.size() == MAX_CONCURRENT_UPGRADE_MERGES) {
-                  // hit our max upgrades, so return the spec.  we will get a cascaded call to continue.
-                  return spec;
-              }
-          }
-          // We must have less than our max upgrade merges, so the next return will be our last in upgrading mode.
-          upgradeInProgress = false;
-          if (spec.merges.isEmpty() == false) {
-              return spec;
-          }
-          // fall through, so when we don't have any segments to upgrade, the delegate policy
-          // has a chance to decide what to do (e.g. collapse the segments to satisfy maxSegmentCount)
-      }
+        if (upgradeInProgress) {
+            MergeSpecification spec = new IndexUpgraderMergeSpecification();
+            for (SegmentCommitInfo info : segmentInfos) {
+                org.apache.lucene.util.Version old = info.info.getVersion();
+                org.apache.lucene.util.Version cur = Version.CURRENT.luceneVersion;
+                if (cur.major > old.major ||
+                    cur.major == old.major && cur.minor > old.minor) {
+                    // TODO: Use IndexUpgradeMergePolicy instead.  We should be comparing codecs,
+                    // for now we just assume every minor upgrade has a new format.
+                    logger.debug("Adding segment " + info.info.name + " to be upgraded");
+                    spec.add(new OneMerge(Lists.newArrayList(info)));
+                }
+                if (spec.merges.size() == MAX_CONCURRENT_UPGRADE_MERGES) {
+                    // hit our max upgrades, so return the spec.  we will get a cascaded call to continue.
+                    logger.debug("Returning " + spec.merges.size() + " merges for upgrade");
+                    return spec;
+                }
+            }
+            // We must have less than our max upgrade merges, so the next return will be our last in upgrading mode.
+            upgradeInProgress = false;
+            if (spec.merges.isEmpty() == false) {
+                logger.debug("Return " + spec.merges.size() + " merges for end of upgrade");
+                return spec;
+            }
+            // fall through, so when we don't have any segments to upgrade, the delegate policy
+            // has a chance to decide what to do (e.g. collapse the segments to satisfy maxSegmentCount)
+        }
 
-      return upgradedMergeSpecification(delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, writer));
+        return upgradedMergeSpecification(delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, writer));
     }
 
     @Override
     public MergeSpecification findForcedDeletesMerges(SegmentInfos segmentInfos, IndexWriter writer)
         throws IOException {
-      return upgradedMergeSpecification(delegate.findForcedDeletesMerges(segmentInfos, writer));
+        return upgradedMergeSpecification(delegate.findForcedDeletesMerges(segmentInfos, writer));
     }
 
     @Override
     public boolean useCompoundFile(SegmentInfos segments, SegmentCommitInfo newSegment, IndexWriter writer) throws IOException {
-      return delegate.useCompoundFile(segments, newSegment, writer);
+        return delegate.useCompoundFile(segments, newSegment, writer);
     }
 
     /**
@@ -250,7 +257,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
 
     @Override
     public String toString() {
-      return getClass().getSimpleName() + "(" + delegate + ")";
+        return getClass().getSimpleName() + "(" + delegate + ")";
     }
 
 }

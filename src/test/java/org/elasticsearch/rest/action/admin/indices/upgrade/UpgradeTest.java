@@ -121,6 +121,8 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         assertNotUpgraded(httpClient, null);
         final String indexToUpgrade = "test" + randomInt(numIndexes - 1);
         
+        logger.debug("Running upgrade on index " + indexToUpgrade);
+        logClusterState();
         runUpgrade(httpClient, indexToUpgrade);
         awaitBusy(new Predicate<Object>() {
             @Override
@@ -132,8 +134,14 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
                 }
             }
         });
+        logger.debug("Single index upgrade complete");
+        logClusterState();
         
+        logger.debug("Running upgrade on the rest of the indexes");
+        logClusterState();
         runUpgrade(httpClient, null, "wait_for_completion", "true");
+        logger.debug("Full upgrade complete");
+        logClusterState();
         assertUpgraded(httpClient, null);
     }
     

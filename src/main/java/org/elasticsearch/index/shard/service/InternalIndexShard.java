@@ -929,6 +929,9 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 if (!refreshInterval.equals(InternalIndexShard.this.refreshInterval)) {
                     logger.info("updating refresh_interval from [{}] to [{}]", InternalIndexShard.this.refreshInterval, refreshInterval);
                     if (refreshScheduledFuture != null) {
+                        // NOTE: we pass false here so we do NOT attempt Thread.interrupt if EngineRefresher.run is currently running.  This is
+                        // very important, because doing so can cause files to suddenly be closed if they were doing IO when the interrupt
+                        // hit.  See https://issues.apache.org/jira/browse/LUCENE-2239
                         refreshScheduledFuture.cancel(false);
                         refreshScheduledFuture = null;
                     }

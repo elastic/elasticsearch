@@ -74,6 +74,7 @@ public class UpgradeReallyOldIndexTest extends ElasticsearchIntegrationTest {
                 .put("gateway.type", "local") // this is important we need to recover from gateway
                 .put(InternalNode.HTTP_ENABLED, true)
                 .build());
+        ensureGreen("test");
        
         assertIndexSanity();
         

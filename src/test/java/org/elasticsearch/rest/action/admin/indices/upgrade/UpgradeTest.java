@@ -32,12 +32,16 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.json.JsonPath;
+import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.net.InetSocketAddress;
@@ -61,6 +65,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
     }
 
     public void testUpgrade() throws Exception {
+        Loggers.getLogger(UpgradeTest.class).setLevel("DEBUG");
 
         int numIndexes = randomIntBetween(2, 4);
         String[] indexNames = new String[numIndexes];
@@ -110,7 +115,6 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             }
             indexRandom(true, builder);
             ensureGreen(indexName);
-            refresh();
         }
         backwardsCluster().allowOnAllNodes(indexNames);
         backwardsCluster().upgradeAllNodes();
@@ -121,8 +125,9 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         assertNotUpgraded(httpClient, null);
         final String indexToUpgrade = "test" + randomInt(numIndexes - 1);
         
-        logger.debug("Running upgrade on index " + indexToUpgrade);
+        logger.debug("--> Running upgrade on index " + indexToUpgrade);
         logClusterState();
+        logSegmentsState(indexToUpgrade);
         runUpgrade(httpClient, indexToUpgrade);
         awaitBusy(new Predicate<Object>() {
             @Override
@@ -134,15 +139,35 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
                 }
             }
         });
-        logger.debug("Single index upgrade complete");
+        logger.debug("--> Single index upgrade complete");
         logClusterState();
+        logSegmentsState(indexToUpgrade);
         
-        logger.debug("Running upgrade on the rest of the indexes");
+        logger.debug("--> Running upgrade on the rest of the indexes");
         logClusterState();
+        logSegmentsState(null);
         runUpgrade(httpClient, null, "wait_for_completion", "true");
-        logger.debug("Full upgrade complete");
+        logger.debug("--> Full upgrade complete");
         logClusterState();
+        logSegmentsState(null);
         assertUpgraded(httpClient, null);
+    }
+    
+    @After
+    void restLogLevel() {
+        Loggers.getLogger(UpgradeTest.class).setLevel("INFO");
+    }
+    
+    void logSegmentsState(String index) throws Exception {
+        // double check using the segments api that all segments are actually upgraded
+        IndicesSegmentResponse segsRsp;
+        if (index == null) {
+            segsRsp = client().admin().indices().prepareSegments().get();
+        } else {
+            segsRsp = client().admin().indices().prepareSegments(index).get();
+        }
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        logger.debug("Segments State: \n\n" + segsRsp.toXContent(builder.prettyPrint(), ToXContent.EMPTY_PARAMS).string());
     }
     
     static String upgradePath(String index) {

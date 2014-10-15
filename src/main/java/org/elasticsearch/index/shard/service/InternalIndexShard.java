@@ -946,11 +946,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         public void run() {
             // we check before if a refresh is needed, if not, we reschedule, otherwise, we fork, refresh, and then reschedule
             if (!engine().refreshNeeded()) {
-                synchronized (mutex) {
-                    if (state != IndexShardState.CLOSED) {
-                        refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
-                    }
-                }
+                reschedule();
                 return;
             }
             threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
@@ -979,13 +975,19 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                             logger.warn("Failed to perform scheduled engine refresh", e);
                         }
                     }
-                    synchronized (mutex) {
-                        if (state != IndexShardState.CLOSED) {
-                            refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, EngineRefresher.this);
-                        }
-                    }
+
+                    reschedule();
                 }
             });
+        }
+
+        /** Schedules another (future) refresh, if refresh_interval is still enabled. */
+        private void reschedule() {
+            synchronized (mutex) {
+                if (state != IndexShardState.CLOSED && refreshInterval.millis() > 0) {
+                    refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, this);
+                }
+            }
         }
     }
 

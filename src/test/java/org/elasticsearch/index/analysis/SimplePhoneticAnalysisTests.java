@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -43,7 +45,9 @@ public class SimplePhoneticAnalysisTests extends ElasticsearchTestCase {
 
     @Test
     public void testPhoneticTokenFilterFactory() {
-        Settings settings = settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/phonetic-1.yml").build();
+        Settings settings = settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/phonetic-1.yml")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .build();
         AnalysisService analysisService = testSimpleConfiguration(settings);
         TokenFilterFactory filterFactory = analysisService.tokenFilter("phonetic");
         MatcherAssert.assertThat(filterFactory, instanceOf(PhoneticTokenFilterFactory.class));

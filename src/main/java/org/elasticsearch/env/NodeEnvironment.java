@@ -36,6 +36,11 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileAttribute;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -255,5 +260,28 @@ public class NodeEnvironment extends AbstractComponent {
             }
         }
         return true;
+    }
+
+    /**
+     * This method tries to write an empty file and moves it using an atomic move operation.
+     * This method throws an {@link ElasticsearchIllegalStateException} if this operation is
+     * not supported by the filesystem. This test is executed on each of the data directories.
+     * This method cleans up all files even in the case of an error.
+     */
+    public void ensureAtomicMoveSupported() throws IOException {
+        for (File file : nodeFiles) {
+            assert file.isDirectory();
+            final Path src = new File(file, "__es__.tmp").toPath();
+            Files.createFile(src);
+            final Path target = new File(file, "__es__.final").toPath();
+            try {
+                Files.move(src, target, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ex) {
+                throw new ElasticsearchIllegalStateException("atomic_move is not supported by the filesystem on path [" + file.getCanonicalPath() + "] atomic_move is required for elasticsearch to work correctly.", ex);
+            } finally {
+                Files.deleteIfExists(src);
+                Files.deleteIfExists(target);
+            }
+        }
     }
 }

@@ -922,7 +922,7 @@ In SQL, the above aggregation is similar in concept to:
 
 [source,sh]
 --------------------------------------------------
-SELECT COUNT(*) from bank GROUP BY state ORDER BY COUNT(*) DESC
+SELECT TOP 10 COUNT(*) from bank GROUP BY state ORDER BY COUNT(*) DESC
 --------------------------------------------------
 
 And the response (partially shown):

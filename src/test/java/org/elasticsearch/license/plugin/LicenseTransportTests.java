@@ -6,6 +6,8 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +33,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.license.core.LicenseUtils.readLicensesFromString;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -124,6 +127,34 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
         getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).execute().get();
         assertTrue(isSame(getLicenseResponse.licenses(), LicenseBuilders.licensesBuilder().build()));
     }
+/*
+    @Test
+    public void testPutInvalidLicense() throws Exception {
+        Map<ESLicenses.FeatureType, TestUtils.FeatureAttributes> map = new HashMap<>();
+        TestUtils.FeatureAttributes featureAttributes =
+                new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-12-13");
+        map.put(ESLicenses.FeatureType.SHIELD, featureAttributes);
+        String licenseString = TestUtils.generateESLicenses(map);
+        String licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
+
+        ESLicenses esLicenses = readLicensesFromString(licenseOutput);
+
+        ESLicenses.ESLicense esLicense = esLicenses.get(ESLicenses.FeatureType.SHIELD);
+        ESLicenses.ESLicense tamperedLicense = LicenseBuilders.licenseBuilder(true)
+                .fromLicense(esLicense)
+                .expiryDate(esLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
+                .issuer("elasticsearch")
+                .build();
+
+        PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster());
+        builder.setLicense(LicenseBuilders.licensesBuilder().license(tamperedLicense).build());
+
+        final ListenableActionFuture<PutLicenseResponse> execute = builder.execute();
+
+        execute.get();
+
+    }
+*/
 
     //TODO: convert to asserts
     public static boolean isSame(ESLicenses firstLicenses, ESLicenses secondLicenses) {

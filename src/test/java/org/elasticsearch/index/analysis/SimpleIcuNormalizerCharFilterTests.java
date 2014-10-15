@@ -21,22 +21,14 @@ package org.elasticsearch.index.analysis;
 
 import com.ibm.icu.text.Normalizer2;
 import org.apache.lucene.analysis.CharFilter;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.StringReader;
+
+import static org.elasticsearch.index.analysis.AnalysisTestUtils.createAnalysisService;
 
 /**
  * Test
@@ -46,11 +38,10 @@ public class SimpleIcuNormalizerCharFilterTests extends ElasticsearchTestCase {
     @Test
     public void testDefaultSetting() throws Exception {
 
-        Index index = new Index("test");
         Settings settings = ImmutableSettings.settingsBuilder()
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .build();
-        AnalysisService analysisService = createAnalysisService(index, settings);
+        AnalysisService analysisService = createAnalysisService(settings);
         CharFilterFactory charFilterFactory = analysisService.charFilter("myNormalizerChar");
 
         String input = "ʰ㌰゙5℃№㈱㌘，バッファーの正規化のテスト．㋐㋑㋒㋓㋔ｶｷｸｹｺｻﾞｼﾞｽﾞｾﾞｿﾞg̈각/각நிเกषिchkʷक्षि";
@@ -72,13 +63,12 @@ public class SimpleIcuNormalizerCharFilterTests extends ElasticsearchTestCase {
     @Test
     public void testNameAndModeSetting() throws Exception {
 
-        Index index = new Index("test");
         Settings settings = ImmutableSettings.settingsBuilder()
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .put("index.analysis.char_filter.myNormalizerChar.name", "nfkc")
             .put("index.analysis.char_filter.myNormalizerChar.mode", "decompose")
             .build();
-        AnalysisService analysisService = createAnalysisService(index, settings);
+        AnalysisService analysisService = createAnalysisService(settings);
         CharFilterFactory charFilterFactory = analysisService.charFilter("myNormalizerChar");
 
         String input = "ʰ㌰゙5℃№㈱㌘，バッファーの正規化のテスト．㋐㋑㋒㋓㋔ｶｷｸｹｺｻﾞｼﾞｽﾞｾﾞｿﾞg̈각/각நிเกषिchkʷक्षि";
@@ -94,16 +84,5 @@ public class SimpleIcuNormalizerCharFilterTests extends ElasticsearchTestCase {
             assertEquals(output.toString(), normalizer.normalize(input.substring(0, inputReader.correctOffset(output.length()))));
         }
         assertEquals(expectedOutput, output.toString());
-    }
-
-    private AnalysisService createAnalysisService(Index index, Settings settings) {
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings)), new IndicesAnalysisModule()).createInjector();
-        Injector injector = new ModulesBuilder().add(
-            new IndexSettingsModule(index, settings),
-            new IndexNameModule(index),
-            new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)).addProcessor(new IcuAnalysisBinderProcessor()))
-            .createChildInjector(parentInjector);
-
-        return injector.getInstance(AnalysisService.class);
     }
 }

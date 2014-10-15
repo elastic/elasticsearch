@@ -617,7 +617,10 @@ public class IndexMetaData {
         }
 
         public static IndexMetaData fromXContent(XContentParser parser) throws IOException {
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            if (parser.currentToken() == null) { // fresh parser? move to the first token
+                parser.nextToken();
+            }
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
                 parser.nextToken();
             }
             Builder builder = new Builder(parser.currentName());
@@ -641,7 +644,7 @@ public class IndexMetaData {
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                             builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
                         }
                     } else {

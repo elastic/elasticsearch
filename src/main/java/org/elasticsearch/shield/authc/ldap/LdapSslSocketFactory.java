@@ -40,8 +40,13 @@ public class LdapSslSocketFactory extends SocketFactory {
         }
 
         Settings componentSettings = settings.getComponentSettings(LdapSslSocketFactory.class);
-        SSLTrustConfig sslConfig = new SSLTrustConfig(componentSettings, settings.getByPrefix("shield.ssl."));
-        instance = new LdapSslSocketFactory(sslConfig.createSSLSocketFactory());
+        Settings generalSslSettings = settings.getByPrefix("shield.ssl.");
+        if (generalSslSettings.get("truststore") == null && componentSettings.get("truststore") == null){
+            logger.warn("No truststore has been configured for LDAP");
+        } else {
+            SSLTrustConfig sslConfig = new SSLTrustConfig(componentSettings, generalSslSettings);
+            instance = new LdapSslSocketFactory(sslConfig.createSSLSocketFactory());
+        }
     }
 
     /**
@@ -98,11 +103,10 @@ public class LdapSslSocketFactory extends SocketFactory {
                 break;
             }
         }
-        if (needsSSL) {
-            assert instance != null : "LdapSslSocketFactory not initialized and won't be used for LDAP connections";
+        if (needsSSL && instance != null) {
             builder.put("java.naming.ldap.factory.socket", LdapSslSocketFactory.class.getName());
         } else {
-            logger.debug("LdapSslSocketFactory not used for LDAP connections");
+            logger.warn("LdapSslSocketFactory not used for LDAP connections");
         }
     }
 }

@@ -361,7 +361,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     /**
-     * The idea of the store directory is to cache file level meta data, as well as md5 of it
+     * This exists so {@link org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat} can load its boolean setting; can we find a more straightforward way?
      */
     public class StoreDirectory extends FilterDirectory implements ForceSyncDirectory {
 
@@ -460,14 +460,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
             Map<String, String> checksumMap = readLegacyChecksums(directory);
             try {
-                final SegmentInfos segmentCommitInfos;
-                try {
-                    segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
-                } catch (FileNotFoundException | NoSuchFileException ex) {
-                    // no segments file -- can't read metadata
-                    logger.trace("Can't read segment infos", ex);
-                    return ImmutableMap.of();
-                }
+                final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 Version maxVersion = Version.LUCENE_3_0; // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = Lucene.parseVersionLenient(info.info.getVersion(), Version.LUCENE_3_0);

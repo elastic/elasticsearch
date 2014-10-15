@@ -34,6 +34,7 @@
           v: true
 
   - match:
+      # Windows reports -1 for the file descriptor counts.
       $body: |
                /^      file_desc\.current  \s+  file_desc\.percent  \s+  file_desc\.max  \s+ \n
-                  (\s+ \d+                 \s+  \d+                 \s+  \d+             \s+ \n)+  $/
+                  (\s+ (-1|\d+)            \s+  \d+                 \s+  (-1|\d+)        \s+ \n)+  $/

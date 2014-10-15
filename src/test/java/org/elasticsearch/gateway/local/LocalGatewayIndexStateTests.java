@@ -293,6 +293,8 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
         internalCluster().stopRandomNonMasterNode();
 
+        // wait for master to processed node left (so delete won't timeout waiting for it)
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("1").get().isTimedOut());
 
         logger.info("--> deleting index");
         assertAcked(client().admin().indices().prepareDelete("test"));

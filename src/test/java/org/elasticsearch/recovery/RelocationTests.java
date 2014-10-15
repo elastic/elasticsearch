@@ -503,18 +503,23 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         logger.info("--> verifying no temporary recoveries are left");
         for (String node : internalCluster().getNodeNames()) {
             NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, node);
-            for (File shardLoc : nodeEnvironment.shardLocations(new ShardId(indexName, 0))) {
-                try {
-                    Files.walkFileTree(shardLoc.toPath(), new SimpleFileVisitor<Path>() {
-                        @Override
-                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                            assertThat("found a temporary recovery file: " + file, file.getFileName().toString(), not(startsWith("recovery.")));
-                            return FileVisitResult.CONTINUE;
+            for (final File shardLoc : nodeEnvironment.shardLocations(new ShardId(indexName, 0))) {
+                assertBusy(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            Files.walkFileTree(shardLoc.toPath(), new SimpleFileVisitor<Path>() {
+                                @Override
+                                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                                    assertThat("found a temporary recovery file: " + file, file.getFileName().toString(), not(startsWith("recovery.")));
+                                    return FileVisitResult.CONTINUE;
+                                }
+                            });
+                        } catch (IOException e) {
+                            throw new ElasticsearchException("failed to walk tree", e);
                         }
-                    });
-                } catch (IOException e) {
-                    throw new ElasticsearchException("failed to walk tree", e);
-                }
+                    }
+                });
             }
         }
     }

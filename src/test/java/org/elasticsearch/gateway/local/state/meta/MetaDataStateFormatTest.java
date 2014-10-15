@@ -23,11 +23,11 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.TestRuleMarkFailure;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Assert;
@@ -303,7 +303,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
 
     private IndexMetaData.Builder indexBuilder(String index) throws IOException {
         return IndexMetaData.builder(index)
-                .settings(ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10)).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5)));
+                .settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10)).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5)));
     }
 
 

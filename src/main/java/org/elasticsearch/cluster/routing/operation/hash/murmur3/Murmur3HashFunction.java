@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.routing.operation.hash.murmur3;
 
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
-import org.elasticsearch.common.hash.MurmurHash3;
 
 /**
  * Hash function based on the Murmur3 algorithm, which is the default as of Elasticsearch 2.0.
@@ -32,13 +32,12 @@ public class Murmur3HashFunction implements HashFunction {
         final byte[] bytesToHash = new byte[routing.length() * 2];
         for (int i = 0; i < routing.length(); ++i) {
             final char c = routing.charAt(i);
-            final byte b1 = (byte) (c >>> 8), b2 = (byte) c;
-            assert ((b1 & 0xFF) << 8 | (b2 & 0xFF)) == c; // no information loss
+            final byte b1 = (byte) c, b2 = (byte) (c >>> 8);
+            assert ((b1 & 0xFF) | ((b2 & 0xFF) << 8)) == c; // no information loss
             bytesToHash[i * 2] = b1;
             bytesToHash[i * 2 + 1] = b2;
         }
-        final MurmurHash3.Hash128 hash = MurmurHash3.hash128(bytesToHash, 0, bytesToHash.length, 0, new MurmurHash3.Hash128());
-        return (int) hash.h1;
+        return StringHelper.murmurhash3_x86_32(bytesToHash, 0, bytesToHash.length, 0);
     }
 
     @Override

@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.routing.operation.plain;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -34,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationD
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
 import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
-import org.elasticsearch.cluster.routing.operation.hash.murmur3.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -56,12 +54,7 @@ import java.util.Set;
  */
 public class PlainOperationRouting extends AbstractComponent implements OperationRouting {
 
-    public static final String SETTING_LEGACY_HASH_FUNCTION = "index.legacy.routing.hash.type";
-    public static final String SETTING_LEGACY_USE_TYPE = "index.legacy.routing.use_type";
 
-    // hard-coded hash function as of 2.0
-    // older indices will read which hash function to use in their index settings
-    private static final HashFunction HASH_FUNCTION = new Murmur3HashFunction();
 
     private final AwarenessAllocationDecider awarenessAllocationDecider;
 
@@ -271,29 +264,9 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
 
     private int shardId(ClusterState clusterState, String index, String type, String id, @Nullable String routing) {
         final IndexMetaData indexMetaData = indexMetaData(clusterState, index);
-        final Version createdVersion = Version.indexCreated(indexMetaData.getSettings());
-        final HashFunction hashFunction;
-        final boolean useType;
-
-        final Class<? extends HashFunction> hashFunctionClass = indexMetaData.getSettings().getAsClass(SETTING_LEGACY_HASH_FUNCTION, null);
-        if (createdVersion.onOrAfter(Version.V_2_0_0)) {
-            if (hashFunctionClass != null) {
-                throw new ElasticsearchIllegalStateException("Index [" + index + "] has the `" + SETTING_LEGACY_HASH_FUNCTION + "` setting while it is not supposed to have it since it was created on " + createdVersion);
-            }
-            hashFunction = HASH_FUNCTION;
-            useType = false;
-        } else {
-            if (hashFunctionClass == null) {
-                throw new ElasticsearchIllegalStateException("Index [" + index + "] misses the `" + SETTING_LEGACY_HASH_FUNCTION + "` setting while recovery from gateway should have added it since it was created on " + createdVersion);
-            }
-            // TODO: is there a way to make Guice instantiate it instead?
-            try {
-                hashFunction = hashFunctionClass.newInstance();
-            } catch (InstantiationException | IllegalAccessException e) {
-                throw new ElasticsearchIllegalStateException("Cannot instantiate hash function", e);
-            }
-            useType = indexMetaData.getSettings().getAsBoolean(SETTING_LEGACY_USE_TYPE, false);
-        }
+        final Version createdVersion = indexMetaData.getCreationVersion();
+        final HashFunction hashFunction = indexMetaData.getRoutingHashFunction();
+        final boolean useType = indexMetaData.getRoutingUseType();
 
         final int hash;
         if (routing == null) {

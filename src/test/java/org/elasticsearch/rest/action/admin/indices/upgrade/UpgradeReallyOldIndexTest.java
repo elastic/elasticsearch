@@ -22,22 +22,20 @@ package org.elasticsearch.rest.action.admin.indices.upgrade;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.junit.Ignore;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 
@@ -47,31 +45,12 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
 public class UpgradeReallyOldIndexTest extends ElasticsearchIntegrationTest {
 
-    // this can maybe go into  ElasticsearchIntegrationTest
-    public File prepareBackwardsDataDir(File backwardsIndex) throws IOException {
-        File dataDir = new File(newTempDir(), "data");
-        TestUtil.unzip(backwardsIndex, dataDir.getParentFile());
-        assertTrue(dataDir.exists());
-        String[] list = dataDir.list();
-        if (list == null || list.length > 1) {
-            throw new IllegalStateException("Backwards index must contain exactly one cluster");
-        }
-        File src = new File(dataDir, list[0]);
-        File dest = new File(dataDir, internalCluster().getClusterName());
-        assertTrue(src.exists());
-        src.renameTo(dest);
-        assertFalse(src.exists());
-        assertTrue(dest.exists());
-        return dataDir;
-    }
-
     public void testUpgrade_0_20() throws Exception {
         // If this assert trips it means we are not suppressing enough codecs up above:
         assertFalse("test infra is broken!", LuceneTestCase.OLD_FORMAT_IMPERSONATION_IS_ACTIVE);
-        File dataDir = prepareBackwardsDataDir(new File(getClass().getResource("index-0.20.zip").toURI()));
+        Settings baseSettings = prepareBackwardsDataDir(new File(getClass().getResource("index-0.20.zip").toURI()));
         internalCluster().startNode(ImmutableSettings.builder()
-                .put("path.data", dataDir.getPath())
-                .put("gateway.type", "local") // this is important we need to recover from gateway
+                .put(baseSettings)
                 .put(InternalNode.HTTP_ENABLED, true)
                 .build());
         ensureGreen("test");

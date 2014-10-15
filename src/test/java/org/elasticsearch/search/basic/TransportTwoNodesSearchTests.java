@@ -285,16 +285,17 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
             assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
         }
 
-        searchResponse = client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
-
-        assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(40));
-        for (int i = 0; i < 40; i++) {
-            SearchHit hit = searchResponse.getHits().hits()[i];
-//            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - 60 - 1 - i)));
-            // we don't do perfect sorting when it comes to scroll with Query+Fetch
-            assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
-        }
+        do {
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll("10m").get();
+            assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
+            assertThat(searchResponse.getHits().hits().length, lessThanOrEqualTo(40));
+            for (int i = 0; i < searchResponse.getHits().hits().length; i++) {
+                SearchHit hit = searchResponse.getHits().hits()[i];
+                // we don't do perfect sorting when it comes to scroll with Query+Fetch
+                assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
+            }
+        } while (searchResponse.getHits().getHits().length > 0);
+        clearScroll(searchResponse.getScrollId());
         assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 
@@ -312,7 +313,8 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
         }
 
 
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(DFS_QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        //SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(DFS_QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(DFS_QUERY_AND_FETCH).setScroll("10m").setSource(source.buildAsBytes()).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60)); // 20 per shard
@@ -324,17 +326,18 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
             assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
         }
 
-        searchResponse = client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
-
-        assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(40));
-        for (int i = 0; i < 40; i++) {
-            SearchHit hit = searchResponse.getHits().hits()[i];
-//            System.out.println(hit.shard() + ": " +  hit.explanation());
-//            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - 60 - 1 - i)));
-            // we don't do perfect sorting when it comes to scroll with Query+Fetch
-            assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
-        }
+        do {
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll("10m").get();
+    
+            assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
+            assertThat(searchResponse.getHits().hits().length, lessThanOrEqualTo(40));
+            for (int i = 0; i < searchResponse.getHits().hits().length; i++) {
+                SearchHit hit = searchResponse.getHits().hits()[i];
+                // we don't do perfect sorting when it comes to scroll with Query+Fetch
+                assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
+            }
+        } while (searchResponse.getHits().hits().length > 0);
+        clearScroll(searchResponse.getScrollId());
         assertThat("make sure we got all [" + expectedIds + "]", expectedIds.size(), equalTo(0));
     }
 

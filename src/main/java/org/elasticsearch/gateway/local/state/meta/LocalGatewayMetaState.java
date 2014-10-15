@@ -22,6 +22,7 @@ package org.elasticsearch.gateway.local.state.meta;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -31,7 +32,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
-import org.elasticsearch.cluster.routing.operation.plain.PlainOperationRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -46,7 +46,9 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,6 +65,8 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     static final Pattern GLOBAL_STATE_FILE_PATTERN = Pattern.compile(GLOBAL_STATE_FILE_PREFIX + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
     static final Pattern INDEX_STATE_FILE_PATTERN = Pattern.compile(INDEX_STATE_FILE_PREFIX + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
     private static final String GLOBAL_STATE_LOG_TYPE = "[_global]";
+    private static final String DEPRECATED_SETTING_ROUTING_HASH_FUNCTION = "cluster.routing.operation.hash.type";
+    private static final String DEPRECATED_SETTING_ROUTING_USE_TYPE = "cluster.routing.operation.use_type";
 
     static enum AutoImportDangledState {
         NO() {
@@ -523,26 +527,35 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     /**
      * Elasticsearch 2.0 deprecated custom routing hash functions. So what we do here is that for old indices, we
      * move this old & deprecated node setting to an index setting so that we can keep things backward compatible.
-     * See {@link PlainOperationRouting}.
      */
     private void pre20Upgrade() throws Exception {
-        final Class<? extends HashFunction> pre20HashFunction = settings.getAsClass("cluster.routing.operation.hash.type", DjbHashFunction.class, "org.elasticsearch.cluster.routing.operation.hash.", "HashFunction");
-        final boolean pre20UseType = settings.getAsBoolean("cluster.routing.operation.use_type", false);
+        final Class<? extends HashFunction> pre20HashFunction = settings.getAsClass(DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, null, "org.elasticsearch.cluster.routing.operation.hash.", "HashFunction");
+        final Boolean pre20UseType = settings.getAsBoolean(DEPRECATED_SETTING_ROUTING_USE_TYPE, null);
         MetaData metaData = loadMetaState();
         for (IndexMetaData indexMetaData : metaData) {
-            if (indexMetaData.settings().get(PlainOperationRouting.SETTING_LEGACY_HASH_FUNCTION) == null
-                    && Version.indexCreated(indexMetaData.settings()).before(Version.V_2_0_0)) {
+            if (indexMetaData.settings().get(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION) == null
+                    && indexMetaData.getCreationVersion().before(Version.V_2_0_0)) {
                 // these settings need an upgrade
                 Settings indexSettings = ImmutableSettings.builder().put(indexMetaData.settings())
-                        .put(PlainOperationRouting.SETTING_LEGACY_HASH_FUNCTION, pre20HashFunction)
-                        .put(PlainOperationRouting.SETTING_LEGACY_USE_TYPE, pre20UseType)
+                        .put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, pre20HashFunction == null ? DjbHashFunction.class : pre20HashFunction)
+                        .put(IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE, pre20UseType == null ? false : pre20UseType)
                         .build();
                 IndexMetaData newMetaData = IndexMetaData.builder(indexMetaData)
                         .version(indexMetaData.version())
                         .settings(indexSettings)
                         .build();
                 writeIndex("upgrade", newMetaData, null);
+            } else if (indexMetaData.getCreationVersion().onOrAfter(Version.V_2_0_0)) {
+                if (indexMetaData.getSettings().get(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION) != null
+                        || indexMetaData.getSettings().get(IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE) != null) {
+                    throw new ElasticsearchIllegalStateException("Indices created on or after 2.0 should NOT contain [" + IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION
+                            + "] + or [" + IndexMetaData.SETTING_LEGACY_ROUTING_USE_TYPE + "] in their index settings");
+                }
             }
+        }
+        if (pre20HashFunction != null || pre20UseType != null) {
+            logger.warn("Settings [{}] and [{}] are deprecated. Index settings from your old indices have been updated to record the fact that they "
+                    + "used some custom routing logic, you can now remove these settings from your `elasticsearch.yml` file", DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, DEPRECATED_SETTING_ROUTING_USE_TYPE);
         }
     }
 

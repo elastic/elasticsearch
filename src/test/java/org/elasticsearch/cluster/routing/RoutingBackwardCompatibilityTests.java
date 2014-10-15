@@ -55,7 +55,6 @@ public class RoutingBackwardCompatibilityTests extends ElasticsearchTestCase {
                     final int currentExpectedShard = Integer.parseInt(parts[6]);
 
                     OperationRouting operationRouting = node.injector().getInstance(OperationRouting.class);
-
                     for (Version version : allVersions()) {
                         final Settings settings = settings(version).build();
                         IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(settings).numberOfShards(numberOfShards).numberOfReplicas(randomInt(3)).build();

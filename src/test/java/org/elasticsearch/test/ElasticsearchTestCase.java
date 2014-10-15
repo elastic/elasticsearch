@@ -32,7 +32,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
-import org.elasticsearch.cluster.routing.operation.plain.PlainOperationRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -389,7 +388,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     public static ImmutableSettings.Builder settings(Version version) {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
         if (version.before(Version.V_2_0_0)) {
-            builder.put(PlainOperationRouting.SETTING_LEGACY_HASH_FUNCTION, DjbHashFunction.class);
+            builder.put(IndexMetaData.SETTING_LEGACY_ROUTING_HASH_FUNCTION, DjbHashFunction.class);
         }
         return builder;
     }

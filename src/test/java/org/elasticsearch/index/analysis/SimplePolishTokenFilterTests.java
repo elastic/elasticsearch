@@ -23,6 +23,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -59,6 +61,7 @@ public class SimplePolishTokenFilterTests extends ElasticsearchTestCase {
     private void testToken(String source, String expected) throws IOException {
         Index index = new Index("test");
         Settings settings = ImmutableSettings.settingsBuilder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.filter.myStemmer.type", "polish_stem")
                 .build();
         AnalysisService analysisService = createAnalysisService(index, settings);
@@ -76,7 +79,9 @@ public class SimplePolishTokenFilterTests extends ElasticsearchTestCase {
 
     private void testAnalyzer(String source, String... expected_terms) throws IOException {
         Index index = new Index("test");
-        Settings settings = ImmutableSettings.settingsBuilder().build();
+        Settings settings = ImmutableSettings.settingsBuilder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .build();
         AnalysisService analysisService = createAnalysisService(index, settings);
 
         Analyzer analyzer = analysisService.analyzer("polish").analyzer();

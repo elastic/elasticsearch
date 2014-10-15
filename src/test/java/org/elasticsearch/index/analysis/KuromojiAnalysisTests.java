@@ -24,6 +24,8 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -170,7 +172,10 @@ public class KuromojiAnalysisTests extends ElasticsearchTestCase {
     }
 
     public AnalysisService createAnalysisService() {
-        Settings settings = ImmutableSettings.settingsBuilder().loadFromClasspath("org/elasticsearch/index/analysis/kuromoji_analysis.json").build();
+        Settings settings = ImmutableSettings.settingsBuilder()
+                .loadFromClasspath("org/elasticsearch/index/analysis/kuromoji_analysis.json")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .build();
 
         Index index = new Index("test");
 

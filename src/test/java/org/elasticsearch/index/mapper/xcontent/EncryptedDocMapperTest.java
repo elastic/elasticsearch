@@ -21,8 +21,6 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -47,7 +45,7 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
 
     @Test
     public void testMultipleDocsEncryptedLast() throws IOException {
-        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), ImmutableSettings.EMPTY, new AnalysisService(new Index("test")), null, null, null, null);
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser();
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multipledocs/test-mapping.json");
@@ -80,7 +78,7 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
 
     @Test
     public void testMultipleDocsEncryptedFirst() throws IOException {
-        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), ImmutableSettings.EMPTY, new AnalysisService(new Index("test")), null, null, null, null);
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser();
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multipledocs/test-mapping.json");
@@ -113,9 +111,7 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
 
     @Test(expected = MapperParsingException.class)
     public void testMultipleDocsEncryptedNotIgnoringErrors() throws IOException {
-        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"),
-                ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build(),
-                new AnalysisService(new Index("test")), null, null, null, null);
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build());
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multipledocs/test-mapping.json");

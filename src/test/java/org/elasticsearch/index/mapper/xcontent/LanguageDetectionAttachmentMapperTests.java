@@ -21,8 +21,6 @@ package org.elasticsearch.index.mapper.xcontent;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -53,9 +51,8 @@ public class LanguageDetectionAttachmentMapperTests extends ElasticsearchTestCas
     }
 
     public void setupMapperParser(boolean langDetect) throws IOException {
-        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"),
-                ImmutableSettings.settingsBuilder().put("index.mapping.attachment.detect_language", langDetect).build(),
-                new AnalysisService(new Index("test")), null, null, null, null);
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(
+                ImmutableSettings.settingsBuilder().put("index.mapping.attachment.detect_language", langDetect).build());
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/language/language-mapping.json");
         docMapper = mapperParser.parse(mapping);

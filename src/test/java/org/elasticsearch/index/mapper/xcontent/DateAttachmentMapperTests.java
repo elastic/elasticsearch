@@ -19,9 +19,6 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
@@ -42,7 +39,7 @@ public class DateAttachmentMapperTests extends ElasticsearchTestCase {
 
     @Before
     public void setupMapperParser() {
-        mapperParser = new DocumentMapperParser(new Index("test"), ImmutableSettings.EMPTY, new AnalysisService(new Index("test")), null, null, null, null);
+        mapperParser = MapperTestUtils.newMapperParser();
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
     }
 

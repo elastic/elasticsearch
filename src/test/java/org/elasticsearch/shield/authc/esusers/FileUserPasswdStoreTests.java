@@ -71,7 +71,7 @@ public class FileUserPasswdStoreTests extends ElasticsearchTestCase {
             Files.copy(users, Files.newOutputStream(tmp));
 
             Settings settings = ImmutableSettings.builder()
-                    .put("watcher.interval", "2s")
+                    .put("watcher.interval.high", "2s")
                     .put("shield.authc.esusers.files.users", tmp.toAbsolutePath())
                     .build();
 

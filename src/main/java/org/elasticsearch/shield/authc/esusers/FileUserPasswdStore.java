@@ -39,7 +39,6 @@ import java.util.Map;
 public class FileUserPasswdStore extends AbstractComponent implements UserPasswdStore {
 
     private final Path file;
-    private final FileWatcher watcher;
     final Hasher hasher = Hasher.HTPASSWD;
 
     private volatile ImmutableMap<String, char[]> esUsers;
@@ -55,9 +54,9 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
         super(settings);
         file = resolveFile(settings, env);
         esUsers = parseFile(file, logger);
-        watcher = new FileWatcher(file.getParent().toFile());
+        FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
-        watcherService.add(watcher);
+        watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
         this.listener = listener;
     }
 

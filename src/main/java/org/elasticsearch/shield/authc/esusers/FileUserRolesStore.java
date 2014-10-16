@@ -55,7 +55,7 @@ public class FileUserRolesStore extends AbstractComponent implements UserRolesSt
         userRoles = parseFile(file, logger);
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
-        watcherService.add(watcher);
+        watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
         this.listener = listener;
     }
 

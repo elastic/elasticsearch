@@ -44,7 +44,9 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    private final Settings resourceWatcherServiceSettings = settingsBuilder().put("watcher.interval.medium", TimeValue.timeValueMillis(200)).build();
+    private final Settings resourceWatcherServiceSettings = settingsBuilder()
+            .put("watcher.interval.high", TimeValue.timeValueMillis(200))
+            .build();
 
     private ResourceWatcherService resourceWatcherService;
     private File configFile;

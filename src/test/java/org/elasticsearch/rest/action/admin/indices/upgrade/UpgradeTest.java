@@ -65,7 +65,6 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
     }
 
     public void testUpgrade() throws Exception {
-        Loggers.getLogger(UpgradeTest.class).setLevel("DEBUG");
 
         int numIndexes = randomIntBetween(2, 4);
         String[] indexNames = new String[numIndexes];
@@ -152,12 +151,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         logSegmentsState(null);
         assertUpgraded(httpClient, null);
     }
-    
-    @After
-    void restLogLevel() {
-        Loggers.getLogger(UpgradeTest.class).setLevel("INFO");
-    }
-    
+
     void logSegmentsState(String index) throws Exception {
         // double check using the segments api that all segments are actually upgraded
         IndicesSegmentResponse segsRsp;

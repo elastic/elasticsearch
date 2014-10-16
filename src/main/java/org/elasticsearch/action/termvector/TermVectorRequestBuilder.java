@@ -27,6 +27,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.util.Map;
 
 /**
+ * The builder class for a term vector request.
+ * Returns the term vector (doc frequency, positions, offsets) for a document.
+ * <p/>
+ * Note, the {@code index}, {@code type} and {@code id} are
+ * required.
  */
 public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorRequest, TermVectorResponse, TermVectorRequestBuilder, Client> {
 
@@ -34,6 +39,11 @@ public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorReq
         super(client, new TermVectorRequest());
     }
 
+    /**
+     * Constructs a new term vector request builder for a document that will be fetch
+     * from the provided index. Use {@code index}, {@code type} and
+     * {@code id} to specify the document to load.
+     */
     public TermVectorRequestBuilder(Client client, String index, String type, String id) {
         super(client, new TermVectorRequest(index, type, id));
     }
@@ -92,47 +102,81 @@ public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorReq
      * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
      * a custom value, which guarantees that the same order will be used across different requests.
      */
-    
     public TermVectorRequestBuilder setPreference(String preference) {
         request.preference(preference);
         return this;
     }
-    
+
+    /**
+     * Sets whether to return the start and stop offsets for each term if they were stored or
+     * skip offsets.
+     */
     public TermVectorRequestBuilder setOffsets(boolean offsets) {
         request.offsets(offsets);
         return this;
     }
 
+
+    /**
+     * Sets whether to return the positions for each term if stored or skip.
+     */
     public TermVectorRequestBuilder setPositions(boolean positions) {
         request.positions(positions);
         return this;
     }
 
+    /**
+     * Sets whether to return the payloads for each term or skip.
+     */
     public TermVectorRequestBuilder setPayloads(boolean payloads) {
         request.payloads(payloads);
         return this;
     }
 
+    /**
+     * Sets whether to return the term statistics for each term in the shard or skip.
+     */
     public TermVectorRequestBuilder setTermStatistics(boolean termStatistics) {
         request.termStatistics(termStatistics);
         return this;
     }
 
+    /**
+     * Sets whether to return the field statistics for each term in the shard or skip.
+     */
     public TermVectorRequestBuilder setFieldStatistics(boolean fieldStatistics) {
         request.fieldStatistics(fieldStatistics);
         return this;
     }
 
+    /**
+     * Sets whether to use distributed frequencies instead of shard statistics.
+     */
+    public TermVectorRequestBuilder setDfs(boolean dfs) {
+        request.dfs(dfs);
+        return this;
+    }
+
+    /**
+     * Sets whether to return only term vectors for special selected fields. Returns the term
+     * vectors for all fields if selectedFields == null
+     */
     public TermVectorRequestBuilder setSelectedFields(String... fields) {
         request.selectedFields(fields);
         return this;
     }
 
+    /**
+     * Sets whether term vectors are generated real-time.
+     */
     public TermVectorRequestBuilder setRealtime(Boolean realtime) {
         request.realtime(realtime);
         return this;
     }
 
+    /**
+     * Sets the analyzer used at each field when generating term vectors.
+     */
     public TermVectorRequestBuilder setPerFieldAnalyzer(Map<String, String> perFieldAnalyzer) {
         request.perFieldAnalyzer(perFieldAnalyzer);
         return this;

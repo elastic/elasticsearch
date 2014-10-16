@@ -123,6 +123,11 @@ public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorReq
         return this;
     }
 
+    public TermVectorRequestBuilder setDfs(boolean dfs) {
+        request.dfs(dfs);
+        return this;
+    }
+
     public TermVectorRequestBuilder setSelectedFields(String... fields) {
         request.selectedFields(fields);
         return this;

@@ -23,8 +23,12 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.termvector.dfs.DfsOnlyResponse;
+import org.elasticsearch.action.termvector.dfs.TransportDfsOnlyAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -39,16 +43,20 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
 /**
  */
@@ -57,11 +65,15 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
 
     private IndexShard indexShard;
     private final MappingUpdatedAction mappingUpdatedAction;
+    private final TransportDfsOnlyAction dfsAction;
+    private final Client client;
 
     @Inject
-    public ShardTermVectorService(ShardId shardId, @IndexSettings Settings indexSettings, MappingUpdatedAction mappingUpdatedAction) {
+    public ShardTermVectorService(ShardId shardId, @IndexSettings Settings indexSettings, MappingUpdatedAction mappingUpdatedAction, TransportDfsOnlyAction dfsAction, Client client) {
         super(shardId, indexSettings);
         this.mappingUpdatedAction = mappingUpdatedAction;
+        this.dfsAction = dfsAction;
+        this.client = client;
     }
 
     // sadly, to overcome cyclic dep, we need to do this and inject it ourselves...
@@ -78,6 +90,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
         Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), uidTerm));
         boolean docFromTranslog = get.source() != null;
+        AggregatedDfs dfs = null;
 
         /* fetched from translog is treated as an artificial document */
         if (docFromTranslog) {
@@ -100,7 +113,10 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
                 if (topLevelFields == null) {
                     topLevelFields = termVectorsByField;
                 }
-                termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields);
+                if (useDfs(request)) {
+                    dfs = getAggregatedDfs(termVectorsByField, request);
+                }
+                termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs);
                 termVectorResponse.setExists(true);
                 termVectorResponse.setArtificial(!docFromTranslog);
             }
@@ -117,7 +133,10 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
                 if (selectedFields != null) {
                     termVectorsByField = addGeneratedTermVectors(get, termVectorsByField, request, selectedFields);
                 }
-                termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields);
+                if (useDfs(request)) {
+                    dfs = getAggregatedDfs(termVectorsByField, request);
+                }
+                termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs);
                 termVectorResponse.setDocVersion(docIdAndVersion.version);
                 termVectorResponse.setExists(true);
             } else {
@@ -315,4 +334,29 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         }
     }
 
+    private boolean useDfs(TermVectorRequest request) {
+        return request.dfs() && (request.fieldStatistics() || request.termStatistics());
+    }
+
+    private AggregatedDfs getAggregatedDfs(Fields termVectorFields, TermVectorRequest request) throws IOException {
+        // build a search request with a query of all the terms
+        final BoolQueryBuilder boolBuilder = boolQuery();
+        TermsEnum iterator = null;
+        for (String fieldName : termVectorFields) {
+            if ((request.selectedFields() != null) && (!request.selectedFields().contains(fieldName))) {
+                continue;
+            }
+            Terms terms = termVectorFields.terms(fieldName);
+            iterator = terms.iterator(iterator);
+            while (iterator.next() != null) {
+                String text = iterator.term().utf8ToString();
+                boolBuilder.should(QueryBuilders.termQuery(fieldName, text));
+            }
+        }
+
+        // only perform dfs phase
+        SearchRequest searchRequest = client.prepareSearch(request.index()).setQuery(boolBuilder).request();
+        DfsOnlyResponse response = (DfsOnlyResponse) dfsAction.execute(searchRequest).actionGet();
+        return response.getDfs();
+    }
 }

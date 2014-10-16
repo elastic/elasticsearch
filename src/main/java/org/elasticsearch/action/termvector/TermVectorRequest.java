@@ -293,6 +293,22 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     }
 
     /**
+     * @return <code>true</code> if distributed frequencies should be returned. Otherwise
+     * <code>false</code>
+     */
+    public boolean dfs() {
+        return flagsEnum.contains(Flag.Dfs);
+    }
+
+    /**
+     * Use distributed frequencies instead of shard statistics.
+     */
+    public TermVectorRequest dfs(boolean dfs) {
+        setFlag(Flag.Dfs, dfs);
+        return this;
+    }
+
+    /**
      * Return only term vectors for special selected fields. Returns for term
      * vectors for all fields if selectedFields == null
      */
@@ -444,7 +460,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     public static enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
-        Positions, Offsets, Payloads, FieldStatistics, TermStatistics
+        Positions, Offsets, Payloads, FieldStatistics, TermStatistics, Dfs
     }
 
     /**
@@ -477,6 +493,8 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                     termVectorRequest.termStatistics(parser.booleanValue());
                 } else if (currentFieldName.equals("field_statistics") || currentFieldName.equals("fieldStatistics")) {
                     termVectorRequest.fieldStatistics(parser.booleanValue());
+                } else if (currentFieldName.equals("dfs")) {
+                    termVectorRequest.dfs(parser.booleanValue());
                 } else if (currentFieldName.equals("per_field_analyzer") || currentFieldName.equals("perFieldAnalyzer")) {
                     termVectorRequest.perFieldAnalyzer(readPerFieldAnalyzer(parser.map()));
                 } else if ("_index".equals(currentFieldName)) { // the following is important for multi request parsing.

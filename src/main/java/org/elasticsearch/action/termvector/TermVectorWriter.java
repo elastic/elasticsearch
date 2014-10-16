@@ -19,10 +19,14 @@
 package org.elasticsearch.action.termvector;
 
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.termvector.TermVectorRequest.Flag;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +49,7 @@ final class TermVectorWriter {
         response = termVectorResponse;
     }
 
-    void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields) throws IOException {
+    void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields, @Nullable AggregatedDfs dfs) throws IOException {
         int numFieldsWritten = 0;
         TermsEnum iterator = null;
         DocsAndPositionsEnum docsAndPosEnum = null;
@@ -70,7 +74,11 @@ final class TermVectorWriter {
             boolean payloads = flags.contains(Flag.Payloads) && fieldTermVector.hasPayloads();
             startField(field, fieldTermVector.size(), positions, offsets, payloads);
             if (flags.contains(Flag.FieldStatistics)) {
-                writeFieldStatistics(topLevelTerms);
+                if (dfs != null) {
+                    writeFieldStatistics(dfs.fieldStatistics().get(field));
+                } else {
+                    writeFieldStatistics(topLevelTerms);
+                }
             }
             iterator = fieldTermVector.iterator(iterator);
             final boolean useDocsAndPos = positions || offsets || payloads;
@@ -81,7 +89,11 @@ final class TermVectorWriter {
                 boolean foundTerm = topLevelIterator.seekExact(term);
                 startTerm(term);
                 if (flags.contains(Flag.TermStatistics)) {
-                    writeTermStatistics(topLevelIterator);
+                    if (dfs != null) {
+                        writeTermStatistics(dfs.termStatistics().get(new Term(field, term.utf8ToString())));
+                    } else {
+                        writeTermStatistics(topLevelIterator);
+                    }
                 }
                 if (useDocsAndPos) {
                     // given we have pos or offsets
@@ -161,7 +173,6 @@ final class TermVectorWriter {
     }
 
     private void writeFreq(int termFreq) throws IOException {
-
         writePotentiallyNegativeVInt(termFreq);
     }
 
@@ -205,7 +216,15 @@ final class TermVectorWriter {
         long ttf = topLevelIterator.totalTermFreq();
         assert (ttf >= -1);
         writePotentiallyNegativeVLong(ttf);
+    }
 
+    private void writeTermStatistics(TermStatistics termStatistics) throws IOException {
+        int docFreq = (int) termStatistics.docFreq();
+        assert (docFreq >= -1);
+        writePotentiallyNegativeVInt(docFreq);
+        long ttf = termStatistics.totalTermFreq();
+        assert (ttf >= -1);
+        writePotentiallyNegativeVLong(ttf);
     }
 
     private void writeFieldStatistics(Terms topLevelTerms) throws IOException {
@@ -218,7 +237,18 @@ final class TermVectorWriter {
         int dc = topLevelTerms.getDocCount();
         assert (dc >= -1);
         writePotentiallyNegativeVInt(dc);
+    }
 
+    private void writeFieldStatistics(CollectionStatistics fieldStats) throws IOException {
+        long sttf = fieldStats.sumTotalTermFreq();
+        assert (sttf >= -1);
+        writePotentiallyNegativeVLong(sttf);
+        long sdf = fieldStats.sumDocFreq();
+        assert (sdf >= -1);
+        writePotentiallyNegativeVLong(sdf);
+        int dc = (int) fieldStats.docCount();
+        assert (dc >= -1);
+        writePotentiallyNegativeVInt(dc);
     }
 
     private void writePotentiallyNegativeVInt(int value) throws IOException {

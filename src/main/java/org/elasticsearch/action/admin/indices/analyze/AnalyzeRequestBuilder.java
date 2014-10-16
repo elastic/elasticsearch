@@ -45,6 +45,16 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
     }
 
     /**
+     * Sets the text to analyze.
+     * @param text The text to analyze.
+     * @return Always {@code this}.
+     */
+    public AnalyzeRequestBuilder setText(String text) {
+        request.text(text);
+        return this;
+    }
+
+    /**
      * Sets the analyzer name to use in order to analyze the text.
      *
      * @param analyzer The analyzer name.

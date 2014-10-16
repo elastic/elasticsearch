@@ -34,7 +34,13 @@ public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest<Delet
 
     private String name;
 
-    DeleteIndexTemplateRequest() {
+    /**
+     * Constructs a new delete index request.
+     * <p />
+     * {@link #name(String)} must be set.
+     */
+    public DeleteIndexTemplateRequest() {
+        this(null);
     }
 
     /**
@@ -51,6 +57,16 @@ public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest<Delet
             validationException = addValidationError("name is missing", validationException);
         }
         return validationException;
+    }
+
+    /**
+     * Set the index template name to delete.
+     * @param name The name of the index template
+     * @return Always {@code this}.
+     */
+    public DeleteIndexTemplateRequest name(String name) {
+        this.name = name;
+        return this;
     }
 
     /**

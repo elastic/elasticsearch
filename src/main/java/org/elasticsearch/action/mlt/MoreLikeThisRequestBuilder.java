@@ -44,6 +44,30 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
     }
 
     /**
+     * The index of the document to use in order to find documents "like" this one.
+     */
+    public MoreLikeThisRequestBuilder setIndex(String index) {
+        request.index(index);
+        return this;
+    }
+
+    /**
+     * The type of the document to use in order to find documents "like" this one.
+     */
+    public MoreLikeThisRequestBuilder setType(String type) {
+        request.type(type);
+        return this;
+    }
+
+    /**
+     * The ID of the document to use in order to find documents "like" this one.
+     */
+    public MoreLikeThisRequestBuilder setId(String id) {
+        request.id(id);
+        return this;
+    }
+
+    /**
      * The fields of the document to use in order to find documents "like" this one. Defaults to run
      * against all the document fields.
      */

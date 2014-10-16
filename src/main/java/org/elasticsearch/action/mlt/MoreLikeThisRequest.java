@@ -33,7 +33,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.Scroll;
@@ -47,9 +46,10 @@ import static org.elasticsearch.search.Scroll.readScroll;
 
 /**
  * A more like this request allowing to search for documents that a "like" the provided document. The document
- * to check against to fetched based on the index, type and id provided. Best created with {@link org.elasticsearch.client.Requests#moreLikeThisRequest(String)}.
+ * to check against to fetched based on the index, type and id provided. Best created with {@link
+ * Requests#moreLikeThisRequest(String)}.
  * <p/>
- * <p>Note, the {@link #index()}, {@link #type(String)} and {@link #id(String)} are required.
+ * <p>Note, the {@link #index(String)}, {@link #type(String)} and {@link #id(String)} are required.
  *
  * @see org.elasticsearch.client.Client#moreLikeThis(MoreLikeThisRequest)
  * @see org.elasticsearch.client.Requests#moreLikeThisRequest(String)
@@ -88,7 +88,12 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
     private BytesReference searchSource;
     private boolean searchSourceUnsafe;
 
-    MoreLikeThisRequest() {
+    /**
+     * Constructs a new more like this request for a document.
+     * Use {@link #index(String)}, {@link #type(String)}, and {@link #id(String)} to specify the document to load.
+     */
+    public MoreLikeThisRequest() {
+        this(null);
     }
 
     /**
@@ -107,14 +112,20 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
     }
 
     /**
+     * Set the index to load the document from, which the "like" query will run with.
+     * @param index The index name.
+     * @return Always {@code this}.
+     */
+    public MoreLikeThisRequest index(String index) {
+        this.index = index;
+        return this;
+    }
+
+    /**
      * The type of document to load from which the "like" query will run with.
      */
     public String type() {
         return type;
-    }
-
-    void index(String index) {
-        this.index = index;
     }
 
     public IndicesOptions indicesOptions() {
@@ -190,8 +201,14 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         return routing;
     }
 
-    public void routing(String routing) {
+    /**
+     * Set the routing for this request.
+     * @param routing The routing for the request.
+     * @return Always {@code this}.
+     */
+    public MoreLikeThisRequest routing(String routing) {
         this.routing = routing;
+        return this;
     }
 
     /**

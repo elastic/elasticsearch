@@ -35,6 +35,16 @@ public class DeleteIndexTemplateRequestBuilder extends MasterNodeOperationReques
         super(indicesClient, new DeleteIndexTemplateRequest(name));
     }
 
+    /**
+     * Sets the name of the index template to delete.
+     * @param name The name of the index template.
+     * @return Always {@code this}.
+     */
+    public DeleteIndexTemplateRequestBuilder setName(String name) {
+        request.name(name);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<DeleteIndexTemplateResponse> listener) {
         client.deleteTemplate(request, listener);

@@ -48,8 +48,13 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
 
     private String field;
 
-    AnalyzeRequest() {
-
+    /**
+     * Constructs a new analyzer request.
+     * <p />
+     * {@link #text(String)} must be set.
+     */
+    public AnalyzeRequest() {
+        this(null);
     }
 
     /**
@@ -57,8 +62,8 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
      *
      * @param text The text to analyze
      */
-    public AnalyzeRequest(String text) {
-        this.text = text;
+    public AnalyzeRequest(@Nullable String text) {
+        this(null, text);
     }
 
     /**
@@ -67,9 +72,19 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
      * @param index The index name
      * @param text  The text to analyze
      */
-    public AnalyzeRequest(@Nullable String index, String text) {
+    public AnalyzeRequest(@Nullable String index, @Nullable String text) {
         this.index(index);
         this.text = text;
+    }
+
+    /**
+     * Set the text to analyze.
+     * @param text The text to analyze.
+     * @return Always {@code this}.
+     */
+    public AnalyzeRequest text(String text) {
+        this.text = text;
+        return this;
     }
 
     public String text() {

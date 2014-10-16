@@ -54,7 +54,7 @@ public class IPFilteringN2NAuthenticator extends AbstractComponent implements N2
         rules = parseFile(file, logger);
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
-        watcherService.add(watcher);
+        watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
     }
 
     private Path resolveFile(Settings settings, Environment env) {

@@ -54,7 +54,7 @@ public class LdapGroupToRoleMapper extends AbstractComponent {
         groupRoles = parseFile(file, logger);
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
-        watcherService.add(watcher);
+        watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
         this.listener = listener;
     }
 

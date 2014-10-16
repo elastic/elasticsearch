@@ -107,7 +107,7 @@ nodes that don't have values set for those attributes.
 
 Sometimes, we know in advance the number of values an awareness
 attribute can have, and more over, we would like never to have more
-replicas then needed allocated on a specific group of nodes with the
+replicas than needed allocated on a specific group of nodes with the
 same awareness attribute value. For that, we can force awareness on
 specific attributes.
 

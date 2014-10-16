@@ -342,8 +342,8 @@ The multi percolate api allows to bundle multiple percolate requests into a sing
 search api does to search requests. The request body format is line based. Each percolate request item takes two lines,
 the first line is the header and the second line is the body.
 
-The header can contain any parameter that normally would be set via the request path or query string parameters. T
-here are several percolate actions, because there are multiple types of percolate requests.
+The header can contain any parameter that normally would be set via the request path or query string parameters.
+There are several percolate actions, because there are multiple types of percolate requests.
 
 .Supported actions:
 * `percolate` - Action for defining a regular percolate request.
@@ -442,7 +442,7 @@ Response:
 }
 --------------------------------------------------
 
-Each item represents a percolate response, the order of the items maps to the order in where the percolate requests
+Each item represents a percolate response, the order of the items maps to the order in which the percolate requests
 were specified. In case a percolate request failed, the item response is substituted with an error message.
 
 [float]

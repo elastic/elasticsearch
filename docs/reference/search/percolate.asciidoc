@@ -220,9 +220,9 @@ occurred for the filter to included the latest percolate queries.
 * `query` - Same as the `filter` option, but also the score is computed. The computed scores can then be used by the
 `track_scores` and `sort` option.
 * `size` - Defines to maximum number of matches (percolate queries) to be returned. Defaults to unlimited.
-* `track_scores` - Whether the `_score` is included for each match. The is based on the query and represents how the query matched
-to the percolate query's metadata and *not* how the document being percolated matched to the query. The `query` option
-is required for this option. Defaults to `false`.
+* `track_scores` - Whether the `_score` is included for each match. The `_score` is based on the query and represents
+how the query matched the *percolate query's metadata*, *not* how the document (that is being percolated) matched
+the query. The `query` option is required for this option. Defaults to `false`.
 * `sort` - Define a sort specification like in the search api. Currently only sorting `_score` reverse (default relevancy)
 is supported. Other sort fields will throw an exception. The `size` and `query` option are required for this setting. Like
 `track_score` the score is based on the query and represents how the query matched to the percolate query's metadata

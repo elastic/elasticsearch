@@ -25,6 +25,9 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.termvector.dfs.DfsOnlyRequest;
+import org.elasticsearch.action.termvector.dfs.DfsOnlyResponse;
+import org.elasticsearch.action.termvector.dfs.TransportDfsOnlyAction;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -44,6 +47,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
 import java.util.*;
@@ -57,11 +61,13 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
 
     private IndexShard indexShard;
     private final MappingUpdatedAction mappingUpdatedAction;
+    private final TransportDfsOnlyAction dfsAction;
 
     @Inject
-    public ShardTermVectorService(ShardId shardId, @IndexSettings Settings indexSettings, MappingUpdatedAction mappingUpdatedAction) {
+    public ShardTermVectorService(ShardId shardId, @IndexSettings Settings indexSettings, MappingUpdatedAction mappingUpdatedAction, TransportDfsOnlyAction dfsAction) {
         super(shardId, indexSettings);
         this.mappingUpdatedAction = mappingUpdatedAction;
+        this.dfsAction = dfsAction;
     }
 
     // sadly, to overcome cyclic dep, we need to do this and inject it ourselves...
@@ -78,6 +84,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         final Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
         Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), uidTerm));
         boolean docFromTranslog = get.source() != null;
+        AggregatedDfs dfs = null;
 
         /* fetched from translog is treated as an artificial document */
         if (docFromTranslog) {
@@ -100,7 +107,10 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
                 if (topLevelFields == null) {
                     topLevelFields = termVectorsByField;
                 }
-                termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields);
+                if (useDfs(request)) {
+                    dfs = getAggregatedDfs(termVectorsByField, request);
+                }
+                termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs);
                 termVectorResponse.setExists(true);
                 termVectorResponse.setArtificial(!docFromTranslog);
             }
@@ -117,7 +127,10 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
                 if (selectedFields != null) {
                     termVectorsByField = addGeneratedTermVectors(get, termVectorsByField, request, selectedFields);
                 }
-                termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields);
+                if (useDfs(request)) {
+                    dfs = getAggregatedDfs(termVectorsByField, request);
+                }
+                termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs);
                 termVectorResponse.setDocVersion(docIdAndVersion.version);
                 termVectorResponse.setExists(true);
             } else {
@@ -315,4 +328,14 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         }
     }
 
+    private boolean useDfs(TermVectorRequest request) {
+        return request.dfs() && (request.fieldStatistics() || request.termStatistics());
+    }
+
+    private AggregatedDfs getAggregatedDfs(Fields termVectorFields, TermVectorRequest request) throws IOException {
+        DfsOnlyRequest dfsOnlyRequest = new DfsOnlyRequest(termVectorFields, new String[]{request.index()},
+                new String[]{request.type()}, request.selectedFields());
+        DfsOnlyResponse response = dfsAction.execute(dfsOnlyRequest).actionGet();
+        return response.getDfs();
+    }
 }

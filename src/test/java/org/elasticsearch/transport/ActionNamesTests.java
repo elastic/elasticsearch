@@ -28,6 +28,7 @@ import org.elasticsearch.action.bench.BenchmarkAction;
 import org.elasticsearch.action.bench.BenchmarkService;
 import org.elasticsearch.action.bench.BenchmarkStatusAction;
 import org.elasticsearch.action.exists.ExistsAction;
+import org.elasticsearch.action.termvector.dfs.TransportDfsOnlyAction;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -146,5 +147,7 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
         post_1_4_actions.add(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME);
         post_1_4_actions.add(VerifyRepositoryAction.NAME);
         post_1_4_actions.add(VerifyNodeRepositoryAction.ACTION_NAME);
+        post_1_4_actions.add(TransportDfsOnlyAction.NAME);
+        post_1_4_actions.add(TransportDfsOnlyAction.NAME + "[s]");
     }
 }

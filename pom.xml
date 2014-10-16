@@ -38,8 +38,8 @@
     <!-- The Elasticsearch version that the project will be built with -->
     <!-- ============================================================= -->
     <properties>
-        <elasticsearch.version>1.2.0</elasticsearch.version>
-        <lucene.version>4.8.1</lucene.version>
+        <elasticsearch.version>1.3.4</elasticsearch.version>
+        <lucene.version>4.9.1</lucene.version>
     </properties>
 
     <!-- ============================================================= -->

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
-import org.apache.commons.io.FileUtils;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseUtils;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
@@ -13,25 +12,23 @@ import org.elasticsearch.license.licensor.ESLicenseSigner;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.Charset;
 
 public class LicenseGeneratorTool {
 
     static class Options {
-        private final String licensesInput;
+        private final ESLicenses licenses;
         private final String publicKeyFilePath;
         private final String privateKeyFilePath;
 
-        Options(String licensesInput, String publicKeyFilePath, String privateKeyFilePath) {
-            this.licensesInput = licensesInput;
+        Options(ESLicenses licenses, String publicKeyFilePath, String privateKeyFilePath) {
+            this.licenses = licenses;
             this.publicKeyFilePath = publicKeyFilePath;
             this.privateKeyFilePath = privateKeyFilePath;
         }
     }
 
     private static Options parse(String[] args) throws IOException {
-        String licenseInput = null;
-        String licenseFilePath = null;
+        ESLicenses licenses = null;
         String privateKeyPath = null;
         String publicKeyPath = null;
 
@@ -39,10 +36,22 @@ public class LicenseGeneratorTool {
             String command = args[i].trim();
             switch (command) {
                 case "--license":
-                    licenseInput = args[++i];
+                    if (licenses != null) {
+                        throw new IllegalArgumentException("only one of --licenses' or '--licenseFile' can be specified");
+                    }
+                    String licenseInput = args[++i];
+                    licenses = LicenseUtils.readLicensesFromString(licenseInput);
                     break;
                 case "--licenseFile":
-                    licenseFilePath = args[++i];
+                    if (licenses != null) {
+                        throw new IllegalArgumentException("only one of --licenses' or '--licenseFile' can be specified");
+                    }
+                    File licenseFile = new File(args[++i]);
+                    if (licenseFile.exists()) {
+                        licenses = LicenseUtils.readLicenseFile(licenseFile);
+                    } else {
+                        throw new IllegalArgumentException(licenseFile.getAbsolutePath() + " does not exist!");
+                    }
                     break;
                 case "--publicKeyPath":
                     publicKeyPath = args[++i];
@@ -53,15 +62,8 @@ public class LicenseGeneratorTool {
             }
         }
 
-        if ((licenseInput == null && licenseFilePath == null) || (licenseInput != null && licenseFilePath != null)) {
-            throw new IllegalArgumentException("only one of '--license' or '--licenseFile' option should be set");
-        } else if (licenseFilePath != null) {
-            File licenseFile = new File(licenseFilePath);
-            if (licenseFile.exists()) {
-                licenseInput = FileUtils.readFileToString(licenseFile, Charset.forName("UTF-8"));
-            } else {
-                throw new IllegalArgumentException("provided --licenseFile " + licenseFile.getAbsolutePath() + " does not exist!");
-            }
+        if (licenses == null) {
+            throw new IllegalArgumentException("at least one of '--licenses' or '--licenseFile' has to be provided");
         }
         if (publicKeyPath == null) {
             throw new IllegalArgumentException("mandatory option '--publicKeyPath' is missing");
@@ -70,7 +72,7 @@ public class LicenseGeneratorTool {
             throw new IllegalArgumentException("mandatory option '--privateKeyPath' is missing");
         }
 
-        return new Options(licenseInput, publicKeyPath, privateKeyPath);
+        return new Options(licenses, publicKeyPath, privateKeyPath);
     }
 
     public static void main(String[] args) throws IOException {
@@ -80,10 +82,9 @@ public class LicenseGeneratorTool {
     public static void run(String[] args, OutputStream out) throws IOException {
         Options options = parse(args);
 
-        ESLicenses esLicenses = LicenseUtils.readLicensesFromString(options.licensesInput);
 
         ESLicenseSigner signer = new ESLicenseSigner(options.privateKeyFilePath, options.publicKeyFilePath);
-        ESLicenses signedLicences = signer.sign(esLicenses);
+        ESLicenses signedLicences = signer.sign(options.licenses);
 
         LicenseUtils.dumpLicenseAsJson(signedLicences, out);
     }

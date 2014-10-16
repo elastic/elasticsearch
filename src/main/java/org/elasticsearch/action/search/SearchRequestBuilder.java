@@ -620,7 +620,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets a raw (xcontent) binary representation of addAggregation to use.
      */
     public SearchRequestBuilder setAggregations(byte[] aggregations, int aggregationsOffset, int aggregationsLength) {
-        sourceBuilder().facets(aggregations, aggregationsOffset, aggregationsLength);
+        sourceBuilder().aggregations(aggregations, aggregationsOffset, aggregationsLength);
         return this;
     }
 

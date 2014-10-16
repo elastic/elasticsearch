@@ -74,7 +74,6 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                 .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", CONFIG_IPFILTER_ALLOW_ALL))
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("shield.audit.enabled", true)
-                .put(getSSLSettingsForLdap("/org/elasticsearch/shield/authc/ldap/ldaptrust.jks", "changeit"))
                 .put("plugins.load_classpath_plugins", false);
 
         if (OsUtils.MAC) {
@@ -148,22 +147,6 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                 .put("shield.http.ssl.keystore_password", password)
                 .put("shield.http.ssl.truststore", store.getPath())
                 .put("shield.http.ssl.truststore_password", password);
-
-        return builder.build();
-    }
-
-    protected Settings getSSLSettingsForLdap(String resourcePathToStore, String password) {
-        File store;
-        try {
-            store = new File(getClass().getResource(resourcePathToStore).toURI());
-            assertThat(store.exists(), is(true));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
-        ImmutableSettings.Builder builder = settingsBuilder()
-                .put("shield.authc.ldap.truststore_password", password)
-                .put("shield.authc.ldap.truststore", store.getPath());
 
         return builder.build();
     }

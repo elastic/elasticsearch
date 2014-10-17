@@ -105,6 +105,7 @@ public final class QueryRescorer implements Rescorer {
 
     @Override
     public TopDocs rescore(TopDocs topDocs, SearchContext context, RescoreSearchContext rescoreContext) throws IOException {
+
         assert rescoreContext != null;
         if (topDocs == null || topDocs.totalHits == 0 || topDocs.scoreDocs.length == 0) {
             return topDocs;
@@ -129,7 +130,7 @@ public final class QueryRescorer implements Rescorer {
         // Rescore them:
         TopDocs rescored = rescorer.rescore(context.searcher(), topNFirstPass, rescoreContext.window());
 
-        // Splice back to non-topN hits and resort:
+        // Splice back to non-topN hits and resort all of them:
         return combine(topDocs, rescored, (QueryRescoreContext) rescoreContext);
     }
 
@@ -238,9 +239,11 @@ public final class QueryRescorer implements Rescorer {
 
     /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then resorting all hits. */
     private TopDocs combine(TopDocs in, TopDocs resorted, QueryRescoreContext ctx) {
+
         System.arraycopy(resorted.scoreDocs, 0, in.scoreDocs, 0, resorted.scoreDocs.length);
         if (in.scoreDocs.length > resorted.scoreDocs.length) {
-            // These hits were not rescored, so we treat them the same as a hit that did get rescored but did not match the 2nd pass query:
+            // These hits were not rescored (beyond the rescore window), so we treat them the same as a hit that did get rescored but did
+            // not match the 2nd pass query:
             for(int i=resorted.scoreDocs.length;i<in.scoreDocs.length;i++) {
                 in.scoreDocs[i].score *= ctx.queryWeight();
             }

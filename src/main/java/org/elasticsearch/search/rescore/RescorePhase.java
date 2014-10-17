@@ -58,7 +58,7 @@ public class RescorePhase extends AbstractComponent implements SearchPhase {
         try {
             TopDocs topDocs = context.queryResult().topDocs();
             for (RescoreSearchContext ctx : context.rescore()) {
-               topDocs = ctx.rescorer().rescore(topDocs, context, ctx);
+                topDocs = ctx.rescorer().rescore(topDocs, context, ctx);
             }
             if (context.size() < topDocs.scoreDocs.length) {
                 ScoreDoc[] hits = new ScoreDoc[context.size()];
@@ -70,9 +70,4 @@ public class RescorePhase extends AbstractComponent implements SearchPhase {
             throw new ElasticsearchException("Rescore Phase Failed", e);
         }
     }
-  
-    
-
-    
-
 }

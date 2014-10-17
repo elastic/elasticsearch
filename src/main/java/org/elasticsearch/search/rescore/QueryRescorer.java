@@ -120,6 +120,8 @@ public final class QueryRescorer implements Rescorer {
                 if (secondPassMatches) {
                     return rescore.scoreMode.combine(firstPassScore * rescore.queryWeight(), secondPassScore * rescore.rescoreQueryWeight());
                 }
+                // TODO: shouldn't this be up to the ScoreMode?  I.e., we should just invoke ScoreMode.combine, passing 0.0f for the
+                // secondary score?
                 return firstPassScore * rescore.queryWeight();
             }
         };
@@ -245,6 +247,8 @@ public final class QueryRescorer implements Rescorer {
             // These hits were not rescored (beyond the rescore window), so we treat them the same as a hit that did get rescored but did
             // not match the 2nd pass query:
             for(int i=resorted.scoreDocs.length;i<in.scoreDocs.length;i++) {
+                // TODO: shouldn't this be up to the ScoreMode?  I.e., we should just invoke ScoreMode.combine, passing 0.0f for the
+                // secondary score?
                 in.scoreDocs[i].score *= ctx.queryWeight();
             }
             

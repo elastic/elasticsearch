@@ -17,7 +17,7 @@ import static org.elasticsearch.license.plugin.core.LicensesService.PutLicenseRe
 @ImplementedBy(LicensesService.class)
 public interface LicensesManagerService {
 
-    public void registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener);
+    public LicensesStatus registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener);
 
     public void unregisterLicenses(final DeleteLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener);
 

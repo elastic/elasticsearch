@@ -59,17 +59,7 @@ public class TransportPutLicenseAction extends TransportMasterNodeOperationActio
     @Override
     protected void masterOperation(final PutLicenseRequest request, ClusterState state, final ActionListener<PutLicenseResponse> listener) throws ElasticsearchException {
         final PutLicenseRequestHolder requestHolder = new PutLicenseRequestHolder(request, "put licenses []");
-        LicensesStatus status = licensesManagerService.checkLicenses(request.license());
-        switch (status) {
-            case VALID:
-                break;
-            case INVALID:
-                throw new ElasticsearchLicenseException("Found Invalid License(s)");
-            case EXPIRED:
-                throw new ElasticsearchLicenseException("Found Expired License(s)");
-        }
-
-        licensesManagerService.registerLicenses(requestHolder, new ActionListener<ClusterStateUpdateResponse>() {
+        LicensesStatus status = licensesManagerService.registerLicenses(requestHolder, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
                 listener.onResponse(new PutLicenseResponse(clusterStateUpdateResponse.isAcknowledged()));
@@ -80,6 +70,15 @@ public class TransportPutLicenseAction extends TransportMasterNodeOperationActio
                 listener.onFailure(e);
             }
         });
+
+        switch (status) {
+            case VALID:
+                return;
+            case INVALID:
+                throw new ElasticsearchLicenseException("Found Invalid License(s)");
+            case EXPIRED:
+                throw new ElasticsearchLicenseException("Found Expired License(s)");
+        }
     }
 
 }

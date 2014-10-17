@@ -47,11 +47,11 @@ import static org.elasticsearch.license.plugin.core.trial.TrialLicenses.TrialLic
 import static org.elasticsearch.license.plugin.core.trial.TrialLicensesBuilder.trialLicensesBuilder;
 
 /**
- * Service responsible for maintaining and providing access to licenses on nodes.
+ * Service responsible for managing {@link org.elasticsearch.license.plugin.core.LicensesMetaData}
+ * Interfaces through which this is exposed are:
+ *  - LicensesManagerService - responsible for adding/deleting signed licenses
+ *  - LicensesClientService - allow interested plugins (features) to register to licensing notifications
  *
- * TODO: Work in progress:
- *  - implement logic in clusterChanged
- *  - interface with LicenseManager
  */
 @Singleton
 public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener, LicensesManagerService, LicensesClientService {
@@ -81,9 +81,17 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      * and if it was successful it adds the license to cluster metadata.
      */
     @Override
-    public void registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public LicensesStatus registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener) {
         final PutLicenseRequest request = requestHolder.request;
         final ESLicenses newLicenses = request.license();
+        LicensesStatus status = checkLicenses(newLicenses);
+        switch (status) {
+            case VALID:
+                break;
+            case INVALID:
+            case EXPIRED:
+                return status;
+        }
         clusterService.submitStateUpdateTask(requestHolder.source, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -116,7 +124,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 return builder.build();
             }
         });
-
+        return LicensesStatus.VALID;
     }
 
     @Override
@@ -445,14 +453,12 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         private void enableFeatureIfNeeded() {
             if (toggle.compareAndSet(false, true) || initialState.compareAndSet(true, false)) {
                 listener.onEnabled();
-                toggle.set(true);
             }
         }
 
         private void disableFeatureIfNeeded() {
             if (toggle.compareAndSet(true, false) || initialState.compareAndSet(true, false)) {
                 listener.onDisabled();
-                toggle.set(false);
             }
         }
     }

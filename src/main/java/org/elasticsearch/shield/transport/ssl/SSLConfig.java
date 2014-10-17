@@ -29,9 +29,12 @@ public class SSLConfig {
     private String[] ciphers;
 
     public SSLConfig(Settings componentSettings, Settings defaultSettings, boolean defaultRequireClientAuth) {
-        SSLTrustConfig sslTrustConfig = new SSLTrustConfig(componentSettings, defaultSettings);
-
         this.clientAuth = componentSettings.getAsBoolean("require.client.auth", defaultSettings.getAsBoolean("require.client.auth", defaultRequireClientAuth));
+        TrustManager[] trustManagers = null;
+        if (clientAuth) {
+            trustManagers = new SSLTrustConfig(componentSettings, defaultSettings).getTrustManagers();
+        }
+
         String keyStore = componentSettings.get("keystore", defaultSettings.get("keystore", System.getProperty("javax.net.ssl.keyStore")));
         String keyStorePassword = componentSettings.get("keystore_password", defaultSettings.get("keystore_password", System.getProperty("javax.net.ssl.keyStorePassword")));
         String keyStoreAlgorithm = componentSettings.get("keystore_algorithm", defaultSettings.get("keystore_algorithm", System.getProperty("ssl.KeyManagerFactory.algorithm")));
@@ -69,7 +72,7 @@ public class SSLConfig {
         try {
             String algorithm = componentSettings.get("context_algorithm", defaultSettings.get("shield.ssl.context_algorithm", "TLS"));
             sslContext = SSLContext.getInstance(algorithm);
-            sslContext.init(kmf.getKeyManagers(), sslTrustConfig.getTrustManagers(), null);
+            sslContext.init(kmf.getKeyManagers(), trustManagers, null);
         } catch (Exception e) {
             throw new ElasticsearchSSLException("Failed to initialize the SSLContext", e);
         }

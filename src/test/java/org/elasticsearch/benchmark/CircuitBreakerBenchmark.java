@@ -19,32 +19,32 @@
 
 package org.elasticsearch.benchmark;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Test;
 
-import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
-import static com.google.common.collect.Lists.newArrayList;
+import static junit.framework.Assert.assertNotNull;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
  * Benchmarks for different implementations of the circuit breaker
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numDataNodes =0)
-public class CircuitBreakerBenchmark extends ElasticsearchIntegrationTest {
+public class CircuitBreakerBenchmark {
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    private static Settings nodeSettings() {
         return ImmutableSettings.builder()
                 // Comment/uncomment as needed to use a regular circuit breaker
                 // (Hierarchy), or a noop breaker (None)
@@ -53,131 +53,119 @@ public class CircuitBreakerBenchmark extends ElasticsearchIntegrationTest {
                 .build();
     }
 
-    @Test
-    public void testSingleThreadPerformance() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(
-                settingsBuilder().put("number_of_shards", 5).put("number_of_replicas", 0)).get();
-        ensureGreen("test");
+    private static final String INDEX = UUID.randomUUID().toString();
 
-        int NUM_DOCS = 20_000;
-        List<IndexRequestBuilder> builders = newArrayList();
-        for (int i = 0; i < NUM_DOCS; i++) {
-            builders.add(client().prepareIndex("test", "doc").setSource("num", i));
-        }
-        logger.info("--> indexing docs...");
-        indexRandom(true, false, false, builders);
-
-        int queries = 100;
-        int warmup = (int) (5 * Math.log10(queries));
-
-        logger.info("--> warming up with {} queries...", warmup);
-        for (int i = 0; i < warmup; i++) {
-            client().prepareSearch("test").setQuery(matchAllQuery())
-                    .addAggregation(
-                            terms("myterms")
-                                    .size(NUM_DOCS)
-                                    .field("num")
-                    ).setSearchType(SearchType.COUNT).get();
-        }
-
-        long times[] = new long[queries];
-        for (int i = 0; i < queries; i++) {
-            if (i % 10 == 0) {
-                logger.info("--> query # {}", i);
+    public static void main(String args[]) throws Exception {
+        Node node = NodeBuilder.nodeBuilder().settings(
+                ImmutableSettings.settingsBuilder().put(nodeSettings()).put("node.master", true)
+        ).node();
+        final Client client = node.client();
+        try {
+            try {
+                client.admin().indices().prepareDelete(INDEX).get();
+            } catch (Exception e) {
+                // Ignore
             }
-            SearchResponse resp = client().prepareSearch("test").setQuery(matchAllQuery())
-                    .addAggregation(
-                            terms("myterms")
-                                    .size(NUM_DOCS)
-                                    .field("num")
-                    ).setSearchType(SearchType.COUNT).get();
-            Terms terms = resp.getAggregations().get("myterms");
-            assertHitCount(resp, NUM_DOCS);
-            assertNotNull("term aggs were calculated", terms);
-            times[i] = resp.getTookInMillis();
-        }
+            try {
+                client.admin().indices().prepareCreate(INDEX).setSettings(
+                        settingsBuilder().put("number_of_shards", 2).put("number_of_replicas", 0)).get();
+            } catch (IndexAlreadyExistsException e) {}
+            client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
 
-        long min = Integer.MAX_VALUE, max = Integer.MIN_VALUE, total = 0, avg;
-        for (int i = 0; i < queries; i++) {
-            long time = times[i];
-            min = Math.min(min, time);
-            max = Math.max(max, time);
-            total = total + time;
-        }
-        avg = total / queries;
-        logger.info("--> min: {}ms, max: {}ms, total: {}ms, average: {}ms", min, max, total, avg);
-    }
-
-    @Test
-    public void testMultiThreadPerformance() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(
-                settingsBuilder().put("number_of_shards", 5).put("number_of_replicas", 0)).get();
-        ensureGreen("test");
-
-        final int NUM_DOCS = 20_000;
-        List<IndexRequestBuilder> builders = newArrayList();
-        for (int i = 0; i < NUM_DOCS; i++) {
-            builders.add(client().prepareIndex("test", "doc").setSource("num", i));
-        }
-        logger.info("--> indexing docs...");
-        indexRandom(true, false, false, builders);
-
-        final int queries = 100;
-        int threadCount = 10;
-        Thread[] threads = new Thread[threadCount];
-        int warmup = (int) (5 * Math.log10(queries));
-
-        logger.info("--> warming up with {} queries...", warmup);
-        for (int i = 0; i < warmup; i++) {
-            client().prepareSearch("test").setQuery(matchAllQuery())
-                    .addAggregation(
-                            terms("myterms")
-                                    .size(NUM_DOCS)
-                                    .field("num")
-                    ).setSearchType(SearchType.COUNT).get();
-        }
-
-        for (int threadNum = 0; threadNum < threadCount; threadNum++) {
-            threads[threadNum] = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    long tid = Thread.currentThread().getId();
-                    long times[] = new long[queries];
-                    for (int i = 0; i < queries; i++) {
-                        if (i % 10 == 0) {
-                            logger.info("--> [{}] query # {}", tid, i);
-                        }
-                        SearchResponse resp = client().prepareSearch("test").setQuery(matchAllQuery())
-                                .addAggregation(
-                                        terms("myterms")
-                                                .size(NUM_DOCS)
-                                                .field("num")
-                                ).setSearchType(SearchType.COUNT).get();
-                        Terms terms = resp.getAggregations().get("myterms");
-                        assertHitCount(resp, NUM_DOCS);
-                        assertNotNull("term aggs were calculated", terms);
-                        times[i] = resp.getTookInMillis();
-                    }
-
-                    long min = Integer.MAX_VALUE, max = Integer.MIN_VALUE, total = 0, avg;
-                    for (int i = 0; i < queries; i++) {
-                        long time = times[i];
-                        min = Math.min(min, time);
-                        max = Math.max(max, time);
-                        total = total + time;
-                    }
-                    avg = total / queries;
-                    logger.info("--> [{}] min: {}ms, max: {}ms, total: {}ms, average: {}ms", tid, min, max, total, avg);
+            final int BULK_SIZE = 100;
+            final int NUM_DOCS = 500_000;
+            final int AGG_SIZE = 50;
+            System.out.println("--> indexing: " + NUM_DOCS + " documents...");
+            BulkRequestBuilder bulkBuilder = client.prepareBulk();
+            for (int i = 0; i < NUM_DOCS; i++) {
+                bulkBuilder.add(client.prepareIndex(INDEX, "doc").setSource("num", i));
+                if (i % BULK_SIZE == 0) {
+                    // Send off bulk request
+                    bulkBuilder.get();
+                    // Create a new holder
+                    bulkBuilder = client.prepareBulk();
                 }
-            });
-        }
+            }
+            bulkBuilder.get();
+            client.admin().indices().prepareRefresh(INDEX).get();
+            SearchResponse countResp = client.prepareSearch(INDEX).setQuery(matchAllQuery()).setSearchType(SearchType.COUNT).get();
+            assert countResp.getHits().getTotalHits() == NUM_DOCS : "all docs should be indexed";
 
-        for (Thread t : threads) {
-            t.start();
-        }
+            final int WARMUPS = 25;
+            for (int i = 0; i < WARMUPS; i++) {
+                if (i % 10 == 0) {
+                    System.out.println("--> warmup #" + i);
+                }
+                SearchResponse resp = client.prepareSearch(INDEX).setQuery(matchAllQuery())
+                        .addAggregation(
+                                terms("myterms")
+                                        .size(AGG_SIZE)
+                                        .field("num")
+                        ).setSearchType(SearchType.COUNT).get();
+                Terms terms = resp.getAggregations().get("myterms");
+                assertNotNull("term aggs were calculated", terms);
+            }
 
-        for (Thread t : threads) {
-            t.join();
+            final int QUERIES = 100;
+
+            long totalTime = 0;
+            for (int i = 0; i < QUERIES; i++) {
+                if (i % 10 == 0) {
+                    System.out.println("--> query #" + i);
+                }
+                SearchResponse resp = client.prepareSearch(INDEX).setQuery(matchAllQuery())
+                        .addAggregation(
+                                terms("myterms")
+                                        .size(AGG_SIZE)
+                                        .field("num")
+                        ).setSearchType(SearchType.COUNT).get();
+                Terms terms = resp.getAggregations().get("myterms");
+                assertNotNull("term aggs were calculated", terms);
+                totalTime += resp.getTookInMillis();
+            }
+
+            System.out.println("--> single threaded average time: " + (totalTime / QUERIES) + "ms");
+
+            final AtomicLong totalThreadedTime = new AtomicLong(0);
+            int THREADS = 5;
+            Thread threads[] = new Thread[THREADS];
+            for (int i = 0; i < THREADS; i++) {
+                threads[i] = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        long tid = Thread.currentThread().getId();
+                        for (int i = 0; i < QUERIES; i++) {
+                            if (i % 10 == 0) {
+                                System.out.println("--> [" + tid + "] query # "+ i);
+                            }
+                            SearchResponse resp = client.prepareSearch(INDEX).setQuery(matchAllQuery())
+                                    .addAggregation(
+                                            terms("myterms")
+                                                    .size(AGG_SIZE)
+                                                    .field("num")
+                                    ).setSearchType(SearchType.COUNT).get();
+                            Terms terms = resp.getAggregations().get("myterms");
+                            assertNotNull("term aggs were calculated", terms);
+                            totalThreadedTime.addAndGet(resp.getTookInMillis());
+                        }
+                    }
+                });
+            }
+
+            System.out.println("--> starting " + THREADS + " threads for parallel aggregating");
+            for (Thread t : threads) {
+                t.start();
+            }
+
+            for (Thread t : threads) {
+                t.join();
+            }
+
+            System.out.println("--> threaded average time: " + (totalThreadedTime.get() / (THREADS * QUERIES)) + "ms");
+
+        } finally {
+            client.close();
+            node.stop();
         }
     }
 }

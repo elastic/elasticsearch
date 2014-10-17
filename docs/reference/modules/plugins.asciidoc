@@ -105,6 +105,17 @@ plugin --remove <pluginname>
 -----------------------------------
 
 [float]
+==== Updating plugins
+
+The `update` command can be used to update a plugin. This command combines a `remove`
+and an `install` command in order to remove the plugin first before installing it again:
+
+[source,shell]
+-----------------------------------
+plugin --update <pluginname>
+-----------------------------------
+
+[float]
 ==== Silent/Verbose mode
 
 When running the `plugin` script, you can get more information (debug mode) using `--verbose`.

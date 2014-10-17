@@ -265,9 +265,10 @@ public class PluginManager {
         }
 
         // try and identify the plugin type, see if it has no .class or .jar files in it
-        // so its probably a _site, and it it does not have a _site in it, move everything to _site
+        // so its probably a _site, and if it does not have a _site in it, move everything to _site
+        boolean hasBytecode = FileSystemUtils.hasExtensions(extractLocation, ".class", ".jar");
         if (!new File(extractLocation, "_site").exists()) {
-            if (potentialSitePlugin && !FileSystemUtils.hasExtensions(extractLocation, ".class", ".jar")) {
+            if (potentialSitePlugin && !hasBytecode) {
                 log("Identified as a _site plugin, moving to _site structure ...");
                 File site = new File(extractLocation, "_site");
                 File tmpLocation = new File(environment.pluginsFile(), extractLocation.getName() + ".tmp");
@@ -280,6 +281,10 @@ public class PluginManager {
                 }
                 debug("Installed " + name + " into " + site.getAbsolutePath());
             }
+        }
+
+        if (hasBytecode) {
+            log("Elasticsearch may need to be restarted to reflect the changes of the plugin");
         }
     }
 
@@ -394,7 +399,7 @@ public class PluginManager {
         OutputMode outputMode = OutputMode.DEFAULT;
         String pluginName = null;
         TimeValue timeout = DEFAULT_TIMEOUT;
-        int action = ACTION.NONE;
+        List<Integer> actions = Arrays.asList(ACTION.NONE);
 
         if (args.length < 1) {
             displayHelp(null);
@@ -410,10 +415,12 @@ public class PluginManager {
                     case "url":
                     case "-url":
                         url = getCommandValue(args, ++c, "--url");
-                        // Until update is supported, then supplying a URL implies installing
+                        // If no action is defined at this stage, then supplying an URL implies installing
                         // By specifying this action, we also avoid silently failing without
                         //  dubious checks.
-                        action = ACTION.INSTALL;
+                        if (actions.contains(ACTION.NONE)) {
+                            actions = Arrays.asList(ACTION.INSTALL);
+                        }
                         break;
                     case "-v":
                     case "--verbose":
@@ -435,7 +442,7 @@ public class PluginManager {
                     case "install":
                     case "-install":
                         pluginName = getCommandValue(args, ++c, "--install");
-                        action = ACTION.INSTALL;
+                        actions = Arrays.asList(ACTION.INSTALL);
                         break;
                     case "-r":
                     case "--remove":
@@ -443,7 +450,12 @@ public class PluginManager {
                     case "remove":
                     case "-remove":
                         pluginName = getCommandValue(args, ++c, "--remove");
-                        action = ACTION.REMOVE;
+                        actions = Arrays.asList(ACTION.REMOVE);
+                        break;
+                    case "-up":
+                    case "--update":
+                        pluginName = getCommandValue(args, ++c, "--update");
+                        actions = Arrays.asList(ACTION.REMOVE, ACTION.INSTALL);
                         break;
                     case "-t":
                     case "--timeout":
@@ -455,7 +467,7 @@ public class PluginManager {
                         break;
                     case "-l":
                     case "--list":
-                        action = ACTION.LIST;
+                        actions = Arrays.asList(ACTION.LIST);
                         break;
                     case "-h":
                     case "--help":
@@ -473,58 +485,63 @@ public class PluginManager {
             System.exit(EXIT_CODE_CMD_USAGE);
         }
 
-        if (action > ACTION.NONE) {
-            int exitCode = EXIT_CODE_ERROR; // we fail unless it's reset
-            PluginManager pluginManager = new PluginManager(initialSettings.v2(), url, outputMode, timeout);
-            switch (action) {
-                case ACTION.INSTALL:
-                    try {
-                        pluginManager.log("-> Installing " + Strings.nullToEmpty(pluginName) + "...");
-                        pluginManager.downloadAndExtract(pluginName);
-                        exitCode = EXIT_CODE_OK;
-                    } catch (IOException e) {
-                        exitCode = EXIT_CODE_IO_ERROR;
-                        pluginManager.log("Failed to install " + pluginName + ", reason: " + e.getMessage());
-                    } catch (Throwable e) {
-                        exitCode = EXIT_CODE_ERROR;
-                        displayHelp("Error while installing plugin, reason: " + e.getClass().getSimpleName() +
-                                ": " + e.getMessage());
-                    }
-                    break;
-                case ACTION.REMOVE:
-                    try {
-                        pluginManager.log("-> Removing " + Strings.nullToEmpty(pluginName) + "...");
-                        pluginManager.removePlugin(pluginName);
-                        exitCode = EXIT_CODE_OK;
-                    } catch (ElasticsearchIllegalArgumentException e) {
-                        exitCode = EXIT_CODE_CMD_USAGE;
-                        pluginManager.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
-                    } catch (IOException e) {
-                        exitCode = EXIT_CODE_IO_ERROR;
-                        pluginManager.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
-                    } catch (Throwable e) {
-                        exitCode = EXIT_CODE_ERROR;
-                        displayHelp("Error while removing plugin, reason: " + e.getClass().getSimpleName() +
-                                ": " + e.getMessage());
-                    }
-                    break;
-                case ACTION.LIST:
-                    try {
-                        pluginManager.listInstalledPlugins();
-                        exitCode = EXIT_CODE_OK;
-                    } catch (Throwable e) {
-                        displayHelp("Error while listing plugins, reason: " + e.getClass().getSimpleName() +
-                                ": " + e.getMessage());
-                    }
-                    break;
+        int exitCode = EXIT_CODE_ERROR; // we fail unless it's reset
+        for (Integer action : actions) {
+            if (action > ACTION.NONE) {
+                PluginManager pluginManager = new PluginManager(initialSettings.v2(), url, outputMode, timeout);
+                switch (action) {
+                    case ACTION.INSTALL:
+                        try {
+                            pluginManager.log("-> Installing " + Strings.nullToEmpty(pluginName) + "...");
+                            pluginManager.downloadAndExtract(pluginName);
+                            exitCode = EXIT_CODE_OK;
+                        } catch (IOException e) {
+                            exitCode = EXIT_CODE_IO_ERROR;
+                            pluginManager.log("Failed to install " + pluginName + ", reason: " + e.getMessage());
+                        } catch (Throwable e) {
+                            exitCode = EXIT_CODE_ERROR;
+                            displayHelp("Error while installing plugin, reason: " + e.getClass().getSimpleName() +
+                                    ": " + e.getMessage());
+                        }
+                        break;
+                    case ACTION.REMOVE:
+                        try {
+                            pluginManager.log("-> Removing " + Strings.nullToEmpty(pluginName) + "...");
+                            pluginManager.removePlugin(pluginName);
+                            exitCode = EXIT_CODE_OK;
+                        } catch (ElasticsearchIllegalArgumentException e) {
+                            exitCode = EXIT_CODE_CMD_USAGE;
+                            pluginManager.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
+                        } catch (IOException e) {
+                            exitCode = EXIT_CODE_IO_ERROR;
+                            pluginManager.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
+                        } catch (Throwable e) {
+                            exitCode = EXIT_CODE_ERROR;
+                            displayHelp("Error while removing plugin, reason: " + e.getClass().getSimpleName() +
+                                    ": " + e.getMessage());
+                        }
+                        break;
+                    case ACTION.LIST:
+                        try {
+                            pluginManager.listInstalledPlugins();
+                            exitCode = EXIT_CODE_OK;
+                        } catch (Throwable e) {
+                            displayHelp("Error while listing plugins, reason: " + e.getClass().getSimpleName() +
+                                    ": " + e.getMessage());
+                        }
+                        break;
 
-                default:
-                    pluginManager.log("Unknown Action [" + action + "]");
-                    exitCode = EXIT_CODE_ERROR;
-
+                    default:
+                        pluginManager.log("Unknown Action [" + action + "]");
+                        exitCode = EXIT_CODE_ERROR;
+                }
+                if (exitCode != EXIT_CODE_OK) {
+                    break; // stops on first error
+                }
             }
-            System.exit(exitCode); // exit here!
         }
+        System.exit(exitCode); // exit here!
+
     }
 
     /**
@@ -560,9 +577,10 @@ public class PluginManager {
     private static void displayHelp(String message) {
         System.out.println("Usage:");
         System.out.println("    -u, --url     [plugin location]   : Set exact URL to download the plugin from");
-        System.out.println("    -i, --install [plugin name]       : Downloads and installs listed plugins [*]");
+        System.out.println("    -i, --install [plugin name]       : Downloads and installs the plugin [*]");
         System.out.println("    -t, --timeout [duration]          : Timeout setting: 30s, 1m, 1h... (infinite by default)");
-        System.out.println("    -r, --remove  [plugin name]       : Removes listed plugins");
+        System.out.println("    -r, --remove  [plugin name]       : Removes the plugin");
+        System.out.println("    -up, --update  [plugin name]      : Updates the plugin by removing it first before installing it again");
         System.out.println("    -l, --list                        : List installed plugins");
         System.out.println("    -v, --verbose                     : Prints verbose messages");
         System.out.println("    -s, --silent                      : Run in silent mode");

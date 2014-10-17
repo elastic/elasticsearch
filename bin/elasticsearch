@@ -164,8 +164,13 @@ do
       --*=*) properties="$properties -Des.${1#--}"
            shift 1
            ;;
-      --*) properties="$properties -Des.${1#--}=$2"
-           shift 2
+      --*) if [ $# -gt 1 ] ; then
+               properties="$properties -Des.${1#--}=$2"
+               shift 2
+           else
+               echo "Ignoring option without value $1"
+               shift 1
+           fi
            ;;
       *) ARGV="$ARGV $1" ; shift
     esac

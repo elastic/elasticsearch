@@ -60,6 +60,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -90,6 +91,7 @@ import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.index.translog.fs.FsTranslogFile;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
@@ -447,11 +449,20 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return compatibilityVersion().onOrAfter(Version.V_1_1_0);
     }
 
+    /** Rarely set the request breaker to a Noop breaker */
+    protected static void setRandomBreakerSettings(Random random, ImmutableSettings.Builder builder) {
+        // Rarely
+        if (RandomInts.randomInt(random, 100) >= 90) {
+            builder.put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING, CircuitBreaker.Type.NOOP);
+        }
+    }
+
     private static ImmutableSettings.Builder setRandomSettings(Random random, ImmutableSettings.Builder builder) {
         setRandomMerge(random, builder);
         setRandomTranslogSettings(random, builder);
         setRandomNormsLoading(random, builder);
         setRandomScriptingSettings(random, builder);
+        setRandomBreakerSettings(random, builder);
         if (random.nextBoolean()) {
             if (random.nextInt(10) == 0) { // do something crazy slow here
                 builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));

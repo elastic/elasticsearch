@@ -20,28 +20,22 @@
 package org.elasticsearch.indices.breaker;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 
 /**
  * Class that returns a breaker that never breaks
  */
 public class NoneCircuitBreakerService extends CircuitBreakerService {
 
-    private final ESLogger logger = Loggers.getLogger(NoneCircuitBreakerService.class);
-
-    private final MemoryCircuitBreaker breaker = new MemoryCircuitBreaker(new ByteSizeValue(Long.MAX_VALUE), 0.0, logger);
+    private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.Name.FIELDDATA);
 
     public NoneCircuitBreakerService() {
         super(ImmutableSettings.EMPTY);
     }
 
-
     @Override
-    public MemoryCircuitBreaker getBreaker(CircuitBreaker.Name name) {
+    public CircuitBreaker getBreaker(CircuitBreaker.Name name) {
         return breaker;
     }
 

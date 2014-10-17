@@ -110,7 +110,7 @@ public abstract class Terminal {
     }
 
     public void printError(String msg, Object... args) {
-        println(Verbosity.SILENT, "ERROR: " + msg, args);
+        println(Verbosity.NORMAL, "ERROR: " + msg, args);
     }
 
     public void printError(Throwable t) {

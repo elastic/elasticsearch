@@ -19,62 +19,449 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+import org.apache.commons.cli.CommandLine;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.*;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cli.CliTool;
+import org.elasticsearch.common.cli.CliToolConfig;
+import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.*;
 
 import static org.elasticsearch.common.Strings.hasLength;
+import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
+import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
+import static org.elasticsearch.common.cli.Terminal.Verbosity.SILENT;
+import static org.elasticsearch.common.cli.Terminal.Verbosity.VERBOSE;
 import static org.elasticsearch.common.io.FileSystemUtils.moveFilesWithoutOverwriting;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
  *
  */
-public class PluginManager {
-    public static final class ACTION {
-        public static final int NONE = 0;
-        public static final int INSTALL = 1;
-        public static final int REMOVE = 2;
-        public static final int LIST = 3;
+public class PluginManager extends CliTool {
+
+    public static void main(String[] args) throws Exception {
+        PluginManager pluginManager = new PluginManager();
+        // TODO Remove in 2.0.0
+        if (args != null) {
+            // We try to check if we have any deprecated option
+            for (int c = 0; c < args.length; c++) {
+                String command = args[c];
+                switch (command) {
+                    case "url":
+                    case "-url":
+                        args[c] = reportDeprecated(pluginManager.terminal, command, "--url");
+                        break;
+                    case "verbose":
+                    case "-verbose":
+                        args[c] = reportDeprecated(pluginManager.terminal, command, "--verbose");
+                        break;
+                    case "silent":
+                    case "-silent":
+                        args[c] = reportDeprecated(pluginManager.terminal, command, "--silent");
+                        break;
+                    case "timeout":
+                    case "-timeout":
+                        args[c] = reportDeprecated(pluginManager.terminal, command, "--timeout");
+                        break;
+                    case "-i":
+                    case "--install":
+                    case "-install":
+                        args[c] = reportDeprecated(pluginManager.terminal, command, "install");
+                        break;
+                    case "-r":
+                    case "--remove":
+                    case "-remove":
+                    case "remove":
+                        args[c] = reportDeprecated(pluginManager.terminal, command, "uninstall");
+                        break;
+                    case "-l":
+                    case "--list":
+                        args[c] = reportDeprecated(pluginManager.terminal, command, "list");
+                        break;
+                }
+            }
+        }
+
+        pluginManager.execute(args);
     }
 
-    public enum OutputMode {
-        DEFAULT, SILENT, VERBOSE
+    @Deprecated
+    private static String reportDeprecated(Terminal terminal, String oldOption, String newOption) {
+        terminal.printError("WARN: option [%s] has been deprecated by [%s]. Please update your scripts.",
+                oldOption, newOption);
+        return newOption;
     }
 
-    // By default timeout is 0 which means no timeout
-    public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMillis(0);
+    private static final CliToolConfig CONFIG = CliToolConfig.config("plugin", PluginManager.class)
+            .cmds(Install.CMD, Uninstall.CMD, ListPlugins.CMD)
+            .build();
 
-    private static final ImmutableSet<Object> BLACKLIST = ImmutableSet.builder()
+    public PluginManager(Terminal terminal) {
+        super(CONFIG, terminal);
+    }
+
+    public PluginManager() {
+        super(CONFIG);
+    }
+
+    @Override
+    protected Command parse(String cmdName, CommandLine cli) throws Exception {
+        switch (cmdName.toLowerCase(Locale.ROOT)) {
+            case Install.NAME: return Install.parse(terminal, cli);
+            case Uninstall.NAME: return Uninstall.parse(terminal, cli);
+            case ListPlugins.NAME: return ListPlugins.parse(terminal, cli);
+            default:
+                assert false : "can't get here as cmd name is validated before this method is called";
+                return exitCmd(ExitStatus.CODE_ERROR);
+        }
+    }
+
+    static class Install extends Command {
+
+        private static final String NAME = "install";
+
+        private static final CliToolConfig.Cmd CMD = cmd(NAME, Install.class)
+                .options(option("u", "url").required(false).hasArg(false))
+                .options(option("t", "timeout").required(false).hasArg(false))
+                .build();
+
+        static Command parse(Terminal terminal, CommandLine cli) {
+            TimeValue timeout = TimeValue.parseTimeValue(cli.getOptionValue("t"), null);
+            String url = cli.getOptionValue("u");
+            String[] args = cli.getArgs();
+            if (args.length == 0) {
+                return exitCmd(ExitStatus.USAGE, terminal, "plugin name is missing (type -h for help)");
+            }
+            String name = args[0];
+            return new Install(terminal, url, name, timeout);
+        }
+
+        final String url;
+        final String name;
+        final PluginHandle handle;
+        final TimeValue timeout;
+
+        final HttpDownloadHelper downloadHelper;
+
+        Install(Terminal terminal, String url, String name, TimeValue timeout) {
+            this(terminal, url, name, timeout, new HttpDownloadHelper());
+        }
+
+        Install(Terminal terminal, String url, String name, TimeValue timeout, HttpDownloadHelper downloadHelper) {
+            super(terminal);
+            this.url = url;
+            this.name = name;
+            this.handle = PluginHandle.parse(name);
+            this.timeout = timeout != null ? timeout : TimeValue.timeValueMillis(0);
+            this.downloadHelper = downloadHelper;
+        }
+
+        @Override
+        public ExitStatus execute(Settings settings, Environment env) throws Exception {
+            Files.createDirectories(env.pluginsFile());
+            if (!Files.isWritable(env.pluginsFile())) {
+                throw new IOException("No write permissions on plugin directory [" + env.pluginsFile() + "]");
+            }
+
+            // extract the plugin
+            final Path extractLocation = handle.extractedDir(env);
+            if (Files.exists(extractLocation)) {
+                throw new IOException("plugin directory [" + extractLocation.toAbsolutePath()
+                        + "] already exists. To update the plugin, uninstall it first (see -h for help)");
+            }
+
+            checkForForbiddenName(handle.name);
+            Path pluginFile = handle.distroFile(env);
+
+            // first, downloading the plugin from all possible URL locations
+            Downloader downloader = new Downloader(terminal, downloadHelper, timeout);
+            if (url != null) {
+                downloader.add(url);
+            }
+            downloader.addAll(handle.urls());
+
+            if (!downloader.download(pluginFile)) {
+                terminal.printError("failed to download plugin [%s] out of all possible locations...%s",
+                        name, terminal.verbosity() == VERBOSE ? "" : " Use -v to get detailed information");
+                return ExitStatus.UNAVAILABLE;
+            }
+
+            // now, extracting the content of the downloaded plugin bundle
+            try (FileSystem zipFile = FileSystems.newFileSystem(pluginFile, null)) {
+                for (final Path root : zipFile.getRootDirectories() ) {
+                    final Path[] topLevelFiles = FileSystemUtils.files(root);
+                    //we check whether we need to remove the top-level folder while extracting
+                    //sometimes (e.g. github) the downloaded archive contains a top-level folder which needs to be removed
+                    final boolean stripTopLevelDirectory;
+                    if (topLevelFiles.length == 1 && Files.isDirectory(topLevelFiles[0])) {
+                        // valid names if the zip has only one top level directory
+                        switch (topLevelFiles[0].getFileName().toString()) {
+                            case  "_site/":
+                            case  "bin/":
+                            case  "config/":
+                            case  "_dict/":
+                                stripTopLevelDirectory = false;
+                                break;
+                            default:
+                                stripTopLevelDirectory = true;
+                        }
+                    } else {
+                        stripTopLevelDirectory = false;
+                    }
+                    Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+                        @Override
+                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                            Path target =  FileSystemUtils.append(extractLocation, file, stripTopLevelDirectory ? 1 : 0);
+                            Files.createDirectories(target);
+                            Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
+                            return FileVisitResult.CONTINUE;
+                        }
+
+                    });
+                }
+                terminal.println("Installed [%s] into [%s]", name, extractLocation.toAbsolutePath());
+            } catch (Exception e) {
+                terminal.printError("failed to extract plugin [%s]: %s", pluginFile, ExceptionsHelper.detailedMessage(e));
+                throw e;
+            } finally {
+                Files.delete(pluginFile);
+            }
+
+            if (FileSystemUtils.hasExtensions(extractLocation, ".java")) {
+                terminal.printError("Plugin installation assumed to be site plugin, but contains source code, aborting installation...");
+                try {
+                    IOUtils.rm(extractLocation);
+                } catch(Exception e) {
+                    terminal.print("Failed to remove site plugin from path [%s]: %s", extractLocation, ExceptionsHelper.detailedMessage(e));
+                }
+                return ExitStatus.DATA_ERROR;
+            }
+
+            // It could potentially be a non explicit _site plugin
+            boolean potentialSitePlugin = true;
+
+            // moving the plugin's bin dir if exists
+            Path binFile = extractLocation.resolve("bin");
+            if (Files.exists(binFile) && Files.isDirectory(binFile)) {
+                Path toLocation = handle.binDir(env);
+                terminal.println(VERBOSE, "Found bin, moving to [%s]", toLocation.toAbsolutePath());
+                if (Files.exists(toLocation)) {
+                    IOUtils.rm(toLocation);
+                }
+                try {
+                    Files.move(binFile, toLocation, StandardCopyOption.ATOMIC_MOVE);
+                } catch (IOException e) {
+                    terminal.printError("Could not move [%s] to [%s]", binFile.toAbsolutePath(), toLocation.toAbsolutePath());
+                    return ExitStatus.CANT_CREATE;
+                }
+                if (Files.getFileStore(toLocation).supportsFileAttributeView(PosixFileAttributeView.class)) {
+                    final Set<PosixFilePermission> perms = new HashSet<>();
+                    perms.add(PosixFilePermission.OWNER_EXECUTE);
+                    perms.add(PosixFilePermission.GROUP_EXECUTE);
+                    perms.add(PosixFilePermission.OTHERS_EXECUTE);
+                    Files.walkFileTree(toLocation, new SimpleFileVisitor<Path>() {
+                        @Override
+                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                            if (attrs.isRegularFile()) {
+
+                                Files.setPosixFilePermissions(file, perms);
+                            }
+                            return FileVisitResult.CONTINUE;
+                        }
+                    });
+                } else {
+                    terminal.println(VERBOSE, "Skipping posix permissions - filestore doesn't support posix permission");
+                }
+                terminal.println(VERBOSE, "Installed [%s] into [%s]", name, toLocation.toAbsolutePath());
+                potentialSitePlugin = false;
+            }
+
+            // moving the plugin config dir if exists without overwriting existing config files
+            Path configFile = extractLocation.resolve("config");
+            if (Files.exists(configFile) && Files.isDirectory(configFile)) {
+                Path toLocation = handle.configDir(env);
+                terminal.println(VERBOSE, "Found config, moving to " + toLocation.toAbsolutePath());
+                moveFilesWithoutOverwriting(configFile, toLocation, ".new");
+                terminal.println(VERBOSE, "Installed " + name + " into " + toLocation.toAbsolutePath());
+                potentialSitePlugin = false;
+            }
+
+            // try and identify the plugin type, see if it has no .class or .jar files in it
+            // so its probably a _site, and it it does not have a _site in it, move everything to _site
+            if (potentialSitePlugin
+                    && !Files.exists(extractLocation.resolve("_site"))
+                    && !FileSystemUtils.hasExtensions(extractLocation, ".class", ".jar")) {
+                terminal.println("Identified as a _site plugin, moving to _site structure ...");
+                Path site = extractLocation.resolve("_site");
+                Path tmpLocation = env.pluginsFile().resolve(extractLocation.getFileName() + ".tmp");
+                try {
+                    Files.move(extractLocation, tmpLocation);
+                } catch (IOException e) {
+                    terminal.printError("Could not move [%s] to [%s]", extractLocation.toAbsolutePath(), tmpLocation.toAbsolutePath());
+                    return ExitStatus.CANT_CREATE;
+                }
+                Files.createDirectories(extractLocation);
+                try {
+                    Files.move(tmpLocation, site);
+                } catch (IOException e) {
+                    terminal.printError("Could not move [%s] to [%s]", tmpLocation.toAbsolutePath(), site.toAbsolutePath());
+                    return ExitStatus.CANT_CREATE;
+                }
+                terminal.println(VERBOSE, "Installed [%s] into [%s]", name, site.toAbsolutePath());
+            }
+
+            terminal.println("Plugin [" + name + "] installed successfully!");
+            return ExitStatus.OK;
+        }
+    }
+
+    static class Uninstall extends Command {
+
+        static enum Result {
+            MISSING, FAILED, DELETED;
+
+            public Result add(Result result) {
+                if (result == FAILED || this == FAILED) {
+                    return FAILED;
+                }
+                if (result == DELETED || this == DELETED) {
+                    return DELETED;
+                }
+                return MISSING;
+            }
+        }
+
+        private static final String NAME = "uninstall";
+
+        private static final CliToolConfig.Cmd CMD = cmd(NAME, Uninstall.class).build();
+
+        static Command parse(Terminal terminal, CommandLine cli) {
+            String[] args = cli.getArgs();
+            if (args.length == 0) {
+                return exitCmd(ExitStatus.USAGE, terminal, "plugin name is missing (type -h for help)");
+            }
+            String name = args[0];
+            return new Uninstall(terminal, name);
+        }
+
+        final String name;
+        final PluginHandle handle;
+
+        Uninstall(Terminal terminal, String name) {
+            super(terminal);
+            this.name = name;
+            this.handle = PluginHandle.parse(name);
+        }
+
+        @Override
+        public ExitStatus execute(Settings settings, Environment env) throws Exception {
+            checkForForbiddenName(handle.name);
+
+            // removing extracted dir if exists
+            Path fileToDelete = handle.extractedDir(env);
+            Result result = delete(fileToDelete);
+
+            // removing plugin's distro file if exists
+            fileToDelete = handle.distroFile(env);
+            result = result.add(delete(fileToDelete));
+
+            // removing plugin's bin dir if exists
+            fileToDelete = handle.binDir(env);
+            result = result.add(delete(fileToDelete));
+
+            switch (result) {
+
+                case DELETED:
+                    terminal.println("Plugin [%s] was uninstalled successfully!", name);
+                    return ExitStatus.OK;
+
+                case FAILED:
+                    terminal.println("Plugin [%s] was partially uninstalled!", name);
+                    return ExitStatus.IO_ERROR;
+
+                default: // MISSING
+                    terminal.println("Plugin [%s] was not found. (run `plugin list` to get list of installed plugins)", name);
+                    return ExitStatus.IO_ERROR;
+
+            }
+        }
+
+        Result delete(Path path) {
+            if (!Files.exists(path)) {
+                return Result.MISSING;
+            }
+            terminal.print(VERBOSE, "Removing [%s]...", path.toAbsolutePath());
+            try {
+                IOUtils.rm(path);
+            } catch (Exception ex) {
+                terminal.printError("Failed to remove [%s]! (check file permissions)", path.toAbsolutePath());
+                return Result.FAILED;
+            }
+            terminal.println(VERBOSE, "Done!");
+            return Result.DELETED;
+        }
+    }
+
+    static class ListPlugins extends Command {
+
+        private static final String NAME = "list";
+
+        private static final CliToolConfig.Cmd CMD = cmd(NAME, ListPlugins.class).build();
+
+        static Command parse(Terminal terminal, CommandLine cli) {
+            String[] args = cli.getArgs();
+            if (args.length > 0) {
+                return exitCmd(ExitStatus.USAGE, terminal, "no command option expected (type -h for help)");
+            }
+
+            return new ListPlugins(terminal);
+        }
+
+        ListPlugins(Terminal terminal) {
+            super(terminal);
+        }
+
+        public Path[] getListInstalledPlugins(Environment env) throws IOException {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(env.pluginsFile())) {
+                return Iterators.toArray(stream.iterator(), Path.class);
+            }
+        }
+
+        @Override
+        public ExitStatus execute(Settings settings, Environment env) throws Exception {
+            Path[] plugins = getListInstalledPlugins(env);
+            if (plugins == null || plugins.length == 0) {
+                terminal.println("No plugin detected in " + env.pluginsFile().toAbsolutePath());
+                return ExitStatus.OK;
+            }
+            terminal.println("total " + plugins.length);
+            for (int i = 0; i < plugins.length; i++) {
+                terminal.println(" - " + plugins[i].getFileName());
+            }
+            return ExitStatus.OK;
+        }
+    }
+
+    private static final ImmutableSet<Object> FORBIDDEN_NAMES = ImmutableSet.builder()
             .add("elasticsearch",
                     "elasticsearch.bat",
                     "elasticsearch.in.sh",
@@ -82,516 +469,16 @@ public class PluginManager {
                     "plugin.bat",
                     "service.bat").build();
 
-    private final Environment environment;
-    private String url;
-    private OutputMode outputMode;
-    private TimeValue timeout;
-
-    public PluginManager(Environment environment, String url, OutputMode outputMode, TimeValue timeout) {
-        this.environment = environment;
-        this.url = url;
-        this.outputMode = outputMode;
-        this.timeout = timeout;
-
-        TrustManager[] trustAllCerts = new TrustManager[]{
-                new X509TrustManager() {
-                    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                        return null;
-                    }
-
-                    public void checkClientTrusted(
-                            java.security.cert.X509Certificate[] certs, String authType) {
-                    }
-
-                    public void checkServerTrusted(
-                            java.security.cert.X509Certificate[] certs, String authType) {
-                    }
-                }
-        };
-
-        // Install the all-trusting trust manager
-        try {
-            SSLContext sc = SSLContext.getInstance("SSL");
-            sc.init(null, trustAllCerts, new java.security.SecureRandom());
-            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-        } catch (Exception e) {
-            throw new ElasticsearchException("Failed to install all-trusting trust manager", e);
-        }
-    }
-
-    public void downloadAndExtract(String name) throws IOException {
-        if (name == null) {
-            throw new ElasticsearchIllegalArgumentException("plugin name must be supplied with --install [name].");
-        }
-        HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
-        boolean downloaded = false;
-        HttpDownloadHelper.DownloadProgress progress;
-        if (outputMode == OutputMode.SILENT) {
-            progress = new HttpDownloadHelper.NullProgress();
-        } else {
-            progress = new HttpDownloadHelper.VerboseProgress(SysOut.getOut());
-        }
-
-        if (!Files.isWritable(environment.pluginsFile())) {
-            throw new IOException("plugin directory " + environment.pluginsFile() + " is read only");
-        }
-
-        PluginHandle pluginHandle = PluginHandle.parse(name);
-        checkForForbiddenName(pluginHandle.name);
-
-        Path pluginFile = pluginHandle.distroFile(environment);
-        // extract the plugin
-        final Path extractLocation = pluginHandle.extractedDir(environment);
-        if (Files.exists(extractLocation)) {
-            throw new IOException("plugin directory " + extractLocation.toAbsolutePath() + " already exists. To update the plugin, uninstall it first using --remove " + name + " command");
-        }
-
-        // first, try directly from the URL provided
-        if (url != null) {
-            URL pluginUrl = new URL(url);
-            log("Trying " + pluginUrl.toExternalForm() + "...");
-            try {
-                downloadHelper.download(pluginUrl, pluginFile, progress, this.timeout);
-                downloaded = true;
-            } catch (ElasticsearchTimeoutException e) {
-                throw e;
-            } catch (Exception e) {
-                // ignore
-                log("Failed: " + ExceptionsHelper.detailedMessage(e));
-            }
-        }
-
-        if (!downloaded) {
-            // We try all possible locations
-            for (URL url : pluginHandle.urls()) {
-                log("Trying " + url.toExternalForm() + "...");
-                try {
-                    downloadHelper.download(url, pluginFile, progress, this.timeout);
-                    downloaded = true;
-                    break;
-                } catch (ElasticsearchTimeoutException e) {
-                    throw e;
-                } catch (Exception e) {
-                    debug("Failed: " + ExceptionsHelper.detailedMessage(e));
-                }
-            }
-        }
-
-        if (!downloaded) {
-            throw new IOException("failed to download out of all possible locations..., use --verbose to get detailed information");
-        }
-        try (FileSystem zipFile = FileSystems.newFileSystem(pluginFile, null)) {
-            for (final Path root : zipFile.getRootDirectories() ) {
-                final Path[] topLevelFiles = FileSystemUtils.files(root);
-                //we check whether we need to remove the top-level folder while extracting
-                //sometimes (e.g. github) the downloaded archive contains a top-level folder which needs to be removed
-                final boolean stripTopLevelDirectory;
-                if (topLevelFiles.length == 1 && Files.isDirectory(topLevelFiles[0])) {
-                    // valid names if the zip has only one top level directory
-                    switch (topLevelFiles[0].getFileName().toString()) {
-                        case  "_site/":
-                        case  "bin/":
-                        case  "config/":
-                        case  "_dict/":
-                          stripTopLevelDirectory = false;
-                          break;
-                        default:
-                          stripTopLevelDirectory = true;
-                    }
-                } else {
-                    stripTopLevelDirectory = false;
-                }
-                Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
-                    @Override
-                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                        Path target =  FileSystemUtils.append(extractLocation, file, stripTopLevelDirectory ? 1 : 0);
-                        Files.createDirectories(target);
-                        Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
-                        return FileVisitResult.CONTINUE;
-                    }
-
-                });
-            }
-            log("Installed " + name + " into " + extractLocation.toAbsolutePath());
-        } catch (Exception e) {
-            log("failed to extract plugin [" + pluginFile + "]: " + ExceptionsHelper.detailedMessage(e));
-            return;
-        } finally {
-            try {
-                Files.delete(pluginFile);
-            } catch (Exception ex) {
-                log("Failed to delete plugin file" + pluginFile + " " + ex);
-            }
-        }
-
-        if (FileSystemUtils.hasExtensions(extractLocation, ".java")) {
-            debug("Plugin installation assumed to be site plugin, but contains source code, aborting installation...");
-            try {
-                IOUtils.rm(extractLocation);
-            } catch(Exception ex) {
-                debug("Failed to remove site plugin from path " + extractLocation + " - " + ex.getMessage());
-            }
-            throw new IllegalArgumentException("Plugin installation assumed to be site plugin, but contains source code, aborting installation.");
-        }
-
-        // It could potentially be a non explicit _site plugin
-        boolean potentialSitePlugin = true;
-        Path binFile = extractLocation.resolve("bin");
-        if (Files.exists(binFile) && Files.isDirectory(binFile)) {
-            Path toLocation = pluginHandle.binDir(environment);
-            debug("Found bin, moving to " + toLocation.toAbsolutePath());
-            if (Files.exists(toLocation)) {
-                IOUtils.rm(toLocation);
-            }
-            try {
-                FileSystemUtils.move(binFile, toLocation);
-            } catch (IOException e) {
-                throw new IOException("Could not move [" + binFile + "] to [" + toLocation + "]", e);
-            }
-            if (Files.getFileStore(toLocation).supportsFileAttributeView(PosixFileAttributeView.class)) {
-                final Set<PosixFilePermission> perms = new HashSet<>();
-                perms.add(PosixFilePermission.OWNER_EXECUTE);
-                perms.add(PosixFilePermission.GROUP_EXECUTE);
-                perms.add(PosixFilePermission.OTHERS_EXECUTE);
-                Files.walkFileTree(toLocation, new SimpleFileVisitor<Path>() {
-                    @Override
-                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                        if (attrs.isRegularFile()) {
-                            Files.setPosixFilePermissions(file, perms);
-                        }
-                        return FileVisitResult.CONTINUE;
-                    }
-                });
-            } else {
-                debug("Skipping posix permissions - filestore doesn't support posix permission");
-            }
-            debug("Installed " + name + " into " + toLocation.toAbsolutePath());
-            potentialSitePlugin = false;
-        }
-
-        Path configFile = extractLocation.resolve("config");
-        if (Files.exists(configFile) && Files.isDirectory(configFile)) {
-            Path configDestLocation = pluginHandle.configDir(environment);
-            debug("Found config, moving to " + configDestLocation.toAbsolutePath());
-            moveFilesWithoutOverwriting(configFile, configDestLocation, ".new");
-            debug("Installed " + name + " into " + configDestLocation.toAbsolutePath());
-            potentialSitePlugin = false;
-        }
-
-        // try and identify the plugin type, see if it has no .class or .jar files in it
-        // so its probably a _site, and it it does not have a _site in it, move everything to _site
-        if (!Files.exists(extractLocation.resolve("_site"))) {
-            if (potentialSitePlugin && !FileSystemUtils.hasExtensions(extractLocation, ".class", ".jar")) {
-                log("Identified as a _site plugin, moving to _site structure ...");
-                Path site = extractLocation.resolve("_site");
-                Path tmpLocation = environment.pluginsFile().resolve(extractLocation.getFileName() + ".tmp");
-                Files.move(extractLocation, tmpLocation);
-                Files.createDirectories(extractLocation);
-                Files.move(tmpLocation, site);
-                debug("Installed " + name + " into " + site.toAbsolutePath());
-            }
-        }
-    }
-
-    public void removePlugin(String name) throws IOException {
-        if (name == null) {
-            throw new ElasticsearchIllegalArgumentException("plugin name must be supplied with --remove [name].");
-        }
-        PluginHandle pluginHandle = PluginHandle.parse(name);
-        boolean removed = false;
-
-        checkForForbiddenName(pluginHandle.name);
-        Path pluginToDelete = pluginHandle.extractedDir(environment);
-        if (Files.exists(pluginToDelete)) {
-            debug("Removing: " + pluginToDelete);
-            try {
-                IOUtils.rm(pluginToDelete);
-            } catch (IOException ex){
-                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
-                        pluginToDelete.toString(), ex);
-            }
-            removed = true;
-        }
-        pluginToDelete = pluginHandle.distroFile(environment);
-        if (Files.exists(pluginToDelete)) {
-            debug("Removing: " + pluginToDelete);
-            try {
-                Files.delete(pluginToDelete);
-            } catch (Exception ex) {
-                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
-                        pluginToDelete.toString(), ex);
-            }
-            removed = true;
-        }
-        Path binLocation = pluginHandle.binDir(environment);
-        if (Files.exists(binLocation)) {
-            debug("Removing: " + binLocation);
-            try {
-                IOUtils.rm(binLocation);
-            } catch (IOException ex){
-                throw new IOException("Unable to remove " + pluginHandle.name + ". Check file permissions on " +
-                        binLocation.toString(), ex);
-            }
-            removed = true;
-        }
-
-        if (removed) {
-            log("Removed " + name);
-        } else {
-            log("Plugin " + name + " not found. Run plugin --list to get list of installed plugins.");
-        }
-    }
+    // Valid directory names for plugin ZIP files when it has only one single dir
+    private static final ImmutableSet<Object> VALID_TOP_LEVEL_PLUGIN_DIRS = ImmutableSet.builder()
+            .add("_site",
+                    "bin",
+                    "config",
+                    "_dict").build();
 
     private static void checkForForbiddenName(String name) {
-        if (!hasLength(name) || BLACKLIST.contains(name.toLowerCase(Locale.ROOT))) {
-            throw new ElasticsearchIllegalArgumentException("Illegal plugin name: " + name);
-        }
-    }
-
-    public Path[] getListInstalledPlugins() throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
-            return Iterators.toArray(stream.iterator(), Path.class);
-        }
-    }
-
-    public void listInstalledPlugins() throws IOException {
-        Path[] plugins = getListInstalledPlugins();
-        log("Installed plugins in " + environment.pluginsFile().toAbsolutePath() + ":");
-        if (plugins == null || plugins.length == 0) {
-            log("    - No plugin detected");
-        } else {
-            for (int i = 0; i < plugins.length; i++) {
-                log("    - " + plugins[i].getFileName());
-            }
-        }
-    }
-
-    private static final int EXIT_CODE_OK = 0;
-    private static final int EXIT_CODE_CMD_USAGE = 64;
-    private static final int EXIT_CODE_IO_ERROR = 74;
-    private static final int EXIT_CODE_ERROR = 70;
-
-    public static void main(String[] args) {
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true);
-
-        try {
-            if (!Files.exists(initialSettings.v2().pluginsFile())) {
-                Files.createDirectories(initialSettings.v2().pluginsFile());
-            }
-        } catch (IOException e) {
-            displayHelp("Unable to create plugins dir: " + initialSettings.v2().pluginsFile());
-            System.exit(EXIT_CODE_ERROR);
-        }
-
-        String url = null;
-        OutputMode outputMode = OutputMode.DEFAULT;
-        String pluginName = null;
-        TimeValue timeout = DEFAULT_TIMEOUT;
-        int action = ACTION.NONE;
-
-        if (args.length < 1) {
-            displayHelp(null);
-        }
-
-        try {
-            for (int c = 0; c < args.length; c++) {
-                String command = args[c];
-                switch (command) {
-                    case "-u":
-                    case "--url":
-                    // deprecated versions:
-                    case "url":
-                    case "-url":
-                        url = getCommandValue(args, ++c, "--url");
-                        // Until update is supported, then supplying a URL implies installing
-                        // By specifying this action, we also avoid silently failing without
-                        //  dubious checks.
-                        action = ACTION.INSTALL;
-                        break;
-                    case "-v":
-                    case "--verbose":
-                    // deprecated versions:
-                    case "verbose":
-                    case "-verbose":
-                        outputMode = OutputMode.VERBOSE;
-                        break;
-                    case "-s":
-                    case "--silent":
-                    // deprecated versions:
-                    case "silent":
-                    case "-silent":
-                        outputMode = OutputMode.SILENT;
-                        break;
-                    case "-i":
-                    case "--install":
-                    // deprecated versions:
-                    case "install":
-                    case "-install":
-                        pluginName = getCommandValue(args, ++c, "--install");
-                        action = ACTION.INSTALL;
-                        break;
-                    case "-r":
-                    case "--remove":
-                    // deprecated versions:
-                    case "remove":
-                    case "-remove":
-                        pluginName = getCommandValue(args, ++c, "--remove");
-                        action = ACTION.REMOVE;
-                        break;
-                    case "-t":
-                    case "--timeout":
-                    // deprecated versions:
-                    case "timeout":
-                    case "-timeout":
-                        String timeoutValue = getCommandValue(args, ++c, "--timeout");
-                        timeout = TimeValue.parseTimeValue(timeoutValue, DEFAULT_TIMEOUT);
-                        break;
-                    case "-l":
-                    case "--list":
-                        action = ACTION.LIST;
-                        break;
-                    case "-h":
-                    case "--help":
-                        displayHelp(null);
-                        break;
-                    default:
-                        displayHelp("Command [" + command + "] unknown.");
-                        // Unknown command. We break...
-                        System.exit(EXIT_CODE_CMD_USAGE);
-                }
-            }
-        } catch (Throwable e) {
-            displayHelp("Error while parsing options: " + e.getClass().getSimpleName() +
-                    ": " + e.getMessage());
-            System.exit(EXIT_CODE_CMD_USAGE);
-        }
-
-        if (action > ACTION.NONE) {
-            int exitCode = EXIT_CODE_ERROR; // we fail unless it's reset
-            PluginManager pluginManager = new PluginManager(initialSettings.v2(), url, outputMode, timeout);
-            switch (action) {
-                case ACTION.INSTALL:
-                    try {
-                        pluginManager.log("-> Installing " + Strings.nullToEmpty(pluginName) + "...");
-                        pluginManager.downloadAndExtract(pluginName);
-                        exitCode = EXIT_CODE_OK;
-                    } catch (IOException e) {
-                        exitCode = EXIT_CODE_IO_ERROR;
-                        pluginManager.log("Failed to install " + pluginName + ", reason: " + e.getMessage());
-                    } catch (Throwable e) {
-                        exitCode = EXIT_CODE_ERROR;
-                        displayHelp("Error while installing plugin, reason: " + e.getClass().getSimpleName() +
-                                ": " + e.getMessage());
-                    }
-                    break;
-                case ACTION.REMOVE:
-                    try {
-                        pluginManager.log("-> Removing " + Strings.nullToEmpty(pluginName) + "...");
-                        pluginManager.removePlugin(pluginName);
-                        exitCode = EXIT_CODE_OK;
-                    } catch (ElasticsearchIllegalArgumentException e) {
-                        exitCode = EXIT_CODE_CMD_USAGE;
-                        pluginManager.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
-                    } catch (IOException e) {
-                        exitCode = EXIT_CODE_IO_ERROR;
-                        pluginManager.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
-                    } catch (Throwable e) {
-                        exitCode = EXIT_CODE_ERROR;
-                        displayHelp("Error while removing plugin, reason: " + e.getClass().getSimpleName() +
-                                ": " + e.getMessage());
-                    }
-                    break;
-                case ACTION.LIST:
-                    try {
-                        pluginManager.listInstalledPlugins();
-                        exitCode = EXIT_CODE_OK;
-                    } catch (Throwable e) {
-                        displayHelp("Error while listing plugins, reason: " + e.getClass().getSimpleName() +
-                                ": " + e.getMessage());
-                    }
-                    break;
-
-                default:
-                    pluginManager.log("Unknown Action [" + action + "]");
-                    exitCode = EXIT_CODE_ERROR;
-
-            }
-            System.exit(exitCode); // exit here!
-        }
-    }
-
-    /**
-     * Get the value for the {@code flag} at the specified {@code arg} of the command line {@code args}.
-     * <p />
-     * This is useful to avoid having to check for multiple forms of unset (e.g., "   " versus "" versus {@code null}).
-     * @param args Incoming command line arguments.
-     * @param arg Expected argument containing the value.
-     * @param flag The flag whose value is being retrieved.
-     * @return Never {@code null}. The trimmed value.
-     * @throws NullPointerException if {@code args} is {@code null}.
-     * @throws ArrayIndexOutOfBoundsException if {@code arg} is negative.
-     * @throws ElasticsearchIllegalStateException if {@code arg} is &gt;= {@code args.length}.
-     * @throws ElasticsearchIllegalArgumentException if the value evaluates to blank ({@code null} or only whitespace)
-     */
-    private static String getCommandValue(String[] args, int arg, String flag) {
-        if (arg >= args.length) {
-            throw new ElasticsearchIllegalStateException("missing value for " + flag + ". Usage: " + flag + " [value]");
-        }
-
-        // avoid having to interpret multiple forms of unset
-        String trimmedValue = Strings.emptyToNull(args[arg].trim());
-
-        // If we had a value that is blank, then fail immediately
-        if (trimmedValue == null) {
-            throw new ElasticsearchIllegalArgumentException(
-                    "value for " + flag + "('" + args[arg] + "') must be set. Usage: " + flag + " [value]");
-        }
-
-        return trimmedValue;
-    }
-
-    private static void displayHelp(String message) {
-        SysOut.println("Usage:");
-        SysOut.println("    -u, --url     [plugin location]   : Set exact URL to download the plugin from");
-        SysOut.println("    -i, --install [plugin name]       : Downloads and installs listed plugins [*]");
-        SysOut.println("    -t, --timeout [duration]          : Timeout setting: 30s, 1m, 1h... (infinite by default)");
-        SysOut.println("    -r, --remove  [plugin name]       : Removes listed plugins");
-        SysOut.println("    -l, --list                        : List installed plugins");
-        SysOut.println("    -v, --verbose                     : Prints verbose messages");
-        SysOut.println("    -s, --silent                      : Run in silent mode");
-        SysOut.println("    -h, --help                        : Prints this help message");
-        SysOut.newline();
-        SysOut.println(" [*] Plugin name could be:");
-        SysOut.println("     elasticsearch/plugin/version for official elasticsearch plugins (download from download.elasticsearch.org)");
-        SysOut.println("     groupId/artifactId/version   for community plugins (download from maven central or oss sonatype)");
-        SysOut.println("     username/repository          for site plugins (download from github master)");
-
-        if (message != null) {
-            SysOut.newline();
-            SysOut.println("Message:");
-            SysOut.println("   " + message);
-        }
-    }
-
-    private void debug(String line) {
-        if (outputMode == OutputMode.VERBOSE) SysOut.println(line);
-    }
-
-    private void log(String line) {
-        if (outputMode != OutputMode.SILENT) SysOut.println(line);
-    }
-
-    static class SysOut {
-
-        public static void newline() {
-            System.out.println();
-        }
-        public static void println(String msg) {
-            System.out.println(msg);
-        }
-
-        public static PrintStream getOut() {
-            return System.out;
+        if (!hasLength(name) || FORBIDDEN_NAMES.contains(name.toLowerCase(Locale.ROOT))) {
+            throw new ElasticsearchIllegalArgumentException("Illegal plugin name [" + name + "]");
         }
     }
 
@@ -613,29 +500,23 @@ public class PluginManager {
             this.repo = repo;
         }
 
-        List<URL> urls() {
-            List<URL> urls = new ArrayList<>();
+        List<String> urls() {
+            List<String> urls = new ArrayList<>();
             if (version != null) {
                 // Elasticsearch download service
-                addUrl(urls, "http://download.elasticsearch.org/" + user + "/" + repo + "/" + repo + "-" + version + ".zip");
+                urls.add("http://download.elasticsearch.org/" + user + "/" + repo + "/" + repo + "-" + version + ".zip");
                 // Maven central repository
-                addUrl(urls, "http://search.maven.org/remotecontent?filepath=" + user.replace('.', '/') + "/" + repo + "/" + version + "/" + repo + "-" + version + ".zip");
+                urls.add("http://search.maven.org/remotecontent?filepath=" + user.replace('.', '/') + "/" + repo + "/" + version + "/" + repo + "-" + version + ".zip");
                 // Sonatype repository
-                addUrl(urls, "https://oss.sonatype.org/service/local/repositories/releases/content/" + user.replace('.', '/') + "/" + repo + "/" + version + "/" + repo + "-" + version + ".zip");
+                urls.add("https://oss.sonatype.org/service/local/repositories/releases/content/" + user.replace('.', '/') + "/" + repo + "/" + version + "/" + repo + "-" + version + ".zip");
                 // Github repository
-                addUrl(urls, "https://github.com/" + user + "/" + repo + "/archive/" + version + ".zip");
+                urls.add("https://github.com/" + user + "/" + repo + "/archive/" + version + ".zip");
             }
             // Github repository for master branch (assume site)
-            addUrl(urls, "https://github.com/" + user + "/" + repo + "/archive/master.zip");
-            return urls;
-        }
-
-        private static void addUrl(List<URL> urls, String url) {
-            try {
-                urls.add(new URL(url));
-            } catch (MalformedURLException e) {
-                // We simply ignore malformed URL
+            if (user != null) {
+                urls.add("https://github.com/" + user + "/" + repo + "/archive/master.zip");
             }
+            return urls;
         }
 
         Path distroFile(Environment env) {
@@ -655,18 +536,23 @@ public class PluginManager {
         }
 
         static PluginHandle parse(String name) {
+            if (!Strings.hasText(name)) {
+                throw new ElasticsearchIllegalArgumentException("a plugin name must be provided");
+            }
+
             String[] elements = name.split("/");
-            // We first consider the simplest form: pluginname
+
+            // We first consider the simplest form: plugin_name
             String repo = elements[0];
             String user = null;
             String version = null;
 
-            // We consider the form: username/pluginname
+            // We consider the form: username/plugin_name
             if (elements.length > 1) {
                 user = elements[0];
                 repo = elements[1];
 
-                // We consider the form: username/pluginname/version
+                // We consider the form: username/plugin_name/version
                 if (elements.length > 2) {
                     version = elements[2];
                 }
@@ -688,4 +574,64 @@ public class PluginManager {
         }
     }
 
+    private static class Downloader {
+
+        private final List<URL> urls = new ArrayList<>();
+        private final Terminal terminal;
+        private final HttpDownloadHelper downloadHelper;
+        private final HttpDownloadHelper.DownloadProgress progress;
+        private final TimeValue timeout;
+
+        public Downloader(
+                Terminal terminal,
+                HttpDownloadHelper downloadHelper,
+                TimeValue timeout) {
+
+            this.terminal = terminal;
+            this.downloadHelper = downloadHelper;
+            this.timeout = timeout;
+            this.progress = terminal.verbosity() == SILENT ?
+                    new HttpDownloadHelper.NullProgress() :
+                    new HttpDownloadHelper.VerboseProgress(terminal.writer());
+        }
+
+        public void add(String url) {
+            try {
+                urls.add(new URL(url));
+            } catch (MalformedURLException e) {
+                terminal.println(VERBOSE, "Malformed URL [%s], skipping...", url);
+            }
+        }
+
+        public void addAll(Collection<String> urls) {
+            for (String url : urls) {
+                add(url);
+            }
+        }
+
+        // returns true if the download finished normally, false if it was timed out
+        public boolean download(Path dest) throws Exception {
+            terminal.println(VERBOSE, "Trying to download from %s location(s).", urls.size());
+            for (URL url : urls) {
+                terminal.println("Trying " + url.toExternalForm() + "...");
+                try {
+                    if (downloadHelper.download(url, dest, progress, this.timeout)) {
+                        return true;
+                    }
+                } catch (ElasticsearchTimeoutException e) {
+                    terminal.printError("Timed out on [%s], skipping...", url);
+                } catch (FileNotFoundException e) {
+                    terminal.println(VERBOSE, "Failed: %s", ExceptionsHelper.detailedMessage(e));
+                } catch (IOException e) {
+                    if (e.getCause() instanceof FileNotFoundException) {
+                        // ignore 404 errors
+                        terminal.println(VERBOSE, "Failed: %s", ExceptionsHelper.detailedMessage(e));
+                    } else {
+                        terminal.printError(e);
+                    }
+                }
+            }
+            return false;
+        }
+    }
 }

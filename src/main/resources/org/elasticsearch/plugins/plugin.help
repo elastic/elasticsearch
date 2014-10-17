@@ -1,0 +1,25 @@
+SYNTAX:
+
+   plugin <command>
+
+DESCRIPTION:
+
+   This tool manages plugins. It enables installing plugins by downloading them
+   form different locations (multiple location sources are supported), uninstalling
+   already installed plugins and listing all installed plugins.
+
+COMMANDS:
+
+   install      Installs a specified plugin
+
+   uninstall    Uninstalled an already installed plugin
+
+   list         Lists all installed plugins
+
+OPTIONS
+
+    -h, --help      Prints this message
+
+NOTES:
+
+   [1] For usage help on specific commands please type "plugin <command> -h"

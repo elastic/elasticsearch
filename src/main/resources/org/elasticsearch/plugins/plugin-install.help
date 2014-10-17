@@ -1,0 +1,42 @@
+NAME
+
+    plugin install - Installs new plugins
+
+SYNOPSIS:
+
+    plugin install [options] <plugin_name>
+
+DESCRIPTION
+
+    The name of the plugin is a required argument that may have the following
+    forms:
+
+    elasticsearch/<plugin>/<version>    For official elasticsearch plugins,
+                                        downloaded from download.elasticsearch.org
+
+    <groupId>/<artifactId>/<version>    For community plugins, downloaded from maven
+                                        central or oss sonatype.
+
+    <username>/<repository>             For _site plugins, downloaded from the master
+                                        branch their github repository.
+
+OPTIONS
+
+    -u,--url <url>          Set exact URL to download the plugin from
+
+    -t,--timeout <time>     Sets the timeout for the plugin download. Uses time value
+                            format (e.g 30s, 1m, 1h...) and is set to infinite by
+                            default.
+
+    -h, --help              prints this message
+
+    -s, --silent            Sets the verbosity level to silent mode (this option is
+                            mutually exclusive with the '-v' option).
+
+    -v, --verbose           Sets the verbosity level to verbose mode (this option is
+                            mutually exclusive with the '-s' option).
+
+SEE ALSO
+
+    plugin uninstall
+    plugin list

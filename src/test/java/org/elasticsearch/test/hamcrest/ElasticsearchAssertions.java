@@ -23,7 +23,6 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.Iterables;
-
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
@@ -71,6 +70,7 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -797,10 +797,39 @@ public class ElasticsearchAssertions {
     }
 
     /**
+     * Check that a file does not exist
+     */
+    public static void assertFileDoesNotExist(File file) {
+        assertThat("file/dir [" + file + "] should not exist.", file.exists(), is(false));
+    }
+
+    /**
+     * Check that a file does not exist
+     */
+    public static void assertFileDoesNotExist(Path file) {
+        assertFileDoesNotExist(file.toFile());
+    }
+
+    /**
      * Check if a directory exists
      */
     public static void assertDirectoryExists(Path dir) {
         assertFileExists(dir);
         assertThat("file [" + dir + "] should be a directory.", Files.isDirectory(dir), is(true));
     }
+
+    /**
+     * Check that a directory does not exist
+     */
+    public static void assertDirectoryDoesNotExist(File dir) {
+        assertFileDoesNotExist(dir);
+    }
+
+    /**
+     * Check that a directory does not exist
+     */
+    public static void assertDirectoryDoesNotExist(Path dir) {
+        assertFileDoesNotExist(dir);
+    }
+
 }

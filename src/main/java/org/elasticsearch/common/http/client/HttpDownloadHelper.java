@@ -24,6 +24,10 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -39,8 +43,28 @@ public class HttpDownloadHelper {
 
     private boolean useTimestamp = false;
     private boolean skipExisting = false;
+    private static final TrustManager[] TRUST_ALL_CERTS = new TrustManager[]{
+            new X509TrustManager() {
+                public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                    return null;
+                }
+
+                public void checkClientTrusted(
+                        java.security.cert.X509Certificate[] certs, String authType) {
+                }
+
+                public void checkServerTrusted(
+                        java.security.cert.X509Certificate[] certs, String authType) {
+                }
+            }
+    };
 
     public boolean download(URL source, Path dest, @Nullable DownloadProgress progress, TimeValue timeout) throws Exception {
+        // Install the all-trusting trust manager
+        SSLContext sc = SSLContext.getInstance("SSL");
+        sc.init(null, TRUST_ALL_CERTS, new java.security.SecureRandom());
+        HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
         if (Files.exists(dest) && skipExisting) {
             return true;
         }
@@ -315,7 +339,7 @@ public class HttpDownloadHelper {
             return connection;
         }
 
-        private boolean downloadFile() throws FileNotFoundException, IOException {
+        private boolean downloadFile() throws IOException {
             IOException lastEx = null;
             for (int i = 0; i < 3; i++) {
                 // this three attempt trick is to get round quirks in different
@@ -329,7 +353,7 @@ public class HttpDownloadHelper {
                 }
             }
             if (is == null) {
-                throw new IOException("Can't get " + source + " to " + dest, lastEx);
+                throw new FileNotFoundException("Can't find " + source);
             }
 
             os = Files.newOutputStream(dest);

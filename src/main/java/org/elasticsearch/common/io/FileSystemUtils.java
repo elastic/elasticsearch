@@ -214,6 +214,9 @@ public final class FileSystemUtils {
                 return FileVisitResult.CONTINUE;
             }
         });
+
+        // When done, we can remove source dir as its content has been moved to destination dir
+        IOUtils.rm(source);
     }
 
     /**

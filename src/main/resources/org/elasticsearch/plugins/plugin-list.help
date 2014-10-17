@@ -1,0 +1,16 @@
+NAME
+
+    plugin list - Lists the installed plugins
+
+SYNOPSIS:
+
+    plugin list [options]
+
+OPTIONS
+
+    -h, --help      Prints this message
+
+SEE ALSO
+
+    plugin install
+    plugin uninstall

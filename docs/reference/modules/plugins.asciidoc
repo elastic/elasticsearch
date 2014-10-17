@@ -9,8 +9,10 @@ custom manner. They range from adding custom mapping types, custom
 analyzers (in a more built in fashion), native scripts, custom discovery
 and more.
 
+coming[1.4.0]
+
 [float]
-[[installing]]
+[[plugins-command-install]]
 ==== Installing plugins
 
 Installing plugins can either be done manually by placing them under the
@@ -22,89 +24,148 @@ Installing plugins typically take the following form:
 
 [source,shell]
 -----------------------------------
-plugin --install <org>/<user/component>/<version>
+bin/plugin install [options] <plugin_name>
 -----------------------------------
 
-The plugins will be
-automatically downloaded in this case from `download.elasticsearch.org`,
-and in case they don't exist there, from maven (central and sonatype).
+The name of the plugin is a required argument that may have the following forms:
 
-Note that when the plugin is located in maven central or sonatype
-repository, `<org>` is the artifact `groupId` and `<user/component>` is
-the `artifactId`.
+[cols="<,<",options="header",]
+|=======================================================================
+|Plugin name form |Description
+|`elasticsearch/<plugin>/<version>` |
+For official elasticsearch plugins, downloaded from download.elasticsearch.org.
 
-A plugin can also be installed directly by specifying the URL for it,
-for example:
+|`<groupId>/<artifactId>/<version>` |
+For community plugins, downloaded from maven central or oss sonatype.
 
-[source,shell]
------------------------------------
-bin/plugin --url file:///path/to/plugin --install plugin-name
------------------------------------
+|`<username>/<repository>`          |
+For _site plugins, downloaded from the master branch their github repository.
 
+|=======================================================================
 
-You can run `bin/plugin -h`.
+Options could be one of the following:
 
-[float]
-[[site-plugins]]
-==== Site Plugins
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Option name |Alternative name  |Description
+|`-u <url>`  |`--url<url>`      |
+Set exact URL to download the plugin from. Could be for example a local file: `--url file:/path/to/plugin`
 
-Plugins can have "sites" in them, any plugin that exists under the
-`plugins` directory with a `_site` directory, its content will be
-statically served when hitting `/_plugin/[plugin_name]/` url. Those can
-be added even after the process has started.
+|`-t <time>` |`--timeout <time>`|
+Sets the timeout for the plugin download. Uses time value format (e.g `30s`, `1m`, `1h`...) and is set to infinite by
+default. See also <<plugins-timeout-settings,timeout settings>>.
 
-Installed plugins that do not contain any java related content, will
-automatically be detected as site plugins, and their content will be
-moved under `_site`.
+|`-s`        |`--silent`        |
+Sets the verbosity level to silent mode (this option is mutually exclusive with the `-v` option).
+See also <<plugins-silent-verbose,silent verbose>>.
 
-The ability to install plugins from Github allows to easily install site
-plugins hosted there by downloading the actual repo, for example,
-running:
+|`-v`        |`--verbose`       |
+Sets the verbosity level to verbose mode (this option is mutually exclusive with the `-s` option).
+See also <<plugins-silent-verbose,silent verbose>>.
 
-[source,js]
---------------------------------------------------
-bin/plugin --install mobz/elasticsearch-head
-bin/plugin --install lukas-vlcek/bigdesk
---------------------------------------------------
+|`-h`        |`--help`          |
+Display a help message regarding install command
 
-Will install both of those site plugins, with `elasticsearch-head`
-available under `http://localhost:9200/_plugin/head/` and `bigdesk`
-available under `http://localhost:9200/_plugin/bigdesk/`.
+|=======================================================================
 
 [float]
-==== Mandatory Plugins
-
-If you rely on some plugins, you can define mandatory plugins using the
-`plugin.mandatory` attribute, for example, here is a sample config:
-
-[source,js]
---------------------------------------------------
-plugin.mandatory: mapper-attachments,lang-groovy
---------------------------------------------------
-
-For safety reasons, if a mandatory plugin is not installed, the node
-will not start.
-
-[float]
-==== Installed Plugins
-
-A list of the currently loaded plugins can be retrieved using the
-<<cluster-nodes-info,Node Info API>>.
-
-[float]
+[[plugins-command-uninstall]]
 ==== Removing plugins
 
-Removing plugins can either be done manually by removing them under the
-`plugins` directory, or using the `plugin` script.
+Removing plugins can either be done manually by removing them under the `plugins` directory and depending on plugins 
+under `bin` or `config` directories, or using the `plugin` script.
 
 Removing plugins typically take the following form:
 
 [source,shell]
 -----------------------------------
-plugin --remove <pluginname>
+bin/plugin uninstall [options] <plugin_name>
 -----------------------------------
 
+The name of the plugin is a required argument that may have the following forms:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Plugin name form |Description
+|`<plugin>` |
+The short plugin name as it's shown by <<plugins-command-list,list command>>.
+
+|`elasticsearch/<plugin>/<version>` |
+For official elasticsearch plugins, downloaded from download.elasticsearch.org.
+
+|`<groupId>/<artifactId>/<version>` |
+For community plugins, downloaded from maven central or oss sonatype.
+
+|`<username>/<repository>`          |
+For _site plugins, downloaded from the master branch their github repository.
+
+|=======================================================================
+
+Options could be one of the following:
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Option name |Alternative name  |Description
+|`-s`        |`--silent`        |
+Sets the verbosity level to silent mode (this option is mutually exclusive with the `-v` option).
+See also <<plugins-silent-verbose,silent verbose>>.
+
+|`-v`        |`--verbose`       |
+Sets the verbosity level to verbose mode (this option is mutually exclusive with the `-s` option).
+See also <<plugins-silent-verbose,silent verbose>>.
+
+|`-h`        |`--help`          |
+Display a help message regarding uninstall command
+
+|=======================================================================
+
 [float]
+[[plugins-command-list]]
+==== Listing installed plugins
+
+A list of the currently loaded plugins can be retrieved using the <<cluster-nodes-info,Node Info API>>.
+
+You can also list plugins using `list` command:
+
+[source,shell]
+-----------------------------------
+bin/plugin list [options]
+-----------------------------------
+
+Options could be one of the following:
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Option name |Alternative name  |Description
+|`-h`        |`--help`          |
+Display a help message regarding uninstall command
+
+|=======================================================================
+
+
+[float]
+[[plugins-command-help]]
+==== Help
+ 
+You can list supported commands using `-h` or `--help`:
+
+[source,shell]
+-----------------------------------
+bin/plugin -h
+bin/plugin --help
+-----------------------------------
+
+You can also get detailed help about any supported command:
+
+[source,shell]
+-----------------------------------
+bin/plugin <command> -h
+bin/plugin <command> --help
+-----------------------------------
+
+
+[float]
+[[plugins-silent-verbose]]
 ==== Silent/Verbose mode
 
 When running the `plugin` script, you can get more information (debug mode) using `--verbose`.
@@ -119,11 +180,12 @@ Note that exit codes could be:
 
 [source,shell]
 -----------------------------------
-bin/plugin --install mobz/elasticsearch-head --verbose
-plugin --remove head --silent
+bin/plugin install --verbose elasticsearch/marvel/latest
+bin/plugin uninstall --silent marvel
 -----------------------------------
 
 [float]
+[[plugins-timeout-settings]]
 ==== Timeout settings
 
 By default, the `plugin` script will wait indefinitely when downloading before failing.
@@ -133,13 +195,13 @@ different values:
 [source,shell]
 -----------------------------------
 # Wait for 30 seconds before failing
-bin/plugin --install mobz/elasticsearch-head --timeout 30s
+bin/plugin install --timeout 30s mobz/elasticsearch-head
 
 # Wait for 1 minute before failing
-bin/plugin --install mobz/elasticsearch-head --timeout 1m
+bin/plugin install --timeout 1m mobz/elasticsearch-head
 
 # Wait forever (default)
-bin/plugin --install mobz/elasticsearch-head --timeout 0
+bin/plugin install --timeout 0 mobz/elasticsearch-head
 -----------------------------------
 
 [float]
@@ -160,6 +222,68 @@ On Windows, here is an example of setting it:
 -----------------------------------
 set JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
 bin/plugin --install mobz/elasticsearch-head
+-----------------------------------
+
+
+[float]
+[[site-plugins]]
+==== Site Plugins
+
+Plugins can have "sites" in them, any plugin that exists under the
+`plugins` directory with a `_site` directory, its content will be
+statically served when hitting `/_plugin/[plugin_name]/` url. Those can
+be added even after the process has started.
+
+Installed plugins that do not contain any java related content, will
+automatically be detected as site plugins, and their content will be
+moved under `_site`.
+
+The ability to install plugins from Github allows to easily install site
+plugins hosted there by downloading the actual repo, for example,
+running:
+
+[source,js]
+--------------------------------------------------
+bin/plugin install mobz/elasticsearch-head
+bin/plugin install lukas-vlcek/bigdesk
+--------------------------------------------------
+
+Will install both of those site plugins, with `elasticsearch-head`
+available under `http://localhost:9200/_plugin/head/` and `bigdesk`
+available under `http://localhost:9200/_plugin/bigdesk/`.
+
+[float]
+==== Mandatory Plugins
+
+If you rely on some plugins, you can define mandatory plugins using the
+`plugin.mandatory` attribute, for example, here is a sample config:
+
+[source,js]
+--------------------------------------------------
+plugin.mandatory: mapper-attachments,analysis-smartcn
+--------------------------------------------------
+
+For safety reasons, if a mandatory plugin is not installed, the node
+will not start.
+
+deprecated[1.4.0]
+
+If you are still using elasticsearch 1.3.0 or lesser, plugin script uses older deprecated options:
+
+[source,shell]
+-----------------------------------
+# Before 1.4.0, install was --install
+bin/plugin --install <org>/<user/component>/<version>
+# Installing a local plugin or using a specific download url
+bin/plugin --install plugin-name --url file:///path/to/plugin
+# Before 1.4.0, uninstall was --remove
+bin/plugin --remove <pluginname>
+# Using verbose mode
+bin/plugin --install mobz/elasticsearch-head --verbose
+# Using silent mode
+bin/plugin --remove head --silent
+# Using timeout options
+bin/plugin --install mobz/elasticsearch-head --timeout 30s
 -----------------------------------
 
 [float]

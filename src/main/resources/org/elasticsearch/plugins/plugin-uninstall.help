@@ -1,0 +1,27 @@
+NAME
+
+    plugin uninstall - Uninstalls an installed plugin
+
+SYNOPSIS:
+
+    plugin uninstall [options] <plugin_name>
+
+DESCRIPTION
+
+    The plugin name argument identifies the plugin that should be uninstalled.
+    A list of installed plugins can be listed using the `list` command.
+
+OPTIONS
+
+    -h, --help      Prints this message
+
+    -s, --silent    (Optional) Sets the verbosity level to silent mode (this
+                    option is mutually exclusive with the '-v' option).
+
+    -v, --verbose   (Optional) Sets the verbosity level to verbose mode (this
+                    option is mutually exclusive with the '-s' option).
+
+SEE ALSO
+
+    plugin list
+    plugin install

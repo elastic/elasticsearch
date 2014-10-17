@@ -22,12 +22,12 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
@@ -58,13 +58,17 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     public static class Defaults extends DateFieldMapper.Defaults {
         public static final String NAME = "_timestamp";
 
+        public static final FieldType PRE_20_FIELD_TYPE;
         public static final FieldType FIELD_TYPE = new FieldType(DateFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setStored(true);
             FIELD_TYPE.setIndexed(true);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.freeze();
+            PRE_20_FIELD_TYPE = new FieldType(FIELD_TYPE);
+            PRE_20_FIELD_TYPE.setStored(false);
+            PRE_20_FIELD_TYPE.freeze();
         }
 
         public static final EnabledAttributeMapper ENABLED = EnabledAttributeMapper.UNSET_DISABLED;
@@ -79,6 +83,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         private String path = Defaults.PATH;
         private FormatDateTimeFormatter dateTimeFormatter = Defaults.DATE_TIME_FORMATTER;
         private String defaultTimestamp = Defaults.DEFAULT_TIMESTAMP;
+        private boolean explicitStore = false;
 
         public Builder() {
             super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), Defaults.PRECISION_STEP_64_BIT);
@@ -105,7 +110,17 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         }
 
         @Override
+        public Builder store(boolean store) {
+            explicitStore = true;
+            return super.store(store);
+        }
+
+        @Override
         public TimestampFieldMapper build(BuilderContext context) {
+            if (explicitStore == false && context.indexCreatedVersion().before(Version.V_2_0_0)) {
+                assert fieldType.stored();
+                fieldType.setStored(false);
+            }
             boolean roundCeil = Defaults.ROUND_CEIL;
             if (context.indexSettings() != null) {
                 Settings settings = context.indexSettings();
@@ -139,14 +154,18 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         }
     }
 
+    private static FieldType defaultFieldType(Settings settings) {
+        return Version.indexCreated(settings).onOrAfter(Version.V_2_0_0) ? Defaults.FIELD_TYPE : Defaults.PRE_20_FIELD_TYPE;
+    }
 
     private EnabledAttributeMapper enabledState;
 
     private final String path;
     private final String defaultTimestamp;
+    private final FieldType defaultFieldType;
 
     public TimestampFieldMapper(Settings indexSettings) {
-        this(new FieldType(Defaults.FIELD_TYPE), null, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER, Defaults.DEFAULT_TIMESTAMP,
+        this(new FieldType(defaultFieldType(indexSettings)), null, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER, Defaults.DEFAULT_TIMESTAMP,
                 Defaults.ROUND_CEIL, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, null, indexSettings);
     }
 
@@ -163,11 +182,12 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         this.enabledState = enabledState;
         this.path = path;
         this.defaultTimestamp = defaultTimestamp;
+        this.defaultFieldType = defaultFieldType(indexSettings);
     }
 
     @Override
     public FieldType defaultFieldType() {
-        return Defaults.FIELD_TYPE;
+        return defaultFieldType;
     }
 
     public boolean enabled() {

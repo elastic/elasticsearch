@@ -135,21 +135,21 @@ public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
     @Test
     public void testUpdateTimestamp() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "lazy").field("format", "doc_values").endObject().field("store", "yes").endObject()
+                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "lazy").field("format", "doc_values").endObject().field("store", "no").endObject()
                 .endObject().endObject();
         client().admin().indices().prepareCreate("test").addMapping("type", mapping).get();
         GetMappingsResponse appliedMappings = client().admin().indices().prepareGetMappings("test").get();
         LinkedHashMap timestampMapping = (LinkedHashMap) appliedMappings.getMappings().get("test").get("type").getSourceAsMap().get("_timestamp");
-        assertThat((Boolean) timestampMapping.get("store"), equalTo(true));
+        assertThat((Boolean) timestampMapping.get("store"), equalTo(false));
         assertThat((String)((LinkedHashMap) timestampMapping.get("fielddata")).get("loading"), equalTo("lazy"));
         assertThat((String)((LinkedHashMap) timestampMapping.get("fielddata")).get("format"), equalTo("doc_values"));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "yes").endObject()
+                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "no").endObject()
                 .endObject().endObject();
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
         appliedMappings = client().admin().indices().prepareGetMappings("test").get();
         timestampMapping = (LinkedHashMap) appliedMappings.getMappings().get("test").get("type").getSourceAsMap().get("_timestamp");
-        assertThat((Boolean) timestampMapping.get("store"), equalTo(true));
+        assertThat((Boolean) timestampMapping.get("store"), equalTo(false));
         assertThat((String)((LinkedHashMap) timestampMapping.get("fielddata")).get("loading"), equalTo("eager"));
         assertThat((String)((LinkedHashMap) timestampMapping.get("fielddata")).get("format"), equalTo("array"));
     }

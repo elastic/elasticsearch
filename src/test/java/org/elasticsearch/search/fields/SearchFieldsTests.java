@@ -317,23 +317,6 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         client().admin().indices().prepareRefresh().execute().actionGet();
-
-        SearchResponse response = client().prepareSearch("test")
-                .addPartialField("partial1", "obj1.arr1.*", null)
-                .addPartialField("partial2", null, "obj1")
-                .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
-
-        Map<String, Object> partial1 = response.getHits().getAt(0).field("partial1").value();
-        assertThat(partial1, notNullValue());
-        assertThat(partial1.containsKey("field1"), equalTo(false));
-        assertThat(partial1.containsKey("obj1"), equalTo(true));
-        assertThat(((Map) partial1.get("obj1")).get("arr1"), instanceOf(List.class));
-
-        Map<String, Object> partial2 = response.getHits().getAt(0).field("partial2").value();
-        assertThat(partial2, notNullValue());
-        assertThat(partial2.containsKey("obj1"), equalTo(false));
-        assertThat(partial2.containsKey("field1"), equalTo(true));
     }
 
     @Test

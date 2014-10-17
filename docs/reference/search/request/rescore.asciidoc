@@ -21,8 +21,8 @@ to `scan` or `count`.
 
 *Note:* when exposing pagination to your users, you should not change
 `size` nor `window_size` as you step through each page (by passing
-different `from` values), since such changes can alter the top hits
-causing results to unexpectedly shift as the user steps through pages.
+different `from` values) since such changes can alter the top hits
+causing results to confusingly shift as the user steps through pages.
 
 ==== Query rescorer
 

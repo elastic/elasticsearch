@@ -22,12 +22,14 @@ package org.elasticsearch.search.fetch.source;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Map;
@@ -71,9 +73,11 @@ public class FetchSourceSubPhase implements FetchSubPhase {
             return;
         }
 
-        Object value = context.lookup().source().filter(fetchSourceContext.includes(), fetchSourceContext.excludes());
+        SourceLookup source = context.lookup().source();
+        Object value = source.filter(fetchSourceContext.includes(), fetchSourceContext.excludes());
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(context.lookup().source().sourceContentType());
+            BytesStreamOutput streamOutput = new BytesStreamOutput(source.internalSourceRef().length());
+            XContentBuilder builder = new XContentBuilder(context.lookup().source().sourceContentType().xContent(), streamOutput);
             builder.value(value);
             hitContext.hit().sourceRef(builder.bytes());
         } catch (IOException e) {

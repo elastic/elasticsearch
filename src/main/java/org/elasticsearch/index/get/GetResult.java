@@ -20,6 +20,7 @@
 package org.elasticsearch.index.get;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -34,6 +35,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.Iterators.emptyIterator;
@@ -206,28 +208,39 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
+        List<GetField> metaFields = Lists.newArrayList();
+        List<GetField> otherFields = Lists.newArrayList();
+        if (fields != null && !fields.isEmpty()) {
+            for (GetField field : fields.values()) {
+                if (field.getValues().isEmpty()) {
+                    continue;
+                }
+                if (field.isMetadataField()) {
+                    metaFields.add(field);
+                } else {
+                    otherFields.add(field);
+                }
+            }
+        }
+
+        for (GetField field : metaFields) {
+            builder.field(field.getName(), field.getValue());
+        }
+
         builder.field(Fields.FOUND, exists);
 
         if (source != null) {
             XContentHelper.writeRawField("_source", source, builder, params);
         }
 
-        if (fields != null && !fields.isEmpty()) {
+        if (!otherFields.isEmpty()) {
             builder.startObject(Fields.FIELDS);
-            for (GetField field : fields.values()) {
-                if (field.getValues().isEmpty()) {
-                    continue;
+            for (GetField field : otherFields) {
+                builder.startArray(field.getName());
+                for (Object value : field.getValues()) {
+                    builder.value(value);
                 }
-                String fieldName = field.getName();
-                if (field.isMetadataField()) {
-                    builder.field(fieldName, field.getValue());
-                } else {
-                    builder.startArray(field.getName());
-                    for (Object value : field.getValues()) {
-                        builder.value(value);
-                    }
-                    builder.endArray();
-                }
+                builder.endArray();
             }
             builder.endObject();
         }

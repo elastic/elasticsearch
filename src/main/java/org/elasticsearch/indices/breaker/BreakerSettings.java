@@ -30,11 +30,17 @@ public class BreakerSettings {
     private final CircuitBreaker.Name name;
     private final long limitBytes;
     private final double overhead;
+    private final CircuitBreaker.Type type;
 
     public BreakerSettings(CircuitBreaker.Name name, long limitBytes, double overhead) {
+        this(name, limitBytes, overhead, CircuitBreaker.Type.MEMORY);
+    }
+
+    public BreakerSettings(CircuitBreaker.Name name, long limitBytes, double overhead, CircuitBreaker.Type type) {
         this.name = name;
         this.limitBytes = limitBytes;
         this.overhead = overhead;
+        this.type = type;
     }
 
     public CircuitBreaker.Name getName() {
@@ -49,9 +55,14 @@ public class BreakerSettings {
         return this.overhead;
     }
 
+    public CircuitBreaker.Type getType() {
+        return this.type;
+    }
+
     @Override
     public String toString() {
         return "[" + this.name.toString() +
+                ",type=" + this.type.toString() +
                 ",limit=" + this.limitBytes + "/" + new ByteSizeValue(this.limitBytes) +
                 ",overhead=" + this.overhead + "]";
     }

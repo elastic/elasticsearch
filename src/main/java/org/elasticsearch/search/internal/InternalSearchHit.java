@@ -20,6 +20,7 @@
 package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
@@ -48,6 +49,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
@@ -430,6 +432,21 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        List<SearchHitField> metaFields = Lists.newArrayList();
+        List<SearchHitField> otherFields = Lists.newArrayList();
+        if (fields != null && !fields.isEmpty()) {
+            for (SearchHitField field : fields.values()) {
+                if (field.values().isEmpty()) {
+                    continue;
+                }
+                if (field.isMetadataField()) {
+                    metaFields.add(field);
+                } else {
+                    otherFields.add(field);
+                }
+            }
+        }
+
         builder.startObject();
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
@@ -453,25 +470,20 @@ public class InternalSearchHit implements SearchHit {
         } else {
             builder.field(Fields._SCORE, score);
         }
+        for (SearchHitField field : metaFields) {
+            builder.field(field.name(), field.value());
+        }
         if (source != null) {
             XContentHelper.writeRawField("_source", source, builder, params);
         }
-        if (fields != null && !fields.isEmpty()) {
+        if (!otherFields.isEmpty()) {
             builder.startObject(Fields.FIELDS);
-            for (SearchHitField field : fields.values()) {
-                if (field.values().isEmpty()) {
-                    continue;
+            for (SearchHitField field : otherFields) {
+                builder.startArray(field.name());
+                for (Object value : field.getValues()) {
+                    builder.value(value);
                 }
-                String fieldName = field.getName();
-                if (field.isMetadataField()) {
-                    builder.field(fieldName, field.value());
-                } else {
-                    builder.startArray(fieldName);
-                    for (Object value : field.getValues()) {
-                        builder.value(value);
-                    }
-                    builder.endArray();
-                }
+                builder.endArray();
             }
             builder.endObject();
         }

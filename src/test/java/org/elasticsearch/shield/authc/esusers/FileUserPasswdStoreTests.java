@@ -48,7 +48,7 @@ public class FileUserPasswdStoreTests extends ElasticsearchTestCase {
         assertThat(users, notNullValue());
         assertThat(users.size(), is(6));
         assertThat(users.get("bcrypt"), notNullValue());
-        assertThat(new String(users.get("bcrypt")), equalTo("$2y$05$zxnP0vdREMxnEpkLCDI2OuSaSk/QEKA2.A42iOpI6U2u.RLLOWm1e"));
+        assertThat(new String(users.get("bcrypt")), equalTo("$2a$05$zxnP0vdREMxnEpkLCDI2OuSaSk/QEKA2.A42iOpI6U2u.RLLOWm1e"));
         assertThat(users.get("bcrypt10"), notNullValue());
         assertThat(new String(users.get("bcrypt10")), equalTo("$2y$10$FMhmFjwU5.qxQ/BsEciS9OqcJVkFMgXMo4uH5CelOR1j4N9zIv67e"));
         assertThat(users.get("md5"), notNullValue());

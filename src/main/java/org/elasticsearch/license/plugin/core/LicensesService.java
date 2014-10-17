@@ -453,12 +453,16 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         private void enableFeatureIfNeeded() {
             if (toggle.compareAndSet(false, true) || initialState.compareAndSet(true, false)) {
                 listener.onEnabled();
+                // needed as toggle may not be set
+                toggle.set(true);
             }
         }
 
         private void disableFeatureIfNeeded() {
             if (toggle.compareAndSet(true, false) || initialState.compareAndSet(true, false)) {
                 listener.onDisabled();
+                // needed as toggle may not be set
+                toggle.set(false);
             }
         }
     }

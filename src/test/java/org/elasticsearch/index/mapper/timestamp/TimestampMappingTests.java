@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.mapper.timestamp;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,25 +30,36 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
@@ -86,13 +99,19 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testDefaultValues() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED.enabled));
-        assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.stored()));
-        assertThat(docMapper.timestampFieldMapper().fieldType().indexed(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexed()));
-        assertThat(docMapper.timestampFieldMapper().path(), equalTo(TimestampFieldMapper.Defaults.PATH));
-        assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
+        for (Version version : Arrays.asList(Version.V_1_5_0, Version.V_2_0_0, ElasticsearchTestCase.randomVersion())) {
+            for (String mapping : Arrays.asList(
+                    XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string(),
+                    XContentFactory.jsonBuilder().startObject().startObject("type").startObject("_timestamp").endObject().endObject().string())) {
+                DocumentMapper docMapper = createIndex("test", ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build()).mapperService().documentMapperParser().parse(mapping);
+                assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED.enabled));
+                assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(version.onOrAfter(Version.V_2_0_0) ? true : false));
+                assertThat(docMapper.timestampFieldMapper().fieldType().indexed(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexed()));
+                assertThat(docMapper.timestampFieldMapper().path(), equalTo(TimestampFieldMapper.Defaults.PATH));
+                assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
+                assertAcked(client().admin().indices().prepareDelete("test").execute().get());
+            }
+        }
     }
 
 
@@ -100,13 +119,13 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
     public void testSetValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp")
-                .field("enabled", "yes").field("store", "yes").field("index", "no")
+                .field("enabled", "yes").field("store", "no").field("index", "no")
                 .field("path", "timestamp").field("format", "year")
                 .endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(true));
-        assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(true));
+        assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(false));
         assertThat(docMapper.timestampFieldMapper().fieldType().indexed(), equalTo(false));
         assertThat(docMapper.timestampFieldMapper().path(), equalTo("timestamp"));
         assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo("year"));
@@ -144,8 +163,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(serializedMap, hasKey("_timestamp"));
         assertThat(serializedMap.get("_timestamp"), instanceOf(Map.class));
         Map<String, Object> timestampConfiguration = (Map<String, Object>) serializedMap.get("_timestamp");
-        assertThat(timestampConfiguration, hasKey("store"));
-        assertThat(timestampConfiguration.get("store").toString(), is("true"));
         assertThat(timestampConfiguration, hasKey("index"));
         assertThat(timestampConfiguration.get("index").toString(), is("no"));
     }
@@ -418,7 +435,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true)
                 .field("index", randomBoolean() ? "no" : "analyzed") // default is "not_analyzed" which will be omitted when building the source again
-                .field("store", true)
                 .field("path", "foo")
                 .field("default", "1970-01-01")
                 .startObject("fielddata").field("format", "doc_values").endObject()

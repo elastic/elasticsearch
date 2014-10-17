@@ -78,6 +78,11 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
         return this;
     }
 
+    public SearchScrollRequestBuilder setThreadPoolName(String threadPoolName){
+        request.threadPool(threadPoolName);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<SearchResponse> listener) {
         client.searchScroll(request, listener);

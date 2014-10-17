@@ -43,6 +43,8 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
 
     private OriginalIndices originalIndices;
 
+    private String thredPoolName;
+
     public QuerySearchRequest() {
     }
 
@@ -51,6 +53,7 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
         this.id = id;
         this.dfs = dfs;
         this.originalIndices = new OriginalIndices(request);
+        this.thredPoolName = request.threadPool();
     }
 
     public long id() {
@@ -59,6 +62,11 @@ public class QuerySearchRequest extends TransportRequest implements IndicesReque
 
     public AggregatedDfs dfs() {
         return dfs;
+    }
+
+    public String threadPoolName()
+    {
+        return thredPoolName;
     }
 
     @Override

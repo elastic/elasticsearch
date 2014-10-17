@@ -50,6 +50,8 @@ public interface ShardSearchRequest {
 
     SearchType searchType();
 
+    String threadPoolName();
+
     String[] filteringAliases();
 
     long nowInMillis();

@@ -39,6 +39,7 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
 
     private String scrollId;
     private Scroll scroll;
+    private String threadPoolName;
 
     public SearchScrollRequest() {
     }
@@ -63,6 +64,13 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
         return scrollId;
     }
 
+    /**
+     * returns thread pool name if specified in scroll request
+     */
+    public String threadPoolName(){
+        return this.threadPoolName;
+    }
+
     public SearchScrollRequest scrollId(String scrollId) {
         this.scrollId = scrollId;
         return this;
@@ -80,6 +88,11 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
      */
     public SearchScrollRequest scroll(Scroll scroll) {
         this.scroll = scroll;
+        return this;
+    }
+
+    public SearchScrollRequest threadPool(String threadPoolName){
+        this.threadPoolName = threadPoolName;
         return this;
     }
 

@@ -69,6 +69,8 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     private String routing;
     @Nullable
     private String preference;
+    @Nullable
+    private String threadPoolName;
 
     private BytesReference templateSource;
     private boolean templateSourceUnsafe;
@@ -228,6 +230,14 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     public SearchRequest routing(String routing) {
         this.routing = routing;
         return this;
+    }
+
+    /**
+     *  Name for custom search threadpool , no name or null default to SEARCH thread pool
+     */
+    public SearchRequest threadPool(String threadPoolName){
+        this.threadPoolName = threadPoolName;
+        return  this;
     }
 
     /**
@@ -491,6 +501,13 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         return searchType;
     }
 
+
+    /**
+     * returns thread pool name
+     */
+    public String threadPool() {
+        return threadPoolName;
+    }
     /**
      * The indices
      */

@@ -67,6 +67,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
 
     private int numberOfShards;
 
+    private String threadPoolName;
+
     private SearchType searchType;
 
     private Scroll scroll;
@@ -100,6 +102,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.templateName = searchRequest.templateName();
         this.templateType = searchRequest.templateType();
         this.templateParams = searchRequest.templateParams();
+        this.threadPoolName = searchRequest.threadPool();
         this.scroll = searchRequest.scroll();
         this.useSlowScroll = useSlowScroll;
         this.filteringAliases = filteringAliases;
@@ -165,6 +168,11 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     @Override
     public SearchType searchType() {
         return searchType;
+    }
+
+    @Override
+    public String threadPoolName() {
+        return this.threadPoolName;
     }
 
     @Override

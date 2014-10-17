@@ -196,7 +196,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                 public DfsSearchResult call() throws Exception {
                     return searchService.executeDfsPhase(request);
                 }
-            }, listener);
+            }, listener,request.threadPoolName());
         } else {
             transportService.sendRequest(node, DFS_ACTION_NAME, request, new BaseTransportResponseHandler<DfsSearchResult>() {
 
@@ -230,7 +230,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                 public QuerySearchResultProvider call() throws Exception {
                     return searchService.executeQueryPhase(request);
                 }
-            }, listener);
+            }, listener,request.threadPoolName());
         } else {
             transportService.sendRequest(node, QUERY_ACTION_NAME, request, new BaseTransportResponseHandler<QuerySearchResultProvider>() {
 
@@ -264,7 +264,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                 public QuerySearchResult call() throws Exception {
                     return searchService.executeQueryPhase(request);
                 }
-            }, listener);
+            }, listener,request.threadPoolName());
         } else {
             transportService.sendRequest(node, QUERY_ID_ACTION_NAME, request, new BaseTransportResponseHandler<QuerySearchResult>() {
 
@@ -298,7 +298,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                 public QuerySearchResult call() throws Exception {
                     return searchService.executeQueryPhase(request).queryResult();
                 }
-            }, listener);
+            }, listener,request.threadPoolName());
         } else {
             transportService.sendRequest(node, QUERY_SCROLL_ACTION_NAME, request, new BaseTransportResponseHandler<ScrollQuerySearchResult>() {
 
@@ -332,7 +332,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                 public QueryFetchSearchResult call() throws Exception {
                     return searchService.executeFetchPhase(request);
                 }
-            }, listener);
+            }, listener,request.threadPoolName());
         } else {
             transportService.sendRequest(node, QUERY_FETCH_ACTION_NAME, request, new BaseTransportResponseHandler<QueryFetchSearchResult>() {
 
@@ -366,7 +366,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                 public QueryFetchSearchResult call() throws Exception {
                     return searchService.executeFetchPhase(request);
                 }
-            }, listener);
+            }, listener,request.threadPoolName());
         } else {
             transportService.sendRequest(node, QUERY_QUERY_FETCH_ACTION_NAME, request, new BaseTransportResponseHandler<QueryFetchSearchResult>() {
 
@@ -400,7 +400,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                 public QueryFetchSearchResult call() throws Exception {
                     return searchService.executeFetchPhase(request).result();
                 }
-            }, listener);
+            }, listener,request.threadPoolName());
         } else {
             transportService.sendRequest(node, QUERY_FETCH_SCROLL_ACTION_NAME, request, new BaseTransportResponseHandler<ScrollQueryFetchSearchResult>() {
 
@@ -451,7 +451,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                 public FetchSearchResult call() throws Exception {
                     return searchService.executeFetchPhase(request);
                 }
-            }, listener);
+            }, listener,request.threadPoolName());
         } else {
             transportService.sendRequest(node, action, request, new BaseTransportResponseHandler<FetchSearchResult>() {
 
@@ -485,7 +485,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                 public QuerySearchResult call() throws Exception {
                     return searchService.executeScan(request);
                 }
-            }, listener);
+            }, listener,request.threadPoolName());
         } else {
             transportService.sendRequest(node, SCAN_ACTION_NAME, request, new BaseTransportResponseHandler<QuerySearchResult>() {
 
@@ -519,7 +519,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
                 public QueryFetchSearchResult call() throws Exception {
                     return searchService.executeScan(request).result();
                 }
-            }, listener);
+            }, listener,request.threadPoolName());
         } else {
             transportService.sendRequest(node, SCAN_SCROLL_ACTION_NAME, request, new BaseTransportResponseHandler<ScrollQueryFetchSearchResult>() {
 
@@ -546,9 +546,12 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    private <T> void execute(final Callable<? extends T> callable, final SearchServiceListener<T> listener) {
+    private <T> void execute(final Callable<? extends T> callable, final SearchServiceListener<T> listener,String threadPoolName) {
+        if (threadPoolName == null) {
+            threadPoolName = ThreadPool.Names.SEARCH;
+        }
         try {
-            threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+            threadPool.executor(threadPoolName).execute(new Runnable() {
                 @Override
                 public void run() {
                     // Listeners typically do counting on errors and successes, and the decision to move to second phase, etc. is based on

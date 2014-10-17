@@ -154,6 +154,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * This sets the custom search_thread pool to be used to run queries, defaults to SEARCH
+     */
+    public SearchRequestBuilder setThreadPoolName(String threadPoolName){
+        request.threadPool(threadPoolName);
+        return this;
+    }
+
+    /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
      * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
      * a custom value, which guarantees that the same order will be used across different requests.

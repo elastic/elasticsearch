@@ -21,7 +21,9 @@ package org.elasticsearch.threadpool;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -49,9 +51,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.*;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
+import static org.elasticsearch.common.settings.ImmutableSettings.builder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
@@ -105,10 +109,22 @@ public class ThreadPool extends AbstractComponent {
         assert settings.get("name") != null : "ThreadPool's settings should contain a name";
 
         Map<String, Settings> groupSettings = settings.getGroups(THREADPOOL_GROUP);
+        Set<String> defaultExecutorNames  = Sets.newHashSet(Names.GENERIC, Names.INDEX, Names.BULK, Names.GET, Names.SEARCH, Names.SUGGEST, Names.PERCOLATE, Names.MANAGEMENT, Names.LISTENER, Names.FLUSH, Names.MERGE,
+                Names.REFRESH, Names.WARMER, Names.SNAPSHOT, Names.OPTIMIZE, Names.BENCH
+        );
 
         int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
         int halfProcMaxAt5 = Math.min(((availableProcessors + 1) / 2), 5);
         int halfProcMaxAt10 = Math.min(((availableProcessors + 1) / 2), 10);
+
+        Map<String,Settings> customThreadPools = Maps.newConcurrentMap();
+
+        for(String key : groupSettings.keySet())   {
+            if (!defaultExecutorNames.contains(key)) {
+                customThreadPools.put(key, settingsBuilder().put("type", "fixed").put("size", availableProcessors * 3).put("queue_size", 1000).build());
+            }
+        }
+
         defaultExecutorTypeSettings = ImmutableMap.<String, Settings>builder()
                 .put(Names.GENERIC, settingsBuilder().put("type", "cached").put("keep_alive", "30s").build())
                 .put(Names.INDEX, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 200).build())
@@ -128,6 +144,7 @@ public class ThreadPool extends AbstractComponent {
                 .put(Names.SNAPSHOT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .put(Names.OPTIMIZE, settingsBuilder().put("type", "fixed").put("size", 1).build())
                 .put(Names.BENCH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
+                .putAll(customThreadPools)
                 .build();
 
         Map<String, ExecutorHolder> executors = Maps.newHashMap();
@@ -216,7 +233,11 @@ public class ThreadPool extends AbstractComponent {
     }
 
     public Executor executor(String name) {
-        Executor executor = executors.get(name).executor();
+        ExecutorHolder executorHolder = executors.get(name);
+        Executor executor = null;
+        if (executorHolder != null) {
+            executor = executorHolder.executor();
+        }
         if (executor == null) {
             throw new ElasticsearchIllegalArgumentException("No executor found for [" + name + "]");
         }

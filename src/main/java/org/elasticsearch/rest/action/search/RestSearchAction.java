@@ -83,7 +83,12 @@ public class RestSearchAction extends BaseRestHandler {
 
     public static SearchRequest parseSearchRequest(RestRequest request) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        String threadPool = request.param("threadpool");
+
         SearchRequest searchRequest = new SearchRequest(indices);
+        if (searchRequest != null ){
+            searchRequest.threadPool(threadPool);
+        }
         // get the content, and put it in the body
         // add content/source as template if template flag is set
         boolean isTemplateRequest = request.path().endsWith("/template");

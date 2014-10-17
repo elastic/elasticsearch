@@ -44,6 +44,8 @@ public class ShardFetchRequest extends TransportRequest {
 
     private int size;
 
+    private String threadPoolName;
+
     private ScoreDoc lastEmittedDoc;
 
     public ShardFetchRequest() {
@@ -55,6 +57,7 @@ public class ShardFetchRequest extends TransportRequest {
         this.docIds = list.buffer;
         this.size = list.size();
         this.lastEmittedDoc = lastEmittedDoc;
+        this.threadPoolName = request.threadPoolName();
     }
 
     protected ShardFetchRequest(TransportRequest originalRequest, long id, IntArrayList list, ScoreDoc lastEmittedDoc) {
@@ -67,6 +70,10 @@ public class ShardFetchRequest extends TransportRequest {
 
     public long id() {
         return id;
+    }
+
+    public String threadPoolName(){
+        return threadPoolName;
     }
 
     public int[] docIds() {

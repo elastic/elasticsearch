@@ -46,6 +46,7 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     private OriginalIndices originalIndices;
 
     private ShardSearchLocalRequest shardSearchLocalRequest;
+    private String threadPoolName;
 
     public ShardSearchTransportRequest(){
     }
@@ -56,6 +57,7 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
         this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardRouting, numberOfShards,
                 useSlowScroll, filteringAliases, nowInMillis);
         this.originalIndices = new OriginalIndices(searchRequest);
+        this.threadPoolName = searchRequest.threadPool();
     }
 
     @Override
@@ -74,6 +76,10 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
         return originalIndices.indicesOptions();
     }
 
+    @Override
+    public String threadPoolName(){
+        return shardSearchLocalRequest.threadPoolName();
+    }
     @Override
     public String index() {
         return shardSearchLocalRequest.index();

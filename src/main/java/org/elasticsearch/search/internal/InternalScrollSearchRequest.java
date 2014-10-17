@@ -35,7 +35,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
 public class InternalScrollSearchRequest extends TransportRequest {
 
     private long id;
-
+    private String threadPoolName;
     private Scroll scroll;
 
     public InternalScrollSearchRequest() {
@@ -44,6 +44,7 @@ public class InternalScrollSearchRequest extends TransportRequest {
     public InternalScrollSearchRequest(SearchScrollRequest request, long id) {
         super(request);
         this.id = id;
+        this.threadPoolName = request.threadPoolName();
         this.scroll = request.scroll();
     }
 
@@ -53,6 +54,10 @@ public class InternalScrollSearchRequest extends TransportRequest {
 
     public Scroll scroll() {
         return scroll;
+    }
+
+    public String threadPoolName(){
+        return this.threadPoolName;
     }
 
     public InternalScrollSearchRequest scroll(Scroll scroll) {

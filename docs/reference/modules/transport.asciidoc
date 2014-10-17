@@ -48,6 +48,7 @@ between all nodes. Defaults to `false`.
 It also uses the common
 <<modules-network,network settings>>.
 
+[float]
 ==== TCP Transport Profiles
 
 Elasticsearch allows you to bind to multiple ports on different interfaces by the use of transport profiles. See this example configuration

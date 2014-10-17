@@ -60,6 +60,17 @@ cloud:
             protocol: https
 ```
 
+In addition, a proxy can be configured with the `proxy_host` and `proxy_port` settings (note that protocol can be `http` or `https`):
+
+```
+cloud:
+    aws:
+        protocol: https
+        proxy_host: proxy1.company.com
+        proxy_port: 8083
+```
+
+
 ### Region
 
 The `cloud.aws.region` can be set to a region and will automatically use the relevant settings for both `ec2` and `s3`. The available values are:

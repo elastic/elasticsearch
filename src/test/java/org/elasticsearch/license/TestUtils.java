@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.license.core.DateUtils;
 import org.elasticsearch.license.core.ESLicenses;
+import org.elasticsearch.license.core.LicenseBuilders;
 import org.elasticsearch.license.licensor.tools.LicenseGeneratorTool;
 
 import java.io.File;
@@ -87,6 +88,40 @@ public class TestUtils {
             assertTrue("generated licenses should have non-null uid field", esLicense.uid() != null);
             assertTrue("generated licenses should have non-null signature field", esLicense.signature() != null);
         }
+    }
+
+    //TODO: convert to asserts
+    public static void isSame(ESLicenses firstLicenses, ESLicenses secondLicenses) {
+
+        // we do the build to make sure we weed out any expired licenses
+        final ESLicenses licenses1 = LicenseBuilders.licensesBuilder().licenses(firstLicenses).build();
+        final ESLicenses licenses2 = LicenseBuilders.licensesBuilder().licenses(secondLicenses).build();
+
+        // check if the effective licenses have the same feature set
+        assertTrue("Both licenses should have the same number of features",licenses1.features().equals(licenses2.features()));
+
+
+        // for every feature license, check if all the attributes are the same
+        for (ESLicenses.FeatureType featureType : licenses1.features()) {
+            ESLicenses.ESLicense license1 = licenses1.get(featureType);
+            ESLicenses.ESLicense license2 = licenses2.get(featureType);
+
+            isSame(license1, license2);
+
+        }
+    }
+
+    public static void isSame(ESLicenses.ESLicense license1, ESLicenses.ESLicense license2) {
+
+        assertTrue("Should have same uid; got: " + license1.uid() + " and " + license2.uid(), license1.uid().equals(license2.uid()));
+        assertTrue("Should have same feature; got: " + license1.feature().string() + " and " + license2.feature().string(), license1.feature().string().equals(license2.feature().string()));
+        assertTrue("Should have same subscriptType; got: " + license1.subscriptionType().string() + " and " + license2.subscriptionType().string(), license1.subscriptionType().string().equals(license2.subscriptionType().string()));
+        assertTrue("Should have same type; got: " + license1.type().string() + " and " + license2.type().string(), license1.type().string().equals(license2.type().string()));
+        assertTrue("Should have same issuedTo; got: " + license1.issuedTo() + " and " + license2.issuedTo(), license1.issuedTo().equals(license2.issuedTo()));
+        assertTrue("Should have same signature; got: " + license1.signature() + " and " + license2.signature(), license1.signature().equals(license2.signature()));
+        assertTrue("Should have same expiryDate; got: " + license1.expiryDate() + " and " + license2.expiryDate(), license1.expiryDate() == license2.expiryDate());
+        assertTrue("Should have same issueDate; got: " + license1.issueDate() + " and " + license2.issueDate(), license1.issueDate() == license2.issueDate());
+        assertTrue("Should have same maxNodes; got: " + license1.maxNodes() + " and " + license2.maxNodes(), license1.maxNodes() == license2.maxNodes());
     }
 
     public static class FeatureAttributes {

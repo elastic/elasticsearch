@@ -53,7 +53,7 @@ public class LicenseBuilders {
         final LicensesBuilder licensesBuilder = licensesBuilder();
         for (ESLicense license : licenses) {
             if (!featureTypesToDelete.contains(license.feature())) {
-                licensesBuilder.license(license);
+                licensesBuilder.licenseAsIs(license);
             }
         }
         return licensesBuilder.build();

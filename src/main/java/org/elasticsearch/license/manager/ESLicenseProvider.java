@@ -14,6 +14,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.license.core.ESLicenses;
+import org.elasticsearch.license.core.LicenseBuilders;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
 
 import java.io.IOException;
@@ -66,7 +67,11 @@ public abstract class ESLicenseProvider implements LicenseProvider {
 
         private ESLicenses getLicensesFromClusterState() {
             final ClusterState state = clusterService.state();
-            return (ESLicenses) state.metaData().custom(LicensesMetaData.TYPE);
+            LicensesMetaData metaData = state.metaData().custom(LicensesMetaData.TYPE);
+            if (metaData != null) {
+                return Utils.fromSignatures(metaData.getSignatures());
+            }
+            return LicenseBuilders.licensesBuilder().build();
         }
 
 

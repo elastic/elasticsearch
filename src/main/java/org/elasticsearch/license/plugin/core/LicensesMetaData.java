@@ -6,12 +6,14 @@
 package org.elasticsearch.license.plugin.core;
 
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.core.ESLicenses;
+import org.elasticsearch.license.plugin.action.Utils;
 import org.elasticsearch.license.plugin.core.trial.TrialLicenseUtils;
 import org.elasticsearch.license.plugin.core.trial.TrialLicenses;
 
@@ -30,27 +32,31 @@ public class LicensesMetaData implements MetaData.Custom {
 
     public static final Factory FACTORY = new Factory();
 
-    private final ESLicenses licenses;
+    final Set<String> signatures;
 
-    private final TrialLicenses trialLicenses;
+    final Set<String> encodedTrialLicenses;
+
+    public LicensesMetaData(String[] signatures, String[] encodedTrialLicenses) {
+        this(Sets.newHashSet(signatures), Sets.newHashSet(encodedTrialLicenses));
+    }
 
     /**
      * Constructs new licenses metadata
      *
-     * @param esLicenses list of esLicense
+     * @param signatures set of esLicense signatures
+     * @param encodedTrialLicenses set of encoded trial licenses
      */
-    public LicensesMetaData(ESLicenses esLicenses, TrialLicenses trialLicenses) {
-        this.licenses = esLicenses;
-        this.trialLicenses = trialLicenses;
+    public LicensesMetaData(Set<String> signatures, Set<String> encodedTrialLicenses) {
+        this.signatures = signatures;
+        this.encodedTrialLicenses = encodedTrialLicenses;
     }
 
-
-    public ESLicenses getLicenses() {
-        return licenses;
+    public Set<String> getSignatures() {
+        return signatures;
     }
 
-    public TrialLicenses getTrialLicenses() {
-        return trialLicenses;
+    public Set<String> getEncodedTrialLicenses() {
+        return encodedTrialLicenses;
     }
 
     /**
@@ -71,13 +77,13 @@ public class LicensesMetaData implements MetaData.Custom {
          */
         @Override
         public LicensesMetaData readFrom(StreamInput in) throws IOException {
-            ESLicenses esLicenses = null;
-            TrialLicenses trialLicenses = null;
+            String[] signatures = new String[0];
+            String[] encodedTrialLicenses = new String[0];
             if (in.readBoolean()) {
-                esLicenses = readGeneratedLicensesFromMetaData(in);
-                trialLicenses = TrialLicenseUtils.readTrialLicensesFromMetaData(in);
+                signatures = in.readStringArray();
+                encodedTrialLicenses = in.readStringArray();
             }
-            return new LicensesMetaData(esLicenses, trialLicenses);
+            return new LicensesMetaData(signatures, encodedTrialLicenses);
         }
 
         /**
@@ -89,8 +95,8 @@ public class LicensesMetaData implements MetaData.Custom {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                writeGeneratedLicensesToMetaData(licensesMetaData.getLicenses(), out);
-                TrialLicenseUtils.writeTrialLicensesToMetaData(licensesMetaData.getTrialLicenses(), out);
+                out.writeStringArray(licensesMetaData.signatures.toArray(new String[licensesMetaData.signatures.size()]));
+                out.writeStringArray(licensesMetaData.encodedTrialLicenses.toArray(new String[licensesMetaData.encodedTrialLicenses.size()]));
             }
         }
 
@@ -122,7 +128,7 @@ public class LicensesMetaData implements MetaData.Custom {
                 }
             }
 
-            return new LicensesMetaData(fromSignatures(signatures), TrialLicenseUtils.fromEncodedTrialLicenses(encodedTrialLicenses));
+            return new LicensesMetaData(signatures, encodedTrialLicenses);
         }
 
         /**
@@ -131,8 +137,8 @@ public class LicensesMetaData implements MetaData.Custom {
         @Override
         public void toXContent(LicensesMetaData licensesMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.array(Fields.LICENSES, toSignatures(licensesMetaData.getLicenses()));
-            builder.array(Fields.TRIAL_LICENSES, TrialLicenseUtils.toEncodedTrialLicenses(licensesMetaData.getTrialLicenses()));
+            builder.array(Fields.LICENSES, licensesMetaData.signatures.toArray(new String[licensesMetaData.signatures.size()]));
+            builder.array(Fields.TRIAL_LICENSES, licensesMetaData.encodedTrialLicenses.toArray(new String [licensesMetaData.encodedTrialLicenses.size()]));
             builder.endObject();
         }
 

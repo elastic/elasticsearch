@@ -62,7 +62,7 @@ public class TrialLicenseUtils {
         byte[] issuedToBytes = trialLicense.issuedTo().getBytes(Charset.forName("UTF-8"));
 
         // uid len + uid bytes + issuedTo len + issuedTo bytes + feature bytes length + feature bytes + maxNodes + issueDate + expiryDate
-        int len = 4 + uidBytes.length + issuedToBytes.length + featureBytes.length + 4 + 8 + 8;
+        int len = 4 + uidBytes.length + 4 + issuedToBytes.length + 4 + featureBytes.length + 4 + 8 + 8;
         final byte[] encodedLicense = new byte[len];
         ByteBuffer byteBuffer = ByteBuffer.wrap(encodedLicense);
 
@@ -80,21 +80,6 @@ public class TrialLicenseUtils {
         byteBuffer.putLong(trialLicense.expiryDate());
 
         return Base64.encodeBase64String(encodedLicense);
-    }
-
-    public static TrialLicenses readTrialLicensesFromMetaData(StreamInput in) throws IOException {
-        boolean exists = in.readBoolean();
-        return exists ? fromEncodedTrialLicenses(in.readStringArray()) : null;
-
-    }
-
-    public static void writeTrialLicensesToMetaData(TrialLicenses trialLicenses, StreamOutput out) throws IOException {
-        if (trialLicenses == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeStringArray(toEncodedTrialLicenses(trialLicenses));
-        }
     }
 
     public static String[] toEncodedTrialLicenses(TrialLicenses trialLicenses) {

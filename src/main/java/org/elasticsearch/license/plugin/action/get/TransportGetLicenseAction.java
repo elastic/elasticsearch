@@ -16,7 +16,11 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.core.ESLicenses;
+import org.elasticsearch.license.plugin.action.Utils;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
+import org.elasticsearch.license.plugin.core.trial.TrialLicenseUtils;
+import org.elasticsearch.license.plugin.core.trial.TrialLicenses;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -54,7 +58,9 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadOperationA
         MetaData metaData = state.metaData();
         LicensesMetaData licenses = metaData.custom(LicensesMetaData.TYPE);
         if (licenses != null) {
-            listener.onResponse(new GetLicenseResponse(licenses.getLicenses(), licenses.getTrialLicenses()));
+            ESLicenses esLicenses = Utils.fromSignaturesAsIs(licenses.getSignatures());
+            TrialLicenses trialLicenses = TrialLicenseUtils.fromEncodedTrialLicenses(licenses.getEncodedTrialLicenses());
+            listener.onResponse(new GetLicenseResponse(esLicenses, trialLicenses));
         } else {
             listener.onResponse(new GetLicenseResponse());
         }

@@ -62,4 +62,12 @@ public class Utils {
         }
         return true;
     }
+
+    public static ESLicenses fromSignatures(final Set<String> signatures) {
+        final LicenseBuilders.LicensesBuilder licensesBuilder = LicenseBuilders.licensesBuilder();
+        for (String signature : signatures) {
+            licensesBuilder.license(getESLicenseFromSignature(signature));
+        }
+        return licensesBuilder.build();
+    }
 }

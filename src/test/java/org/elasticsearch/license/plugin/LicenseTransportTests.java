@@ -7,7 +7,6 @@ package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ListenableActionFuture;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryAction;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -116,7 +115,7 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
         assertThat(getLicenseResponse.licenses(), notNullValue());
 
         //LicenseUtils.printLicense(getLicenseResponse.licenses());
-        assertTrue(isSame(putLicenses, getLicenseResponse.licenses()));
+        TestUtils.isSame(putLicenses, getLicenseResponse.licenses());
 
 
         final ActionFuture<DeleteLicenseResponse> deleteFuture = new DeleteLicenseRequestBuilder(client().admin().cluster())
@@ -125,9 +124,9 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
         assertTrue(deleteLicenseResponse.isAcknowledged());
 
         getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).execute().get();
-        assertTrue(isSame(getLicenseResponse.licenses(), LicenseBuilders.licensesBuilder().build()));
+        TestUtils.isSame(getLicenseResponse.licenses(), LicenseBuilders.licensesBuilder().build());
     }
-/*
+
     @Test
     public void testPutInvalidLicense() throws Exception {
         Map<ESLicenses.FeatureType, TestUtils.FeatureAttributes> map = new HashMap<>();
@@ -151,40 +150,15 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
 
         final ListenableActionFuture<PutLicenseResponse> execute = builder.execute();
 
-        execute.get();
-
-    }
-*/
-
-    //TODO: convert to asserts
-    public static boolean isSame(ESLicenses firstLicenses, ESLicenses secondLicenses) {
-
-        // we do the build to make sure we weed out any expired licenses
-        final ESLicenses licenses1 = LicenseBuilders.licensesBuilder().licenses(firstLicenses).build();
-        final ESLicenses licenses2 = LicenseBuilders.licensesBuilder().licenses(secondLicenses).build();
-
-        // check if the effective licenses have the same feature set
-        if (!licenses1.features().equals(licenses2.features())) {
-            return false;
+        try {
+            execute.get();
+            fail("Invalid License should throw exception");
+        } catch (Throwable e) {
+            /* TODO: figure out error handling
+            String msg =e.getCause().getCause().getCause().getMessage();//e.getCause().getCause().getMessage();// e.getCause().getCause().getCause().getMessage();
+            assertTrue("Error message: " + msg, msg.contains("Invalid License(s)"));
+            */
         }
-
-        // for every feature license, check if all the attributes are the same
-        for (ESLicenses.FeatureType featureType : licenses1.features()) {
-            ESLicenses.ESLicense license1 = licenses1.get(featureType);
-            ESLicenses.ESLicense license2 = licenses2.get(featureType);
-
-            if (!license1.uid().equals(license2.uid())
-                    || !license1.feature().string().equals(license2.feature().string())
-                    || !license1.subscriptionType().string().equals(license2.subscriptionType().string())
-                    || !license1.type().string().equals(license2.type().string())
-                    || !license1.issuedTo().equals(license2.issuedTo())
-                    || !license1.signature().equals(license2.signature())
-                    || license1.expiryDate() != license2.expiryDate()
-                    || license1.issueDate() != license2.issueDate()
-                    || license1.maxNodes() != license2.maxNodes()) {
-                return false;
-            }
-        }
-        return true;
     }
+
 }

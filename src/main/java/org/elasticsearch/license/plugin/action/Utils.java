@@ -20,20 +20,6 @@ import static org.elasticsearch.license.manager.Utils.getESLicenseFromSignature;
 
 public class Utils {
 
-    public static ESLicenses readGeneratedLicensesFromMetaData(StreamInput in) throws IOException {
-        boolean exists = in.readBoolean();
-        return exists ? fromSignatures(in.readStringArray()) : null;
-    }
-
-    public static void writeGeneratedLicensesToMetaData(ESLicenses esLicenses, StreamOutput out) throws IOException {
-        if (esLicenses == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeStringArray(toSignatures(esLicenses));
-        }
-    }
-
     public static String[] toSignatures(ESLicenses esLicenses) {
         Set<String> signatures = new HashSet<>();
         for (ESLicense esLicense : esLicenses) {
@@ -43,13 +29,13 @@ public class Utils {
     }
 
     public static ESLicenses fromSignatures(final String[] signatures) {
-        return fromSignatures(Sets.newHashSet(signatures));
+        return org.elasticsearch.license.manager.Utils.fromSignatures(Sets.newHashSet(signatures));
     }
 
-    public static ESLicenses fromSignatures(final Set<String> signatures) {
+    public static ESLicenses fromSignaturesAsIs(final Set<String> signatures) {
         final LicenseBuilders.LicensesBuilder licensesBuilder = LicenseBuilders.licensesBuilder();
         for (String signature : signatures) {
-            licensesBuilder.license(getESLicenseFromSignature(signature));
+            licensesBuilder.licenseAsIs(getESLicenseFromSignature(signature));
         }
         return licensesBuilder.build();
     }

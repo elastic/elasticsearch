@@ -16,7 +16,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.core.ElasticsearchLicenseException;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
+import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -57,6 +59,16 @@ public class TransportPutLicenseAction extends TransportMasterNodeOperationActio
     @Override
     protected void masterOperation(final PutLicenseRequest request, ClusterState state, final ActionListener<PutLicenseResponse> listener) throws ElasticsearchException {
         final PutLicenseRequestHolder requestHolder = new PutLicenseRequestHolder(request, "put licenses []");
+        LicensesStatus status = licensesManagerService.checkLicenses(request.license());
+        switch (status) {
+            case VALID:
+                break;
+            case INVALID:
+                throw new ElasticsearchLicenseException("Found Invalid License(s)");
+            case EXPIRED:
+                throw new ElasticsearchLicenseException("Found Expired License(s)");
+        }
+
         licensesManagerService.registerLicenses(requestHolder, new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {

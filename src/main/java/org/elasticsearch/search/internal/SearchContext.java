@@ -52,7 +52,6 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
-import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
@@ -175,10 +174,6 @@ public abstract class SearchContext implements Releasable {
     public abstract boolean hasScriptFields();
 
     public abstract ScriptFieldsContext scriptFields();
-
-    public abstract boolean hasPartialFields();
-
-    public abstract PartialFieldsContext partialFields();
 
     /**
      * A shortcut function to see whether there is a fetchSourceContext and it says the source is requested.

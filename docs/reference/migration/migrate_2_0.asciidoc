@@ -10,3 +10,7 @@ The <<alias-retrieving, get alias api>> will, by default produce an error respon
 if a requested index does not exist. This change brings the defaults for this API in 
 line with the other Indices APIs. The <<multi-index>> options can be used on a request 
 to change this behavior
+
+=== Partial fields
+
+Partial fields were deprecated since 1.0.0beta1 in favor of <<search-request-source-filtering,source filtering>>.

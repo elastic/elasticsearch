@@ -26,6 +26,8 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.TransportModule;
+import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.Test;
 
 import java.util.Locale;
@@ -38,17 +40,18 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, enableRandomBenchNodes = false)
 public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegrationTest {
 
     private final int randomPort = randomIntBetween(1025, 65000);
-    private final String randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort+100);
+    private final String randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort+10);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("network.host", "127.0.0.1")
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName())
                 .put("node.mode", "network")
                 .put("transport.profiles.client1.port", randomPortRange)
                 .put("transport.profiles.client1.reuse_address", true)
@@ -59,7 +62,10 @@ public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegr
     @Network
     @TestLogging("transport.netty:DEBUG")
     public void testThatTransportClientCanConnect() throws Exception {
-        Settings settings = settingsBuilder().put("cluster.name", internalCluster().getClusterName()).build();
+        Settings settings = settingsBuilder()
+                .put("cluster.name", internalCluster().getClusterName())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName())
+                .build();
         try (TransportClient transportClient = new TransportClient(settings)) {
             transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", randomPort));
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();

@@ -31,6 +31,13 @@ is behind a proxy or firewall and the `transport.tcp.port` is not directly
 addressable from the outside. Defaults to the actual port assigned via
 `transport.tcp.port`.
 
+|`transport.bind_host` |The host address to bind the transport service to. Defaults to `transport.host` (if set) or `network.bind_host`.
+
+|`transport.publish_host` |The host address to publish for nodes in the cluster to connect to. Defaults to `transport.host` (if set) or `network.publish_host`.
+
+|`transport.host` |Used to set the `transport.bind_host` and the `transport.publish_host` Defaults to `transport.host` or `network.host`.
+
+
 |`transport.tcp.connect_timeout` |The socket connect timeout setting (in
 time setting format). Defaults to `30s`.
 

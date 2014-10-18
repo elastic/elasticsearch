@@ -297,6 +297,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     }
 
     // Tests a rescorer that penalizes the scores:
+    @Ignore
     @Test
     public void testRescorerMadeScoresWorse() throws Exception {
         Builder builder = ImmutableSettings.builder();

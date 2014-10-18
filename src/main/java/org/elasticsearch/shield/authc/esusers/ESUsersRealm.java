@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authc.esusers;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.name.Named;
 import org.elasticsearch.common.settings.Settings;
@@ -14,7 +13,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
-import org.elasticsearch.shield.authc.Realm;
+import org.elasticsearch.shield.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.shield.authc.support.UserPasswdStore;
 import org.elasticsearch.shield.authc.support.UserRolesStore;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -23,7 +22,7 @@ import org.elasticsearch.transport.TransportMessage;
 /**
  *
  */
-public class ESUsersRealm extends AbstractComponent implements Realm<UsernamePasswordToken> {
+public class ESUsersRealm extends CachingUsernamePasswordRealm {
 
     public static final String TYPE = "esusers";
 
@@ -60,7 +59,7 @@ public class ESUsersRealm extends AbstractComponent implements Realm<UsernamePas
     }
 
     @Override
-    public User authenticate(UsernamePasswordToken token) {
+    protected User doAuthenticate(UsernamePasswordToken token) {
         if (userPasswdStore == null) {
             return null;
         }

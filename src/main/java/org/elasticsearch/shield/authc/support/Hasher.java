@@ -12,6 +12,7 @@ import org.apache.commons.codec.digest.Md5Crypt;
 import org.apache.commons.codec.digest.Sha2Crypt;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.os.OsUtils;
+import org.elasticsearch.shield.ShieldSettingsException;
 
 import java.util.Locale;
 
@@ -147,6 +148,10 @@ public enum Hasher {
         }
         switch (name.toLowerCase(Locale.ROOT)) {
             case "htpasswd" : return HTPASSWD;
+            case "bcrypt"   : return BCRYPT;
+            case "sha1"     : return SHA1;
+            case "sha2"     : return SHA2;
+            case "md5"      : return MD5;
             default:
                 return defaultHasher;
         }
@@ -155,7 +160,7 @@ public enum Hasher {
     public static Hasher resolve(String name) {
         Hasher hasher = resolve(name, null);
         if (hasher == null) {
-            throw new ElasticsearchIllegalArgumentException("Unknown hash function [" + name + "]");
+            throw new ShieldSettingsException("Unknown hash function [" + name + "]");
         }
         return hasher;
     }

@@ -40,6 +40,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder.QueryRescorer;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -211,6 +212,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     }
 
     // Tests a rescore window smaller than number of hits:
+    @Ignore
     @Test
     public void testSmallRescoreWindow() throws Exception {
         Builder builder = ImmutableSettings.builder();

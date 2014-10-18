@@ -181,21 +181,25 @@ public class PathTrie<T> {
             if (index == (path.length - 1)) {
                 return node.value;
             }
-            Map<String, String> formerParams = newHashMap();
+
+            Map<String, String> nextParams = null;
             if (params != null) {
-                formerParams.putAll(params);
+                nextParams = newHashMap();
             }
-            T res = node.retrieve(path, index + 1, params);
+            T res = node.retrieve(path, index + 1, nextParams);
             if (res == null && !usedWildcard) {
-                if (params != null) {
-                    params.clear();
-                    params.putAll(formerParams);
-                }
                 node = children.get(wildcard);
+                if (nextParams != null) {
+                    nextParams.clear();
+                }
                 if (node != null) {
                     put(params, node, token);
-                    res = node.retrieve(path, index + 1, params);
+                    res = node.retrieve(path, index + 1, nextParams);
                 }
+            }
+
+            if (res != null && nextParams != null) {
+                params.putAll(nextParams);
             }
 
             return res;

@@ -6,17 +6,17 @@
 package org.elasticsearch.license.plugin.action;
 
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseBuilders;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.license.core.ESLicenses.*;
-import static org.elasticsearch.license.manager.Utils.getESLicenseFromSignature;
 
 public class Utils {
 
@@ -26,18 +26,6 @@ public class Utils {
             signatures.add(esLicense.signature());
         }
         return signatures.toArray(new String[signatures.size()]);
-    }
-
-    public static ESLicenses fromSignatures(final String[] signatures) {
-        return org.elasticsearch.license.manager.Utils.fromSignatures(Sets.newHashSet(signatures));
-    }
-
-    public static ESLicenses fromSignaturesAsIs(final Set<String> signatures) {
-        final LicenseBuilders.LicensesBuilder licensesBuilder = LicenseBuilders.licensesBuilder();
-        for (String signature : signatures) {
-            licensesBuilder.licenseAsIs(getESLicenseFromSignature(signature));
-        }
-        return licensesBuilder.build();
     }
 
     public static ESLicenses readGeneratedLicensesFrom(StreamInput in) throws IOException {

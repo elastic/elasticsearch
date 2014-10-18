@@ -6,11 +6,12 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.licensor.tools.KeyPairGeneratorTool;
+import org.elasticsearch.license.manager.ESLicenseManager;
 import org.junit.BeforeClass;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.util.Map;
 
 public class AbstractLicensingTestBase {
@@ -19,23 +20,15 @@ public class AbstractLicensingTestBase {
     protected static String priKeyPath = null;
 
     @BeforeClass
-    public static void setup() throws IOException {
+    public static void setup() throws Exception {
+        pubKeyPath = getResourcePath("test_pub.key");
+        priKeyPath = getResourcePath("test_pri.key");
 
-        // Generate temp KeyPair spec
-        File privateKeyFile = File.createTempFile("privateKey", ".key");
-        File publicKeyFile = File.createTempFile("publicKey", ".key");
-        AbstractLicensingTestBase.pubKeyPath = publicKeyFile.getAbsolutePath();
-        AbstractLicensingTestBase.priKeyPath = privateKeyFile.getAbsolutePath();
-        assert privateKeyFile.delete();
-        assert publicKeyFile.delete();
+    }
 
-        // Generate keyPair
-        String[] args = new String[4];
-        args[0] = "--publicKeyPath";
-        args[1] = AbstractLicensingTestBase.pubKeyPath;
-        args[2] = "--privateKeyPath";
-        args[3] = AbstractLicensingTestBase.priKeyPath;
-        KeyPairGeneratorTool.main(args);
+    private static String getResourcePath(String resource) throws Exception {
+        URL url = ESLicenseManager.class.getResource("/org.elasticsearch.license.plugin/" + resource);
+        return url.toURI().getPath();
     }
 
     public String generateSignedLicenses(Map<ESLicenses.FeatureType, TestUtils.FeatureAttributes> map) throws IOException {

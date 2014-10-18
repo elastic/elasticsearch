@@ -11,6 +11,7 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.DateUtils;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseBuilders;
+import org.elasticsearch.license.licensor.tools.FileBasedESLicenseProvider;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -26,16 +27,20 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
 
     private static ESLicenseManager esLicenseManager;
 
+    private static FileBasedESLicenseProvider esLicenseProvider;
+
     private final static ESLicenses EMPTY_LICENSES = LicenseBuilders.licensesBuilder().build();
 
     @BeforeClass
     public static void setupManager() {
-        esLicenseManager = ESLicenseManager.createLocalBasedInstance(LicenseBuilders.licensesBuilder().build(), pubKeyPath);
+        esLicenseProvider = new FileBasedESLicenseProvider(LicenseBuilders.licensesBuilder().build());
+        esLicenseManager = new ESLicenseManager(esLicenseProvider);
+
     }
 
     @After
     public void clearManager() {
-        esLicenseManager.clearAndAddLicenses(EMPTY_LICENSES);
+        esLicenseProvider.setLicenses(EMPTY_LICENSES);
     }
 
 
@@ -51,7 +56,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
 
         ESLicenses esLicensesOutput = readLicensesFromString(generateSignedLicenses(map));
 
-        esLicenseManager.clearAndAddLicenses(esLicensesOutput);
+        esLicenseProvider.setLicenses(esLicensesOutput);
 
         esLicenseManager.verifyLicenses();
 
@@ -75,7 +80,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
 
         ESLicenses esLicensesOutput = readLicensesFromString(generateSignedLicenses(map));
 
-        esLicenseManager.clearAndAddLicenses(esLicensesOutput);
+        esLicenseProvider.setLicenses(esLicensesOutput);
 
         //printLicense(esLicenseManager.getEffectiveLicenses());
 
@@ -132,7 +137,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
 
         ESLicenses esLicensesOutput = readLicensesFromString(generateSignedLicenses(map));
 
-        esLicenseManager.clearAndAddLicenses(esLicensesOutput);
+        esLicenseProvider.setLicenses(esLicensesOutput);
 
         // All validation for shield license should be normal as expected
         verifyLicenseManager(esLicenseManager, Collections.singletonMap(FeatureType.SHIELD, shildFeatureAttributes));
@@ -166,7 +171,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
         ESLicenses tamperedLicenses = LicenseBuilders.licensesBuilder().license(tamperedLicense).build();
 
         try {
-            esLicenseManager.clearAndAddLicenses(tamperedLicenses);
+            esLicenseProvider.setLicenses(tamperedLicenses);
             assertTrue("License manager should always report the original (signed) expiry date of: " + originalExpiryDate + " but got: " + esLicenseManager.getExpiryDateForLicense(FeatureType.SHIELD), esLicenseManager.getExpiryDateForLicense(FeatureType.SHIELD) == originalExpiryDate);
             esLicenseManager.verifyLicenses();
             fail();

@@ -11,21 +11,16 @@ import net.nicholaswilliams.java.licensing.encryption.Hasher;
 import net.nicholaswilliams.java.licensing.encryption.PasswordProvider;
 import net.nicholaswilliams.java.licensing.exception.ExpiredLicenseException;
 import net.nicholaswilliams.java.licensing.exception.InvalidLicenseException;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseBuilders;
 
-import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Paths;
-import java.util.Collections;
 import java.util.Set;
 
 import static org.elasticsearch.license.core.ESLicenses.*;
-import static org.elasticsearch.license.manager.ESLicenseProvider.ClusterStateLicenseProvider;
-import static org.elasticsearch.license.manager.ESLicenseProvider.FileBasedESLicenseProvider;
-import static org.elasticsearch.license.manager.ESLicenseProvider.extractSignedLicence;
+import static org.elasticsearch.license.manager.Utils.extractSignedLicence;
 
 /**
  * Class responsible for reading signed licenses, maintaining an effective esLicenses instance, verification of licenses
@@ -36,65 +31,24 @@ import static org.elasticsearch.license.manager.ESLicenseProvider.extractSignedL
  */
 public class ESLicenseManager {
 
-    private static ESLicenseManager instance = null;
-    private static FilePublicKeyDataProvider publicKeyDataProvider;
     private final ESLicenseProvider licenseProvider;
 
     private final LicenseManager licenseManager;
 
-    public static ESLicenseManager getInstance() {
-        if (ESLicenseManager.instance == null) {
-            throw new IllegalStateException("License manager has not been created!");
-        }
-        return ESLicenseManager.instance;
-    }
-
-    /**
-     * Creates a LicenseManager instance where the Licenses are queried from the cluster state
-     *
-     * @param clusterService used to query for appropriate license(s) for validation
-     * @param publicKeyPath used to decrypt the licenses
-     * @return {@link org.elasticsearch.license.manager.ESLicenseManager} instance backed by licenses residing
-     * in the cluster state
-     */
-    public static ESLicenseManager createClusterStateBasedInstance(ClusterService clusterService, String publicKeyPath) {
-        if (ESLicenseManager.instance == null) {
-            ESLicenseManager.publicKeyDataProvider = new FilePublicKeyDataProvider(publicKeyPath);
-            instance = new ESLicenseManager(ESLicenseProvider.createClusterBasedLicenseProvider(clusterService, publicKeyPath));
-            return instance;
-        } else if (ESLicenseManager.instance.licenseProvider instanceof ClusterStateLicenseProvider) {
-            return ESLicenseManager.instance;
-        } else {
-            throw new IllegalStateException("Manager already initiated with File based license provider");
-        }
-    }
-
-    public static ESLicenseManager createClusterStateBasedInstance(ClusterService clusterService) {
-        return createClusterStateBasedInstance(clusterService, getPublicKeyPath());
-    }
-
-    public static ESLicenseManager createLocalBasedInstance(ESLicenses esLicenses, String publicKeyPath) {
-        return createLocalBasedInstance(Collections.singleton(esLicenses), publicKeyPath);
-    }
-
-    /**
-     * Creates a LicenseManager instance where the Licenses are queried from a set of pre-generated licenses
-     * @param esLicensesSet a set of pre-generated licenses stored in the license manager
-     * @param publicKeyPath used to decrypt the licenses
-     * @return {@link org.elasticsearch.license.manager.ESLicenseManager} instance backed by pre-generated licenses
-     */
-    public static ESLicenseManager createLocalBasedInstance(Set<ESLicenses> esLicensesSet, String publicKeyPath) {
-        if (ESLicenseManager.instance == null) {
-            ESLicenseManager.publicKeyDataProvider = new FilePublicKeyDataProvider(publicKeyPath);
-            return new ESLicenseManager(ESLicenseProvider.createFileBasedLicenseProvider(merge(esLicensesSet), publicKeyPath));
-        } else if (ESLicenseManager.instance.licenseProvider instanceof FileBasedESLicenseProvider) {
-            return ESLicenseManager.instance;
-        } else {
-            throw new IllegalStateException("Manager already initiated with Cluster state based license provider");
-        }
+    // Initialize LicenseManager
+    static {
+        LicenseManagerProperties.setPublicKeyDataProvider(new FilePublicKeyDataProvider(getPublicKeyPath()));
+        LicenseManagerProperties.setPublicKeyPasswordProvider(new ESPublicKeyPasswordProvider());
+        LicenseManagerProperties.setLicenseProvider(new LicenseProvider() {
+            @Override
+            public SignedLicense getLicense(Object context) {
+                throw new UnsupportedOperationException("This singelton license provider shouldn't be used");
+            }
+        });
     }
 
     private static String getPublicKeyPath() {
+        //TODO: Imporove key management
         URL resource = ESLicenseManager.class.getResource("public.key");
         if (resource == null) {
             //test REMOVE NOCOMMIT!!!!
@@ -107,11 +61,7 @@ public class ESLicenseManager {
         }
     }
 
-    private ESLicenseManager(ESLicenseProvider licenseProvider) {
-        LicenseManagerProperties.setLicenseProvider(licenseProvider);
-        LicenseManagerProperties.setPublicKeyDataProvider(publicKeyDataProvider);
-        LicenseManagerProperties.setLicenseValidator(new DefaultLicenseValidator());
-        LicenseManagerProperties.setPublicKeyPasswordProvider(new ESPublicKeyPasswordProvider());
+    public ESLicenseManager(ESLicenseProvider licenseProvider) {
         this.licenseProvider = licenseProvider;
         this.licenseManager = LicenseManager.getInstance();
     }
@@ -134,9 +84,7 @@ public class ESLicenseManager {
                 ESLicense esLicense = esLicenses.get(featureType);
                 // verify signature
                 final License license = this.licenseManager.decryptAndVerifyLicense(
-                        extractSignedLicence(
-                                esLicense.signature(),
-                                publicKeyDataProvider.getPublicKeyFile().getAbsolutePath()));
+                        extractSignedLicence(esLicense.signature()));
                 // validate license
                 this.licenseManager.validateLicense(license);
 
@@ -147,14 +95,32 @@ public class ESLicenseManager {
             throw new InvalidLicenseException("Expired License");
         } catch (InvalidLicenseException e) {
             throw new InvalidLicenseException("Invalid License");
-        } catch (IOException e) {
-            // bogus
-            throw new IllegalStateException(e);
         }
     }
 
     public void verifyLicenses() {
         verifyLicenses(getEffectiveLicenses());
+    }
+
+    public ESLicenses fromSignaturesAsIs(final Set<String> signatures) {
+        final LicenseBuilders.LicensesBuilder licensesBuilder = LicenseBuilders.licensesBuilder();
+        for (String signature : signatures) {
+            licensesBuilder.licenseAsIs(getESLicenseFromSignature(signature));
+        }
+        return licensesBuilder.build();
+    }
+
+    public ESLicense getESLicenseFromSignature(String signature) {
+        SignedLicense signedLicense = extractSignedLicence(signature);
+        return decryptAndVerifyESLicense(signedLicense, signature);
+    }
+
+    public ESLicenses fromSignatures(final Set<String> signatures) {
+        final LicenseBuilders.LicensesBuilder licensesBuilder = LicenseBuilders.licensesBuilder();
+        for (String signature : signatures) {
+            licensesBuilder.license(getESLicenseFromSignature(signature));
+        }
+        return licensesBuilder.build();
     }
 
     private static void verifyLicenseFields(License license, ESLicense eslicense) {
@@ -194,13 +160,22 @@ public class ESLicenseManager {
             throw new InvalidLicenseException("Invalid License");
         }
     }
-
+    private License getLicense(FeatureType featureType) {
+        ESLicense esLicense = licenseProvider.getESLicense(featureType);
+        if (esLicense != null) {
+            String signature = esLicense.signature();
+            License license = this.licenseManager.decryptAndVerifyLicense(extractSignedLicence(signature));
+            this.licenseManager.validateLicense(license);
+            return license;
+        }
+        return null;
+    }
 
     //TODO wrap License validation methods so a plugin does not have to provide featureType param
 
     public boolean hasLicenseForFeature(FeatureType featureType) {
         try {
-            final License license = licenseManager.getLicense(featureType);
+            final License license = getLicense(featureType);
             if (license != null) {
                 return license.hasLicenseForFeature(featureType.string());
             }
@@ -218,22 +193,22 @@ public class ESLicenseManager {
     }
 
     public String getIssuerForLicense(FeatureType featureType) {
-        final License license = licenseManager.getLicense(featureType);
+        final License license = getLicense(featureType);
         return license.getIssuer();
     }
 
     public long getIssueDateForLicense(FeatureType featureType) {
-        final License license = licenseManager.getLicense(featureType);
+        final License license = getLicense(featureType);
         return license.getIssueDate();
     }
 
     public long getExpiryDateForLicense(FeatureType featureType) {
-        final License license = licenseManager.getLicense(featureType);
+        final License license = getLicense(featureType);
         return license.getGoodBeforeDate();
     }
 
     public String getIssuedToForLicense(FeatureType featureType) {
-        final License license = licenseManager.getLicense(featureType);
+        final License license = getLicense(featureType);
         return license.getHolder();
     }
 
@@ -248,7 +223,7 @@ public class ESLicenseManager {
     }
 
     ESLicense getESLicense(FeatureType featureType) {
-        final License license = licenseManager.getLicense(featureType);
+        final License license = getLicense(featureType);
         return convertToESLicense(license);
     }
 
@@ -292,14 +267,7 @@ public class ESLicenseManager {
         return licenseBuilder.build();
     }
 
-
-    // only for testing
-    public void clearAndAddLicenses(ESLicenses licenses) {
-        this.licenseManager.clearLicenseCache();
-        assert this.licenseProvider instanceof FileBasedESLicenseProvider;
-        this.licenseProvider.addLicenses(licenses);
-    }
-
+    // TODO: Need a better password management
     private static class ESPublicKeyPasswordProvider implements PasswordProvider {
         private final String DEFAULT_PASS_PHRASE = "elasticsearch-license";
 

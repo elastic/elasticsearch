@@ -26,6 +26,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicenseBuilders;
 import org.elasticsearch.license.manager.ESLicenseManager;
+import org.elasticsearch.license.manager.ESLicenseProvider;
 import org.elasticsearch.license.plugin.action.Utils;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
@@ -54,7 +55,7 @@ import static org.elasticsearch.license.plugin.core.trial.TrialLicensesBuilder.t
  *
  */
 @Singleton
-public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener, LicensesManagerService, LicensesClientService {
+public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ESLicenseProvider, ClusterStateListener, LicensesManagerService, LicensesClientService {
 
     private ESLicenseManager esLicenseManager;
 
@@ -70,7 +71,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     public LicensesService(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
         super(settings);
         this.clusterService = clusterService;
-        this.esLicenseManager = ESLicenseManager.createClusterStateBasedInstance(clusterService);
+        this.esLicenseManager = new ESLicenseManager(this);
         this.threadPool = threadPool;
     }
 
@@ -104,7 +105,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 LicensesMetaData currentLicenses = metaData.custom(LicensesMetaData.TYPE);
                 final LicensesWrapper licensesWrapper = LicensesWrapper.wrap(currentLicenses);
-                licensesWrapper.addSignedLicenses(newLicenses);
+                licensesWrapper.addSignedLicenses(esLicenseManager, newLicenses);
                 mdBuilder.putCustom(LicensesMetaData.TYPE, licensesWrapper.createLicensesMetaData());
                 return ClusterState.builder(currentState).metaData(mdBuilder).build();
             }
@@ -143,7 +144,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 LicensesMetaData currentLicenses = metaData.custom(LicensesMetaData.TYPE);
                 final LicensesWrapper licensesWrapper = LicensesWrapper.wrap(currentLicenses);
-                licensesWrapper.removeFeatures(featuresToDelete);
+                licensesWrapper.removeFeatures(esLicenseManager, featuresToDelete);
                 mdBuilder.putCustom(LicensesMetaData.TYPE, licensesWrapper.createLicensesMetaData());
                 return ClusterState.builder(currentState).metaData(mdBuilder).build();
             }
@@ -296,6 +297,22 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         return ThreadPool.Names.GENERIC;
     }
 
+    @Override
+    public ESLicenses.ESLicense getESLicense(FeatureType featureType) {
+        return getEffectiveLicenses().get(featureType);
+    }
+
+    @Override
+    public ESLicenses getEffectiveLicenses() {
+        final ClusterState state = clusterService.state();
+        LicensesMetaData metaData = state.metaData().custom(LicensesMetaData.TYPE);
+        if (metaData != null) {
+            return esLicenseManager.fromSignatures(metaData.getSignatures());
+        }
+        return LicenseBuilders.licensesBuilder().build();
+
+    }
+
     public class SubmitReschedulingLicensingClientNotificationJob implements Runnable {
         @Override
         public void run() {
@@ -312,6 +329,10 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         }
     }
 
+    //TODO: Shouldn't expose this
+    public ESLicenseManager getEsLicenseManager() {
+        return esLicenseManager;
+    }
 
     public class LicensingClientNotificationJob implements Runnable {
 
@@ -483,8 +504,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             }
         }
 
-        public ESLicenses signedLicenses() {
-            return org.elasticsearch.license.manager.Utils.fromSignatures(signatures);
+        public ESLicenses signedLicenses(ESLicenseManager licenseManage) {
+            return licenseManage.fromSignatures(signatures);
         }
 
         public TrialLicenses trialLicenses() {
@@ -496,15 +517,15 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                     Collections.singleton(TrialLicenseUtils.toEncodedTrialLicense(trialLicense))));
         }
 
-        public void addSignedLicenses(ESLicenses licenses) {
-            ESLicenses currentSignedLicenses = signedLicenses();
+        public void addSignedLicenses(ESLicenseManager licenseManage, ESLicenses licenses) {
+            ESLicenses currentSignedLicenses = signedLicenses(licenseManage);
             final ESLicenses mergedLicenses = LicenseBuilders.merge(currentSignedLicenses, licenses);
             Set<String> newSignatures = Sets.newHashSet(Utils.toSignatures(mergedLicenses));
             this.signatures = ImmutableSet.copyOf(Sets.union(signatures, newSignatures));
         }
 
-        public void removeFeatures(Set<FeatureType> featuresToDelete) {
-            ESLicenses currentSignedLicenses = signedLicenses();
+        public void removeFeatures(ESLicenseManager licenseManage, Set<FeatureType> featuresToDelete) {
+            ESLicenses currentSignedLicenses = signedLicenses(licenseManage);
             final ESLicenses reducedLicenses = LicenseBuilders.removeFeatures(currentSignedLicenses, featuresToDelete);
             Set<String> reducedSignatures = Sets.newHashSet(Utils.toSignatures(reducedLicenses));
             this.signatures = ImmutableSet.copyOf(Sets.intersection(signatures, reducedSignatures));

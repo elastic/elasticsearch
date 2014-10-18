@@ -17,8 +17,9 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.plugin.action.Utils;
+import org.elasticsearch.license.manager.ESLicenseManager;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
+import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.core.trial.TrialLicenseUtils;
 import org.elasticsearch.license.plugin.core.trial.TrialLicenses;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -26,10 +27,13 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportGetLicenseAction extends TransportMasterNodeReadOperationAction<GetLicenseRequest, GetLicenseResponse> {
 
+    private final LicensesService licensesService;
+
     @Inject
-    public TransportGetLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportGetLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService, LicensesService licensesService,
                                           ThreadPool threadPool, ActionFilters actionFilters) {
         super(settings, GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters);
+        this.licensesService = licensesService;
     }
 
     @Override
@@ -55,10 +59,12 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadOperationA
 
     @Override
     protected void masterOperation(final GetLicenseRequest request, ClusterState state, final ActionListener<GetLicenseResponse> listener) throws ElasticsearchException {
+        //TODO: Move this functionality to license service
         MetaData metaData = state.metaData();
         LicensesMetaData licenses = metaData.custom(LicensesMetaData.TYPE);
         if (licenses != null) {
-            ESLicenses esLicenses = Utils.fromSignaturesAsIs(licenses.getSignatures());
+            ESLicenseManager esLicenseManager = licensesService.getEsLicenseManager();
+            ESLicenses esLicenses = esLicenseManager.fromSignaturesAsIs(licenses.getSignatures());
             TrialLicenses trialLicenses = TrialLicenseUtils.fromEncodedTrialLicenses(licenses.getEncodedTrialLicenses());
             listener.onResponse(new GetLicenseResponse(esLicenses, trialLicenses));
         } else {

@@ -70,7 +70,7 @@ public class RecoveryStatus {
 
     private AtomicReference<Thread> waitingRecoveryThread = new AtomicReference<>();
 
-    AtomicBoolean finished = new AtomicBoolean();
+    private final AtomicBoolean finished = new AtomicBoolean();
 
     // we start with 1 which will be decremented on cancel/close/failure
     private final AtomicInteger refCount = new AtomicInteger(1);

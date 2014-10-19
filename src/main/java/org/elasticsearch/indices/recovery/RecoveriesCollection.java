@@ -1,4 +1,4 @@
-package org.elasticsearch.indices.recovery;/*
+/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -16,6 +16,8 @@ package org.elasticsearch.indices.recovery;/*
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;

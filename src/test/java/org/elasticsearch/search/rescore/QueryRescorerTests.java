@@ -40,7 +40,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder.QueryRescorer;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -212,7 +211,6 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     }
 
     // Tests a rescore window smaller than number of hits:
-    @Ignore
     @Test
     public void testSmallRescoreWindow() throws Exception {
         Builder builder = ImmutableSettings.builder();
@@ -227,59 +225,46 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(builder.put("index.number_of_shards", 1)));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "massachusetts avenue boston massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "3").setSource("field1", "boston avenue lexington massachusetts").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        client().prepareIndex("test", "type1", "4").setSource("field1", "boston road lexington massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "5").setSource("field1", "lexington street lexington massachusetts").execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource("field1", "massachusetts").execute().actionGet();
         client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "7").setSource("field1", "bosten street san franciso california").execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
-        client().prepareIndex("test", "type1", "8").setSource("field1", "hollywood boulevard los angeles california").execute().actionGet();
-        client().prepareIndex("test", "type1", "9").setSource("field1", "1st street boston massachussetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "10").setSource("field1", "1st street boston massachusetts").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        client().prepareIndex("test", "type1", "11").setSource("field1", "2st street boston massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "12").setSource("field1", "3st street boston massachusetts").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
 
         SearchResponse searchResponse = client()
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts"))
                 .setFrom(0)
             .setSize(5).execute().actionGet();
-        assertThat(searchResponse.getHits().hits().length, equalTo(5));
-        assertHitCount(searchResponse, 9);
-        assertFirstHit(searchResponse, hasId("1"));
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertHitCount(searchResponse, 4);
+        assertFirstHit(searchResponse, hasId("3"));
         assertSecondHit(searchResponse, hasId("6"));
-        assertThirdHit(searchResponse, hasId("2"));
-        assertFourthHit(searchResponse, hasId("3"));
-        assertFifthHit(searchResponse, hasId("4"));
+        assertThirdHit(searchResponse, hasId("1"));
+        assertFourthHit(searchResponse, hasId("2"));
 
         // Now, rescore only top 2 hits w/ proximity:
         searchResponse = client()
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts"))
                 .setFrom(0)
                 .setSize(5)
                 .setRescorer(
                         RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
                                 .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f)).setRescoreWindow(2).execute().actionGet();
-
         // Only top 2 hits were re-ordered:
-        assertThat(searchResponse.getHits().hits().length, equalTo(5));
-        assertHitCount(searchResponse, 9);
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertHitCount(searchResponse, 4);
         assertFirstHit(searchResponse, hasId("6"));
-        assertSecondHit(searchResponse, hasId("1"));
-        assertThirdHit(searchResponse, hasId("2"));
-        assertFourthHit(searchResponse, hasId("3"));
-        assertFifthHit(searchResponse, hasId("4"));
+        assertSecondHit(searchResponse, hasId("3"));
+        assertThirdHit(searchResponse, hasId("1"));
+        assertFourthHit(searchResponse, hasId("2"));
 
         // Now, rescore only top 3 hits w/ proximity:
         searchResponse = client()
                 .prepareSearch()
-                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setQuery(QueryBuilders.matchQuery("field1", "massachusetts"))
                 .setFrom(0)
                 .setSize(5)
                 .setRescorer(
@@ -287,17 +272,15 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                                 .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f)).setRescoreWindow(3).execute().actionGet();
 
         // Only top 3 hits were re-ordered:
-        assertThat(searchResponse.getHits().hits().length, equalTo(5));
-        assertHitCount(searchResponse, 9);
-        assertFirstHit(searchResponse, hasId("2"));
-        assertSecondHit(searchResponse, hasId("6"));
-        assertThirdHit(searchResponse, hasId("1"));
-        assertFourthHit(searchResponse, hasId("3"));
-        assertFifthHit(searchResponse, hasId("4"));
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertHitCount(searchResponse, 4);
+        assertFirstHit(searchResponse, hasId("6"));
+        assertSecondHit(searchResponse, hasId("1"));
+        assertThirdHit(searchResponse, hasId("3"));
+        assertFourthHit(searchResponse, hasId("2"));
     }
 
     // Tests a rescorer that penalizes the scores:
-    @Ignore
     @Test
     public void testRescorerMadeScoresWorse() throws Exception {
         Builder builder = ImmutableSettings.builder();
@@ -312,21 +295,11 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(builder.put("index.number_of_shards", 1)));
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "massachusetts avenue boston massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "3").setSource("field1", "boston avenue lexington massachusetts").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        client().prepareIndex("test", "type1", "4").setSource("field1", "boston road lexington massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "5").setSource("field1", "lexington street lexington massachusetts").execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource("field1", "massachusetts").execute().actionGet();
         client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "7").setSource("field1", "bosten street san franciso california").execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
-        client().prepareIndex("test", "type1", "8").setSource("field1", "hollywood boulevard los angeles california").execute().actionGet();
-        client().prepareIndex("test", "type1", "9").setSource("field1", "1st street boston massachussetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "10").setSource("field1", "1st street boston massachusetts").execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        client().prepareIndex("test", "type1", "11").setSource("field1", "2st street boston massachusetts").execute().actionGet();
-        client().prepareIndex("test", "type1", "12").setSource("field1", "3st street boston massachusetts").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "lexington massachusetts avenue").execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts road").execute().actionGet();
         client().admin().indices().prepareRefresh("test").execute().actionGet();
 
         SearchResponse searchResponse = client()
@@ -334,13 +307,12 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                 .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(MatchQueryBuilder.Operator.OR))
                 .setFrom(0)
             .setSize(5).execute().actionGet();
-        assertThat(searchResponse.getHits().hits().length, equalTo(5));
-        assertHitCount(searchResponse, 9);
-        assertFirstHit(searchResponse, hasId("1"));
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertHitCount(searchResponse, 4);
+        assertFirstHit(searchResponse, hasId("3"));
         assertSecondHit(searchResponse, hasId("6"));
-        assertThirdHit(searchResponse, hasId("2"));
-        assertFourthHit(searchResponse, hasId("3"));
-        assertFifthHit(searchResponse, hasId("4"));
+        assertThirdHit(searchResponse, hasId("1"));
+        assertFourthHit(searchResponse, hasId("2"));
 
         // Now, penalizing rescore (nothing matches the rescore query):
         searchResponse = client()
@@ -352,12 +324,11 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                         RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
                                 .setQueryWeight(1.0f).setRescoreQueryWeight(-1f)).setRescoreWindow(3).execute().actionGet();
 
-        // 6 and 2 got worse, and then hits outside the rescore window were sorted ahead:
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("3"));
-        assertThirdHit(searchResponse, hasId("4"));
-        assertFourthHit(searchResponse, hasId("6"));
-        assertFifthHit(searchResponse, hasId("2"));
+        // 6 and 1 got worse, and then the hit (2) outside the rescore window were sorted ahead:
+        assertFirstHit(searchResponse, hasId("3"));
+        assertSecondHit(searchResponse, hasId("2"));
+        assertThirdHit(searchResponse, hasId("6"));
+        assertFourthHit(searchResponse, hasId("1"));
     }
 
     // Comparator that sorts hits and rescored hits in the same way.

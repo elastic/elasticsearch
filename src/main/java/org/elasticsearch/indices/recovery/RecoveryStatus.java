@@ -23,6 +23,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -49,7 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 
 
-public class RecoveryStatus implements AutoCloseable {
+public class RecoveryStatus {
 
     private final ESLogger logger;
 
@@ -71,9 +73,9 @@ public class RecoveryStatus implements AutoCloseable {
     AtomicBoolean finished = new AtomicBoolean();
 
     // we start with 1 which will be decremented on cancel/close/failure
-    final AtomicInteger refCount = new AtomicInteger(1);
+    private final AtomicInteger refCount = new AtomicInteger(1);
 
-    private volatile ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     private final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
 
     public RecoveryStatus(InternalIndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
@@ -102,6 +104,7 @@ public class RecoveryStatus implements AutoCloseable {
     }
 
     public InternalIndexShard indexShard() {
+        ensureNotFinished();
         return indexShard;
     }
 
@@ -114,6 +117,7 @@ public class RecoveryStatus implements AutoCloseable {
     }
 
     public Store store() {
+        ensureNotFinished();
         return store;
     }
 
@@ -144,6 +148,7 @@ public class RecoveryStatus implements AutoCloseable {
 
     /** renames all temporary files to their true name, potentially overriding existing files */
     public void renameAllTempFiles() throws IOException {
+        ensureNotFinished();
         Iterator<String> tempFileIterator = tempFileNames.iterator();
         final Directory directory = store.directory();
         while (tempFileIterator.hasNext()) {
@@ -152,7 +157,7 @@ public class RecoveryStatus implements AutoCloseable {
             // first, go and delete the existing ones
             try {
                 directory.deleteFile(origFile);
-            } catch (FileNotFoundException e) {
+            } catch (NoSuchFileException e) {
 
             } catch (Throwable ex) {
                 logger.debug("failed to delete file [{}]", ex, origFile);
@@ -166,7 +171,7 @@ public class RecoveryStatus implements AutoCloseable {
 
     /** cancel the recovery. calling this method will clean temporary files and release the store
      * unless this object is in use (in which case it will be cleaned once all ongoing users call
-     * {@link #decRef()} or {@link #close()}
+     * {@link #decRef()}
      *
      * if {@link #setWaitingRecoveryThread(Thread)} was used, the thread will be interrupted.
      */
@@ -176,7 +181,7 @@ public class RecoveryStatus implements AutoCloseable {
             // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
             decRef();
 
-            Thread thread = waitingRecoveryThread.get();
+            final Thread thread = waitingRecoveryThread.get();
             if (thread != null) {
                 thread.interrupt();
             }
@@ -193,13 +198,11 @@ public class RecoveryStatus implements AutoCloseable {
         if (finished.compareAndSet(false, true)) {
             try {
                 listener.onRecoveryFailure(state, e, sendShardFailure);
-            } catch (Exception notifyError) {
-                logger.error("unexpected failure while notifying listener of failure", notifyError);
+            } finally {
+                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
+                decRef();
             }
-            // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-            decRef();
         }
-
     }
 
     /** mark the current recovery as done */
@@ -222,17 +225,21 @@ public class RecoveryStatus implements AutoCloseable {
     }
 
     public IndexOutput getOpenIndexOutput(String key) {
+        ensureNotFinished();
         return openIndexOutputs.get(key);
     }
 
     /** returns the original file name for a temporary file name issued by this recovery */
     private String originalNameForTempFile(String tempFile) {
-        assert isTempFile(tempFile);
+        if (!isTempFile(tempFile)) {
+            throw new ElasticsearchException("[" + tempFile + "] is not a temporary file made by this recovery");
+        }
         return tempFile.substring(tempFilePrefix.length());
     }
 
     /** remove and {@link org.apache.lucene.store.IndexOutput} for a given file. It is the caller's responsibility to close it */
     public IndexOutput removeOpenIndexOutputs(String name) {
+        ensureNotFinished();
         return openIndexOutputs.remove(name);
     }
 
@@ -244,23 +251,13 @@ public class RecoveryStatus implements AutoCloseable {
      * at a later stage
      */
     public IndexOutput openAndPutIndexOutput(String fileName, StoreFileMetaData metaData, Store store) throws IOException {
+        ensureNotFinished();
         String tempFileName = getTempNameForFile(fileName);
         // add first, before it's created
         tempFileNames.add(tempFileName);
         IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, IOContext.DEFAULT, metaData);
         openIndexOutputs.put(fileName, indexOutput);
         return indexOutput;
-    }
-
-    /**
-     * Used when holding a reference to this recovery status. Does *not* mean the recovery is done or finished.
-     * For that use {@link #cancel(String)} or {@link #markAsDone()}
-     *
-     * @throws Exception
-     */
-    @Override
-    public void close() throws Exception {
-        decRef();
     }
 
     /**
@@ -310,15 +307,22 @@ public class RecoveryStatus implements AutoCloseable {
                 logger.trace("cleaning temporary file [{}]", file);
                 store.deleteQuiet(file);
             }
+            legacyChecksums.clear();
         } finally {
             // free store. increment happens in constructor
             store.decRef();
         }
-        legacyChecksums.clear();
     }
 
     @Override
     public String toString() {
         return shardId + " [" + recoveryId + "]";
     }
+
+    private void ensureNotFinished() {
+        if (finished.get()) {
+            throw new ElasticsearchException("RecoveryStatus is used after it was finished. Probably a mismatch between incRef/decRef calls");
+        }
+    }
+
 }

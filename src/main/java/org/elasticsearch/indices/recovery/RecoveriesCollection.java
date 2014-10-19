@@ -25,13 +25,24 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.store.Store;
 
+import java.io.IOException;
+import java.sql.Timestamp;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
+ * of those recoveries). The class is used to guarantee concurrent semantics such that once a recoveries was done/cancelled/failed
+ * no other thread will be able to find it. Last, the {@link StatusRef} inner class verifies that recovery temporary files
+ * and store will only be cleared once on going usage is finished.
+ */
 public class RecoveriesCollection {
 
     /** This is the single source of truth for ongoing recoveries. If it's not here, it was canceled or done */
-    private final Map<Long, RecoveryStatus> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<Long, RecoveryStatus> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
     final private ESLogger logger;
 
@@ -46,7 +57,8 @@ public class RecoveriesCollection {
      */
     public long startRecovery(InternalIndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
         RecoveryStatus status = new RecoveryStatus(indexShard, sourceNode, state, listener);
-        onGoingRecoveries.put(status.recoveryId(), status);
+        RecoveryStatus existingStatus = onGoingRecoveries.putIfAbsent(status.recoveryId(), status);
+        assert existingStatus == null : "found two RecoveryStatus instances with the same id";
         logger.trace("{} started recovery from {}, id [{}]", indexShard.shardId(), sourceNode, status.recoveryId());
         return status.recoveryId();
     }
@@ -58,22 +70,22 @@ public class RecoveriesCollection {
      * <p/>
      * Returns null if recovery is not found
      */
-    public RecoveryStatus getStatus(long id) {
+    public StatusRef getStatus(long id) {
         RecoveryStatus status = onGoingRecoveries.get(id);
         if (status != null && status.tryIncRef()) {
-            return status;
+            return new StatusRef(status);
         }
         return null;
     }
 
     /** Similar to {@link #getStatus(long)} but throws an exception if no recovery is found */
-    public RecoveryStatus getStatusSafe(long id, ShardId shardId) {
-        RecoveryStatus status = getStatus(id);
-        if (status == null) {
+    public StatusRef getStatusSafe(long id, ShardId shardId) {
+        StatusRef statusRef = getStatus(id);
+        if (statusRef == null) {
             throw new IndexShardClosedException(shardId);
         }
-        assert status.shardId().equals(shardId);
-        return status;
+        assert statusRef.status().shardId().equals(shardId);
+        return statusRef;
     }
 
     /** cancel the recovery with the given id (if found) and remove it from the recovery collection */
@@ -114,11 +126,11 @@ public class RecoveriesCollection {
      * Try to find an ongoing recovery for a given shard. returns null if not found.
      */
     @Nullable
-    public RecoveryStatus findRecoveryByShard(IndexShard indexShard) {
+    public StatusRef findRecoveryByShard(IndexShard indexShard) {
         for (RecoveryStatus recoveryStatus : onGoingRecoveries.values()) {
             if (recoveryStatus.indexShard() == indexShard) {
                 if (recoveryStatus.tryIncRef()) {
-                    return recoveryStatus;
+                    return new StatusRef(recoveryStatus);
                 } else {
                     return null;
                 }
@@ -134,9 +146,37 @@ public class RecoveriesCollection {
             if (status.shardId().equals(shardId)) {
                 cancelRecovery(status.recoveryId(), reason);
             }
-
         }
     }
 
+    /**
+     * a reference to {@link RecoveryStatus}, which implements {@link AutoCloseable}. closing the reference
+     * causes {@link RecoveryStatus#decRef()} to be called. This makes sure that the underlying resources
+     * will not be freed until {@link RecoveriesCollection.StatusRef#close()} is called.
+     */
+    public static class StatusRef implements AutoCloseable {
+
+        private final RecoveryStatus status;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
+
+        /**
+         * Important: {@link org.elasticsearch.indices.recovery.RecoveryStatus#tryIncRef()} should
+         * be *successfully* called on status before
+         */
+        public StatusRef(RecoveryStatus status) {
+            this.status = status;
+        }
+
+        @Override
+        public void close() {
+            if (closed.compareAndSet(false, true)) {
+                status.decRef();
+            }
+        }
+
+        public RecoveryStatus status() {
+            return status;
+        }
+    }
 }
 

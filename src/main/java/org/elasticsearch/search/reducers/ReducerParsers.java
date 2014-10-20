@@ -81,12 +81,7 @@ public class ReducerParsers {
         ReducerFactories.Builder factories = new ReducerFactories.Builder();
 
         XContentParser.Token token = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            if (token != XContentParser.Token.START_OBJECT) {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [reducers]: reductions array must contain reduction definition objects.");
-            }
-
-            token = parser.nextToken();
+        while ((token = parser.nextToken()) != Token.END_OBJECT) {
             if (token != XContentParser.Token.FIELD_NAME) {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [reducers]: reductions definitions must start with the name of the reduction.");
             }
@@ -133,7 +128,6 @@ public class ReducerParsers {
                 }
             }
 
-            token = parser.nextToken();
             if (token != XContentParser.Token.END_OBJECT) {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [reducers]: expected " + Token.END_OBJECT + ".");
             }

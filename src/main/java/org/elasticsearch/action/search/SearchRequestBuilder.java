@@ -33,8 +33,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -1068,5 +1070,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     private SuggestBuilder suggestBuilder() {
         return sourceBuilder().suggest();
+    }
+
+    public SearchRequestBuilder addReducer(SlidingWindowBuilder two_buckets) {
+        sourceBuilder().reducer(two_buckets);
+        return this;
+
     }
 }

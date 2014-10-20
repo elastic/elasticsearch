@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.reducers.*;
 
 import java.io.IOException;
@@ -51,6 +52,8 @@ public class DeltaReducer extends Reducer {
     @Override
     public InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType,
             BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
+        //compute diff
+        MultiBucketsAggregation.Bucket bucket0 = aggregation.getBuckets().get(0);
         return null;
     }
 

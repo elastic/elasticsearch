@@ -99,6 +99,10 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
         return internalResponse.aggregations();
     }
 
+    public Aggregations getReductions() {
+        return internalResponse.reductions();
+    }
+
 
     public Suggest getSuggest() {
         return internalResponse.suggest();

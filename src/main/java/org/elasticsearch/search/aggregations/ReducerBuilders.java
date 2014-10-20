@@ -16,27 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search;
 
-import com.google.common.collect.ImmutableList;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.SpawnModules;
-import org.elasticsearch.search.aggregations.TransportAggregationModule;
-import org.elasticsearch.search.reducers.TransportReductionModule;
+package org.elasticsearch.search.aggregations;
 
-/**
- *
- */
-public class TransportSearchModule extends AbstractModule implements SpawnModules {
 
-    @Override
-    public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new TransportAggregationModule(), new TransportReductionModule());
-    }
+import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowBuilder;
 
-    @Override
-    protected void configure() {
+public class ReducerBuilders {
 
+    public static SlidingWindowBuilder slidingWindowReducer(String name) {
+        return new SlidingWindowBuilder(name);
     }
 }

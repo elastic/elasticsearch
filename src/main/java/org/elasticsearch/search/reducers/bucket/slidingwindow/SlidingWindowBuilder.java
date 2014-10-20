@@ -29,16 +29,18 @@ public class SlidingWindowBuilder extends ReductionBuilder<SlidingWindowBuilder>
     private String path = null;
     private Integer windowSize = null;
 
-    protected SlidingWindowBuilder(String name) {
+    public SlidingWindowBuilder(String name) {
         super(name, InternalSlidingWindow.TYPE.name());
     }
 
-    public void path(String path) {
+    public SlidingWindowBuilder path(String path) {
         this.path = path;
+        return this;
     }
 
-    public void windowSize(int windowSize) {
+    public SlidingWindowBuilder windowSize(int windowSize) {
         this.windowSize = windowSize;
+        return this;
     }
 
     @Override

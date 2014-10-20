@@ -102,6 +102,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.hamcrest.Matchers;
+import org.joda.time.DateTimeZone;
 import org.junit.*;
 
 import java.io.IOException;
@@ -1674,6 +1675,23 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public static String randomBytesFieldDataFormat() {
         return randomFrom(Arrays.asList("paged_bytes", "fst", "doc_values"));
+    }
+
+    /**
+     * Returns a random JODA Time Zone based on Java Time Zones
+     */
+    public static DateTimeZone randomDateTimeZone() {
+        DateTimeZone timeZone;
+
+        // It sounds like some Java Time Zones are unknown by JODA. For example: Asia/Riyadh88
+        // We need to fallback in that case to a known time zone
+        try {
+            timeZone = DateTimeZone.forTimeZone(randomTimeZone());
+        } catch (IllegalArgumentException e) {
+            timeZone = DateTimeZone.forOffsetHours(randomIntBetween(-12, 12));
+        }
+
+        return timeZone;
     }
 
     protected NumShards getNumShards(String index) {

@@ -74,6 +74,9 @@ providing text to a numeric field) to be ignored.
 
 |`locale` | Locale that should be used for string conversions.
 Defaults to `ROOT`.
+
+|`time_zone` | Time Zone to be applied to any range query related to dates. See also
+http://joda-time.sourceforge.net/api-release/org/joda/time/DateTimeZone.html[JODA timezone].
 |=======================================================================
 
 When a multi term query is being generated, one can control how it gets

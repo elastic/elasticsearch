@@ -1,4 +1,4 @@
-bcrypt: $2y$05$zxnP0vdREMxnEpkLCDI2OuSaSk/QEKA2.A42iOpI6U2u.RLLOWm1e
+bcrypt: $2a$05$zxnP0vdREMxnEpkLCDI2OuSaSk/QEKA2.A42iOpI6U2u.RLLOWm1e
 md5: $apr1$R3DdqiAZ$aljIkaIVPSarmDMlJUBBP.
 crypt: hsP1PYSLsEEvs
 plain: {plain}test123

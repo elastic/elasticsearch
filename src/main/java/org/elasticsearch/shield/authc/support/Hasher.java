@@ -9,6 +9,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.digest.Crypt;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.codec.digest.Md5Crypt;
+import org.apache.commons.codec.digest.Sha2Crypt;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.os.OsUtils;
 
@@ -34,9 +35,6 @@ public enum Hasher {
         @Override
         public boolean verify(SecuredString text, char[] hash) {
             String hashStr = new String(hash);
-            if (hashStr.startsWith(BCRYPT_PREFIX_Y)) {
-                hashStr = BCRYPT_PREFIX + hashStr.substring(BCRYPT_PREFIX_Y.length());
-            }
             if (hashStr.startsWith(BCRYPT_PREFIX)) {
                 return BCrypt.checkpw(text, hashStr);
             }
@@ -52,16 +50,94 @@ public enum Hasher {
                 String passwd64 = Base64.encodeBase64String(DigestUtils.sha1(textBytes));
                 return hashStr.substring(SHA1_PREFIX.length()).compareTo(passwd64) == 0;
             }
+            if (hashStr.startsWith(SHA2_PREFIX_5) || hashStr.startsWith(SHA2_PREFIX_6)) {
+                return hashStr.compareTo(Sha2Crypt.sha256Crypt(textBytes, hashStr)) == 0;
+            }
             return CRYPT_SUPPORTED ?
-                    hashStr.compareTo(Crypt.crypt(textBytes, hashStr)) == 0 :     // crypt algo
-                    text.equals(hashStr);                    // plain text
+                    hashStr.compareTo(Crypt.crypt(textBytes, hashStr)) == 0 :  // crypt algo
+                    text.equals(hashStr);                                      // plain text
+        }
+    },
+
+
+    BCRYPT() {
+        @Override
+        public char[] hash(SecuredString text) {
+            String salt = org.elasticsearch.shield.authc.support.BCrypt.gensalt();
+            return BCrypt.hashpw(text, salt).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecuredString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(BCRYPT_PREFIX)) {
+                return false;
+            }
+            return BCrypt.checkpw(text, hashStr);
+        }
+    },
+
+    MD5() {
+        @Override
+        public char[] hash(SecuredString text) {
+            byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
+            return Md5Crypt.apr1Crypt(textBytes).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecuredString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(APR1_PREFIX)) {
+                return false;
+            }
+            byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
+            return hashStr.compareTo(Md5Crypt.apr1Crypt(textBytes, hashStr)) == 0;
+        }
+    },
+
+    SHA1() {
+        @Override
+        public char[] hash(SecuredString text) {
+            byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
+            String hash = Base64.encodeBase64String(DigestUtils.sha1(textBytes));
+            return (SHA1_PREFIX + hash).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecuredString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (!hashStr.startsWith(SHA1_PREFIX)) {
+                return false;
+            }
+            byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
+            String passwd64 = Base64.encodeBase64String(DigestUtils.sha1(textBytes));
+            return hashStr.substring(SHA1_PREFIX.length()).compareTo(passwd64) == 0;
+        }
+    },
+
+    SHA2() {
+        @Override
+        public char[] hash(SecuredString text) {
+            byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
+            return Sha2Crypt.sha256Crypt(textBytes).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecuredString text, char[] hash) {
+            String hashStr = new String(hash);
+            if (hashStr.startsWith(SHA2_PREFIX_5) || hashStr.startsWith(SHA2_PREFIX_6)) {
+                byte[] textBytes = CharArrays.toUtf8Bytes(text.internalChars());
+                return hashStr.compareTo(Sha2Crypt.sha256Crypt(textBytes, hashStr)) == 0;
+            }
+            return false;
         }
     };
 
     private static final String APR1_PREFIX = "$apr1$";
     private static final String BCRYPT_PREFIX = "$2a$";
-    private static final String BCRYPT_PREFIX_Y = "$2y$";
     private static final String SHA1_PREFIX = "{SHA}";
+    private static final String SHA2_PREFIX_5 = "$5$";
+    private static final String SHA2_PREFIX_6 = "$6$";
     private static final String PLAIN_PREFIX = "{plain}";
     static final boolean CRYPT_SUPPORTED = !OsUtils.WINDOWS;
 

@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -191,6 +192,12 @@ public class QueryStringQueryParser implements QueryParser {
                 } else if ("locale".equals(currentFieldName)) {
                     String localeStr = parser.text();
                     qpSettings.locale(LocaleUtils.parse(localeStr));
+                } else if ("time_zone".equals(currentFieldName)) {
+                    try {
+                        qpSettings.timeZone(DateMathParser.parseZone(parser.text()));
+                    } catch (IllegalArgumentException e) {
+                        throw new QueryParsingException(parseContext.index(), "[query_string] time_zone [" + parser.text() + "] is unknown");
+                    }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {

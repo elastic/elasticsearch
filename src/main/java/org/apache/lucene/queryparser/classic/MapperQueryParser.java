@@ -126,6 +126,9 @@ public class MapperQueryParser extends QueryParser {
         setFuzzyMinSim(settings.fuzzyMinSim());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
         setLocale(settings.locale());
+        if (settings.timeZone() != null) {
+            setTimeZone(settings.timeZone().toTimeZone());
+        }
         this.analyzeWildcard = settings.analyzeWildcard();
     }
 

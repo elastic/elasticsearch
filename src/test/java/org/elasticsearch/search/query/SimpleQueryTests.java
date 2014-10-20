@@ -47,10 +47,7 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -555,6 +552,26 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(e.getMessage(), containsString("unit [D] not supported for date math"));
         }
+    }
+
+    @Test // https://github.com/elasticsearch/elasticsearch/issues/7880
+    public void testDateRangeInQueryStringWithTimeZone_7880() {
+        //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
+        //as with dynamic mappings some shards might be lacking behind and parse a different query
+        assertAcked(prepareCreate("test").addMapping(
+                "type", "past", "type=date"
+        ));
+        ensureGreen();
+
+        DateTimeZone timeZone = randomDateTimeZone();
+        String now = ISODateTimeFormat.dateTime().print(new DateTime(timeZone));
+        logger.info(" --> Using time_zone [{}], now is [{}]", timeZone.getID(), now);
+        client().prepareIndex("test", "type", "1").setSource("past", now).get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(queryString("past:[now-1m/m TO now+1m/m]")
+                .timeZone(timeZone.getID())).get();
+        assertHitCount(searchResponse, 1l);
     }
 
     @Test

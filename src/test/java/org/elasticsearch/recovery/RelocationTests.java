@@ -337,14 +337,14 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         final String indexName = "test";
 
         ListenableFuture<String> blueFuture = internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.color", "blue").build());
-        internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.color", "green").build());
         ListenableFuture<String> redFuture = internalCluster().startNodeAsync(ImmutableSettings.builder().put("node.color", "red").build());
+        internalCluster().startNode(ImmutableSettings.builder().put("node.color", "green").build());
+        final String blueNodeName = blueFuture.get();
+        final String redNodeName = redFuture.get();
 
         ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
-        String blueNodeName = blueFuture.get();
-        final String redNodeName = redFuture.get();
 
         client().admin().indices().prepareCreate(indexName)
                 .setSettings(

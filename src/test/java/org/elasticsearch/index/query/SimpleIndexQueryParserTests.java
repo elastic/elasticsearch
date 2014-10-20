@@ -251,6 +251,21 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
+    public void testQueryStringTimezone() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/query-timezone.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(TermRangeQuery.class));
+
+        try {
+            queryParser.parse(copyToStringFromClasspath("/org/elasticsearch/index/query/query-timezone-incorrect.json"));
+            fail("we expect a QueryParsingException as we are providing an unknown time_zome");
+        } catch (QueryParsingException e) {
+            // We expect this one
+        }
+    }
+
+    @Test
     public void testMatchAllBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(matchAllQuery().boost(1.2f)).query();

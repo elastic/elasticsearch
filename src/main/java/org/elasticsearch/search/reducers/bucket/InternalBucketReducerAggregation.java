@@ -40,7 +40,6 @@ import java.util.Map;
 
 public abstract class InternalBucketReducerAggregation extends InternalAggregation implements BucketReducerAggregation {
 
-    private String name;
     private List<InternalSelection> selections;
     private Map<String, Selection> selectionMap;
 
@@ -123,9 +122,11 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
                 bucket.toXContent(builder, params);
             }
             builder.endArray();
-            builder.startObject("reductions");
-            aggregations.toXContentInternal(builder, params);
-            builder.endObject();
+            if (aggregations != null) {
+                builder.startObject("reductions");
+                aggregations.toXContentInternal(builder, params);
+                builder.endObject();
+            }
             builder.endObject();
             return builder;
         }

@@ -33,8 +33,11 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.reducers.ReductionBuilder;
+import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -580,6 +583,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Adds a reducer to the search operation.
+     */
+    public SearchRequestBuilder addReducer(ReductionBuilder reductionBuilder) {
+        sourceBuilder().reducer(reductionBuilder);
+        return this;
+
+    }
+
+    /**
      * Adds a field to be highlighted with default fragment size of 100 characters, and
      * default number of fragments of 5.
      *
@@ -1069,4 +1081,5 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     private SuggestBuilder suggestBuilder() {
         return sourceBuilder().suggest();
     }
+
 }

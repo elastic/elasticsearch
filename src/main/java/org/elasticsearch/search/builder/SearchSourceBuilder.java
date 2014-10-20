@@ -41,6 +41,8 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.reducers.ReductionBuilder;
+import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -109,6 +111,7 @@ public class SearchSourceBuilder implements ToXContent {
     private List<AbstractAggregationBuilder> aggregations;
     private BytesReference aggregationsBinary;
 
+    private List<ReductionBuilder> reducers;
 
     private HighlightBuilder highlightBuilder;
 
@@ -844,6 +847,17 @@ public class SearchSourceBuilder implements ToXContent {
             builder.endObject();
         }
 
+        if (reducers != null) {
+            builder.field("reducers");
+            builder.startArray();
+            for (ReductionBuilder reducer : reducers) {
+                builder.startObject();
+                reducer.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+
         if (aggregationsBinary != null) {
             if (XContentFactory.xContentType(aggregationsBinary) == builder.contentType()) {
                 builder.rawField("aggregations", aggregationsBinary);
@@ -902,6 +916,13 @@ public class SearchSourceBuilder implements ToXContent {
 
         builder.endObject();
         return builder;
+    }
+
+    public void reducer(ReductionBuilder reducer) {
+        if (reducers == null) {
+            reducers = Lists.newArrayList();
+        }
+        reducers.add(reducer);
     }
 
     private static class ScriptField {

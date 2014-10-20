@@ -87,7 +87,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  */
 public class MetaDataCreateIndexService extends AbstractComponent {
 
-    public final static int MAX_INDEX_NAME_BYTES = 100;
+    public final static int MAX_INDEX_NAME_BYTES = 255;
     private static final DefaultIndexTemplateFilter DEFAULT_INDEX_TEMPLATE_FILTER = new DefaultIndexTemplateFilter();
 
     private final Environment environment;

@@ -29,7 +29,7 @@ public class ParseField {
     private final String camelCaseName;
     private final String underscoreName;
     private final String[] deprecatedNames;
-    private String replacedWith;
+    private String replacedWith = null;
 
     public static final EnumSet<Flag> EMPTY_FLAGS = EnumSet.noneOf(Flag.class);
 
@@ -84,7 +84,7 @@ public class ParseField {
     }
     
     public boolean match(String currentFieldName, EnumSet<Flag> flags) {
-        if (replacedWith == null & (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName))) {
+        if (replacedWith == null && (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName))) {
             return true;
         }
         String msg;
@@ -102,6 +102,5 @@ public class ParseField {
         }
         return false;
     }
-
 
 }

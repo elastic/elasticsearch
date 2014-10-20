@@ -29,7 +29,7 @@ but if it's greater than the integer, the specification applies. In this
 example: if there are 1 to 3 clauses they are all required, but for 4 or
 more clauses only 90% are required.
 
-|Multiple combinations |`2<-25 9<-3` |Multiple conditional
+|Multiple combinations |`2<-25% 9<-3` |Multiple conditional
 specifications can be separated by spaces, each one only being valid for
 numbers greater than the one before it. In this example: if there are 1
 or 2 clauses both are required, if there are 3-9 clauses all but 25% are

@@ -115,9 +115,15 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             indexRandom(true, builder);
             ensureGreen(indexName);
         }
+        logger.debug("--> Upgrading nodes");
+        logClusterState();
+        logSegmentsState(null);
         backwardsCluster().allowOnAllNodes(indexNames);
         backwardsCluster().upgradeAllNodes();
         ensureGreen();
+        logger.debug("--> Nodes upgrade complete");
+        logClusterState();
+        logSegmentsState(null);
         
         final HttpRequestBuilder httpClient = httpClient();
 

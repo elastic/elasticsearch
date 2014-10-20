@@ -32,7 +32,6 @@ import java.util.Hashtable;
 public class ActiveDirectoryConnectionFactory extends AbstractComponent implements LdapConnectionFactory {
 
     public static final String AD_DOMAIN_NAME_SETTING = "domain_name";
-    public static final String AD_PORT = "default_port";
     public static final String AD_USER_SEARCH_BASEDN_SETTING = "user_search_dn";
     static final String MODE_NAME = "active_directory";
 
@@ -48,9 +47,15 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
             throw new ShieldException("Missing [" + AD_DOMAIN_NAME_SETTING + "] setting for active directory");
         }
         userSearchDN = componentSettings.get(AD_USER_SEARCH_BASEDN_SETTING, buildDnFromDomain(domainName));
-        int port = componentSettings.getAsInt(AD_PORT, 636);
-        String protocol = port == 389 ? "ldap://" : "ldaps://";
-        String[] ldapUrls = componentSettings.getAsArray(URLS_SETTING,  new String[] { protocol + domainName + ":" + port });
+
+        String[] ldapUrls = componentSettings.getAsArray(URLS_SETTING);
+        if (ldapUrls == null) {
+            String url = componentSettings.get(URLS_SETTING);
+            ldapUrls = url == null ? null : new String[]{url};
+        }
+        if (ldapUrls == null) {
+            ldapUrls = new String[] { "ldaps://" + domainName + ":636" };
+        }
 
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")

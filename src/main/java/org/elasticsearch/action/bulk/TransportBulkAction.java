@@ -53,11 +53,16 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -117,7 +122,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
-                                executeBulk(bulkRequest, startTime, listener, responses);
+                                try {
+                                    executeBulk(bulkRequest, startTime, listener, responses);
+                                } catch (Throwable t) {
+                                    listener.onFailure(t);
+                                }
                             }
                         }
 
@@ -205,7 +214,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (request instanceof DocumentRequest) {
                 DocumentRequest req = (DocumentRequest) request;
 
-                if (addFailureIfIndexIsClosed(req, bulkRequest, responses, i, concreteIndices, metaData)) {
+                if (addFailureIfIndexIsUnavailable(req, bulkRequest, responses, i, concreteIndices, metaData)) {
                     continue;
                 }
 
@@ -344,31 +353,38 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    private boolean addFailureIfIndexIsClosed(DocumentRequest request, BulkRequest bulkRequest, AtomicArray<BulkItemResponse> responses, int idx,
+    private boolean addFailureIfIndexIsUnavailable(DocumentRequest request, BulkRequest bulkRequest, AtomicArray<BulkItemResponse> responses, int idx,
                                               final ConcreteIndices concreteIndices,
                                               final MetaData metaData) {
         String concreteIndex = concreteIndices.getConcreteIndex(request.index());
-        boolean isClosed = false;
+        Exception unavailableException = null;
         if (concreteIndex == null) {
             try {
                 concreteIndex = concreteIndices.resolveIfAbsent(request.index(), request.indicesOptions());
             } catch (IndexClosedException ice) {
-                isClosed = true;
+                unavailableException = ice;
+            } catch (IndexMissingException ime) {
+                // Fix for issue where bulk request references an index that
+                // cannot be auto-created see issue #8125
+                unavailableException = ime;
             }
         }
-        if (!isClosed) {
+        if (unavailableException == null) {
             IndexMetaData indexMetaData = metaData.index(concreteIndex);
-            isClosed = indexMetaData.getState() == IndexMetaData.State.CLOSE;
+            if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                unavailableException = new IndexClosedException(new Index(metaData.index(request.index()).getIndex()));
+            }
         }
-        if (isClosed) {
+        if (unavailableException != null) {
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.type(), request.id(),
-                    new IndexClosedException(new Index(metaData.index(request.index()).getIndex())));
+                    unavailableException);
             BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, "index", failure);
             responses.set(idx, bulkItemResponse);
             // make sure the request gets never processed again
             bulkRequest.requests.set(idx, null);
+            return true;
         }
-        return isClosed;
+        return false;
     }
 
 

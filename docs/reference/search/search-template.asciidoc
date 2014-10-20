@@ -8,7 +8,7 @@ before they are executed and fill existing templates with template parameters.
 
 [source,js]
 ------------------------------------------
-GET /_search/template
+POST /_search/template
 {
     "template" : {
       "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
@@ -35,7 +35,7 @@ documentation of the mustache project].
 
 [source,js]
 ------------------------------------------
-GET /_search/template
+POST /_search/template
 {
     "template": {
         "query": {
@@ -54,8 +54,7 @@ GET /_search/template
 ===== Passing an array of strings
 
 [source,js]
-------------------------------------------
-GET /_search/template
+POST /_search/template
 {
   "template": {
     "query": {
@@ -211,7 +210,7 @@ In order to execute the stored template, reference it by it's name under the `te
 
 [source,js]
 ------------------------------------------
-GET /_search/template
+POST /_search/template
 {
     "template": {
         "file": "storedTemplate" <1>,
@@ -277,7 +276,7 @@ To use an indexed template at search time use:
 
 [source,js]
 ------------------------------------------
-GET /_search/template
+POST /_search/template
 {
     "template": {
         "id": "templateName" <1>,

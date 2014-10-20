@@ -11,6 +11,8 @@ import org.elasticsearch.common.inject.ImplementedBy;
 import org.elasticsearch.common.inject.Singleton;
 import org.elasticsearch.license.core.ESLicenses;
 
+import java.util.Set;
+
 import static org.elasticsearch.license.plugin.core.LicensesService.DeleteLicenseRequestHolder;
 import static org.elasticsearch.license.plugin.core.LicensesService.PutLicenseRequestHolder;
 
@@ -22,4 +24,6 @@ public interface LicensesManagerService {
     public void unregisterLicenses(final DeleteLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener);
 
     public LicensesStatus checkLicenses(ESLicenses licenses);
+
+    public Set<String> enabledFeatures();
 }

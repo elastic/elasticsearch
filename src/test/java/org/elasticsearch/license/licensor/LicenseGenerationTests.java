@@ -16,7 +16,6 @@ import java.text.ParseException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.license.core.ESLicenses.FeatureType;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -24,10 +23,10 @@ public class LicenseGenerationTests extends AbstractLicensingTestBase {
 
     @Test
     public void testSimpleLicenseGeneration() throws ParseException, IOException {
-        Map<FeatureType, TestUtils.FeatureAttributes> map = new HashMap<>();
+        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
         TestUtils.FeatureAttributes featureAttributes =
                 new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-12-13");
-        map.put(FeatureType.SHIELD, featureAttributes);
+        map.put(TestUtils.SHIELD, featureAttributes);
 
         String licenseOutput = generateSignedLicenses(map);
 
@@ -37,15 +36,15 @@ public class LicenseGenerationTests extends AbstractLicensingTestBase {
     }
 
     @Test
-    public void testMultipleFeatureTypes() throws ParseException, IOException {
+    public void testMultipleStrings() throws ParseException, IOException {
 
-        Map<FeatureType, TestUtils.FeatureAttributes> map = new HashMap<>();
+        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
         TestUtils.FeatureAttributes shildFeatureAttributes =
                 new TestUtils.FeatureAttributes("shield", "trial", "none", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-12-13");
         TestUtils.FeatureAttributes marvelFeatureAttributes =
                 new TestUtils.FeatureAttributes("marvel", "subscription", "silver", "foo1 bar Inc.", "elasticsearc3h", 10, "2014-01-13", "2014-12-13");
-        map.put(FeatureType.SHIELD, shildFeatureAttributes);
-        map.put(FeatureType.MARVEL, marvelFeatureAttributes);
+        map.put(TestUtils.SHIELD, shildFeatureAttributes);
+        map.put(TestUtils.MARVEL, marvelFeatureAttributes);
 
         String licenseOutput = generateSignedLicenses(map);
 
@@ -57,10 +56,10 @@ public class LicenseGenerationTests extends AbstractLicensingTestBase {
     @Test
     public void testMissingCLTArgs() throws ParseException, IOException {
 
-        Map<FeatureType, TestUtils.FeatureAttributes> map = new HashMap<>();
+        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
         TestUtils.FeatureAttributes featureAttributes =
                 new TestUtils.FeatureAttributes("shiedgdsld", "internal", "none", "foo bar Inc.", "elasticsearch", 23, "2014-12-13", "2015-12-13");
-        map.put(FeatureType.SHIELD, featureAttributes);
+        map.put(TestUtils.SHIELD, featureAttributes);
 
         String licenseString = TestUtils.generateESLicenses(map);
 
@@ -81,37 +80,11 @@ public class LicenseGenerationTests extends AbstractLicensingTestBase {
     }
 
     @Test
-    public void testInvalidFeatureType() throws ParseException, IOException {
-
-        Map<FeatureType, TestUtils.FeatureAttributes> map = new HashMap<>();
-        TestUtils.FeatureAttributes featureAttributes =
-                new TestUtils.FeatureAttributes("shiedgdsld", "internal", "none", "foo bar Inc.", "elasticsearch", 23, "2014-12-13", "2015-12-13");
-        map.put(FeatureType.SHIELD, featureAttributes);
-
-        String licenseString = TestUtils.generateESLicenses(map);
-
-        String[] args = new String[6];
-        args[0] = "--license";
-        args[1] = licenseString;
-        args[2] = "--publicKeyPath";
-        args[3] = pubKeyPath;
-        args[4] = "--privateKeyPath";
-        args[5] = priKeyPath;
-
-        try {
-            String licenseOutput = TestUtils.runLicenseGenerationTool(args);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertTrue("Exception should indicate invalid FeatureType, got: " + e.getMessage(), e.getMessage().contains("Invalid FeatureType"));
-        }
-    }
-
-    @Test
     public void testInvalidSubscriptionType() throws ParseException, IOException {
-        Map<FeatureType, TestUtils.FeatureAttributes> map = new HashMap<>();
+        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
         TestUtils.FeatureAttributes featureAttributes =
                 new TestUtils.FeatureAttributes("shield", "trial", "nodavne", "foo bar Inc.", "elasticsearch", 25, "2014-12-13", "2015-12-13");
-        map.put(FeatureType.SHIELD, featureAttributes);
+        map.put(TestUtils.SHIELD, featureAttributes);
 
         String licenseString = TestUtils.generateESLicenses(map);
 
@@ -134,10 +107,10 @@ public class LicenseGenerationTests extends AbstractLicensingTestBase {
     @Test
     public void testInvalidType() throws ParseException, IOException {
 
-        Map<FeatureType, TestUtils.FeatureAttributes> map = new HashMap<>();
+        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
         TestUtils.FeatureAttributes featureAttributes =
                 new TestUtils.FeatureAttributes("shield", "inininternal", "gold", "foo bar Inc.", "elasticsearch", 12, "2014-12-13", "2015-12-13");
-        map.put(FeatureType.SHIELD, featureAttributes);
+        map.put(TestUtils.SHIELD, featureAttributes);
 
         String licenseString = TestUtils.generateESLicenses(map);
 

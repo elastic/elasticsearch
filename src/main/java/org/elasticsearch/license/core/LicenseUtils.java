@@ -34,7 +34,7 @@ public class LicenseUtils {
                         generator.writeStringField("issued_to", esLicense.issuedTo());
                         generator.writeStringField("issue_date", DateUtils.dateStringFromLongDate(esLicense.issueDate()));
                         generator.writeStringField("expiry_date", DateUtils.dateStringFromLongDate(esLicense.expiryDate()));
-                        generator.writeStringField("feature", esLicense.feature().string());
+                        generator.writeStringField("feature", esLicense.feature());
                         generator.writeNumberField("max_nodes", esLicense.maxNodes());
                         generator.writeStringField("signature", esLicense.signature());
                     }
@@ -101,7 +101,7 @@ public class LicenseUtils {
                         .issueDate(getValueAsDate(licenseNode, "issue_date"))
                         .type(ESLicenses.Type.fromString(getValueAsString(licenseNode, "type")))
                         .subscriptionType(ESLicenses.SubscriptionType.fromString(getValueAsString(licenseNode, "subscription_type")))
-                        .feature(ESLicenses.FeatureType.fromString(getValueAsString(licenseNode, "feature")))
+                        .feature(getValueAsString(licenseNode, "feature"))
                         .expiryDate(getValueAsExpiryDate(licenseNode, "expiry_date"))
                         .maxNodes(getValueAsInt(licenseNode, "max_nodes"))
                         .signature(getValueAsString(licenseNode, "signature", true))
@@ -168,7 +168,7 @@ public class LicenseUtils {
             printValue("  subscription_type", license.subscriptionType().string());
             printValue("  issueDate", DateUtils.dateStringFromLongDate(license.issueDate()));
             printValue("  issuedTo", license.issuedTo());
-            printValue("  feature", license.feature().string());
+            printValue("  feature", license.feature());
             printValue("  maxNodes", license.maxNodes());
             printValue("  expiryDate", DateUtils.dateStringFromLongDate(license.expiryDate()));
             printValue("  signature", license.signature());

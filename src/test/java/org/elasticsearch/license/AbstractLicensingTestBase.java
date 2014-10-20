@@ -31,7 +31,7 @@ public class AbstractLicensingTestBase {
         return url.toURI().getPath();
     }
 
-    public String generateSignedLicenses(Map<ESLicenses.FeatureType, TestUtils.FeatureAttributes> map) throws IOException {
+    public String generateSignedLicenses(Map<String, TestUtils.FeatureAttributes> map) throws IOException {
         String licenseString = TestUtils.generateESLicenses(map);
         return TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
     }

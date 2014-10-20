@@ -6,6 +6,7 @@
 package org.elasticsearch.license.licensor;
 
 import net.nicholaswilliams.java.licensing.License;
+import net.nicholaswilliams.java.licensing.SignedLicense;
 import net.nicholaswilliams.java.licensing.encryption.Hasher;
 import net.nicholaswilliams.java.licensing.encryption.PasswordProvider;
 import net.nicholaswilliams.java.licensing.encryption.PrivateKeyDataProvider;
@@ -91,7 +92,7 @@ public class ESLicenseSigner {
                 .withProductKey(esLicense.uid())
                 .withHolder(esLicense.issuedTo())
                 .withIssuer(esLicense.issuer())
-                .addFeature(esLicense.feature().string(), esLicense.expiryDate())
+                .addFeature("feature:" + esLicense.feature(), esLicense.expiryDate())
                 .addFeature("maxNodes:" + String.valueOf(esLicense.maxNodes()))
                 .addFeature("type:" + esLicense.type().string())
                 .addFeature("subscription_type:" + esLicense.subscriptionType().string());
@@ -101,7 +102,8 @@ public class ESLicenseSigner {
         final byte[] magic = new byte[MAGIC_LENGTH];
         Random random = new Random();
         random.nextBytes(magic);
-        final byte[] licenseSignature = licenseCreator.signAndSerializeLicense(license);
+        //final SignedLicense signedLicense = licenseCreator.signLicense(license);
+        final byte[] licenseSignature = licenseCreator.signAndSerializeLicense(license);//signedLicense.getSignatureContent();
         final byte[] hash = Hasher.hash(Base64.encodeBase64String(
                         Files.readAllBytes(publicKeyPath))
         ).getBytes(Charset.forName("UTF-8"));

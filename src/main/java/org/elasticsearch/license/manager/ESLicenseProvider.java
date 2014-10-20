@@ -8,11 +8,10 @@ package org.elasticsearch.license.manager;
 import org.elasticsearch.license.core.ESLicenses;
 
 import static org.elasticsearch.license.core.ESLicenses.ESLicense;
-import static org.elasticsearch.license.core.ESLicenses.FeatureType;
 
 public interface ESLicenseProvider {
 
-    ESLicense getESLicense(FeatureType featureType);
+    ESLicense getESLicense(String feature);
 
     ESLicenses getEffectiveLicenses();
 }

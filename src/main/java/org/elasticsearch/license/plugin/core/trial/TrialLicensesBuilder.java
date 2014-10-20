@@ -7,7 +7,6 @@ package org.elasticsearch.license.plugin.core.trial;
 
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.license.core.DateUtils;
-import org.elasticsearch.license.core.ESLicenses;
 
 import java.util.*;
 
@@ -41,7 +40,7 @@ public class TrialLicensesBuilder {
         }
     }
 
-    private final ImmutableMap.Builder<ESLicenses.FeatureType, TrialLicense> licenseBuilder;
+    private final ImmutableMap.Builder<String, TrialLicense> licenseBuilder;
 
     public TrialLicensesBuilder() {
         licenseBuilder = ImmutableMap.builder();
@@ -64,7 +63,7 @@ public class TrialLicensesBuilder {
     }
 
     public TrialLicenses build() {
-        final ImmutableMap<ESLicenses.FeatureType, TrialLicense> licenseMap = licenseBuilder.build();
+        final ImmutableMap<String, TrialLicense> licenseMap = licenseBuilder.build();
         return new TrialLicenses() {
 
             @Override
@@ -73,8 +72,8 @@ public class TrialLicensesBuilder {
             }
 
             @Override
-            public TrialLicense getTrialLicense(ESLicenses.FeatureType featureType) {
-                return licenseMap.get(featureType);
+            public TrialLicense getTrialLicense(String feature) {
+                return licenseMap.get(feature);
             }
 
             @Override
@@ -85,7 +84,7 @@ public class TrialLicensesBuilder {
     }
 
     public static class TrialLicenseBuilder {
-        private ESLicenses.FeatureType featureType;
+        private String featureType;
         private long expiryDate = -1;
         private long issueDate = -1;
         private int durationInDays = -1;
@@ -111,7 +110,7 @@ public class TrialLicensesBuilder {
             return this;
         }
 
-        public TrialLicenseBuilder feature(ESLicenses.FeatureType featureType) {
+        public TrialLicenseBuilder feature(String featureType) {
             this.featureType = featureType;
             return this;
         }
@@ -148,7 +147,7 @@ public class TrialLicensesBuilder {
                 }
 
                 @Override
-                public ESLicenses.FeatureType feature() {
+                public String feature() {
                     return featureType;
                 }
 

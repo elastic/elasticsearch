@@ -7,19 +7,17 @@ package org.elasticsearch.license.plugin.core.trial;
 
 import java.util.Collection;
 
-import static org.elasticsearch.license.core.ESLicenses.FeatureType;
-
 public interface TrialLicenses extends Iterable<TrialLicenses.TrialLicense> {
 
     public Collection<TrialLicense> trialLicenses();
 
-    public TrialLicense getTrialLicense(FeatureType featureType);
+    public TrialLicense getTrialLicense(String feature);
 
     public interface TrialLicense {
 
         public String issuedTo();
 
-        public FeatureType feature();
+        public String feature();
 
         public long issueDate();
 

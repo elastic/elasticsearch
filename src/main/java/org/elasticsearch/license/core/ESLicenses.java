@@ -25,12 +25,13 @@ public interface ESLicenses extends Iterable<ESLicenses.ESLicense> {
     /**
      * @return Set of features for which there exists an underlying license
      */
-    public Set<FeatureType> features();
+    public Set<String> features();
 
     /**
      * @return a license for a code>featureType<</code>
+     * @param feature
      */
-    public ESLicense get(FeatureType featureType);
+    public ESLicense get(String feature);
 
     /**
      * Enum for License Type
@@ -104,34 +105,6 @@ public interface ESLicenses extends Iterable<ESLicenses.ESLicense> {
     }
 
     /**
-     * Enum for License FeatureType
-     */
-    public enum FeatureType {
-        SHIELD("shield"),
-        MARVEL("marvel");
-
-        private final String name;
-
-        private FeatureType(String name) {
-            this.name = name;
-        }
-
-        public String string() {
-            return name;
-        }
-
-        public static FeatureType fromString(String featureType) {
-            if (featureType.equalsIgnoreCase(SHIELD.string())) {
-                return SHIELD;
-            } else if (featureType.equalsIgnoreCase(MARVEL.string())) {
-                return MARVEL;
-            } else {
-                throw new IllegalArgumentException("Invalid FeatureType=" + featureType);
-            }
-        }
-    }
-
-    /**
      * Interface representing all the license fields
      */
     public interface ESLicense {
@@ -159,7 +132,7 @@ public interface ESLicenses extends Iterable<ESLicenses.ESLicense> {
         /**
          * @return the featureType for the license [shield, marvel]
          */
-        public FeatureType feature();
+        public String feature();
 
         /**
          * @return the expiry date in milliseconds

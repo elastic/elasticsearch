@@ -25,8 +25,8 @@ public class FileBasedESLicenseProvider implements ESLicenseProvider {
     }
 
     @Override
-    public ESLicenses.ESLicense getESLicense(ESLicenses.FeatureType featureType) {
-        return esLicenses.get(featureType);
+    public ESLicenses.ESLicense getESLicense(String feature) {
+        return esLicenses.get(feature);
     }
 
     @Override

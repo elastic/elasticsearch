@@ -21,8 +21,10 @@ import static org.junit.Assert.assertTrue;
 
 public class TestUtils {
 
+    public final static String SHIELD = "shield";
+    public final static String MARVEL = "marvel";
 
-    public static String generateESLicenses(Map<ESLicenses.FeatureType, FeatureAttributes> featureAttributes) {
+    public static String generateESLicenses(Map<String, FeatureAttributes> featureAttributes) {
         StringBuilder licenseBuilder = new StringBuilder();
         int size = featureAttributes.values().size();
         int i = 0;
@@ -70,17 +72,17 @@ public class TestUtils {
         return FileUtils.readFileToString(temp);
     }
 
-    public static void verifyESLicenses(ESLicenses esLicenses, Map<ESLicenses.FeatureType, FeatureAttributes> featureAttributes) throws ParseException {
+    public static void verifyESLicenses(ESLicenses esLicenses, Map<String, FeatureAttributes> featureAttributes) throws ParseException {
         assertTrue("Number of feature licenses should be " + featureAttributes.size(), esLicenses.features().size() == featureAttributes.size());
-        for (Map.Entry<ESLicenses.FeatureType, FeatureAttributes> featureAttrTuple : featureAttributes.entrySet()) {
-            ESLicenses.FeatureType featureType = featureAttrTuple.getKey();
+        for (Map.Entry<String, FeatureAttributes> featureAttrTuple : featureAttributes.entrySet()) {
+            String featureType = featureAttrTuple.getKey();
             FeatureAttributes attributes = featureAttrTuple.getValue();
             final ESLicenses.ESLicense esLicense = esLicenses.get(featureType);
-            assertTrue("license for " + featureType.string() + " should be present", esLicense != null);
+            assertTrue("license for " + featureType + " should be present", esLicense != null);
             assertTrue("expected value for issuedTo was: " + attributes.issuedTo + " but got: " + esLicense.issuedTo(), esLicense.issuedTo().equals(attributes.issuedTo));
             assertTrue("expected value for type was: " + attributes.type + " but got: " + esLicense.type().string(), esLicense.type().string().equals(attributes.type));
             assertTrue("expected value for subscriptionType was: " + attributes.subscriptionType + " but got: " + esLicense.subscriptionType().string(), esLicense.subscriptionType().string().equals(attributes.subscriptionType));
-            assertTrue("expected value for feature was: " + attributes.featureType + " but got: " + esLicense.feature().string(), esLicense.feature().string().equals(attributes.featureType));
+            assertTrue("expected value for feature was: " + attributes.featureType + " but got: " + esLicense.feature(), esLicense.feature().equals(attributes.featureType));
             assertTrue("expected value for issueDate was: " + DateUtils.longFromDateString(attributes.issueDate) + " but got: " + esLicense.issueDate(), esLicense.issueDate() == DateUtils.longFromDateString(attributes.issueDate));
             assertTrue("expected value for expiryDate: " + DateUtils.longExpiryDateFromString(attributes.expiryDate) + " but got: " + esLicense.expiryDate(), esLicense.expiryDate() == DateUtils.longExpiryDateFromString(attributes.expiryDate));
             assertTrue("expected value for maxNodes: " + attributes.maxNodes + " but got: " + esLicense.maxNodes(), esLicense.maxNodes() == attributes.maxNodes);
@@ -102,7 +104,7 @@ public class TestUtils {
 
 
         // for every feature license, check if all the attributes are the same
-        for (ESLicenses.FeatureType featureType : licenses1.features()) {
+        for (String featureType : licenses1.features()) {
             ESLicenses.ESLicense license1 = licenses1.get(featureType);
             ESLicenses.ESLicense license2 = licenses2.get(featureType);
 
@@ -114,7 +116,7 @@ public class TestUtils {
     public static void isSame(ESLicenses.ESLicense license1, ESLicenses.ESLicense license2) {
 
         assertTrue("Should have same uid; got: " + license1.uid() + " and " + license2.uid(), license1.uid().equals(license2.uid()));
-        assertTrue("Should have same feature; got: " + license1.feature().string() + " and " + license2.feature().string(), license1.feature().string().equals(license2.feature().string()));
+        assertTrue("Should have same feature; got: " + license1.feature() + " and " + license2.feature(), license1.feature().equals(license2.feature()));
         assertTrue("Should have same subscriptType; got: " + license1.subscriptionType().string() + " and " + license2.subscriptionType().string(), license1.subscriptionType().string().equals(license2.subscriptionType().string()));
         assertTrue("Should have same type; got: " + license1.type().string() + " and " + license2.type().string(), license1.type().string().equals(license2.type().string()));
         assertTrue("Should have same issuedTo; got: " + license1.issuedTo() + " and " + license2.issuedTo(), license1.issuedTo().equals(license2.issuedTo()));

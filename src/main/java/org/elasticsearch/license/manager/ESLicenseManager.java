@@ -80,8 +80,8 @@ public class ESLicenseManager {
 
     public void verifyLicenses(ESLicenses esLicenses) {
         try {
-            for (FeatureType featureType : esLicenses.features()) {
-                ESLicense esLicense = esLicenses.get(featureType);
+            for (String feature : esLicenses.features()) {
+                ESLicense esLicense = esLicenses.get(feature);
                 // verify signature
                 final License license = this.licenseManager.decryptAndVerifyLicense(
                         extractSignedLicence(esLicense.signature()));
@@ -94,7 +94,7 @@ public class ESLicenseManager {
         } catch (ExpiredLicenseException e) {
             throw new InvalidLicenseException("Expired License");
         } catch (InvalidLicenseException e) {
-            throw new InvalidLicenseException("Invalid License");
+            throw new InvalidLicenseException("Invalid License: " + e.getCause());
         }
     }
 
@@ -132,6 +132,7 @@ public class ESLicenseManager {
         String maxNodesPrefix = "maxNodes:";
         String typePrefix = "type:";
         String subscriptionTypePrefix = "subscription_type:";
+        String featurePrefix = "feature:";
         boolean maxNodesValid = false;
         boolean featureValid = false;
         boolean typeValid = false;
@@ -145,8 +146,9 @@ public class ESLicenseManager {
                 typeValid = eslicense.type() == Type.fromString(featureName.substring(typePrefix.length()));
             } else if (featureName.startsWith(subscriptionTypePrefix)) {
                 subscriptionTypeValid = eslicense.subscriptionType() == SubscriptionType.fromString(featureName.substring(subscriptionTypePrefix.length()));
-            } else {
-                featureValid = feature.getName().equals(eslicense.feature().string())
+            } else if (featureName.startsWith(featurePrefix)) {
+                String featureValue = featureName.substring(featurePrefix.length());
+                featureValid = featureValue.equals(eslicense.feature())
                         && feature.getGoodBeforeDate() == eslicense.expiryDate();
             }
         }
@@ -160,8 +162,8 @@ public class ESLicenseManager {
             throw new InvalidLicenseException("Invalid License");
         }
     }
-    private License getLicense(FeatureType featureType) {
-        ESLicense esLicense = licenseProvider.getESLicense(featureType);
+    private License getLicense(String feature) {
+        ESLicense esLicense = licenseProvider.getESLicense(feature);
         if (esLicense != null) {
             String signature = esLicense.signature();
             License license = this.licenseManager.decryptAndVerifyLicense(extractSignedLicence(signature));
@@ -173,11 +175,11 @@ public class ESLicenseManager {
 
     //TODO wrap License validation methods so a plugin does not have to provide featureType param
 
-    public boolean hasLicenseForFeature(FeatureType featureType) {
+    public boolean hasLicenseForFeature(String feature) {
         try {
-            final License license = getLicense(featureType);
+            final License license = getLicense(feature);
             if (license != null) {
-                return license.hasLicenseForFeature(featureType.string());
+                return license.hasLicenseForFeature("feature:" + feature);
             }
             return false;
         } catch (ExpiredLicenseException e) {
@@ -187,42 +189,42 @@ public class ESLicenseManager {
         }
     }
 
-    public boolean hasLicenseForNodes(FeatureType featureType, int nodes) {
+    public boolean hasLicenseForNodes(String featureType, int nodes) {
         ESLicense esLicense = getESLicense(featureType);
         return esLicense.maxNodes() >= nodes;
     }
 
-    public String getIssuerForLicense(FeatureType featureType) {
+    public String getIssuerForLicense(String featureType) {
         final License license = getLicense(featureType);
         return license.getIssuer();
     }
 
-    public long getIssueDateForLicense(FeatureType featureType) {
+    public long getIssueDateForLicense(String featureType) {
         final License license = getLicense(featureType);
         return license.getIssueDate();
     }
 
-    public long getExpiryDateForLicense(FeatureType featureType) {
+    public long getExpiryDateForLicense(String featureType) {
         final License license = getLicense(featureType);
         return license.getGoodBeforeDate();
     }
 
-    public String getIssuedToForLicense(FeatureType featureType) {
+    public String getIssuedToForLicense(String featureType) {
         final License license = getLicense(featureType);
         return license.getHolder();
     }
 
-    public Type getTypeForLicense(FeatureType featureType) {
+    public Type getTypeForLicense(String featureType) {
         ESLicense esLicense = getESLicense(featureType);
         return esLicense.type();
     }
 
-    public SubscriptionType getSubscriptionTypeForLicense(FeatureType featureType) {
+    public SubscriptionType getSubscriptionTypeForLicense(String featureType) {
         ESLicense esLicense = getESLicense(featureType);
         return esLicense.subscriptionType();
     }
 
-    ESLicense getESLicense(FeatureType featureType) {
+    ESLicense getESLicense(String featureType) {
         final License license = getLicense(featureType);
         return convertToESLicense(license);
     }
@@ -252,6 +254,7 @@ public class ESLicenseManager {
         String maxNodesPrefix = "maxNodes:";
         String typePrefix = "type:";
         String subscriptionTypePrefix = "subscription_type:";
+        String featurePrefix = "feature:";
         for (License.Feature feature : license.getFeatures()) {
             String featureName = feature.getName();
             if (featureName.startsWith(maxNodesPrefix)) {
@@ -260,8 +263,8 @@ public class ESLicenseManager {
                 licenseBuilder.type(Type.fromString(featureName.substring(typePrefix.length())));
             } else if (featureName.startsWith(subscriptionTypePrefix)) {
                 licenseBuilder.subscriptionType(SubscriptionType.fromString(featureName.substring(subscriptionTypePrefix.length())));
-            } else {
-                licenseBuilder.feature(FeatureType.fromString(featureName));
+            } else if (featureName.startsWith(featurePrefix)) {
+                licenseBuilder.feature(featureName.substring(featurePrefix.length()));
             }
         }
         return licenseBuilder.build();

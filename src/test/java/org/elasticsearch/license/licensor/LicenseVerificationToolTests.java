@@ -23,17 +23,17 @@ public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
 
     @Test
     public void testEffectiveLicenseGeneration() throws Exception {
-        Map<ESLicenses.FeatureType, TestUtils.FeatureAttributes> map = new HashMap<>();
+        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
         TestUtils.FeatureAttributes featureWithLongerExpiryDate =
                 new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 10, "2014-12-13", "2015-12-13");
-        map.put(ESLicenses.FeatureType.SHIELD, featureWithLongerExpiryDate);
+        map.put(TestUtils.SHIELD, featureWithLongerExpiryDate);
 
         String signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
         String firstLicenseFile = getAsFilePath(signedLicense);
 
         TestUtils.FeatureAttributes featureWithShorterExpiryDate =
                 new TestUtils.FeatureAttributes("shield", "trial", "none", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-01-13");
-        map.put(ESLicenses.FeatureType.SHIELD, featureWithShorterExpiryDate);
+        map.put(TestUtils.SHIELD, featureWithShorterExpiryDate);
 
         signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
         String secondLicenseFile = getAsFilePath(signedLicense);
@@ -41,7 +41,7 @@ public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
         String effectiveLicenseStr = runLicenseVerificationTool(new String[]{firstLicenseFile, secondLicenseFile});
         ESLicenses effectiveLicense = LicenseUtils.readLicensesFromString(effectiveLicenseStr);
 
-        map.put(ESLicenses.FeatureType.SHIELD, featureWithLongerExpiryDate);
+        map.put(TestUtils.SHIELD, featureWithLongerExpiryDate);
 
         // verify that the effective license strips out license for the same feature with earlier expiry dates
         TestUtils.verifyESLicenses(effectiveLicense, map);
@@ -49,17 +49,17 @@ public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
 
     @Test
     public void testEffectiveLicenseForMultiFeatures() throws Exception {
-        Map<ESLicenses.FeatureType, TestUtils.FeatureAttributes> map = new HashMap<>();
+        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
         TestUtils.FeatureAttributes shieldFeatureWithLongerExpiryDate =
                 new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 10, "2014-12-13", "2015-12-13");
-        map.put(ESLicenses.FeatureType.SHIELD, shieldFeatureWithLongerExpiryDate);
+        map.put(TestUtils.SHIELD, shieldFeatureWithLongerExpiryDate);
 
         String signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
         String firstLicenseFile = getAsFilePath(signedLicense);
 
         TestUtils.FeatureAttributes marvelFeatureWithShorterExpiryDate =
                 new TestUtils.FeatureAttributes("marvel", "trial", "none", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-01-13");
-        map.put(ESLicenses.FeatureType.MARVEL, marvelFeatureWithShorterExpiryDate);
+        map.put(TestUtils.MARVEL, marvelFeatureWithShorterExpiryDate);
 
         signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
         String secondLicenseFile = getAsFilePath(signedLicense);
@@ -73,15 +73,15 @@ public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
 
     @Test
     public void testEffectiveLicenseForMultiFeatures2() throws Exception {
-        Map<ESLicenses.FeatureType, TestUtils.FeatureAttributes> map = new HashMap<>();
+        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
 
         TestUtils.FeatureAttributes shieldFeatureWithLongerExpiryDate =
                 new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 10, "2014-12-13", "2015-12-13");
         TestUtils.FeatureAttributes marvelFeatureWithShorterExpiryDate =
                 new TestUtils.FeatureAttributes("marvel", "trial", "none", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-01-13");
 
-        map.put(ESLicenses.FeatureType.SHIELD, shieldFeatureWithLongerExpiryDate);
-        map.put(ESLicenses.FeatureType.MARVEL, marvelFeatureWithShorterExpiryDate);
+        map.put(TestUtils.SHIELD, shieldFeatureWithLongerExpiryDate);
+        map.put(TestUtils.MARVEL, marvelFeatureWithShorterExpiryDate);
 
         String signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
         String firstLicenseFile = getAsFilePath(signedLicense);
@@ -91,8 +91,8 @@ public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
         TestUtils.FeatureAttributes marvelFeatureWithLongerExpiryDate =
                 new TestUtils.FeatureAttributes("marvel", "trial", "none", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-11-13");
 
-        map.put(ESLicenses.FeatureType.SHIELD, shieldFeatureWithShorterExpiryDate);
-        map.put(ESLicenses.FeatureType.MARVEL, marvelFeatureWithLongerExpiryDate);
+        map.put(TestUtils.SHIELD, shieldFeatureWithShorterExpiryDate);
+        map.put(TestUtils.MARVEL, marvelFeatureWithLongerExpiryDate);
 
         signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
         String secondLicenseFile = getAsFilePath(signedLicense);
@@ -100,8 +100,8 @@ public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
         String effectiveLicenseStr = runLicenseVerificationTool(new String[]{firstLicenseFile, secondLicenseFile});
         ESLicenses effectiveLicense = LicenseUtils.readLicensesFromString(effectiveLicenseStr);
 
-        map.put(ESLicenses.FeatureType.SHIELD, shieldFeatureWithLongerExpiryDate);
-        map.put(ESLicenses.FeatureType.MARVEL, marvelFeatureWithLongerExpiryDate);
+        map.put(TestUtils.SHIELD, shieldFeatureWithLongerExpiryDate);
+        map.put(TestUtils.MARVEL, marvelFeatureWithLongerExpiryDate);
 
         // verify that the generated effective license is generated from choosing individual licences from multiple files
         TestUtils.verifyESLicenses(effectiveLicense, map);

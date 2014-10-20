@@ -88,10 +88,10 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
     @Test
     public void testPutLicense() throws ParseException, ExecutionException, InterruptedException, IOException {
 
-        Map<ESLicenses.FeatureType, TestUtils.FeatureAttributes> map = new HashMap<>();
+        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
         TestUtils.FeatureAttributes featureAttributes =
                 new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-12-13");
-        map.put(ESLicenses.FeatureType.SHIELD, featureAttributes);
+        map.put(TestUtils.SHIELD, featureAttributes);
         String licenseString = TestUtils.generateESLicenses(map);
         String licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
 
@@ -129,16 +129,16 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPutInvalidLicense() throws Exception {
-        Map<ESLicenses.FeatureType, TestUtils.FeatureAttributes> map = new HashMap<>();
+        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
         TestUtils.FeatureAttributes featureAttributes =
                 new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-12-13");
-        map.put(ESLicenses.FeatureType.SHIELD, featureAttributes);
+        map.put(TestUtils.SHIELD, featureAttributes);
         String licenseString = TestUtils.generateESLicenses(map);
         String licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
 
         ESLicenses esLicenses = readLicensesFromString(licenseOutput);
 
-        ESLicenses.ESLicense esLicense = esLicenses.get(ESLicenses.FeatureType.SHIELD);
+        ESLicenses.ESLicense esLicense = esLicenses.get(TestUtils.SHIELD);
         ESLicenses.ESLicense tamperedLicense = LicenseBuilders.licenseBuilder(true)
                 .fromLicense(esLicense)
                 .expiryDate(esLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)

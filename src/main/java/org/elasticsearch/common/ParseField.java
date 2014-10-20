@@ -57,7 +57,7 @@ public class ParseField {
      * and replaced with {@code replacedWith} if {@code deprecated} is set to true.
      */
     public ParseField(String value, boolean deprecated, String replacedWith) {
-        this(value, deprecated ? value : null);
+        this(value, value);
         this.replacedWith = deprecated ? replacedWith : null;
     }
 

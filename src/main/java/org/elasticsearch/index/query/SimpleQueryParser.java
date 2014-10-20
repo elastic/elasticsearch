@@ -19,7 +19,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.*;
 
 import java.util.Locale;
 import java.util.Map;
@@ -50,11 +51,19 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
 
     @Override
     public Query newDefaultQuery(String text) {
-        try {
-            return super.newDefaultQuery(text);
-        } catch (RuntimeException e) {
-            return rethrowUnlessLenient(e);
+        BooleanQuery bq = new BooleanQuery(true);
+        for (Map.Entry<String,Float> entry : weights.entrySet()) {
+            try {
+                Query q = createBooleanQuery(entry.getKey(), text, super.getDefaultOperator());
+                if (q != null) {
+                    q.setBoost(entry.getValue());
+                    bq.add(q, BooleanClause.Occur.SHOULD);
+                }
+            } catch (RuntimeException e) {
+                rethrowUnlessLenient(e);
+            }
         }
+        return super.simplify(bq);
     }
 
     /**
@@ -66,20 +75,36 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         if (settings.lowercaseExpandedTerms()) {
             text = text.toLowerCase(settings.locale());
         }
-        try {
-            return super.newFuzzyQuery(text, fuzziness);
-        } catch (RuntimeException e) {
-            return rethrowUnlessLenient(e);
+        BooleanQuery bq = new BooleanQuery(true);
+        for (Map.Entry<String,Float> entry : weights.entrySet()) {
+            try {
+                Query q = new FuzzyQuery(new Term(entry.getKey(), text), fuzziness);
+                if (q != null) {
+                    q.setBoost(entry.getValue());
+                    bq.add(q, BooleanClause.Occur.SHOULD);
+                }
+            } catch (RuntimeException e) {
+                rethrowUnlessLenient(e);
+            }
         }
+        return super.simplify(bq);
     }
 
     @Override
     public Query newPhraseQuery(String text, int slop) {
-        try {
-            return super.newPhraseQuery(text, slop);
-        } catch (RuntimeException e) {
-            return rethrowUnlessLenient(e);
+        BooleanQuery bq = new BooleanQuery(true);
+        for (Map.Entry<String,Float> entry : weights.entrySet()) {
+            try {
+                Query q = createPhraseQuery(entry.getKey(), text, slop);
+                if (q != null) {
+                    q.setBoost(entry.getValue());
+                    bq.add(q, BooleanClause.Occur.SHOULD);
+                }
+            } catch (RuntimeException e) {
+                rethrowUnlessLenient(e);
+            }
         }
+        return super.simplify(bq);
     }
 
     /**
@@ -91,11 +116,17 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         if (settings.lowercaseExpandedTerms()) {
             text = text.toLowerCase(settings.locale());
         }
-        try {
-            return super.newPrefixQuery(text);
-        } catch (RuntimeException e) {
-            return rethrowUnlessLenient(e);
+        BooleanQuery bq = new BooleanQuery(true);
+        for (Map.Entry<String,Float> entry : weights.entrySet()) {
+            try {
+                PrefixQuery prefix = new PrefixQuery(new Term(entry.getKey(), text));
+                prefix.setBoost(entry.getValue());
+                bq.add(prefix, BooleanClause.Occur.SHOULD);
+            } catch (RuntimeException e) {
+                return rethrowUnlessLenient(e);
+            }
         }
+        return super.simplify(bq);
     }
 
     /**

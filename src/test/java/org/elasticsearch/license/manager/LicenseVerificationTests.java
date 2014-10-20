@@ -139,7 +139,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
         esLicenseProvider.setLicenses(esLicensesOutput);
 
         // All validation for shield license should be normal as expected
-        
+
         verifyLicenseManager(esLicenseManager, Collections.singletonMap(TestUtils.SHIELD, shildFeatureAttributes));
 
         assertFalse("license for marvel should not be valid due to expired expiry date", esLicenseManager.hasLicenseForFeature(TestUtils.MARVEL));

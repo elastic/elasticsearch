@@ -5,11 +5,9 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.manager.ESLicenseManager;
 import org.junit.BeforeClass;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Map;

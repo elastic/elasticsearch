@@ -12,8 +12,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Test;
 
-
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 
 @ClusterScope(scope = SUITE, numDataNodes = 10)

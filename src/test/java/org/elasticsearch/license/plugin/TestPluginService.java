@@ -38,8 +38,8 @@ public class TestPluginService extends AbstractLifecycleComponent<TestPluginServ
 
     // check if feature is enabled
     public boolean enabled() {
-                                   return enabled.get();
-                                                                                       }
+        return enabled.get();
+    }
 
     protected void doStart() throws ElasticsearchException {
         licensesClientService.register(FEATURE_NAME,
@@ -59,12 +59,12 @@ public class TestPluginService extends AbstractLifecycleComponent<TestPluginServ
 
         @Override
         public void onEnabled() {
-                                      enabled.set(true);
-                                                                                      }
+            enabled.set(true);
+        }
 
         @Override
         public void onDisabled() {
-                                       enabled.set(false);
-                                                                                         }
+            enabled.set(false);
+        }
     }
 }

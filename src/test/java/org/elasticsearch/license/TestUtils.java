@@ -100,7 +100,7 @@ public class TestUtils {
         final ESLicenses licenses2 = LicenseBuilders.licensesBuilder().licenses(secondLicenses).build();
 
         // check if the effective licenses have the same feature set
-        assertTrue("Both licenses should have the same number of features",licenses1.features().equals(licenses2.features()));
+        assertTrue("Both licenses should have the same number of features", licenses1.features().equals(licenses2.features()));
 
 
         // for every feature license, check if all the attributes are the same

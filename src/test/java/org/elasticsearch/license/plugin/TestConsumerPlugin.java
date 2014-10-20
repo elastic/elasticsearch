@@ -7,7 +7,6 @@ package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.util.Collection;

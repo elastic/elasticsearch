@@ -138,7 +138,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         ESLicenses licenses = LicenseUtils.readLicensesFromString(licenseOutput);
 
         LicensesManagerService licensesManagerService = licensesManagerService();
-        ESLicenseManager esLicenseManager = ((LicensesService)licensesManagerService).getEsLicenseManager();
+        ESLicenseManager esLicenseManager = ((LicensesService) licensesManagerService).getEsLicenseManager();
         final CountDownLatch latch1 = new CountDownLatch(1);
         licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().license(licenses), "test"), new ActionListener<ClusterStateUpdateResponse>() {
             @Override
@@ -208,7 +208,8 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testMultipleClientRegistration() {}
+    public void testMultipleClientRegistration() {
+    }
 
     private class TestLicenseClientListener implements LicensesClientService.Listener {
 
@@ -290,7 +291,8 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         latch1.await();
 
         logger.info("waiting for onEnabled");
-        while(!testLicenseClientListener.processed.get()) {}
+        while (!testLicenseClientListener.processed.get()) {
+        }
 
         Set<String> enabledFeatures = licensesManagerService.enabledFeatures();
         assertTrue(enabledFeatures.contains("shield"));
@@ -315,7 +317,8 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         assertFalse("feature should not be enabled: no licenses registered", managerService.enabledFeatures().contains("marvel"));
     }
 
-    @Test @Ignore
+    @Test
+    @Ignore
     public void testLicenseExpiry() throws Exception {
         //TODO, first figure out how to generate a license with a quick expiry in matter of seconds
     }

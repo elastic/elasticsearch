@@ -1,0 +1,87 @@
+[[search-aggregations-bucket-sampler-aggregation]]
+=== Sampler Aggregation
+
+An aggregation that filters the analysis of documents to a subset of the top-matching results.
+
+.The factors we want to control when we sample are: 
+* Quantity - some combinations of queries, datasets and aggregations can be expensive to run so we can cap the numbers of documents considered on each shard
+* Quality - some of the "fuzzier" searches can have a long-tail of low-quality results which we want to ignore
+
+
+==== Example usage
+
+An example problem that might require sampling is in a product recommendation scenario where we might want to use some example movie IDs to query 
+an index of user profiles which list their favourite viewings.
+This sort of query can match a large number of user profiles, some of which may have extensive lists of their favourite movies to be considered.
+We don't need to look at all user profiles to make useful recommendations and so we can use the `sampler` aggregation to to cap the processing time.
+
+Example:
+
+[source,js]
+--------------------------------------------------
+{
+    "query": {
+        "terms": {
+            "liked_movie_id": [
+                46970,
+                3726
+            ]
+        },
+        "aggregations": {
+            "sample": {
+                "sampler": {
+                    "shard_size": 1000
+                },
+                "aggregations": {
+                    "recommendations": {
+                        "significant_terms": {
+                            "field": "liked_movie_id"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+	...
+    "aggregations": {
+        "sample": {
+            "doc_count": 2000,
+            "recommendations": {
+                "doc_count": 2000,
+                "buckets": [
+                    {
+                        "key": "31289",
+                        "doc_count": 1340,
+                        "score": 2.371,
+                        "bg_count": 66799
+                    }
+                    ...
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+Note the final doc_count in our sample is 2,000 - this is because the requested limit of 1,000 is per-shard
+and so we have 2 shards in this example.
+
+==== Options
+
+[horizontal]
+shard_size::    Optional. The maximum number of documents sampled on each shard. 
+				Defaults to 100
+
+random_sample::    Optional. Set to true to take a random sample of documents rather than top-scoring documents. 
+				Defaults to false
+
+
+
+

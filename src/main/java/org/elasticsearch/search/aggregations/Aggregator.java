@@ -27,6 +27,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -34,7 +35,12 @@ import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public abstract class Aggregator extends BucketCollector implements Releasable {
 
@@ -123,7 +129,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     
     // A scorer used for the deferred collection mode to handle any child aggs asking for scores that are not 
     // recorded.
-    static final Scorer unavailableScorer=new Scorer(null){
+    public static final Scorer unavailableScorer = new Scorer(null) {
         private final String MSG = "A limitation of the " + SubAggCollectionMode.BREADTH_FIRST.parseField.getPreferredName()
                 + " collection mode is that scores cannot be buffered along with document IDs";
 
@@ -171,7 +177,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     protected BucketCollector collectableSubAggregators;
 
     private Map<String, Aggregator> subAggregatorbyName;
-    private DeferringBucketCollector recordingWrapper;
+    private DeferringBucketCollector deferringCollector;
 
     /**
      * Constructs a new Aggregator.
@@ -238,15 +244,21 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         }
         if (nextPassCollectors.size() > 0) {
             BucketCollector deferreds = BucketCollector.wrap(nextPassCollectors);
-            recordingWrapper = new DeferringBucketCollector(deferreds, context);
+            deferringCollector = createDeferrerImpl(deferreds, context);
             // TODO. Without line below we are dependent on subclass aggs
             // delegating setNextReader calls on to child aggs
             // which they don't seem to do as a matter of course. Need to move
             // to a delegation model rather than broadcast
-            context.registerReaderContextAware(recordingWrapper);
-            thisPassCollectors.add(recordingWrapper);            
+            context.registerReaderContextAware(deferringCollector);
+            thisPassCollectors.add(deferringCollector);            
         }
         collectableSubAggregators = BucketCollector.wrap(thisPassCollectors);
+    }
+
+    // Subclasses can override the default implementation of
+    // DeferringBucketCollector
+    protected DeferringBucketCollector createDeferrerImpl(BucketCollector deferred, AggregationContext context) {
+        return new BestBucketsDeferringCollector(deferred, context);
     }
     
     /**
@@ -266,9 +278,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     
     protected void runDeferredCollections(long... bucketOrds){
         // Being lenient here - ignore calls where there are no deferred collections to playback
-        if (recordingWrapper != null) {
-            context.setScorer(unavailableScorer);
-            recordingWrapper.prepareSelectedBuckets(bucketOrds);
+        if (deferringCollector != null) {
+            deferringCollector.prepareSelectedBuckets(bucketOrds);
         } 
     }
 
@@ -346,7 +357,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     /** Called upon release of the aggregator. */
     @Override
     public void close() {
-        try (Releasable _ = recordingWrapper) {
+        try (Releasable _ = deferringCollector) {
             doClose();
         }
     }

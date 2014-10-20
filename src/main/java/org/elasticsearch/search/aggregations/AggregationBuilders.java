@@ -46,6 +46,8 @@ import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanc
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4Range;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -202,6 +204,13 @@ public class AggregationBuilders {
      */
     public static GeoHashGridBuilder geohashGrid(String name) {
         return new GeoHashGridBuilder(name);
+    }
+
+    /**
+     * Create a new {@link SamplerAggregator} aggregation with the given name.
+     */
+    public static SamplerAggregationBuilder sampler(String name) {
+        return new SamplerAggregationBuilder(name);
     }
 
     /**

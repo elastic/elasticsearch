@@ -70,8 +70,6 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
                 .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
                         HierarchyCircuitBreakerService.DEFAULT_REQUEST_BREAKER_LIMIT)
                 .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, 1.0)
-                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
-                        HierarchyCircuitBreakerService.DEFAULT_BREAKER_TYPE)
                 .build();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings).execute().actionGet();
     }
@@ -90,9 +88,27 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
         return randomFrom(Arrays.asList("100b", "100"));
     }
 
+    /** Returns true if any of the nodes used a noop breaker */
+    private boolean noopBreakerUsed() {
+        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
+        for (NodeStats nodeStats : stats) {
+            if (nodeStats.getBreaker().getStats(CircuitBreaker.Name.REQUEST).getLimit() == 0) {
+                return true;
+            }
+            if (nodeStats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getLimit() == 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Test
     //@TestLogging("indices.breaker:TRACE,index.fielddata:TRACE,common.breaker:TRACE")
     public void testMemoryBreaker() throws Exception {
+        if (noopBreakerUsed()) {
+            logger.info("--> noop breakers used, skipping test");
+            return;
+        }
         assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
         final Client client = client();
 
@@ -134,6 +150,10 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRamAccountingTermsEnum() throws Exception {
+        if (noopBreakerUsed()) {
+            logger.info("--> noop breakers used, skipping test");
+            return;
+        }
         final Client client = client();
 
         // Create an index where the mappings have a field data filter
@@ -184,6 +204,10 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
      */
     @Test
     public void testParentChecking() throws Exception {
+        if (noopBreakerUsed()) {
+            logger.info("--> noop breakers used, skipping test");
+            return;
+        }
         assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
         Client client = client();
 
@@ -240,6 +264,10 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRequestBreaker() throws Exception {
+        if (noopBreakerUsed()) {
+            logger.info("--> noop breakers used, skipping test");
+            return;
+        }
         assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
         Client client = client();
 
@@ -266,44 +294,5 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
             assertThat("Exception: " + ExceptionsHelper.unwrapCause(e) + " should contain a CircuitBreakingException",
                     ExceptionsHelper.unwrapCause(e).getMessage().contains(errMsg), equalTo(true));
         }
-    }
-
-    @Test
-    public void testNoopRequestBreaker() throws Exception {
-        assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
-        Client client = client();
-
-        // Make request breaker limited to a small amount
-        Settings resetSettings = settingsBuilder()
-                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, "10b")
-                .build();
-        client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings).execute().actionGet();
-
-        // index some different terms so we have some field data for loading
-        int docCount = scaledRandomIntBetween(300, 1000);
-        List<IndexRequestBuilder> reqs = newArrayList();
-        for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
-        }
-        indexRandom(true, reqs);
-
-        // A cardinality aggregation uses BigArrays and thus the REQUEST breaker
-        try {
-            client.prepareSearch("cb-test").setQuery(matchAllQuery()).addAggregation(cardinality("card").field("test")).get();
-            fail("aggregation should have tripped the breaker");
-        } catch (Exception e) {
-            String errMsg = "CircuitBreakingException[[REQUEST] Data too large, data for [<reused_arrays>] would be larger than limit of [10/10b]]";
-            assertThat("Exception: " + ExceptionsHelper.unwrapCause(e) + " should contain a CircuitBreakingException",
-                    ExceptionsHelper.unwrapCause(e).getMessage().contains(errMsg), equalTo(true));
-        }
-
-        // Make request breaker into a noop breaker
-        resetSettings = settingsBuilder()
-                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING, "noop")
-                .build();
-        client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings).execute().actionGet();
-
-        // A cardinality aggregation uses BigArrays and thus the REQUEST breaker
-        client.prepareSearch("cb-test").setQuery(matchAllQuery()).addAggregation(cardinality("card").field("test")).get();
     }
 }

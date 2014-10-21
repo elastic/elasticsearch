@@ -58,7 +58,10 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                // _timestamp is randomly enabled via templates but we don't want it here to test stored fields behaviour
+                .startObject("_timestamp").field("enabled", false).endObject()
+                .startObject("properties")
                 .startObject("field1").field("type", "string").field("store", "yes").endObject()
                 .startObject("field2").field("type", "string").field("store", "no").endObject()
                 .startObject("field3").field("type", "string").field("store", "yes").endObject()

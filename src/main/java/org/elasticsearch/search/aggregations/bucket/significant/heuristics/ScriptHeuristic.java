@@ -166,9 +166,6 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     public static class ScriptHeuristicBuilder implements SignificanceHeuristicBuilder {
 
-        public ScriptHeuristicBuilder() {
-        }
-
         private String script = null;
         private String lang = null;
         private Map<String, Object> params = null;

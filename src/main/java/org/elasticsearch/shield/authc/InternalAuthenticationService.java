@@ -62,6 +62,11 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         for (Realm realm : realms) {
             token = realm.token(message);
             if (token != null) {
+
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Realm [{}] resolved auth token [{}] from transport request with action [{}]", realm.type(), token.principal(), action);
+                }
+
                 message.putInContext(TOKEN_CTX_KEY, token);
                 return token;
             }

@@ -76,7 +76,9 @@ public abstract class Privilege<P extends Privilege<P>> {
     public static class System extends Privilege<System> {
 
         protected static final Predicate<String> PREDICATE = new AutomatonPredicate(patterns(
-                "internal:*"
+                "internal:*",
+                "indices:monitor/*",  // added for marvel
+                "cluster:monitor/*"   // added for marvel
         ));
 
         private System() {

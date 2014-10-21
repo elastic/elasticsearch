@@ -59,6 +59,7 @@ public class SecurityFilter extends AbstractComponent {
 
         AuthenticationToken token = authcService.token(action, request, defaultToken);
         User user = authcService.authenticate(action, request, token);
+
         authzService.authorize(user, action, request);
         return user;
     }

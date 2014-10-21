@@ -41,6 +41,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.json.JsonPath;
@@ -54,6 +55,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)   // test scope since we set cluster wide settings
 public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @BeforeClass
@@ -136,6 +138,10 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE);
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(builder).get();
         backwardsCluster().upgradeAllNodes();
+        // we are done - enable allocation again
+        builder = ImmutableSettings.builder();
+        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.ALL);
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(builder).get();
         ensureGreen();
         logger.debug("--> Nodes upgrade complete");
         logClusterState();

@@ -376,15 +376,15 @@ requests.txt:
 
 [source,js]
 --------------------------------------------------
-{"percolate" : {"index" : twitter", "type" : "tweet"}}
+{"percolate" : {"index" : "twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some text"}}
-{"percolate" : {"index" : twitter", "type" : "tweet", "id" : "1"}}
+{"percolate" : {"index" : "twitter", "type" : "tweet", "id" : "1"}}
 {}
-{"percolate" : {"index" : users", "type" : "user", "id" : "3", "percolate_index" : "users_2012" }}
+{"percolate" : {"index" : "users", "type" : "user", "id" : "3", "percolate_index" : "users_2012" }}
 {"size" : 10}
-{"count" : {"index" : twitter", "type" : "tweet"}}
+{"count" : {"index" : "twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some other text"}}
-{"count" : {"index" : twitter", "type" : "tweet", "id" : "1"}}
+{"count" : {"index" : "twitter", "type" : "tweet", "id" : "1"}}
 {}
 --------------------------------------------------
 

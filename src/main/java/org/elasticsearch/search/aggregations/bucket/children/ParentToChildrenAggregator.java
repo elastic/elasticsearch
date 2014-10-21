@@ -29,6 +29,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
@@ -52,7 +53,7 @@ import java.util.List;
 public class ParentToChildrenAggregator extends SingleBucketAggregator implements ReaderContextAware {
 
     private final String parentType;
-    private final FixedBitSetFilter childFilter;
+    private final Filter childFilter;
     private final FixedBitSetFilter parentFilter;
     private final ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource;
 
@@ -75,7 +76,10 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
                                       ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, long maxOrd) {
         super(name, factories, aggregationContext, parent);
         this.parentType = parentType;
-        this.childFilter = aggregationContext.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(childFilter);
+        // The child filter doesn't rely on random access it just used to iterate over all docs with a specific type,
+        // so use the filter cache instead. When the filter cache is smarter with what filter impl to pick we can benefit
+        // from it here
+        this.childFilter = new ApplyAcceptedDocsFilter(aggregationContext.searchContext().filterCache().cache(childFilter));
         this.parentFilter = aggregationContext.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(parentFilter);
         this.parentOrdToBuckets = aggregationContext.bigArrays().newLongArray(maxOrd, false);
         this.parentOrdToBuckets.fill(0, maxOrd, -1);

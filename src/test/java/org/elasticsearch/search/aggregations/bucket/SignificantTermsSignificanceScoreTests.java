@@ -505,7 +505,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         Map<String, Object> params = null;
         String script = null;
         String lang = null;
-        ScriptService.ScriptType scriptType = null;
+        String scriptId = null;
         if (randomBoolean()) {
             params = new HashMap<>();
             params.put("param", randomIntBetween(1, 100));
@@ -521,9 +521,6 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                 } else {
                     script = "return param*(_subset_freq + _subset_size + _superset_freq + _superset_size)/param";
                 }
-                if (randomBoolean()) {
-                    scriptType = ScriptService.ScriptType.INLINE;
-                }
                 break;
             }
             case 1: {
@@ -537,8 +534,8 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                                 .field("script", script)
                                 .endObject()).get();
                 refresh();
-                script = "my_script";
-                scriptType = ScriptService.ScriptType.INDEXED;
+                scriptId = "my_script";
+                script = null;
                 break;
             }
             case 2: {
@@ -547,7 +544,6 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                 } else {
                     script = "significance_script_with_params";
                 }
-                scriptType = ScriptService.ScriptType.FILE;
                 break;
             }
             case 3: {
@@ -559,19 +555,12 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                 }
                 lang = "native";
                 if (randomBoolean()) {
-                    scriptType = ScriptService.ScriptType.INLINE;
                 }
                 break;
             }
         }
-        ScriptHeuristic.ScriptHeuristicBuilder builder = new ScriptHeuristic.ScriptHeuristicBuilder().setScript(script).setLang(lang).setParams(params);
-        if (scriptType != null) {
-            if (randomBoolean()) {
-                builder.setType(scriptType);
-            } else {
-                builder.setType(scriptType.getTypeName());
-            }
-        }
+        ScriptHeuristic.ScriptHeuristicBuilder builder = new ScriptHeuristic.ScriptHeuristicBuilder().setScript(script).setLang(lang).setParams(params).setScriptId(scriptId);
+
         return builder;
     }
 

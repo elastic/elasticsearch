@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
@@ -54,7 +55,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
         @Override
         public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return new ScriptHeuristic(null, in.readString(), in.readString(), ScriptService.ScriptType.readFrom(in), in.readMap());
+            return new ScriptHeuristic(null, in.readOptionalString(), in.readString(), ScriptService.ScriptType.readFrom(in), in.readMap());
         }
 
         @Override
@@ -116,7 +117,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(STREAM.getName());
-        out.writeString(scriptLang);
+        out.writeOptionalString(scriptLang);
         out.writeString(scriptString);
         ScriptService.ScriptType.writeTo(scriptType, out);
         out.writeMap(params);
@@ -124,7 +125,6 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     public static class ScriptHeuristicParser implements SignificanceHeuristicParser {
         private final ScriptService scriptService;
-        private final ParseField scriptTypeField = new ParseField("script_type");
         @Inject
         public ScriptHeuristicParser(ScriptService scriptService) {
             this.scriptService = scriptService;
@@ -134,12 +134,12 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
             NAMES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS);
             String script = null;
-            String scriptLang = ScriptService.DEFAULT_LANG;
+            String scriptLang;
             XContentParser.Token token;
             Map<String, Object> params = new HashMap<>();
             String currentFieldName = null;
             ScriptService.ScriptType scriptType = ScriptService.ScriptType.INLINE;
-
+            ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token.equals(XContentParser.Token.FIELD_NAME)) {
                     currentFieldName = parser.currentName();
@@ -149,23 +149,21 @@ public class ScriptHeuristic extends SignificanceHeuristic {
                     } else {
                         throw new ElasticsearchParseException("unknown object " + currentFieldName + " in script_heuristic");
                     }
-                } else if (token.isValue()) {
-                    if ("script".equals(currentFieldName)) {
-                        script = parser.text();
-                    } else if (scriptTypeField.match(currentFieldName)) {
-                        scriptType = ScriptService.ScriptType.fromString(parser.text());
-                    } else if ("lang".equals(currentFieldName)) {
-                        scriptLang = parser.text();
-                    } else {
-                        throw new ElasticsearchParseException("unknown field " + currentFieldName + " in script_heuristic");
-                    }
+                } else if (!scriptParameterParser.token(currentFieldName, token, parser)) {
+                    throw new ElasticsearchParseException("unknown field " + currentFieldName + " in script_heuristic");
                 }
             }
+
+            ScriptParameterParser.ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+            if (scriptValue != null) {
+                script = scriptValue.script();
+                scriptType = scriptValue.scriptType();
+            }
+            scriptLang = scriptParameterParser.lang();
 
             if (script == null) {
                 throw new ElasticsearchParseException("No script found in script_heuristic");
             }
-
             ExecutableScript searchScript;
             try {
                 searchScript = scriptService.executable(scriptLang, script, scriptType, params);
@@ -186,7 +184,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         private String script = null;
         private String lang = null;
         private Map<String, Object> params = null;
-        private ScriptService.ScriptType scriptType;
+        private String scriptId;
         public ScriptHeuristicBuilder setScript(String script) {
             this.script = script;
             return this;
@@ -202,8 +200,8 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             return this;
         }
 
-        public ScriptHeuristicBuilder setType(String scriptType) {
-            this.scriptType = ScriptService.ScriptType.fromString(scriptType);
+        public ScriptHeuristicBuilder setScriptId(String scriptId) {
+            this.scriptId = scriptId;
             return this;
         }
 
@@ -219,16 +217,12 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             if (params != null) {
                 builder.field("params", params);
             }
-            if (scriptType != null) {
-                builder.field("script_type", scriptType.getTypeName());
+            if (scriptId != null) {
+                builder.field("script_id", scriptId);
             }
             builder.endObject();
         }
 
-        public ScriptHeuristicBuilder setType(ScriptService.ScriptType scriptType) {
-            this.scriptType = scriptType;
-            return this;
-        }
     }
 
     public final class LongAccessor extends Number {

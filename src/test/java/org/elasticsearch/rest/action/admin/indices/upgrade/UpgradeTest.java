@@ -28,6 +28,9 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -65,6 +68,10 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
     }
 
     public void testUpgrade() throws Exception {
+        // allow the cluster to rebalance quickly - 2 concurrent rebalance are default we can do higher
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        builder.put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, 100);
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get();
 
         int numIndexes = randomIntBetween(2, 4);
         String[] indexNames = new String[numIndexes];
@@ -85,12 +92,12 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             assertAllShardsOnNodes(indexName, backwardsCluster().backwardsNodePattern());
 
             int numDocs = scaledRandomIntBetween(100, 1000);
-            List<IndexRequestBuilder> builder = new ArrayList<>();
+            List<IndexRequestBuilder> docs = new ArrayList<>();
             for (int j = 0; j < numDocs; ++j) {
                 String id = Integer.toString(j);
-                builder.add(client().prepareIndex(indexName, "type1", id).setSource("text", "sometext"));
+                docs.add(client().prepareIndex(indexName, "type1", id).setSource("text", "sometext"));
             }
-            indexRandom(true, builder);
+            indexRandom(true, docs);
             ensureGreen(indexName);
             if (globalCompatibilityVersion().before(Version.V_1_4_0_Beta1)) {
                 // before 1.4 and the wait_if_ongoing flag, flushes could fail randomly, so we
@@ -107,18 +114,27 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             
             // index more docs that won't be flushed
             numDocs = scaledRandomIntBetween(100, 1000);
-            builder = new ArrayList<>();
+            docs = new ArrayList<>();
             for (int j = 0; j < numDocs; ++j) {
                 String id = Integer.toString(j);
-                builder.add(client().prepareIndex(indexName, "type2", id).setSource("text", "someothertext"));
+                docs.add(client().prepareIndex(indexName, "type2", id).setSource("text", "someothertext"));
             }
-            indexRandom(true, builder);
+            indexRandom(true, docs);
             ensureGreen(indexName);
         }
         logger.debug("--> Upgrading nodes");
         logClusterState();
         logSegmentsState(null);
         backwardsCluster().allowOnAllNodes(indexNames);
+        ensureGreen();
+        // set the balancing threshold to something very highish such that no rebalancing happens after the upgrade
+        builder = ImmutableSettings.builder();
+        builder.put(BalancedShardsAllocator.SETTING_THRESHOLD, 100.0f);
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get();
+        // disable allocation entirely until all nodes are upgraded
+        builder = ImmutableSettings.builder();
+        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE);
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(builder).get();
         backwardsCluster().upgradeAllNodes();
         ensureGreen();
         logger.debug("--> Nodes upgrade complete");

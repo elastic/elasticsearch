@@ -19,59 +19,44 @@
 
 package org.elasticsearch.action.termvector.dfs;
 
-import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationRequest;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 
 import java.io.IOException;
-import java.util.List;
 
-/**
- * A response of a dfs only request.
- */
-public class DfsOnlyResponse extends BroadcastOperationResponse {
+class ShardDfsOnlyRequest extends BroadcastShardOperationRequest {
 
-    private AggregatedDfs dfs;
-    private long tookInMillis;
+    private ShardSearchTransportRequest shardSearchRequest = new ShardSearchTransportRequest();
 
-    DfsOnlyResponse() {
+    ShardDfsOnlyRequest() {
 
     }
 
-    DfsOnlyResponse(AggregatedDfs dfs, int totalShards, int successfulShards, int failedShards,
-                    List<ShardOperationFailedException> shardFailures, long tookInMillis) {
-        super(totalShards, successfulShards, failedShards, shardFailures);
-        this.dfs = dfs;
-        this.tookInMillis = tookInMillis;
+    ShardDfsOnlyRequest(ShardRouting shardRouting, int numberOfShards, @Nullable String[] filteringAliases, @Nullable long nowInMillis, DfsOnlyRequest request) {
+        super(shardRouting.shardId(), request);
+        this.shardSearchRequest = new ShardSearchTransportRequest(request.getSearchRequest(), shardRouting, numberOfShards, false,
+                filteringAliases, nowInMillis);
     }
 
-    public AggregatedDfs getDfs() {
-        return dfs;
-    }
-
-    public TimeValue getTook() {
-        return new TimeValue(tookInMillis);
-    }
-
-    public long getTookInMillis() {
-        return tookInMillis;
+    public ShardSearchRequest getShardSearchRequest() {
+        return shardSearchRequest;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        AggregatedDfs.readAggregatedDfs(in);
-        tookInMillis = in.readVLong();
+        shardSearchRequest.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        dfs.writeTo(out);
-        out.writeVLong(tookInMillis);
+        shardSearchRequest.writeTo(out);
     }
 
 }

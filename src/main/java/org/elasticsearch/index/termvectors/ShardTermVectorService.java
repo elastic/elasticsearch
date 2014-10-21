@@ -26,8 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorResponse;
-import org.elasticsearch.action.termvector.dfs.DfsOnlyResponse;
-import org.elasticsearch.action.termvector.dfs.TransportDfsOnlyAction;
+import org.elasticsearch.action.termvector.dfs.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.Nullable;
@@ -339,24 +338,9 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
     }
 
     private AggregatedDfs getAggregatedDfs(Fields termVectorFields, TermVectorRequest request) throws IOException {
-        // build a search request with a query of all the terms
-        final BoolQueryBuilder boolBuilder = boolQuery();
-        TermsEnum iterator = null;
-        for (String fieldName : termVectorFields) {
-            if ((request.selectedFields() != null) && (!request.selectedFields().contains(fieldName))) {
-                continue;
-            }
-            Terms terms = termVectorFields.terms(fieldName);
-            iterator = terms.iterator(iterator);
-            while (iterator.next() != null) {
-                String text = iterator.term().utf8ToString();
-                boolBuilder.should(QueryBuilders.termQuery(fieldName, text));
-            }
-        }
-
-        // only perform dfs phase
-        SearchRequest searchRequest = client.prepareSearch(request.index()).setQuery(boolBuilder).request();
-        DfsOnlyResponse response = (DfsOnlyResponse) dfsAction.execute(searchRequest).actionGet();
+        DfsOnlyRequest dfsOnlyRequest = new DfsOnlyRequest(termVectorFields, new String[]{request.index()},
+                new String[]{request.type()}, request.selectedFields(), client);
+        DfsOnlyResponse response = dfsAction.execute(dfsOnlyRequest).actionGet();
         return response.getDfs();
     }
 }

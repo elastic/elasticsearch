@@ -19,59 +19,44 @@
 
 package org.elasticsearch.action.termvector.dfs;
 
-import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.dfs.DfsSearchResult;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
- * A response of a dfs only request.
+ *
  */
-public class DfsOnlyResponse extends BroadcastOperationResponse {
+class ShardDfsOnlyResponse extends BroadcastShardOperationResponse {
 
-    private AggregatedDfs dfs;
-    private long tookInMillis;
+    private DfsSearchResult dfsSearchResult = new DfsSearchResult();
 
-    DfsOnlyResponse() {
+    ShardDfsOnlyResponse() {
 
     }
 
-    DfsOnlyResponse(AggregatedDfs dfs, int totalShards, int successfulShards, int failedShards,
-                    List<ShardOperationFailedException> shardFailures, long tookInMillis) {
-        super(totalShards, successfulShards, failedShards, shardFailures);
-        this.dfs = dfs;
-        this.tookInMillis = tookInMillis;
+    ShardDfsOnlyResponse(ShardId shardId, DfsSearchResult dfsSearchResult) {
+        super(shardId);
+        this.dfsSearchResult = dfsSearchResult;
     }
 
-    public AggregatedDfs getDfs() {
-        return dfs;
-    }
-
-    public TimeValue getTook() {
-        return new TimeValue(tookInMillis);
-    }
-
-    public long getTookInMillis() {
-        return tookInMillis;
+    public DfsSearchResult getDfsSearchResult() {
+        return dfsSearchResult;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        AggregatedDfs.readAggregatedDfs(in);
-        tookInMillis = in.readVLong();
+        dfsSearchResult.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        dfs.writeTo(out);
-        out.writeVLong(tookInMillis);
+        dfsSearchResult.writeTo(out);
     }
 
 }

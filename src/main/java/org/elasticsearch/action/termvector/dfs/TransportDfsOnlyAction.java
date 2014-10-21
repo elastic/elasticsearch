@@ -21,97 +21,140 @@ package org.elasticsearch.action.termvector.dfs;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.type.TransportSearchTypeAction;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.action.SearchServiceListener;
-import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
- *
+ * Get the dfs only with no fetch phase. This is for internal use only.
  */
-public class TransportDfsOnlyAction extends TransportSearchTypeAction {
+public class TransportDfsOnlyAction extends TransportBroadcastOperationAction<DfsOnlyRequest, DfsOnlyResponse, ShardDfsOnlyRequest, ShardDfsOnlyResponse> {
+
+    public static final String NAME = "internal:data/read/dfs";
+
+    private final SearchService searchService;
+
+    private final SearchPhaseController searchPhaseController;
 
     @Inject
-    public TransportDfsOnlyAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                  SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController, ActionFilters actionFilters) {
-        super(settings, threadPool, clusterService, searchService, searchPhaseController, actionFilters);
+    public TransportDfsOnlyAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                  ActionFilters actionFilters, SearchService searchService, SearchPhaseController searchPhaseController) {
+        super(settings, NAME, threadPool, clusterService, transportService, actionFilters);
+        this.searchService = searchService;
+        this.searchPhaseController = searchPhaseController;
     }
 
     @Override
-    protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        new AsyncAction(searchRequest, listener).start();
+    protected void doExecute(DfsOnlyRequest request, ActionListener<DfsOnlyResponse> listener) {
+        request.nowInMillis = System.currentTimeMillis();
+        super.doExecute(request, listener);
     }
 
-    private class AsyncAction extends BaseAsyncAction<DfsSearchResult> {
+    @Override
+    protected String executor() {
+        return ThreadPool.Names.SEARCH;
+    }
 
-        private AggregatedDfs dfs;
+    @Override
+    protected DfsOnlyRequest newRequest() {
+        return new DfsOnlyRequest();
+    }
 
-        private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
-            super(request, listener);
-        }
+    @Override
+    protected ShardDfsOnlyRequest newShardRequest() {
+        return new ShardDfsOnlyRequest();
+    }
 
-        @Override
-        protected String firstPhaseName() {
-            return "dfs_only";
-        }
+    @Override
+    protected ShardDfsOnlyRequest newShardRequest(int numShards, ShardRouting shard, DfsOnlyRequest request) {
+        String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
+        return new ShardDfsOnlyRequest(shard, numShards, filteringAliases, request.nowInMillis, request);
+    }
 
-        @Override
-        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request, SearchServiceListener<DfsSearchResult> listener) {
-            searchService.sendExecuteDfs(node, request, listener);
-        }
+    @Override
+    protected ShardDfsOnlyResponse newShardResponse() {
+        return new ShardDfsOnlyResponse();
+    }
 
-        @Override
-        protected void moveToSecondPhase() {
-            this.dfs = searchPhaseController.aggregateDfs(firstResults);
-            sendFreeContext();
-            finishHim();
-        }
+    @Override
+    protected GroupShardsIterator shards(ClusterState clusterState, DfsOnlyRequest request, String[] concreteIndices) {
+        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
+        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, request.preference());
+    }
 
-        private void sendFreeContext() {
-            for (AtomicArray.Entry<DfsSearchResult> entry : firstResults.asList()) {
-                try {
-                    DiscoveryNode node = nodes.get(entry.value.shardTarget().nodeId());
-                    if (node != null) { // should not happen (==null) but safeguard anyhow
-                        searchService.sendFreeContext(node, entry.value.id(), request);
-                    }
-                } catch (Throwable t1) {
-                    logger.trace("failed to release context", t1);
+    @Override
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, DfsOnlyRequest request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    }
+
+    @Override
+    protected ClusterBlockException checkRequestBlock(ClusterState state, DfsOnlyRequest countRequest, String[] concreteIndices) {
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
+    }
+
+    @Override
+    protected DfsOnlyResponse newResponse(DfsOnlyRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+        int successfulShards = 0;
+        int failedShards = 0;
+        List<ShardOperationFailedException> shardFailures = null;
+        AtomicArray<DfsSearchResult> dfsResults = new AtomicArray<>(shardsResponses.length());
+        for (int i = 0; i < shardsResponses.length(); i++) {
+            Object shardResponse = shardsResponses.get(i);
+            if (shardResponse == null) {
+                // simply ignore non active shards
+            } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
+                failedShards++;
+                if (shardFailures == null) {
+                    shardFailures = newArrayList();
                 }
+                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
+            } else {
+                dfsResults.set(i, ((ShardDfsOnlyResponse) shardResponse).getDfsSearchResult());
+                successfulShards++;
             }
         }
+        AggregatedDfs dfs = searchPhaseController.aggregateDfs(dfsResults);
+        return new DfsOnlyResponse(dfs, shardsResponses.length(), successfulShards, failedShards, shardFailures, buildTookInMillis(request));
+    }
 
-        private void finishHim() {
-            threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable(listener) {
-                @Override
-                public void doRun() throws IOException {
-                    listener.onResponse(new DfsOnlyResponse(dfs, buildTookInMillis(), buildShardFailures()));
-                }
+    @Override
+    protected ShardDfsOnlyResponse shardOperation(ShardDfsOnlyRequest request) throws ElasticsearchException {
+        DfsSearchResult dfsSearchResult = searchService.executeDfsPhase(request.getShardSearchRequest());
+        searchService.freeContext(dfsSearchResult.id());
+        return new ShardDfsOnlyResponse(request.shardId(), dfsSearchResult);
+    }
 
-                @Override
-                public void onFailure(Throwable t) {
-                    ElasticsearchException failure = new ElasticsearchException("Exception during dfs phase", t);
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("failed to perform dfs", failure);
-                    }
-                    super.onFailure(t);
-                }
-            });
-        }
+    /**
+     * Builds how long it took to execute the search.
+     */
+    protected final long buildTookInMillis(DfsOnlyRequest request) {
+        // protect ourselves against time going backwards
+        // negative values don't make sense and we want to be able to serialize that thing as a vLong
+        return Math.max(1, System.currentTimeMillis() - request.nowInMillis);
     }
 
 }

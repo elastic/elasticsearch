@@ -25,49 +25,23 @@ import org.elasticsearch.script.NativeScriptFactory;
 
 import java.util.Map;
 
-public class NativeSignificanceScoreScriptNoParams implements ExecutableScript {
+public class NativeSignificanceScoreScriptNoParams extends TestScript {
 
     public static final String NATIVE_SIGNIFICANCE_SCORE_SCRIPT_NO_PARAMS = "native_significance_score_script_no_params";
-    double _subset_freq = 0;
-    double _subset_size = 0;
-    double _superset_freq = 0;
-    double _superset_size = 0;
 
     public static class Factory implements NativeScriptFactory {
 
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
-            return new NativeSignificanceScoreScriptNoParams(params);
+            return new NativeSignificanceScoreScriptNoParams();
         }
     }
 
-    private NativeSignificanceScoreScriptNoParams(Map<String, Object> params) {
-    }
-
-    @Override
-    public void setNextVar(String name, Object value) {
-        if (name.equals("_subset_freq")) {
-            _subset_freq = unwrap(value);
-        }
-        if (name.equals("_subset_size")) {
-            _subset_size = unwrap(value);
-        }
-        if (name.equals("_superset_freq")) {
-            _superset_freq = unwrap(value);
-        }
-        if (name.equals("_superset_size")) {
-            _superset_size = unwrap(value);
-        }
+    private NativeSignificanceScoreScriptNoParams() {
     }
 
     @Override
     public Object run() {
-        return _subset_freq + _subset_size + _superset_freq + _superset_size;
+        return _subset_freq.longValue() + _subset_size.longValue() + _superset_freq.longValue() + _superset_size.longValue();
     }
-
-    @Override
-    public Double unwrap(Object value) {
-        return ((Number) value).doubleValue();
-    }
-
 }

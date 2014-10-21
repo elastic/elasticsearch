@@ -551,6 +551,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                 break;
             }
             case 3: {
+                logger.info("NATIVE SCRIPT");
                 if (params == null) {
                     script = "native_significance_score_script_no_params";
                 } else {

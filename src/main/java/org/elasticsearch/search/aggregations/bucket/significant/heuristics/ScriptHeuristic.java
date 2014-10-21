@@ -41,14 +41,15 @@ import java.util.Map;
 public class ScriptHeuristic extends SignificanceHeuristic {
 
     protected static final ParseField NAMES_FIELD = new ParseField("script_heuristic");
+    private final LongAccessor subsetSizeHolder;
+    private final LongAccessor supersetSizeHolder;
+    private final LongAccessor subsetDfHolder;
+    private final LongAccessor supersetDfHolder;
     ExecutableScript script = null;
     String scriptLang;
     String scriptString;
     ScriptService.ScriptType scriptType;
     Map<String, Object> params;
-
-    private ScriptHeuristic() {
-    }
 
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
         @Override
@@ -63,15 +64,31 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     };
 
     public ScriptHeuristic(ExecutableScript searchScript, String scriptLang, String scriptString, ScriptService.ScriptType scriptType, Map<String, Object> params) {
+        subsetSizeHolder = new LongAccessor();
+        supersetSizeHolder = new LongAccessor();
+        subsetDfHolder = new LongAccessor();
+        supersetDfHolder = new LongAccessor();
         this.script = searchScript;
+        if (script != null) {
+            script.setNextVar("_subset_freq", subsetDfHolder);
+            script.setNextVar("_subset_size", subsetSizeHolder);
+            script.setNextVar("_superset_freq", supersetDfHolder);
+            script.setNextVar("_superset_size", supersetSizeHolder);
+        }
         this.scriptLang = scriptLang;
         this.scriptString = scriptString;
         this.scriptType = scriptType;
         this.params = params;
+
+
     }
 
     public void initialize(InternalAggregation.ReduceContext context) {
         script = context.scriptService().executable(scriptLang, scriptString, scriptType, params);
+        script.setNextVar("_subset_freq", subsetDfHolder);
+        script.setNextVar("_subset_size", subsetSizeHolder);
+        script.setNextVar("_superset_freq", supersetDfHolder);
+        script.setNextVar("_superset_size", supersetSizeHolder);
     }
 
     /**
@@ -89,10 +106,10 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             ESLoggerFactory.getLogger("script heuristic").warn("cannot compute score - script has not been initialized yet. If this warning appears within an integration test test you can ignore it. If it appeared while running es or within a bwc test then there is a problem.");
             return 0;
         }
-        script.setNextVar("_subset_freq", subsetFreq);
-        script.setNextVar("_subset_size", subsetSize);
-        script.setNextVar("_superset_freq", supersetFreq);
-        script.setNextVar("_superset_size", supersetSize);
+        subsetSizeHolder.value = subsetSize;
+        supersetSizeHolder.value = supersetSize;
+        subsetDfHolder.value = subsetFreq;
+        supersetDfHolder.value = supersetFreq;
         return ((Number) script.run()).doubleValue();
     }
 
@@ -211,6 +228,26 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         public ScriptHeuristicBuilder setType(ScriptService.ScriptType scriptType) {
             this.scriptType = scriptType;
             return this;
+        }
+    }
+
+    public final class LongAccessor extends Number {
+        public long value;
+        public int intValue() {
+            return (int)value;
+        }
+        public long longValue() {
+            return value;
+        }
+
+        @Override
+        public float floatValue() {
+            return (float)value;
+        }
+
+        @Override
+        public double doubleValue() {
+            return (double)value;
         }
     }
 }

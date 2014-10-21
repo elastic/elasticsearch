@@ -20,9 +20,11 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -33,8 +35,10 @@ import java.util.*;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -213,6 +217,45 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         assertThat(topHits.getHits().totalHits(), equalTo(1l));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("c"));
         assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
+    }
+
+    @Test
+    public void testWithDeletes() throws Exception {
+        String indexName = "xyz";
+        assertAcked(
+                prepareCreate(indexName)
+                        .addMapping("parent")
+                        .addMapping("child", "_parent", "type=parent", "count", "type=long")
+        );
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex(indexName, "parent", "1").setSource("{}"));
+        requests.add(client().prepareIndex(indexName, "child", "0").setParent("1").setSource("count", 1));
+        requests.add(client().prepareIndex(indexName, "child", "1").setParent("1").setSource("count", 1));
+        requests.add(client().prepareIndex(indexName, "child", "2").setParent("1").setSource("count", 1));
+        requests.add(client().prepareIndex(indexName, "child", "3").setParent("1").setSource("count", 1));
+        indexRandom(true, requests);
+
+        for (int i = 0; i < 10; i++) {
+            SearchResponse searchResponse = client().prepareSearch(indexName)
+                    .addAggregation(children("children").childType("child").subAggregation(sum("counts").field("count")))
+                    .get();
+
+            assertNoFailures(searchResponse);
+            Children children = searchResponse.getAggregations().get("children");
+            assertThat(children.getDocCount(), equalTo(4l));
+
+            Sum count = children.getAggregations().get("counts");
+            assertThat(count.getValue(), equalTo(4.));
+
+            String idToUpdate = Integer.toString(randomInt(3));
+            UpdateResponse updateResponse = client().prepareUpdate(indexName, "child", idToUpdate)
+                    .setParent("1")
+                    .setDoc("count", 1)
+                    .get();
+            assertThat(updateResponse.getVersion(), greaterThan(1l));
+            refresh();
+        }
     }
 
     private static final class Control {

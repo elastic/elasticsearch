@@ -45,6 +45,7 @@ The plugin includes these analyzer and tokenizer, tokenfilter.
 | kuromoji_part_of_speech | tokenfilter |
 | kuromoji_readingform    | tokenfilter |
 | kuromoji_stemmer        | tokenfilter |
+| ja_stop                 | tokenfilter |
 
 
 Usage
@@ -474,6 +475,50 @@ _Response :_
 }
 ```
 
+
+## TokenFilter : kuromoji_part_of_speech
+
+
+A token filter of type `ja_stop` that provide a predefined "_japanese_" stop words.
+*Note: It is only provide "_japanese_". If you want to use other predefined stop words, you can use `stop` token filter.*
+
+### example
+
+```sh
+curl -XPUT 'http://localhost:9200/kuromoji_sample/' -d'
+{
+    "settings": {
+        "index":{
+            "analysis":{
+                "analyzer" : {
+                    "analyzer_with_ja_stop" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["ja_stop"]
+                    }
+                },
+                "filter" : {
+                    "ja_stop" : {
+                        "type" : "ja_stop",
+                        "stopwords" : ["_japanese_", "ストップ"]
+                    }
+                }
+            }
+        }
+    }
+}
+'
+
+curl -XPOST 'http://localhost:9200/kuromoji_sample/_analyze?analyzer=katakana_analyzer&pretty' -d 'ストップは消える'
+{
+  "tokens" : [ {
+    "token" : "消える",
+    "start_offset" : 5,
+    "end_offset" : 8,
+    "type" : "word",
+    "position" : 3
+  } ]
+}
+```
 
 License
 -------

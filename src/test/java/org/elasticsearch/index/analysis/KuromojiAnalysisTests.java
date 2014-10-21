@@ -71,6 +71,9 @@ public class KuromojiAnalysisTests extends ElasticsearchTestCase {
         filterFactory = analysisService.tokenFilter("kuromoji_stemmer");
         assertThat(filterFactory, instanceOf(KuromojiKatakanaStemmerFactory.class));
 
+        filterFactory = analysisService.tokenFilter("ja_stop");
+        assertThat(filterFactory, instanceOf(JapaneseStopTokenFilterFactory.class));
+
         NamedAnalyzer analyzer = analysisService.analyzer("kuromoji");
         assertThat(analyzer.analyzer(), instanceOf(JapaneseAnalyzer.class));
 
@@ -80,6 +83,7 @@ public class KuromojiAnalysisTests extends ElasticsearchTestCase {
 
         CharFilterFactory  charFilterFactory = analysisService.charFilter("kuromoji_iteration_mark");
         assertThat(charFilterFactory, instanceOf(KuromojiIterationMarkCharFilterFactory.class));
+
     }
 
     @Test
@@ -172,9 +176,20 @@ public class KuromojiAnalysisTests extends ElasticsearchTestCase {
         expected = "ところどころ、ジジが、時時、馬鹿馬鹿しい";
 
         assertCharFilterEquals(charFilterFactory.create(new StringReader(source)), expected);
-
-
     }
+
+    @Test
+    public void testJapaneseStopFilterFactory() throws IOException {
+        AnalysisService analysisService = createAnalysisService();
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter("ja_stop");
+        assertThat(tokenFilter, instanceOf(JapaneseStopTokenFilterFactory.class));
+        String source = "私は制限スピードを超える。";
+        String[] expected = new String[]{"私", "制限", "超える"};
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
+    }
+
 
     public AnalysisService createAnalysisService() {
         Settings settings = ImmutableSettings.settingsBuilder()

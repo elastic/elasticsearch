@@ -55,5 +55,6 @@ public class AnalysisKuromojiPlugin extends AbstractPlugin {
         module.addTokenFilter("kuromoji_part_of_speech", KuromojiPartOfSpeechFilterFactory.class);
         module.addTokenFilter("kuromoji_readingform", KuromojiReadingFormFilterFactory.class);
         module.addTokenFilter("kuromoji_stemmer", KuromojiKatakanaStemmerFactory.class);
+        module.addTokenFilter("ja_stop", JapaneseStopTokenFilterFactory.class);
     }
 }

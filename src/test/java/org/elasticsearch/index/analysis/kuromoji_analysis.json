@@ -13,8 +13,11 @@
                 "kuromoji_ks" : {
                     "type": "kuromoji_stemmer",
                     "minimum_length" : 6
+                },
+                "ja_stop" : {
+                    "type": "ja_stop",
+                    "stopwords": ["_japanese_", "スピード"]
                 }
-                
                 
             },
 

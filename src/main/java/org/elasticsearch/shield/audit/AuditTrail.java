@@ -30,6 +30,10 @@ public interface AuditTrail {
         }
 
         @Override
+        public void anonymousAccess(RestRequest request) {
+        }
+
+        @Override
         public void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message) {
         }
 
@@ -61,6 +65,8 @@ public interface AuditTrail {
     String name();
 
     void anonymousAccess(String action, TransportMessage<?> message);
+
+    void anonymousAccess(RestRequest request);
 
     void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message);
 

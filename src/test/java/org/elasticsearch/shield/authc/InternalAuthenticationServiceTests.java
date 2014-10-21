@@ -7,10 +7,14 @@ package org.elasticsearch.shield.authc;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
+import org.elasticsearch.shield.key.KeyService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.Before;
@@ -20,7 +24,6 @@ import org.junit.rules.ExpectedException;
 
 import java.util.Map;
 
-import static org.elasticsearch.shield.test.ShieldAssertions.assertContainsWWWAuthenticateHeader;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.*;
 
@@ -36,10 +39,12 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     InternalAuthenticationService service;
     TransportMessage message;
     RestRequest restRequest;
+    Realms realms;
     Realm firstRealm;
     Realm secondRealm;
     AuditTrail auditTrail;
     AuthenticationToken token;
+    KeyService keyService;
 
     @Before
     public void init() throws Exception {
@@ -50,11 +55,12 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         when(firstRealm.type()).thenReturn("first");
         secondRealm = mock(Realm.class);
         when(secondRealm.type()).thenReturn("second");
-        Realms realms = mock(Realms.class);
+        realms = mock(Realms.class);
         when(realms.realms()).thenReturn(new Realm[] {firstRealm, secondRealm});
+        keyService = mock(KeyService.class);
 
         auditTrail = mock(AuditTrail.class);
-        service = new InternalAuthenticationService(ImmutableSettings.EMPTY, realms, auditTrail);
+        service = new InternalAuthenticationService(ImmutableSettings.EMPTY, realms, auditTrail, keyService);
     }
 
     @Test @SuppressWarnings("unchecked")
@@ -70,52 +76,23 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testToken_Missing() throws Exception {
-        try {
-            service.token("_action", message);
-            fail("expected authentication exception with missing auth token");
-        } catch (AuthenticationException ae) {
-            assertThat(ae.getMessage(), equalTo("Missing authentication token for request [_action]"));
-            assertContainsWWWAuthenticateHeader(ae);
-        }
-        verify(auditTrail).anonymousAccess("_action", message);
+        AuthenticationToken token = service.token("_action", message);
+        assertThat(token, nullValue());
         verifyNoMoreInteractions(auditTrail);
-        assertThat(message.getContext().get(InternalAuthenticationService.TOKEN_CTX_KEY), nullValue());
-    }
-
-    @Test
-    public void testToken_MissingWithNullDefault() throws Exception {
-        try {
-            service.token("_action", message, null);
-            fail("expected authentication exception with missing auth token and null default token");
-        } catch (AuthenticationException ae) {
-            assertThat(ae.getMessage(), equalTo("Missing authentication token for request [_action]"));
-        }
-        verify(auditTrail).anonymousAccess("_action", message);
-        verifyNoMoreInteractions(auditTrail);
-        assertThat(message.getContext().get(InternalAuthenticationService.TOKEN_CTX_KEY), nullValue());
-    }
-
-    @Test
-    public void testToken_MissingWithDefault() throws Exception {
-        AuthenticationToken result = service.token("_action", message, token);
-        assertThat(result, notNullValue());
-        assertThat(result, is(token));
-        verifyZeroInteractions(auditTrail);
-        assertThat(message.getContext().get(InternalAuthenticationService.TOKEN_CTX_KEY), notNullValue());
-        assertThat(message.getContext().get(InternalAuthenticationService.TOKEN_CTX_KEY), is((Object) token));
+        assertThat(message.getContext().get(InternalAuthenticationService.TOKEN_KEY), nullValue());
     }
 
     @Test @SuppressWarnings("unchecked")
     public void testToken_Cached() throws Exception {
-        message.putInContext(InternalAuthenticationService.TOKEN_CTX_KEY, token);
-        AuthenticationToken result = service.token("_action", message, token);
+        message.putInContext(InternalAuthenticationService.TOKEN_KEY, token);
+        AuthenticationToken result = service.token("_action", message);
         assertThat(result, notNullValue());
         assertThat(result, is(token));
         verifyZeroInteractions(auditTrail);
         verifyZeroInteractions(firstRealm);
         verifyZeroInteractions(secondRealm);
-        assertThat(message.getContext().get(InternalAuthenticationService.TOKEN_CTX_KEY), notNullValue());
-        assertThat(message.getContext().get(InternalAuthenticationService.TOKEN_CTX_KEY), is((Object) token));
+        assertThat(message.getContext().get(InternalAuthenticationService.TOKEN_KEY), notNullValue());
+        assertThat(message.getContext().get(InternalAuthenticationService.TOKEN_KEY), is((Object) token));
     }
 
     @Test @SuppressWarnings("unchecked")
@@ -126,12 +103,18 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         when(secondRealm.supports(token)).thenReturn(true);
         when(secondRealm.authenticate(token)).thenReturn(user);
 
-        User result = service.authenticate("_action", message, token);
+        service = spy(service);
+        doReturn(token).when(service).token("_action", message);
+
+        when(keyService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_encoded_user");
+
+        User result = service.authenticate("_action", message, null);
         assertThat(result, notNullValue());
         assertThat(result, is(user));
         verify(auditTrail).authenticationFailed("first", token, "_action", message);
-        assertThat(message.getContext().get(InternalAuthenticationService.USER_CTX_KEY), notNullValue());
-        assertThat(message.getContext().get(InternalAuthenticationService.USER_CTX_KEY), is((Object) user));
+        assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), notNullValue());
+        assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), sameInstance((Object) user));
+        assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_encoded_user"));
     }
 
     @Test @SuppressWarnings("unchecked")
@@ -141,27 +124,34 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         when(secondRealm.supports(token)).thenReturn(true);
         when(secondRealm.authenticate(token)).thenReturn(user);
 
-        User result = service.authenticate("_action", message, token);
+        service = spy(service);
+        doReturn(token).when(service).token("_action", message);
+
+        when(keyService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_encoded_user");
+
+        User result = service.authenticate("_action", message, null);
         assertThat(result, notNullValue());
         assertThat(result, is(user));
         verifyZeroInteractions(auditTrail);
         verify(firstRealm, never()).authenticate(token);
-        assertThat(message.getContext().get(InternalAuthenticationService.USER_CTX_KEY), notNullValue());
-        assertThat(message.getContext().get(InternalAuthenticationService.USER_CTX_KEY), is((Object) user));
+        assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), notNullValue());
+        assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), is((Object) user));
+        assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_encoded_user"));
     }
 
     @Test @SuppressWarnings("unchecked")
     public void testAuthenticate_Cached() throws Exception {
         User user = new User.Simple("_username", "r1");
-        message.putInContext(InternalAuthenticationService.USER_CTX_KEY, user);
-        User result = service.authenticate("_action", message, token);
+        message.putInContext(InternalAuthenticationService.USER_KEY, user);
+        User result = service.authenticate("_action", message, null);
         assertThat(result, notNullValue());
         assertThat(result, is(user));
         verifyZeroInteractions(auditTrail);
         verifyZeroInteractions(firstRealm);
         verifyZeroInteractions(secondRealm);
-        assertThat(message.getContext().get(InternalAuthenticationService.USER_CTX_KEY), notNullValue());
-        assertThat(message.getContext().get(InternalAuthenticationService.USER_CTX_KEY), is((Object) user));
+        verifyZeroInteractions(keyService);
+        assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), notNullValue());
+        assertThat(message.getContext().get(InternalAuthenticationService.USER_KEY), is((Object) user));
     }
 
     @Test
@@ -171,16 +161,222 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         when(secondRealm.token(restRequest)).thenReturn(token);
         AuthenticationToken foundToken = service.token(restRequest);
         assertThat(foundToken, is(token));
-        assertThat(restRequest.getFromContext(InternalAuthenticationService.TOKEN_CTX_KEY), equalTo((Object) token));
+        assertThat(restRequest.getFromContext(InternalAuthenticationService.TOKEN_KEY), equalTo((Object) token));
     }
 
     @Test
     public void testToken_Rest_Missing() throws Exception {
-        thrown.expect(AuthenticationException.class);
-        thrown.expectMessage("Missing authentication token");
         when(firstRealm.token(restRequest)).thenReturn(null);
         when(secondRealm.token(restRequest)).thenReturn(null);
-        service.token(restRequest);
+        AuthenticationToken token = service.token(restRequest);
+        assertThat(token, nullValue());
+    }
+
+    @Test
+    public void testEncodeDecodeUser() throws Exception {
+        User user = new User.Simple("username", "r1", "r2", "r3");
+        String text = InternalAuthenticationService.encodeUser(user, null);
+        User user2 = InternalAuthenticationService.decodeUser(text);
+        assertThat(user, equalTo(user2));
+
+        text = InternalAuthenticationService.encodeUser(User.SYSTEM, null);
+        user2 = InternalAuthenticationService.decodeUser(text);
+        assertThat(User.SYSTEM, sameInstance(user2));
+    }
+
+    @Test
+    public void testUserHeader() throws Exception {
+        User user = new User.Simple("_username", "r1");
+        when(firstRealm.token(message)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        when(firstRealm.authenticate(token)).thenReturn(user);
+        when(keyService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_signed_user");
+        service = spy(service);
+        doReturn(token).when(service).token("_action", message);
+        User result = service.authenticate("_action", message, null);
+        assertThat(result, notNullValue());
+        assertThat(result, is(user));
+        String userStr = (String) message.getHeader(InternalAuthenticationService.USER_KEY);
+        assertThat(userStr, notNullValue());
+        assertThat(userStr, equalTo("_signed_user"));
+    }
+
+    @Test
+    public void testAuthenticate_Transport_Anonymous() throws Exception {
+        when(firstRealm.token(message)).thenReturn(null);
+        when(secondRealm.token(message)).thenReturn(null);
+        try {
+            service.authenticate("_action", message, null);
+            fail("expected an authentication exception when trying to authenticate an anonymous message");
+        } catch (AuthenticationException ae) {
+            // expected
+        }
+        verify(auditTrail).anonymousAccess("_action", message);
+    }
+
+    @Test
+    public void testAuthenticate_Rest_Anonymous()  throws Exception {
+        when(firstRealm.token(restRequest)).thenReturn(null);
+        when(secondRealm.token(restRequest)).thenReturn(null);
+        try {
+            service.authenticate(restRequest);
+            fail("expected an authentication exception when trying to authenticate an anonymous message");
+        } catch (AuthenticationException ae) {
+            // expected
+        }
+        verify(auditTrail).anonymousAccess(restRequest);
+    }
+
+    @Test
+    public void testAuthenticate_Transport_Fallback() throws Exception {
+        when(firstRealm.token(message)).thenReturn(null);
+        when(secondRealm.token(message)).thenReturn(null);
+        User.Simple user1 = new User.Simple("username", "r1", "r2");
+        when(keyService.sign(InternalAuthenticationService.encodeUser(user1, null))).thenReturn("_signed_user");
+        User user2 = service.authenticate("_action", message, user1);
+        assertThat(user1, sameInstance(user2));
+        assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user2));
+        assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_signed_user"));
+    }
+
+    @Test
+    public void testAuthenticate_Transport_Success_NoFallback() throws Exception {
+        User.Simple user1 = new User.Simple("username", "r1", "r2");
+        when(firstRealm.token(message)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        when(firstRealm.authenticate(token)).thenReturn(user1);
+        when(keyService.sign(InternalAuthenticationService.encodeUser(user1, null))).thenReturn("_signed_user");
+        User user2 = service.authenticate("_action", message, null);
+        assertThat(user1, sameInstance(user2));
+        assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user2));
+        assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_signed_user"));
+    }
+
+    @Test
+    public void testAuthenticate_Transport_Success_WithFallback() throws Exception {
+        User.Simple user1 = new User.Simple("username", "r1", "r2");
+        when(firstRealm.token(message)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        when(firstRealm.authenticate(token)).thenReturn(user1);
+        when(keyService.sign(InternalAuthenticationService.encodeUser(user1, null))).thenReturn("_signed_user");
+        User user2 = service.authenticate("_action", message, User.SYSTEM);
+        assertThat(user1, sameInstance(user2));
+        assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user2));
+        assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_signed_user"));
+    }
+
+    @Test
+    public void testAuthenticate_Rest_Success() throws Exception {
+        User.Simple user1 = new User.Simple("username", "r1", "r2");
+        when(firstRealm.token(restRequest)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        when(firstRealm.authenticate(token)).thenReturn(user1);
+        User user2 = service.authenticate(restRequest);
+        assertThat(user1, sameInstance(user2));
+        assertThat(restRequest.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user2));
+    }
+
+    @Test
+    public void testAutheticate_Transport_ContextAndHeader() throws Exception {
+        User user1 = new User.Simple("username", "r1", "r2");
+        when(firstRealm.token(message)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        when(firstRealm.authenticate(token)).thenReturn(user1);
+        when(keyService.sign(InternalAuthenticationService.encodeUser(user1, null))).thenReturn("_signed_user");
+        User user2 = service.authenticate("_action", message, User.SYSTEM);
+        assertThat(user1, sameInstance(user2));
+        assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user2));
+        assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_signed_user"));
+        reset(firstRealm);
+
+        // checking authentication from the context
+        InternalMessage message1 = new InternalMessage();
+        message1.copyContextFrom(message);
+        User user = service.authenticate("_action", message1, User.SYSTEM);
+        assertThat(user, sameInstance(user1));
+        verifyZeroInteractions(firstRealm);
+        reset(firstRealm);
+
+
+        // checking authentication from the user header
+        message1.putHeader(InternalAuthenticationService.USER_KEY, message.getHeader(InternalAuthenticationService.USER_KEY));
+        when(keyService.unsignAndVerify("_signed_user")).thenReturn(InternalAuthenticationService.encodeUser(user1, null));
+        BytesStreamOutput output = new BytesStreamOutput();
+        message1.writeTo(output);
+        BytesStreamInput input = new BytesStreamInput(output.bytes());
+        InternalMessage message2 = new InternalMessage();
+        message2.readFrom(input);
+        user = service.authenticate("_action", message2, User.SYSTEM);
+        assertThat(user, equalTo(user1));
+        verifyZeroInteractions(firstRealm);
+    }
+
+    @Test
+    public void testAutheticate_Transport_ContextAndHeader_NoSigning() throws Exception {
+        Settings settings = ImmutableSettings.builder().put("shield.authc.sign_user_header", false).build();
+        service = new InternalAuthenticationService(settings, realms, auditTrail, keyService);
+
+        User user1 = new User.Simple("username", "r1", "r2");
+        when(firstRealm.token(message)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        when(firstRealm.authenticate(token)).thenReturn(user1);
+        User user2 = service.authenticate("_action", message, User.SYSTEM);
+        assertThat(user1, sameInstance(user2));
+        assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user2));
+        assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) InternalAuthenticationService.encodeUser(user1, null)));
+        reset(firstRealm);
+
+        // checking authentication from the context
+        InternalMessage message1 = new InternalMessage();
+        message1.copyContextFrom(message);
+        User user = service.authenticate("_action", message1, User.SYSTEM);
+        assertThat(user, sameInstance(user1));
+        verifyZeroInteractions(firstRealm);
+        reset(firstRealm);
+
+
+        // checking authentication from the user header
+        message1.putHeader(InternalAuthenticationService.USER_KEY, message.getHeader(InternalAuthenticationService.USER_KEY));
+        BytesStreamOutput output = new BytesStreamOutput();
+        message1.writeTo(output);
+        BytesStreamInput input = new BytesStreamInput(output.bytes());
+        InternalMessage message2 = new InternalMessage();
+        message2.readFrom(input);
+        user = service.authenticate("_action", message2, User.SYSTEM);
+        assertThat(user, equalTo(user1));
+        verifyZeroInteractions(firstRealm);
+
+        verifyZeroInteractions(keyService);
+    }
+
+    @Test
+    public void testAttachIfMissing_Missing() throws Exception {
+        User user = new User.Simple("username", "r1", "r2");
+        assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), nullValue());
+        assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), nullValue());
+        when(keyService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_signed_user");
+        service.attachUserHeaderIfMissing(message, user);
+        assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user));
+        assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_signed_user"));
+
+        user = User.SYSTEM;
+        message = new InternalMessage();
+        assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), nullValue());
+        assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), nullValue());
+        when(keyService.sign(InternalAuthenticationService.encodeUser(user, null))).thenReturn("_signed_user");
+        service.attachUserHeaderIfMissing(message, user);
+        assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user));
+        assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_signed_user"));
+    }
+
+    @Test
+    public void testAttachIfMissing_Exists() throws Exception {
+        User user = new User.Simple("username", "r1", "r2");
+        message.putInContext(InternalAuthenticationService.USER_KEY, user);
+        message.putHeader(InternalAuthenticationService.USER_KEY, "_signed_user");
+        service.attachUserHeaderIfMissing(message, new User.Simple("username2", "r3", "r4"));
+        assertThat(message.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user));
+        assertThat(message.getHeader(InternalAuthenticationService.USER_KEY), equalTo((Object) "_signed_user"));
     }
 
     private static class InternalMessage extends TransportMessage<InternalMessage> {

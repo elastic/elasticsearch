@@ -47,12 +47,12 @@ public class ShieldModule extends AbstractShieldModule.Spawn implements PreProce
 
         // spawn needed parts in client mode
         if (clientMode) {
-            return ImmutableList.of(
+            return ImmutableList.<Module>of(
                     new SecuredTransportModule(settings),
                     new SSLModule(settings));
         }
 
-        return ImmutableList.of(
+        return ImmutableList.<Module>of(
                 new AuthenticationModule(settings),
                 new AuthorizationModule(settings),
                 new AuditTrailModule(settings),

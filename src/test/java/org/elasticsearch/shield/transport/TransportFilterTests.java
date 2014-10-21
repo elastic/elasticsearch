@@ -67,12 +67,15 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
         targetService.sendRequest(sourceNode, "_action", new Request("trgt_to_src"), new ResponseHandler(new Response("src_to_trgt"), latch));
         await(latch);
 
-
-        ServerTransportFilter sourceFilter = internalCluster().getInstance(ServerTransportFilter.class, source);
-        ServerTransportFilter targetFilter = internalCluster().getInstance(ServerTransportFilter.class, target);
-        InOrder inOrder = inOrder(sourceFilter, targetFilter);
-        inOrder.verify(targetFilter).inbound("_action", new Request("src_to_trgt"));
-        inOrder.verify(sourceFilter).inbound("_action", new Request("trgt_to_src"));
+        ServerTransportFilter sourceServerFilter = internalCluster().getInstance(ServerTransportFilter.class, source);
+        ClientTransportFilter sourceClientFilter = internalCluster().getInstance(ClientTransportFilter.class, source);
+        ServerTransportFilter targetServerFilter = internalCluster().getInstance(ServerTransportFilter.class, target);
+        ClientTransportFilter targetClientFilter = internalCluster().getInstance(ClientTransportFilter.class, target);
+        InOrder inOrder = inOrder(sourceServerFilter, sourceClientFilter, targetServerFilter, targetClientFilter);
+        inOrder.verify(sourceClientFilter).outbound("_action", new Request("src_to_trgt"));
+        inOrder.verify(targetServerFilter).inbound("_action", new Request("src_to_trgt"));
+        inOrder.verify(targetClientFilter).outbound("_action", new Request("trgt_to_src"));
+        inOrder.verify(sourceServerFilter).inbound("_action", new Request("trgt_to_src"));
     }
 
     public static class InternalPlugin extends AbstractPlugin {
@@ -97,6 +100,7 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
         @Override
         protected void configure() {
             bind(ServerTransportFilter.class).toInstance(mock(ServerTransportFilter.class));
+            bind(ClientTransportFilter.class).toInstance(mock(ClientTransportFilter.class));
         }
     }
 

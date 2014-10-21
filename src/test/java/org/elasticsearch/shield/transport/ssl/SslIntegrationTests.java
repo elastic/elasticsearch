@@ -24,12 +24,14 @@ import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.test.ShieldIntegrationTest;
+import org.elasticsearch.shield.transport.SecuredTransportService;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
 import javax.net.ssl.*;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -94,13 +96,17 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
 
     @Test
     public void testConnectNodeWorks() throws Exception {
+        File folder = newFolder();
         Settings settings = settingsBuilder()
                 .put("name", "programmatic_node")
                 .put("cluster.name", internalCluster().getClusterName())
 
+                .put("shield.authc.esusers.files.users", writeFile(folder, "users", configUsers()))
+                .put("shield.authc.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
+                .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRole()))
+
                 .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
 
                 .put(getSSLSettingsForStore("certs/simple/testclient.jks", "testclient"))
                 .build();
@@ -114,19 +120,23 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
 
     @Test
     public void testConnectNodeClientWorks() throws Exception {
+        File folder = newFolder();
         Settings settings = settingsBuilder()
                 .put("name", "programmatic_node_client")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("node.mode", "network")
+
+                .put("shield.authc.esusers.files.users", writeFile(folder, "users", configUsers()))
+                .put("shield.authc.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
+                .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRole()))
 
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.type", "zen")
                 .putArray("discovery.zen.ping.unicast.hosts", getUnicastHostAddress())
 
                 .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
-                .put("shield.transport.n2n.ip_filter.file", writeFile(newFolder(), "ip_filter.yml", ShieldIntegrationTest.CONFIG_IPFILTER_ALLOW_ALL))
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", ShieldIntegrationTest.CONFIG_IPFILTER_ALLOW_ALL))
 
                 .put(getSSLSettingsForStore("certs/simple/testclient.jks", "testclient"))
                 .build();

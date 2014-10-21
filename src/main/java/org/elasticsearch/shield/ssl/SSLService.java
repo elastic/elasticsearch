@@ -24,16 +24,16 @@ import java.util.Arrays;
  */
 public class SSLService extends AbstractComponent {
 
-    static final String[] DEFAULT_CIPHERS = new String[]{"TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA", "TLS_DHE_RSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"};
+    static final String[] DEFAULT_CIPHERS = new String[]{ "TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA", "TLS_DHE_RSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA" };
     public static final String SHIELD_TRANSPORT_SSL = "shield.transport.ssl";
     public static final String SHIELD_HTTP_SSL = "shield.http.ssl";
     public static final String SHIELD_AUTHC_LDAP_URL = "shield.authc.ldap.url";
 
     private final TrustManagerFactory trustFactory;
-    private final SSLContext sslContext;
-    private final String[] ciphers;
     private final KeyManagerFactory keyManagerFactory;
     private final String sslProtocol;
+    private final SSLContext sslContext;
+    private final String[] ciphers;
 
     @Inject
     public SSLService(Settings settings) {

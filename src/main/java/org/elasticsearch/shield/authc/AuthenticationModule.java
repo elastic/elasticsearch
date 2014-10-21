@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.active_directory.ActiveDirectoryModule;
 import org.elasticsearch.shield.authc.esusers.ESUsersModule;
 import org.elasticsearch.shield.authc.ldap.LdapModule;
-import org.elasticsearch.shield.authc.system.SystemRealm;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
 /**
@@ -25,7 +24,6 @@ public class AuthenticationModule extends AbstractShieldModule.Node.Spawn {
     @Override
     public Iterable<? extends Node> spawnModules() {
         return ImmutableList.of(
-                new SystemRealm.Module(settings),
                 new ESUsersModule(settings),
                 new LdapModule(settings),
                 new ActiveDirectoryModule(settings)

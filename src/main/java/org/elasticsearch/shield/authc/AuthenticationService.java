@@ -15,52 +15,45 @@ import org.elasticsearch.transport.TransportMessage;
 public interface AuthenticationService {
 
     /**
-     * Extracts an authentication token from the given rest request and if found registers it on
-     * the request. If not found, an {@link AuthenticationException} is thrown.
+     * Authenticates the user that is associated with the given request. If the user was authenticated successfully (i.e.
+     * a user was indeed associated with the request and the credentials were verified to be valid), the method returns
+     * the user and that user is then "attached" to the request's context.
+     *
+     * @param request   The request to be authenticated
+     * @return          The authenticated user
+     * @throws AuthenticationException  If no user was associated with the request or if the associated user credentials
+     *                                  were found to be invalid
      */
-    AuthenticationToken token(RestRequest request) throws AuthenticationException;
+    User authenticate(RestRequest request) throws AuthenticationException;
 
     /**
-     * Extracts the authenticate token from the given message. If no recognized auth token is associated
-     * with the message, an AuthenticationException is thrown.
+     * Authenticates the user that is associated with the given message. If the user was authenticated successfully (i.e.
+     * a user was indeed associated with the request and the credentials were verified to be valid), the method returns
+     * the user and that user is then "attached" to the message's context. If no user was found to be attached to the given
+     * message, the the given fallback user will be returned instead.
+     *
+     * @param action        The action of the message
+     * @param message       The message to be authenticated
+     * @param fallbackUser  The default user that will be assumed if no other user is attached to the message. Can be
+     *                      {@code null}, in which case there will be no fallback user and the success/failure of the
+     *                      authentication will be based on the whether there's an attached user to in the message and
+     *                      if there is, whether its credentials are valid.
+     *
+     * @return              The authenticated user (either the attached one or if there isn't the fallback one if provided)
+     *
+     * @throws AuthenticationException  If the associated user credentials were found to be invalid or in the case where
+     *                                  there was no user associated with the request, if the defautl token could not be
+     *                                  authenticated.
      */
-    AuthenticationToken token(String action, TransportMessage<?> message);
+    User authenticate(String action, TransportMessage message, User fallbackUser);
 
     /**
-     * Extracts the authenticate token from the given message. If no recognized auth token is associated
-     * with the message and the given defaultToken is not {@code null}, the default token will be returned.
-     * Otherwise an AuthenticationException is thrown.
+     * Checks if there's alreay a user header attached to the given message. If missing, a new header is
+     * set on the message with the given user (encoded).
+     *
+     * @param message   The message
+     * @param user      The user to be attached if the header is missing
      */
-    AuthenticationToken token(String action, TransportMessage<?> message, AuthenticationToken defaultToken);
+    void attachUserHeaderIfMissing(TransportMessage message, User user);
 
-    /**
-     * Authenticates the user associated with the given request based on the given authentication token.
-     *
-     * On successful authentication, the {@link org.elasticsearch.shield.User user} that is associated
-     * with the request (i.e. that is associated with the token's {@link AuthenticationToken#principal() principal})
-     * will be returned. If authentication fails, an {@link AuthenticationException} will be thrown.
-     *
-     * @param action    The executed action
-     * @param message   The executed message
-     * @param token     The authentication token associated with the given request (must not be {@code null})
-     * @return          The authenticated User
-     * @throws AuthenticationException  If no user could be authenticated (can either be due to missing
-     *                                  supported authentication token, or simply due to bad credentials.
-     */
-    User authenticate(String action, TransportMessage<?> message, AuthenticationToken token) throws AuthenticationException;
-
-    /**
-     * Authenticates the user associated with the given request based on the given authentication token.
-     *
-     * On successful authentication, the {@link org.elasticsearch.shield.User user} that is associated
-     * with the request (i.e. that is associated with the token's {@link AuthenticationToken#principal() principal})
-     * will be returned. If authentication fails, an {@link AuthenticationException} will be thrown.
-     *
-     * @param request   The executed request
-     * @param token     The authentication token associated with the given request (must not be {@code null})
-     * @return          The authenticated User
-     * @throws AuthenticationException  If no user could be authenticated (can either be due to missing
-     *                                  supported authentication token, or simply due to bad credentials.
-     */
-    User authenticate(RestRequest request, AuthenticationToken token) throws AuthenticationException;
 }

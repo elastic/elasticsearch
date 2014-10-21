@@ -51,10 +51,12 @@ public class SecuredTransportModule extends AbstractShieldModule.Spawn implement
         if (clientMode) {
             // no ip filtering on the client
             bind(ServerTransportFilter.class).toInstance(ServerTransportFilter.NOOP);
+            bind(ClientTransportFilter.class).toInstance(ClientTransportFilter.NOOP);
             return;
         }
 
         bind(ServerTransportFilter.class).to(SecurityFilter.ServerTransport.class).asEagerSingleton();
+        bind(ClientTransportFilter.class).to(SecurityFilter.ClientTransport.class).asEagerSingleton();
         if (settings.getAsBoolean("shield.transport.n2n.ip_filter.enabled", true)) {
             bind(IPFilteringN2NAuthenticator.class).asEagerSingleton();
         }

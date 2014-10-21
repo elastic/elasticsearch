@@ -20,6 +20,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.elasticsearch.shield.transport.netty.NettySecuredTransport;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -34,6 +35,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -51,13 +53,27 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     protected static final String DEFAULT_PASSWORD = "changeme";
     protected static final String DEFAULT_ROLE = "user";
 
+    protected static final String DEFAULT_TRANSPORT_CLIENT_ROLE = "trans_client_user";
+    protected static final String DEFAULT_TRANSPORT_CLIENT_USER_NAME = "test_trans_client_user";
+
     public static final String CONFIG_IPFILTER_ALLOW_ALL = "allow: all\n";
-    public static final String CONFIG_STANDARD_USER = DEFAULT_USER_NAME + ":{plain}" + DEFAULT_PASSWORD + "\n";
-    public static final String CONFIG_STANDARD_USER_ROLES = DEFAULT_ROLE + ":" + DEFAULT_USER_NAME+ "\n";
-    public static final String CONFIG_ROLE_ALLOW_ALL = DEFAULT_ROLE + ":\n" +
-                                                        "  cluster: ALL\n" +
-                                                        "  indices:\n" +
-                                                        "    '*': ALL\n";
+    public static final String CONFIG_STANDARD_USER =
+            DEFAULT_USER_NAME + ":{plain}" + DEFAULT_PASSWORD + "\n" +
+            DEFAULT_TRANSPORT_CLIENT_USER_NAME + ":{plain}" + DEFAULT_PASSWORD + "\n";
+
+    public static final String CONFIG_STANDARD_USER_ROLES =
+            DEFAULT_ROLE + ":" + DEFAULT_USER_NAME + "," + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n" +
+            DEFAULT_TRANSPORT_CLIENT_ROLE + ":" + DEFAULT_TRANSPORT_CLIENT_USER_NAME+ "\n";
+
+    public static final String CONFIG_ROLE_ALLOW_ALL =
+            DEFAULT_ROLE + ":\n" +
+            "  cluster: ALL\n" +
+            "  indices:\n" +
+            "    '*': ALL\n" +
+            "transport_client:\n" +
+            "  cluster:\n" +
+            "    - cluster:monitor/nodes/info\n" +
+            "    - cluster:monitor/state";
 
     @ClassRule
     public static TemporaryFolder tmpFolder = new TemporaryFolder();
@@ -103,9 +119,10 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     @Override
     protected Settings transportClientSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder()
-                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
+                .put("shield.user", getClientUsername() + ":" + getClientPassword())
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
+                .put("plugin.types", ShieldPlugin.class.getName())
                 .put("node.mode", "network")
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient"));
 
@@ -144,7 +161,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     }
 
     protected String getClientUsername() {
-        return DEFAULT_USER_NAME;
+        return DEFAULT_TRANSPORT_CLIENT_USER_NAME;
     }
 
     protected SecuredString getClientPassword() {

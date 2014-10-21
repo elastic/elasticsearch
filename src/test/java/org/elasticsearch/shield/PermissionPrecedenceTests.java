@@ -12,9 +12,11 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authz.AuthorizationException;
+import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.elasticsearch.shield.test.ShieldIntegrationTest;
 import org.junit.Test;
 
@@ -39,16 +41,23 @@ public class PermissionPrecedenceTests extends ShieldIntegrationTest {
             "  indices:\n" +
             "    '*': all\n" +
             "\n" +
+            "transport_client:\n" +
+            "  cluster:\n" +
+            "    - cluster:monitor/nodes/info\n" +
+            "    - cluster:monitor/state\n" +
+            "\n" +
             "user:\n" +
             "  indices:\n" +
             "    'test_*': all\n";
 
     static final String USERS =
             "admin:{plain}test123\n" +
+            "client:{plain}test123\n" +
             "user:{plain}test123\n";
 
     static final String USERS_ROLES =
             "admin:admin\n" +
+            "transport_client:client\n" +
             "user:user\n";
 
     @Override
@@ -83,6 +92,7 @@ public class PermissionPrecedenceTests extends ShieldIntegrationTest {
         TransportAddress address = clusterService.localNode().address();
 
         try (TransportClient client = new TransportClient(ImmutableSettings.builder()
+                .put("shield.user", "client:test123")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("node.mode", "network")
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient")))

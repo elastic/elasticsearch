@@ -12,7 +12,6 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.shield.authc.active_directory.ActiveDirectoryRealm;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
-import org.elasticsearch.shield.authc.system.SystemRealm;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,13 +26,9 @@ public class Realms {
     private final Realm[] realms;
 
     @Inject
-    public Realms(SystemRealm system,
-                  @Nullable ESUsersRealm esusers,
-                  @Nullable LdapRealm ldap,
-                  @Nullable ActiveDirectoryRealm activeDirectory) {
+    public Realms(@Nullable ESUsersRealm esusers, @Nullable LdapRealm ldap, @Nullable ActiveDirectoryRealm activeDirectory) {
 
         List<Realm> realms = new ArrayList<>();
-        realms.add(system);
         if (esusers != null) {
             logger.info("Realm [" + esusers.type() + "] is used");
             realms.add(esusers);
@@ -52,5 +47,4 @@ public class Realms {
     Realm[] realms() {
         return realms;
     }
-
 }

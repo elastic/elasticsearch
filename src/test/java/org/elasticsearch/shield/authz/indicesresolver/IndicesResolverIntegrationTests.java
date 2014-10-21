@@ -195,7 +195,7 @@ public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
             actionRequestBuilder.get();
             fail("search should fail due to attempt to access non authorized indices");
         } catch(AuthorizationException e) {
-            assertThat(e.getMessage(), containsString("is unauthorized for user [test_user]"));
+            assertThat(e.getMessage(), containsString("is unauthorized for user [test_trans_client_user]"));
         }
     }
 

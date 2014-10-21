@@ -19,13 +19,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
-import org.elasticsearch.shield.authc.AuthenticationToken;
-import org.elasticsearch.shield.authc.system.SystemRealm;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.authz.AuthorizationService;
-import org.elasticsearch.shield.authz.SystemRole;
 import org.elasticsearch.shield.key.KeyService;
 import org.elasticsearch.shield.key.SignatureException;
+import org.elasticsearch.shield.transport.ClientTransportFilter;
 import org.elasticsearch.shield.transport.ServerTransportFilter;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -51,22 +49,14 @@ public class SecurityFilter extends AbstractComponent {
         this.auditTrail = auditTrail;
     }
 
-    User authenticateAndAuthorize(String action, TransportRequest request) {
-
-        // if the action is a system action, we'll fall back on the system user, otherwise we
-        // won't fallback on any user and an authentication exception will be thrown
-        AuthenticationToken defaultToken = SystemRole.INSTANCE.check(action) ? SystemRealm.TOKEN : null;
-
-        AuthenticationToken token = authcService.token(action, request, defaultToken);
-        User user = authcService.authenticate(action, request, token);
-
+    User authenticateAndAuthorize(String action, TransportRequest request, User fallbackUser) {
+        User user = authcService.authenticate(action, request, fallbackUser);
         authzService.authorize(user, action, request);
         return user;
     }
 
     User authenticate(RestRequest request) {
-        AuthenticationToken token = authcService.token(request);
-        return authcService.authenticate(request, token);
+        return authcService.authenticate(request);
     }
 
     <Request extends ActionRequest> Request unsign(User user, String action, Request request) {
@@ -151,7 +141,26 @@ public class SecurityFilter extends AbstractComponent {
 
         @Override
         public void inbound(String action, TransportRequest request) {
-            filter.authenticateAndAuthorize(action, request);
+            // here we don't have a fallback user, as all incoming request are
+            // expected to have a user attached (either in headers or in context)
+            filter.authenticateAndAuthorize(action, request, null);
+        }
+    }
+
+    public static class ClientTransport implements ClientTransportFilter {
+
+        private final SecurityFilter filter;
+
+        @Inject
+        public ClientTransport(SecurityFilter filter) {
+            this.filter = filter;
+        }
+
+        @Override
+        public void outbound(String action, TransportRequest request) {
+            // this will check if there's a user associated with the request. If there isn't,
+            // the system user will be attached.
+            filter.authcService.attachUserHeaderIfMissing(request, User.SYSTEM);
         }
     }
 
@@ -167,7 +176,17 @@ public class SecurityFilter extends AbstractComponent {
         @Override
         public void apply(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
             try {
-                User user = filter.authenticateAndAuthorize(action, request);
+                /**
+                 here we fallback on the system user. Internal system requests are requests that are triggered by
+                 the system itself (e.g. pings, update mappings, share relocation, etc...) and were not originated
+                 by user interaction. Since these requests are triggered by es core modules, they are security
+                 agnostic and therefore not associated with any user. When these requests execute locally, they
+                 are executed directly on their relevant action. Since there is no other way a request can make
+                 it to the action without an associated user (not via REST or transport - this is taken care of by
+                 the {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user
+                 here if a request is not associated with any other user.
+                */
+                User user = filter.authenticateAndAuthorize(action, request, User.SYSTEM);
                 request = filter.unsign(user, action, request);
                 chain.proceed(action, request, new SigningListener(user, action, filter, listener));
             } catch (Throwable t) {

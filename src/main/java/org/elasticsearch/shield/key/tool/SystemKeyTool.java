@@ -45,8 +45,8 @@ public class SystemKeyTool extends CliTool {
     }
 
     static class Generate extends Command {
-        private static final String NAME = "generate";
-        private static final CliToolConfig.Cmd CMD = cmd(NAME, Generate.class).build();
+
+        private static final CliToolConfig.Cmd CMD = cmd("generate", Generate.class).build();
 
         final Path path;
 

@@ -23,6 +23,7 @@ import org.junit.Test;
 import java.io.File;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -41,12 +42,13 @@ public class SslMultiPortTests extends ShieldIntegrationTest {
     @Before
     public void setupBuilder() {
         builder = settingsBuilder()
+                // we have to set the user with the Authorization header as shield.user only works when
+                // shield is installed on the client as a plugin
+                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put("node.mode", "network")
                 .put("cluster.name", internalCluster().getClusterName());
-
-        setUser(builder);
     }
 
     @Override

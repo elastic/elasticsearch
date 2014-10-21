@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 public class LoggingAuditTrailTests extends ElasticsearchTestCase {
 
     @Test
-    public void testAnonymousAccess() throws Exception {
+    public void testAnonymousAccess_Transport() throws Exception {
         for (Level level : Level.values()) {
             CapturingLogger logger = new CapturingLogger(level);
             LoggingAuditTrail auditTrail = new LoggingAuditTrail(logger);
@@ -55,6 +55,32 @@ public class LoggingAuditTrailTests extends ElasticsearchTestCase {
                     } else {
                         assertMsg(logger, Level.DEBUG, "ANONYMOUS_ACCESS\thost=[local[_host]], action=[_action], request=[mock-message]");
                     }
+            }
+        }
+    }
+
+    @Test
+    public void testAnonymousAccess_Rest() throws Exception {
+        RestRequest request = mock(RestRequest.class);
+        when(request.getRemoteAddress()).thenReturn(new InetSocketAddress("_hostname", 9200));
+        when(request.uri()).thenReturn("_uri");
+        when(request.toString()).thenReturn("rest_request");
+
+        for (Level level : Level.values()) {
+            CapturingLogger logger = new CapturingLogger(level);
+            LoggingAuditTrail auditTrail = new LoggingAuditTrail(logger);
+            auditTrail.anonymousAccess(request);
+            switch (level) {
+                case ERROR:
+                    assertEmptyLog(logger);
+                    break;
+                case WARN:
+                case INFO:
+                    assertMsg(logger, Level.WARN, "ANONYMOUS_ACCESS\thost=[_hostname:9200], URI=[_uri]");
+                    break;
+                case DEBUG:
+                case TRACE:
+                    assertMsg(logger, Level.DEBUG, "ANONYMOUS_ACCESS\thost=[_hostname:9200], URI=[_uri], request=[rest_request]");
             }
         }
     }

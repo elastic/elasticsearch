@@ -60,6 +60,15 @@ public class LoggingAuditTrail implements AuditTrail {
     }
 
     @Override
+    public void anonymousAccess(RestRequest request) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("ANONYMOUS_ACCESS\thost=[{}], URI=[{}], request=[{}]", request.getRemoteAddress(), request.uri(), request);
+        } else {
+            logger.warn("ANONYMOUS_ACCESS\thost=[{}], URI=[{}]", request.getRemoteAddress(), request.uri());
+        }
+    }
+
+    @Override
     public void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message) {
         String indices = indices(message);
         if (indices != null) {

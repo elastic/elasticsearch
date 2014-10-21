@@ -5,15 +5,20 @@
  */
 package org.elasticsearch.shield.authc;
 
-import org.elasticsearch.common.ContextHolder;
+import org.apache.commons.codec.binary.Base64;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
+import org.elasticsearch.shield.key.KeyService;
 import org.elasticsearch.transport.TransportMessage;
+
+import java.io.IOException;
 
 /**
  * An authentication service that delegates the authentication process to its configured {@link Realm realms}.
@@ -22,65 +27,94 @@ import org.elasticsearch.transport.TransportMessage;
  */
 public class InternalAuthenticationService extends AbstractComponent implements AuthenticationService {
 
-    static final String TOKEN_CTX_KEY = "_shield_token";
-    static final String USER_CTX_KEY = "_shield_user";
+    static final String TOKEN_KEY = "_shield_token";
+    static final String USER_KEY = "_shield_user";
 
     private final Realm[] realms;
     private final AuditTrail auditTrail;
+    private final KeyService keyService;
+    private final boolean signUserHeader;
 
     @Inject
-    public InternalAuthenticationService(Settings settings, Realms realms, @Nullable AuditTrail auditTrail) {
+    public InternalAuthenticationService(Settings settings, Realms realms, AuditTrail auditTrail, KeyService keyService) {
         super(settings);
         this.realms = realms.realms();
         this.auditTrail = auditTrail;
+        this.keyService = keyService;
+        this.signUserHeader = componentSettings.getAsBoolean("sign_user_header", true);
     }
 
     @Override
-    public AuthenticationToken token(RestRequest request) throws AuthenticationException {
-        for (Realm realm : realms) {
-            AuthenticationToken token = realm.token(request);
-            if (token != null) {
-                request.putInContext(TOKEN_CTX_KEY, token);
-                return token;
-            }
+    public User authenticate(RestRequest request) throws AuthenticationException {
+        AuthenticationToken token = token(request);
+        if (token == null) {
+            auditTrail.anonymousAccess(request);
+            throw new AuthenticationException("Missing authentication token");
         }
-        throw new AuthenticationException("Missing authentication token");
+        User user = authenticate(request, token);
+        if (user == null) {
+            throw new AuthenticationException("Unable to authenticate user for request");
+        }
+        return user;
     }
 
     @Override
-    public AuthenticationToken token(String action, TransportMessage<?> message) {
-        return token(action, message, null);
+    public User authenticate(String action, TransportMessage message, User fallbackUser) {
+        User user = (User) message.getContext().get(USER_KEY);
+        if (user != null) {
+            return user;
+        }
+        String header = (String) message.getHeader(USER_KEY);
+        if (header != null) {
+            if (signUserHeader) {
+                header = keyService.unsignAndVerify(header);
+            }
+            user = decodeUser(header);
+        }
+        if (user == null) {
+            user = authenticateWithRealms(action, message, fallbackUser);
+            header = signUserHeader ? keyService.sign(encodeUser(user, logger)) : encodeUser(user, logger);
+            message.putHeader(USER_KEY, header);
+        }
+        message.putInContext(USER_KEY, user);
+        return user;
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public AuthenticationToken token(String action, TransportMessage<?> message, AuthenticationToken defaultToken) {
-        AuthenticationToken token = message.getFromContext(TOKEN_CTX_KEY);
-        if (token != null) {
-            return token;
+    public void attachUserHeaderIfMissing(TransportMessage message, User user) {
+        String header = (String) message.getHeader(USER_KEY);
+        if (header == null) {
+            header = (String) message.getHeader(TOKEN_KEY);
         }
-        for (Realm realm : realms) {
-            token = realm.token(message);
-            if (token != null) {
+        if (header == null) {
+            message.putInContext(USER_KEY, user);
+            header = signUserHeader ? keyService.sign(encodeUser(user, logger)) : encodeUser(user, logger);
+            message.putHeader(USER_KEY, header);
+        }
+    }
 
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Realm [{}] resolved auth token [{}] from transport request with action [{}]", realm.type(), token.principal(), action);
-                }
+    static User decodeUser(String text) {
+        byte[] bytes = Base64.decodeBase64(text);
+        try {
+            BytesStreamInput input = new BytesStreamInput(bytes, true);
+            return User.readFrom(input);
+        } catch (IOException ioe) {
+            throw new AuthenticationException("Could not read authenticated user", ioe);
+        }
+    }
 
-                message.putInContext(TOKEN_CTX_KEY, token);
-                return token;
+    static String encodeUser(User user, ESLogger logger) {
+        try {
+            BytesStreamOutput output = new BytesStreamOutput();
+            User.writeTo(user, output);
+            byte[] bytes = output.bytes().toBytes();
+            return Base64.encodeBase64String(bytes);
+        } catch (IOException ioe) {
+            if (logger != null) {
+                logger.error("Could not encode authenticated user in message header... falling back to token headers", ioe);
             }
+            return null;
         }
-
-        if (defaultToken == null) {
-            if (auditTrail != null) {
-                auditTrail.anonymousAccess(action, message);
-            }
-            throw new AuthenticationException("Missing authentication token for request [" + action + "]");
-        }
-
-        message.putInContext(TOKEN_CTX_KEY, defaultToken);
-        return defaultToken;
     }
 
     /**
@@ -92,63 +126,91 @@ public class InternalAuthenticationService extends AbstractComponent implements 
      *
      * The order by which the realms are checked is defined in {@link Realms}.
      *
-     * @param action    The executed action
-     * @param message   The executed request
-     * @param token     The authentication token
-     * @return          The authenticated user
+     * @param action        The executed action
+     * @param message       The executed request
+     * @param fallbackUser  The user to assume if there is not other user attached to the message
+     * @return              The authenticated user
      * @throws AuthenticationException If none of the configured realms successfully authenticated the
      *                                 request
      */
-    @Override
     @SuppressWarnings("unchecked")
-    public User authenticate(String action, TransportMessage<?> message, AuthenticationToken token) throws AuthenticationException {
-        assert token != null : "cannot authenticate null tokens";
-        try {
-            User user = (User) message.getContext().get(USER_CTX_KEY);
-            if (user != null) {
-                return user;
+    User authenticateWithRealms(String action, TransportMessage<?> message, User fallbackUser) throws AuthenticationException {
+        AuthenticationToken token = token(action, message);
+
+        if (token == null) {
+            if (fallbackUser == null) {
+                auditTrail.anonymousAccess(action, message);
+                throw new AuthenticationException("Missing authentication token for request [" + action + "]");
             }
+            return fallbackUser;
+        }
+
+        try {
             for (Realm realm : realms) {
                 if (realm.supports(token)) {
-                    user = realm.authenticate(token);
+                    User user = realm.authenticate(token);
                     if (user != null) {
-                        message.putInContext(USER_CTX_KEY, user);
                         return user;
-                    } else if (auditTrail != null) {
-                        auditTrail.authenticationFailed(realm.type(), token, action, message);
                     }
+                    auditTrail.authenticationFailed(realm.type(), token, action, message);
                 }
             }
-            if (auditTrail != null) {
-                auditTrail.authenticationFailed(token, action, message);
-            }
+            auditTrail.authenticationFailed(token, action, message);
             throw new AuthenticationException("Unable to authenticate user for request");
         } finally {
             token.clearCredentials();
         }
     }
 
-    @Override
-    public User authenticate(RestRequest request, AuthenticationToken token) throws AuthenticationException {
+    User authenticate(RestRequest request, AuthenticationToken token) throws AuthenticationException {
         assert token != null : "cannot authenticate null tokens";
         try {
             for (Realm realm : realms) {
                 if (realm.supports(token)) {
                     User user = realm.authenticate(token);
                     if (user != null) {
-                        request.putInContext(USER_CTX_KEY, user);
+                        request.putInContext(USER_KEY, user);
                         return user;
-                    } else if (auditTrail != null) {
-                        auditTrail.authenticationFailed(realm.type(), token, request);
                     }
+                    auditTrail.authenticationFailed(realm.type(), token, request);
                 }
             }
-            if (auditTrail != null) {
-                auditTrail.authenticationFailed(token, request);
-            }
-            throw new AuthenticationException("Unable to authenticate user for request");
+            auditTrail.authenticationFailed(token, request);
+            return null;
         } finally {
             token.clearCredentials();
         }
+    }
+
+    AuthenticationToken token(RestRequest request) throws AuthenticationException {
+        for (Realm realm : realms) {
+            AuthenticationToken token = realm.token(request);
+            if (token != null) {
+                request.putInContext(TOKEN_KEY, token);
+                return token;
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    AuthenticationToken token(String action, TransportMessage<?> message) {
+        AuthenticationToken token = message.getFromContext(TOKEN_KEY);
+        if (token != null) {
+            return token;
+        }
+        for (Realm realm : realms) {
+            token = realm.token(message);
+            if (token != null) {
+
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Realm [{}] resolved auth token [{}] from transport request with action [{}]", realm.type(), token.principal(), action);
+                }
+
+                message.putInContext(TOKEN_KEY, token);
+                return token;
+            }
+        }
+        return null;
     }
 }

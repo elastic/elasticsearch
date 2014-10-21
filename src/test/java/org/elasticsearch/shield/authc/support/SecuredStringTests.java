@@ -7,9 +7,10 @@ package org.elasticsearch.shield.authc.support;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.base.Charsets;
 import org.junit.Test;
-import static org.junit.Assert.*;
+
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.*;
 
 public class SecuredStringTests {
     public static SecuredString build(String password){

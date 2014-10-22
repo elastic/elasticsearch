@@ -118,6 +118,13 @@ settings API:
     * `new_primaries` - Allows shard allocation only for primary shards for new indices.
     * `none` - No shard allocation is allowed.
 
+`index.routing.rebalance.enable`::
+    Enables shard rebalancing for a specific index. It can be set to:
+    * `all` (default) - Allows shard rebalancing for all shards.
+    * `primaries` - Allows shard rebalancing only for primary shards.
+    * `replicas` - Allows shard rebalancing only for replica shards.
+    * `none` - No shard rebalancing is allowed.
+
 `index.routing.allocation.total_shards_per_node`::
     Controls the total number of shards (replicas and primaries) allowed to be allocated on a single node. Defaults to unbounded (`-1`).
 

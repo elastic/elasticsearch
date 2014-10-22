@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
@@ -45,7 +44,6 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.json.JsonPath;
-import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.net.InetSocketAddress;
@@ -129,17 +127,14 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         logSegmentsState(null);
         backwardsCluster().allowOnAllNodes(indexNames);
         ensureGreen();
-        // set the balancing threshold to something very highish such that no rebalancing happens after the upgrade
-        builder = ImmutableSettings.builder();
-        builder.put(BalancedShardsAllocator.SETTING_THRESHOLD, 100.0f);
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get();
         // disable allocation entirely until all nodes are upgraded
         builder = ImmutableSettings.builder();
         builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.NONE);
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(builder).get();
         backwardsCluster().upgradeAllNodes();
-        // we are done - enable allocation again
         builder = ImmutableSettings.builder();
+        // disable rebalanceing entirely for the time being otherwise we might get relocations / rebalance from nodes with old segments
+        builder.put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE);
         builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.ALL);
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(builder).get();
         ensureGreen();

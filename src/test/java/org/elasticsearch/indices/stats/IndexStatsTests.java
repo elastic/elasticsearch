@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.stats;
 
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.*;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -329,12 +330,15 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
                                 .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
                                 .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
                                 .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "1")
+                                .put("index.merge.policy.type", "tiered")
+
                 ));
         ensureGreen();
         long termUpto = 0;
         IndicesStatsResponse stats;
         // make sure we see throttling kicking in:
         boolean done = false;
+        long start = System.currentTimeMillis();
         while (!done) {
             for(int i=0; i<100; i++) {
                 // Provoke slowish merging by making many unique terms:
@@ -352,6 +356,9 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
             stats = client().admin().indices().prepareStats().execute().actionGet();
             //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
             done = stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis() > 0;
+            if (System.currentTimeMillis() - start > 300*1000) { //Wait 5 minutes for throttling to kick in
+                break;
+            }
         }
         stats = client().admin().indices().prepareStats().execute().actionGet();
         assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), greaterThan(0l));

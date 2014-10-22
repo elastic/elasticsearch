@@ -101,21 +101,6 @@ due to forced awareness or allocation filtering.
        unlimited. See also <<modules-cluster>>.
 
 [float]
-===== Disable allocation
-
-All the disable allocation settings have been deprecated in favour for
-`cluster.routing.allocation.enable` setting.
-
-`cluster.routing.allocation.disable_allocation`::
-     See <<modules-cluster>>.
-
-`cluster.routing.allocation.disable_replica_allocation`::
-     See <<modules-cluster>>.
-
-`cluster.routing.allocation.disable_new_allocation`::
-     See <<modules-cluster>>.
-
-[float]
 ===== Enable allocation
 
 `cluster.routing.allocation.enable`::

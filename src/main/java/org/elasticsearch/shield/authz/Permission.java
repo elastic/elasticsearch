@@ -9,7 +9,6 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
-import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.cache.LoadingCache;
@@ -233,12 +232,25 @@ public interface Permission {
                 }
             }
 
-            for (Group group : groups) {
-                if (group.check(action, indices)) {
-                    return true;
+            if (indices == null) {
+                return true;
+            }
+
+            // for every index, at least one group should match it... otherwise denied
+            for (String index : indices) {
+                boolean grant = false;
+                for (Group group : groups) {
+                    if (group.check(action, index)) {
+                        grant = true;
+                        break;
+                    }
+                }
+                if (!grant) {
+                    return false;
                 }
             }
-            return false;
+
+            return true;
         }
 
         public static class Group {
@@ -264,21 +276,8 @@ public interface Permission {
                 return indices;
             }
 
-            public boolean check(String action, Set<String> indices) {
-
-                if (!actionMatcher.apply(action)) {
-                    return false;
-                }
-
-                if (indices != null) {
-                    for (String index : indices) {
-                        if (!indexNameMatcher.apply(index)) {
-                            return false;
-                        }
-                    }
-                }
-
-                return true;
+            public boolean check(String action, String index) {
+                return actionMatcher.apply(action) && !(index != null && !indexNameMatcher.apply(index));
             }
 
 

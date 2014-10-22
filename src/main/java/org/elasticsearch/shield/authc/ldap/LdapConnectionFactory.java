@@ -20,7 +20,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
  */
 public interface LdapConnectionFactory {
 
-    static final String URLS_SETTING = "urls"; //comma separated
+    static final String URLS_SETTING = "url"; //comma separated
 
     /**
      * Password authenticated bind

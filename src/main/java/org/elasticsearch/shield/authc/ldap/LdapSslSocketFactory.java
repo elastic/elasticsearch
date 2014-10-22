@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.transport.ssl.SSLTrustConfig;
 
 import javax.net.SocketFactory;
@@ -28,6 +30,7 @@ import java.util.Locale;
  */
 public class LdapSslSocketFactory extends SocketFactory {
 
+    static final String JAVA_NAMING_LDAP_FACTORY_SOCKET = "java.naming.ldap.factory.socket";
     private static ESLogger logger = ESLoggerFactory.getLogger(LdapSslSocketFactory.class.getName());
     private static LdapSslSocketFactory instance;
 
@@ -51,7 +54,7 @@ public class LdapSslSocketFactory extends SocketFactory {
 
     /**
      * This is invoked by JNDI and the returned SocketFactory must be an LdapSslSocketFactory object
-     * @return
+     * @return a singleton instance of LdapSslSocketFactory set by calling the init static method.
      */
     public static SocketFactory getDefault() {
         assert instance != null;
@@ -92,19 +95,21 @@ public class LdapSslSocketFactory extends SocketFactory {
 
     /**
      * If one of the ldapUrls are SSL this will set the LdapSslSocketFactory as a socket provider on the builder
-     * @param ldapUrls
+     * @param ldapUrls array of ldap urls, either all SSL or none with SSL (no mixing)
      * @param builder set of jndi properties, that will
+     * @throws org.elasticsearch.shield.ShieldSettingsException if URLs have mixed protocols.
      */
     public static void configureJndiSSL(String[] ldapUrls, ImmutableMap.Builder<String, Serializable> builder) {
-        boolean needsSSL = false;
+        boolean secureProtocol = ldapUrls[0].toLowerCase(Locale.getDefault()).startsWith("ldaps://");
         for(String url: ldapUrls){
-            if (url.toLowerCase(Locale.getDefault()).startsWith("ldaps://")) {
-                needsSSL = true;
-                break;
+            if (secureProtocol != url.toLowerCase(Locale.getDefault()).startsWith("ldaps://")) {
+                //this is because LdapSSLSocketFactory produces only SSL sockets and not clear text sockets
+                throw new ShieldSettingsException("Configured ldap protocols are not all equal " +
+                        "(ldaps://.. and ldap://..): [" + Strings.arrayToCommaDelimitedString(ldapUrls) + "]");
             }
         }
-        if (needsSSL && instance != null) {
-            builder.put("java.naming.ldap.factory.socket", LdapSslSocketFactory.class.getName());
+        if (secureProtocol && instance != null) {
+            builder.put(JAVA_NAMING_LDAP_FACTORY_SOCKET, LdapSslSocketFactory.class.getName());
         } else {
             logger.warn("LdapSslSocketFactory not used for LDAP connections");
         }

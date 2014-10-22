@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.shield.audit.logfile;
 
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -41,69 +43,126 @@ public class LoggingAuditTrail implements AuditTrail {
 
     @Override
     public void anonymousAccess(String action, TransportMessage<?> message) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("ANONYMOUS_ACCESS\thost=[{}], action=[{}], request=[{}]", message.remoteAddress(), action, message);
+        String indices = indices(message);
+        if (indices != null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("ANONYMOUS_ACCESS\thost=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), action, indices, message);
+            } else {
+                logger.warn("ANONYMOUS_ACCESS\thost=[{}], action=[{}], indices=[{}]", message.remoteAddress(), action, indices);
+            }
         } else {
-            logger.warn("ANONYMOUS_ACCESS\thost=[{}], action=[{}]", message.remoteAddress(), action);
+            if (logger.isDebugEnabled()) {
+                logger.debug("ANONYMOUS_ACCESS\thost=[{}], action=[{}], request=[{}]", message.remoteAddress(), action, message);
+            } else {
+                logger.warn("ANONYMOUS_ACCESS\thost=[{}], action=[{}]", message.remoteAddress(), action);
+            }
         }
     }
 
     @Override
     public void authenticationFailed(AuthenticationToken token, String action, TransportMessage<?> message) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("AUTHENTICATION_FAILED\thost=[{}], action=[{}], principal=[{}], request=[{}]", message.remoteAddress(), action, token.principal(), message);
+        String indices = indices(message);
+        if (indices != null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), token.principal(), action, indices, message);
+            } else {
+                logger.error("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], action=[{}], indices=[{}]", message.remoteAddress(), token.principal(), action, indices);
+            }
         } else {
-            logger.error("AUTHENTICATION_FAILED\thost=[{}], action=[{}], principal=[{}]", message.remoteAddress(), action, token.principal());
+            if (logger.isDebugEnabled()) {
+                logger.debug("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], action=[{}], request=[{}]", message.remoteAddress(), token.principal(), action, message);
+            } else {
+                logger.error("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], action=[{}]", message.remoteAddress(), token.principal(), action);
+            }
         }
     }
 
     @Override
     public void authenticationFailed(AuthenticationToken token, RestRequest request) {
         if (logger.isDebugEnabled()) {
-            logger.debug("AUTHENTICATION_FAILED\thost=[{}], URI=[{}], principal=[{}], request=[{}]", request.getRemoteAddress(), request.uri(), token.principal(), request);
+            logger.debug("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], URI=[{}], request=[{}]", request.getRemoteAddress(), token.principal(), request.uri(), request);
         } else {
-            logger.error("AUTHENTICATION_FAILED\thost=[{}], URI=[{}], principal=[{}]", request.getRemoteAddress(), request.uri(), token.principal());
+            logger.error("AUTHENTICATION_FAILED\thost=[{}], principal=[{}], URI=[{}]", request.getRemoteAddress(), token.principal(), request.uri());
         }
     }
 
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage<?> message) {
         if (logger.isTraceEnabled()) {
-            logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], action=[{}], principal=[{}], request=[{}]", realm, message.remoteAddress(), action, token.principal(), message);
+            String indices = indices(message);
+            if (indices != null) {
+                logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", realm, message.remoteAddress(), token.principal(), action, indices, message);
+            } else {
+                logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], principal=[{}], action=[{}], request=[{}]", realm, message.remoteAddress(), token.principal(), action, message);
+            }
         }
     }
 
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
         if (logger.isTraceEnabled()) {
-            logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], URI=[{}], principal=[{}], request=[{}]", realm, request.getRemoteAddress(), request.uri(), token.principal(), request);
+            logger.trace("AUTHENTICATION_FAILED[{}]\thost=[{}], principal=[{}], URI=[{}], request=[{}]", realm, request.getRemoteAddress(), token.principal(), request.uri(), request);
         }
     }
 
     @Override
     public void accessGranted(User user, String action, TransportMessage<?> message) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("ACCESS_GRANTED\thost=[{}], action=[{}], principal=[{}], request=[{}]", message.remoteAddress(), action, user.principal(), message);
+        String indices = indices(message);
+        if (indices != null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, indices, message);
+            } else {
+                logger.info("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], indices=[{}]", message.remoteAddress(), user.principal(), action, indices);
+            }
         } else {
-            logger.info("ACCESS_GRANTED\thost=[{}], action=[{}], principal=[{}]", message.remoteAddress(), action, user.principal());
+            if (logger.isDebugEnabled()) {
+                logger.debug("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, message);
+            } else {
+                logger.info("ACCESS_GRANTED\thost=[{}], principal=[{}], action=[{}]", message.remoteAddress(), user.principal(), action);
+            }
         }
     }
 
     @Override
     public void accessDenied(User user, String action, TransportMessage<?> message) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("ACCESS_DENIED\thost=[{}], action=[{}], principal=[{}], request=[{}]", message.remoteAddress(), action, user.principal(), message);
+        String indices = indices(message);
+        if (indices != null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("ACCESS_DENIED\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, indices, message);
+            } else {
+                logger.error("ACCESS_DENIED\thost=[{}], principal=[{}], action=[{}], indices=[{}]", message.remoteAddress(), user.principal(), action, indices);
+            }
         } else {
-            logger.error("ACCESS_DENIED\thost=[{}], action=[{}], principal=[{}]", message.remoteAddress(), action, user.principal());
+            if (logger.isDebugEnabled()) {
+                logger.debug("ACCESS_DENIED\thost=[{}], principal=[{}], action=[{}], request=[{}]", message.remoteAddress(), user.principal(), action, message);
+            } else {
+                logger.error("ACCESS_DENIED\thost=[{}], principal=[{}], action=[{}]", message.remoteAddress(), user.principal(), action);
+            }
         }
     }
 
     @Override
     public void tamperedRequest(User user, String action, TransportRequest request) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("TAMPERED REQUEST\thost=[{}], action=[{}], principal=[{}], request=[{}]", request.remoteAddress(), action, user.principal(), request);
+        String indices = indices(request);
+        if (indices != null) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("TAMPERED REQUEST\thost=[{}], principal=[{}], action=[{}], indices=[{}], request=[{}]", request.remoteAddress(), user.principal(), action, indices, request);
+            } else {
+                logger.error("TAMPERED REQUEST\thost=[{}], principal=[{}], action=[{}], indices=[{}]", request.remoteAddress(), user.principal(), action, indices);
+            }
         } else {
-            logger.error("TAMPERED REQUEST\thost=[{}], action=[{}], principal=[{}]", request.remoteAddress(), action, user.principal());
+            if (logger.isDebugEnabled()) {
+                logger.debug("TAMPERED REQUEST\thost=[{}], principal=[{}], action=[{}], request=[{}]", request.remoteAddress(), user.principal(), action, request);
+            } else {
+                logger.error("TAMPERED REQUEST\thost=[{}], principal=[{}], action=[{}]", request.remoteAddress(), user.principal(), action);
+            }
         }
+    }
+
+    private static String indices(TransportMessage message) {
+        if (message instanceof IndicesRequest) {
+            return Strings.arrayToCommaDelimitedString(((IndicesRequest) message).indices());
+        }
+        return null;
     }
 }

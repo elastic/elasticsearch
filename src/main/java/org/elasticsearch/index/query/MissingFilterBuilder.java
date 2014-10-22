@@ -50,7 +50,7 @@ public class MissingFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
-     * Should hte missing filter include documents where the field doesn't exists in the docs.
+     * Should the missing filter include documents where the field doesn't exists in the docs.
      * Defaults to <tt>true</tt>.
      */
     public MissingFilterBuilder existence(boolean existence) {

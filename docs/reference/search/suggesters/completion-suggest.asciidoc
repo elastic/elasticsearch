@@ -119,8 +119,9 @@ The following parameters are supported:
     might not yield any results, if `input` and `output` differ strongly).
 
 `weight`::
-    A positive integer, which defines a weight and allows you to
-    rank your suggestions. This field is optional.
+    A positive integer or a string containing a positive integer,
+    which defines a weight and allows you to rank your suggestions.
+    This field is optional.
 
 NOTE: Even though you will lose most of the features of the
 completion suggest, you can choose to use the following shorthand form.

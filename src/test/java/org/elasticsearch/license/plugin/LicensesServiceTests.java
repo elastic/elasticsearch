@@ -15,10 +15,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.TestUtils;
-import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.core.LicenseBuilders;
-import org.elasticsearch.license.core.LicenseUtils;
+import org.elasticsearch.license.core.*;
 import org.elasticsearch.license.manager.ESLicenseManager;
+import org.elasticsearch.license.manager.Utils;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.license.plugin.core.*;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -31,9 +30,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -99,7 +96,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
     @Test
     public void testEmptySignedLicenseCheck() {
         LicensesManagerService licensesManagerService = licensesManagerService();
-        assertTrue(LicensesStatus.VALID == licensesManagerService.checkLicenses(LicenseBuilders.licensesBuilder().build()));
+        assertTrue(LicensesStatus.VALID == licensesManagerService.checkLicenses(new HashSet<ESLicense>()));
     }
 
     @Test
@@ -112,19 +109,20 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         map.put(TestUtils.SHIELD, featureAttributes);
         String licenseString = TestUtils.generateESLicenses(map);
         String licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
-        ESLicenses licenses = LicenseUtils.readLicensesFromString(licenseOutput);
+        Set<ESLicense> licenses = ESLicenses.fromSource(licenseOutput);
 
         assertTrue(LicensesStatus.VALID == licensesManagerService.checkLicenses(licenses));
 
-        ESLicenses.ESLicense tamperedLicense = LicenseBuilders.licenseBuilder(true)
-                .fromLicense(licenses.get(TestUtils.SHIELD))
-                .expiryDate(licenses.get(TestUtils.SHIELD).expiryDate() + 5 * 24 * 60 * 60 * 1000l)
-                .issuer("elasticsearch")
+        ESLicense esLicense = Utils.reduceAndMap(licenses).get(TestUtils.SHIELD);
+
+        final ESLicense tamperedLicense = ESLicense.builder()
+                .fromLicense(esLicense)
+                .expiryDate(esLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
+                .feature(TestUtils.SHIELD)
+                .issuer("elasticsqearch")
                 .build();
 
-        ESLicenses tamperedLicenses = LicenseBuilders.licensesBuilder().license(tamperedLicense).build();
-
-        assertTrue(LicensesStatus.INVALID == licensesManagerService.checkLicenses(tamperedLicenses));
+        assertTrue(LicensesStatus.INVALID == licensesManagerService.checkLicenses(Collections.singleton(tamperedLicense)));
     }
 
     @Test
@@ -135,12 +133,12 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         map.put(TestUtils.SHIELD, featureAttributes1);
         String licenseString = TestUtils.generateESLicenses(map);
         String licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
-        ESLicenses licenses = LicenseUtils.readLicensesFromString(licenseOutput);
+        Set<ESLicense> licenses = ESLicenses.fromSource(licenseOutput);
 
         LicensesManagerService licensesManagerService = licensesManagerService();
         ESLicenseManager esLicenseManager = ((LicensesService) licensesManagerService).getEsLicenseManager();
         final CountDownLatch latch1 = new CountDownLatch(1);
-        licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().license(licenses), "test"), new ActionListener<ClusterStateUpdateResponse>() {
+        licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses), "test"), new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
                 if (clusterStateUpdateResponse.isAcknowledged()) {
@@ -156,7 +154,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
 
         latch1.await();
         LicensesMetaData metaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
-        ESLicenses metaDataLicense = esLicenseManager.fromSignatures(metaData.getSignatures());
+        Set<ESLicense> metaDataLicense = esLicenseManager.fromSignatures(metaData.getSignatures());
         TestUtils.isSame(licenses, metaDataLicense);
 
 
@@ -165,9 +163,9 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         map.put(TestUtils.SHIELD, featureAttributes2);
         licenseString = TestUtils.generateESLicenses(map);
         licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
-        ESLicenses licenses2 = LicenseUtils.readLicensesFromString(licenseOutput);
+        Set<ESLicense> licenses2 = ESLicenses.fromSource(licenseOutput);
         final CountDownLatch latch2 = new CountDownLatch(1);
-        licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().license(licenses2), "test"), new ActionListener<ClusterStateUpdateResponse>() {
+        licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses2), "test"), new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
                 if (clusterStateUpdateResponse.isAcknowledged()) {
@@ -270,11 +268,11 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         map.put(TestUtils.SHIELD, featureAttributes1);
         String licenseString = TestUtils.generateESLicenses(map);
         String licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
-        ESLicenses licenses = LicenseUtils.readLicensesFromString(licenseOutput);
+        Set<ESLicense> licenses = ESLicenses.fromSource(licenseOutput);
 
         LicensesManagerService licensesManagerService = licensesManagerService();
         final CountDownLatch latch1 = new CountDownLatch(1);
-        licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().license(licenses), "test"), new ActionListener<ClusterStateUpdateResponse>() {
+        licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses), "test"), new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
                 if (clusterStateUpdateResponse.isAcknowledged()) {

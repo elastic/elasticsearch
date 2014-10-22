@@ -81,14 +81,6 @@ public class TrialLicenseUtils {
         return Base64.encodeBase64String(encodedLicense);
     }
 
-    public static String[] toEncodedTrialLicenses(TrialLicenses trialLicenses) {
-        Set<String> encodedTrialLicenses = new HashSet<>();
-        for (TrialLicenses.TrialLicense trialLicense : trialLicenses) {
-            encodedTrialLicenses.add(toEncodedTrialLicense(trialLicense));
-        }
-        return encodedTrialLicenses.toArray(new String[encodedTrialLicenses.size()]);
-    }
-
     public static TrialLicenses fromEncodedTrialLicenses(String[] encodedTrialLicenses) {
         final TrialLicensesBuilder trialLicensesBuilder = trialLicensesBuilder();
         for (String encodedTrialLicense : encodedTrialLicenses) {
@@ -99,67 +91,5 @@ public class TrialLicenseUtils {
 
     public static TrialLicenses fromEncodedTrialLicenses(Set<String> encodedTrialLicenses) {
         return fromEncodedTrialLicenses(encodedTrialLicenses.toArray(new String[encodedTrialLicenses.size()]));
-    }
-
-    public static TrialLicenses readTrialLicensesFrom(StreamInput in) throws IOException {
-        final TrialLicensesBuilder licensesBuilder = TrialLicensesBuilder.trialLicensesBuilder();
-        boolean exists = in.readBoolean();
-        if (exists) {
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                licensesBuilder.license(trialLicenseFromMap(in.readMap()));
-            }
-            return licensesBuilder.build();
-        }
-        return null;
-    }
-
-    public static void writeTrialLicensesTo(TrialLicenses trialLicenses, StreamOutput out) throws IOException {
-        if (trialLicenses == null) {
-            out.writeBoolean(false);
-            return;
-        }
-        out.writeBoolean(true);
-        out.writeVInt(trialLicenses.trialLicenses().size());
-        for (TrialLicenses.TrialLicense trialLicense : trialLicenses) {
-            out.writeMap(trialLicenseAsMap(trialLicense));
-        }
-    }
-
-    // TODO: make sure field order is preserved
-    public static Map<String, Object> trialLicenseAsMap(TrialLicenses.TrialLicense trialLicense) {
-        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
-        builder.put(TrialLicenseFields.UID, trialLicense.uid());
-        builder.put(TrialLicenseFields.TYPE, ESLicenses.Type.TRIAL.string());
-        builder.put(TrialLicenseFields.SUBSCRIPTION_TYPE, ESLicenses.SubscriptionType.NONE.string());
-        builder.put(TrialLicenseFields.ISSUE_DATE, trialLicense.issueDate());
-        builder.put(TrialLicenseFields.FEATURE, trialLicense.feature());
-        builder.put(TrialLicenseFields.EXPIRY_DATE, trialLicense.expiryDate());
-        builder.put(TrialLicenseFields.MAX_NODES, trialLicense.maxNodes());
-        builder.put(TrialLicenseFields.ISSUED_TO, trialLicense.issuedTo());
-        return builder.build();
-    }
-
-    public static TrialLicenses.TrialLicense trialLicenseFromMap(Map<String, Object> map) {
-        return TrialLicensesBuilder.trialLicenseBuilder()
-                .uid((String) map.get(TrialLicenseFields.UID))
-                .issuedTo((String) map.get(TrialLicenseFields.ISSUED_TO))
-                .maxNodes((int) map.get(TrialLicenseFields.MAX_NODES))
-                .feature((String) map.get(TrialLicenseFields.FEATURE))
-                .issueDate((long) map.get(TrialLicenseFields.ISSUE_DATE))
-                .expiryDate((long) map.get(TrialLicenseFields.EXPIRY_DATE))
-                .build();
-
-    }
-
-    final static class TrialLicenseFields {
-        private final static String UID = "uid";
-        private final static String TYPE = "type";
-        private final static String SUBSCRIPTION_TYPE = "subscription_type";
-        private final static String ISSUE_DATE = "issue_date";
-        private final static String FEATURE = "feature";
-        private final static String ISSUED_TO = "issued_to";
-        private final static String MAX_NODES = "max_nodes";
-        private final static String EXPIRY_DATE = "expiry_date";
     }
 }

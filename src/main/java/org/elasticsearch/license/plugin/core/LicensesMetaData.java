@@ -12,15 +12,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.plugin.action.Utils;
-import org.elasticsearch.license.plugin.core.trial.TrialLicenseUtils;
-import org.elasticsearch.license.plugin.core.trial.TrialLicenses;
 
 import java.io.IOException;
 import java.util.*;
-
-import static org.elasticsearch.license.plugin.action.Utils.*;
 
 /**
  * Contains metadata about registered licenses
@@ -32,9 +26,9 @@ public class LicensesMetaData implements MetaData.Custom {
 
     public static final Factory FACTORY = new Factory();
 
-    final Set<String> signatures;
+    private final Set<String> signatures;
 
-    final Set<String> encodedTrialLicenses;
+    private final Set<String> encodedTrialLicenses;
 
     public LicensesMetaData(String[] signatures, String[] encodedTrialLicenses) {
         this(Sets.newHashSet(signatures), Sets.newHashSet(encodedTrialLicenses));

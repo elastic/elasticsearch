@@ -5,13 +5,15 @@
  */
 package org.elasticsearch.license.manager;
 
-import org.elasticsearch.license.core.ESLicenses;
 
-import static org.elasticsearch.license.core.ESLicenses.ESLicense;
+import org.elasticsearch.license.core.ESLicense;
+
+import java.util.Map;
+
 
 public interface ESLicenseProvider {
 
     ESLicense getESLicense(String feature);
 
-    ESLicenses getEffectiveLicenses();
+    Map<String, ESLicense> getEffectiveLicenses();
 }

@@ -8,49 +8,38 @@ package org.elasticsearch.license.plugin.action.get;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.core.LicenseBuilders;
-import org.elasticsearch.license.plugin.core.trial.TrialLicenseUtils;
-import org.elasticsearch.license.plugin.core.trial.TrialLicenses;
-import org.elasticsearch.license.plugin.core.trial.TrialLicensesBuilder;
 
 import java.io.IOException;
-
-import static org.elasticsearch.license.plugin.action.Utils.*;
+import java.util.HashSet;
+import java.util.Set;
 
 public class GetLicenseResponse extends ActionResponse {
 
-    private ESLicenses licenses = null;
-    private TrialLicenses trialLicenses = null;
+    private Set<ESLicense> licenses = new HashSet<>();
 
     GetLicenseResponse() {
     }
 
-    GetLicenseResponse(ESLicenses esLicenses, TrialLicenses trialLicenses) {
+    GetLicenseResponse(Set<ESLicense> esLicenses) {
         this.licenses = esLicenses;
-        this.trialLicenses = trialLicenses;
     }
 
-    public ESLicenses licenses() {
-        return (licenses != null) ? licenses : LicenseBuilders.licensesBuilder().build();
-    }
-
-    public TrialLicenses trialLicenses() {
-        return trialLicenses != null ? trialLicenses : TrialLicensesBuilder.EMPTY;
+    public Set<ESLicense> licenses() {
+        return licenses;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        licenses = readGeneratedLicensesFrom(in);
-        trialLicenses = TrialLicenseUtils.readTrialLicensesFrom(in);
+        licenses = ESLicenses.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeGeneratedLicensesTo(licenses, out);
-        TrialLicenseUtils.writeTrialLicensesTo(trialLicenses, out);
+        ESLicenses.writeTo(licenses, out);
     }
 
 }

@@ -9,8 +9,8 @@ import net.nicholaswilliams.java.licensing.exception.InvalidLicenseException;
 import org.elasticsearch.license.AbstractLicensingTestBase;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.DateUtils;
+import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.core.LicenseBuilders;
 import org.elasticsearch.license.licensor.tools.FileBasedESLicenseProvider;
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -19,7 +19,6 @@ import org.junit.Test;
 import java.text.ParseException;
 import java.util.*;
 
-import static org.elasticsearch.license.core.LicenseUtils.readLicensesFromString;
 import static org.junit.Assert.*;
 
 public class LicenseVerificationTests extends AbstractLicensingTestBase {
@@ -28,12 +27,12 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
 
     private static FileBasedESLicenseProvider esLicenseProvider;
 
-    private final static ESLicenses EMPTY_LICENSES = LicenseBuilders.licensesBuilder().build();
+    private final static Set<ESLicense> EMPTY_LICENSES = new HashSet<>();
 
     @BeforeClass
     public static void setupManager() {
-        esLicenseProvider = new FileBasedESLicenseProvider(LicenseBuilders.licensesBuilder().build());
-        esLicenseManager = new ESLicenseManager(esLicenseProvider);
+        esLicenseProvider = new FileBasedESLicenseProvider(EMPTY_LICENSES);
+        esLicenseManager = new ESLicenseManager();
 
     }
 
@@ -53,13 +52,13 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
                 new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, issueDateStr, expiryDateStr);
         map.put(TestUtils.SHIELD, featureAttributes);
 
-        ESLicenses esLicensesOutput = readLicensesFromString(generateSignedLicenses(map));
+        Set<ESLicense> esLicensesOutput = ESLicenses.fromSource(generateSignedLicenses(map));
 
         esLicenseProvider.setLicenses(esLicensesOutput);
 
-        esLicenseManager.verifyLicenses();
+        esLicenseManager.verifyLicenses(esLicenseProvider.getEffectiveLicenses());
 
-        verifyLicenseManager(esLicenseManager, map);
+        verifyLicenseManager(esLicenseManager, esLicenseProvider, map);
 
     }
 
@@ -77,15 +76,13 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
         map.put(TestUtils.SHIELD, shildFeatureAttributes);
         map.put(TestUtils.MARVEL, marvelFeatureAttributes);
 
-        ESLicenses esLicensesOutput = readLicensesFromString(generateSignedLicenses(map));
+        Set<ESLicense> esLicensesOutput = ESLicenses.fromSource(generateSignedLicenses(map));
 
         esLicenseProvider.setLicenses(esLicensesOutput);
 
-        //printLicense(esLicenseManager.getEffectiveLicenses());
+        esLicenseManager.verifyLicenses(esLicenseProvider.getEffectiveLicenses());
 
-        esLicenseManager.verifyLicenses();
-
-        verifyLicenseManager(esLicenseManager, map);
+        verifyLicenseManager(esLicenseManager, esLicenseProvider, map);
 
     }
 
@@ -134,15 +131,15 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
         map.put(TestUtils.SHIELD, shildFeatureAttributes);
         map.put(TestUtils.MARVEL, marvelFeatureAttributes);
 
-        ESLicenses esLicensesOutput = readLicensesFromString(generateSignedLicenses(map));
+        Set<ESLicense> esLicensesOutput = ESLicenses.fromSource(generateSignedLicenses(map));
 
         esLicenseProvider.setLicenses(esLicensesOutput);
 
         // All validation for shield license should be normal as expected
 
-        verifyLicenseManager(esLicenseManager, Collections.singletonMap(TestUtils.SHIELD, shildFeatureAttributes));
+        verifyLicenseManager(esLicenseManager, esLicenseProvider, Collections.singletonMap(TestUtils.SHIELD, shildFeatureAttributes));
 
-        assertFalse("license for marvel should not be valid due to expired expiry date", esLicenseManager.hasLicenseForFeature(TestUtils.MARVEL));
+        assertFalse("license for marvel should not be valid due to expired expiry date", esLicenseManager.hasLicenseForFeature(TestUtils.MARVEL, esLicenseProvider.getEffectiveLicenses()));
     }
 
     @Test
@@ -156,47 +153,42 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
                 new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, issueDateStr, expiryDateStr);
         map.put(TestUtils.SHIELD, featureAttributes);
 
-        ESLicenses esLicensesOutput = readLicensesFromString(generateSignedLicenses(map));
+        Set<ESLicense> esLicensesOutput = ESLicenses.fromSource(generateSignedLicenses(map));
 
-        ESLicenses.ESLicense esLicense = esLicensesOutput.get(TestUtils.SHIELD);
+        ESLicense esLicense = Utils.reduceAndMap(esLicensesOutput).get(TestUtils.SHIELD);
 
-        long originalExpiryDate = esLicense.expiryDate();
-        final ESLicenses.ESLicense tamperedLicense = LicenseBuilders.licenseBuilder(true)
+        final ESLicense tamperedLicense = ESLicense.builder()
                 .fromLicense(esLicense)
                 .expiryDate(esLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
                 .feature(TestUtils.SHIELD)
                 .issuer("elasticsqearch")
                 .build();
 
-        ESLicenses tamperedLicenses = LicenseBuilders.licensesBuilder().license(tamperedLicense).build();
-
         try {
-            esLicenseProvider.setLicenses(tamperedLicenses);
-            assertTrue("License manager should always report the original (signed) expiry date of: " + originalExpiryDate + " but got: " + esLicenseManager.getExpiryDateForLicense(TestUtils.SHIELD), esLicenseManager.getExpiryDateForLicense(TestUtils.SHIELD) == originalExpiryDate);
-            esLicenseManager.verifyLicenses();
+            esLicenseProvider.setLicenses(Collections.singleton(tamperedLicense));
+            esLicenseManager.verifyLicenses(esLicenseProvider.getEffectiveLicenses());
             fail();
         } catch (InvalidLicenseException e) {
             assertTrue("Exception should contain 'Invalid License' but got: " + e.getMessage(), e.getMessage().contains("Invalid License"));
         }
     }
 
-    public static void verifyLicenseManager(ESLicenseManager esLicenseManager, Map<String, TestUtils.FeatureAttributes> featureAttributeMap) throws ParseException {
+    public static void verifyLicenseManager(ESLicenseManager esLicenseManager, ESLicenseProvider licenseProvider, Map<String, TestUtils.FeatureAttributes> featureAttributeMap) throws ParseException {
 
         for (Map.Entry<String, TestUtils.FeatureAttributes> entry : featureAttributeMap.entrySet()) {
             TestUtils.FeatureAttributes featureAttributes = entry.getValue();
             String featureType = entry.getKey();
-            assertTrue("License should have issuedTo of " + featureAttributes.issuedTo, esLicenseManager.getIssuedToForLicense(featureType).equals(featureAttributes.issuedTo));
-            assertTrue("License should have issuer of " + featureAttributes.issuer, esLicenseManager.getIssuerForLicense(featureType).equals(featureAttributes.issuer));
-            assertTrue("License should have issue date of " + DateUtils.longFromDateString(featureAttributes.issueDate), esLicenseManager.getIssueDateForLicense(featureType) == DateUtils.longFromDateString(featureAttributes.issueDate));
-            assertTrue("License should have expiry date of " + DateUtils.longExpiryDateFromString(featureAttributes.expiryDate) + " got: " + esLicenseManager.getExpiryDateForLicense(featureType), esLicenseManager.getExpiryDateForLicense(featureType) == DateUtils.longExpiryDateFromString(featureAttributes.expiryDate));
-            assertTrue("License should have type of " + featureAttributes.type + " got: " + esLicenseManager.getTypeForLicense(featureType).string(), esLicenseManager.getTypeForLicense(featureType) == ESLicenses.Type.fromString(featureAttributes.type));
-            assertTrue("License should have subscription type of " + featureAttributes.subscriptionType, esLicenseManager.getSubscriptionTypeForLicense(featureType) == ESLicenses.SubscriptionType.fromString(featureAttributes.subscriptionType));
+            ESLicense license = licenseProvider.getESLicense(featureType);
+            assertTrue("License should have issuedTo of " + featureAttributes.issuedTo, license.issuedTo().equals(featureAttributes.issuedTo));
+            assertTrue("License should have issuer of " + featureAttributes.issuer, license.issuer().equals(featureAttributes.issuer));
+            assertTrue("License should have issue date of " + DateUtils.longFromDateString(featureAttributes.issueDate), license.issueDate() == DateUtils.longFromDateString(featureAttributes.issueDate));
+            assertTrue("License should have expiry date of " + DateUtils.longExpiryDateFromString(featureAttributes.expiryDate) + " got: " + license.expiryDate(), license.expiryDate() == DateUtils.longExpiryDateFromString(featureAttributes.expiryDate));
+            assertTrue("License should have type of " + featureAttributes.type + " got: " + license.type().string(), license.type() == ESLicense.Type.fromString(featureAttributes.type));
+            assertTrue("License should have subscription type of " + featureAttributes.subscriptionType, license.subscriptionType() == ESLicense.SubscriptionType.fromString(featureAttributes.subscriptionType));
 
 
-            assertTrue("License should be valid for " + featureType, esLicenseManager.hasLicenseForFeature(featureType));
-            assertTrue("License should be valid for maxNodes = " + (featureAttributes.maxNodes - 1), esLicenseManager.hasLicenseForNodes(featureType, featureAttributes.maxNodes - 1));
-            assertTrue("License should be valid for maxNodes = " + (featureAttributes.maxNodes), esLicenseManager.hasLicenseForNodes(featureType, featureAttributes.maxNodes));
-            assertFalse("License should not be valid for maxNodes = " + (featureAttributes.maxNodes + 1), esLicenseManager.hasLicenseForNodes(featureType, featureAttributes.maxNodes + 1));
+            assertTrue("License should be valid for " + featureType, esLicenseManager.hasLicenseForFeature(featureType, licenseProvider.getEffectiveLicenses()));
+            assertTrue("License should be valid for maxNodes = " + (featureAttributes.maxNodes), license.maxNodes() == featureAttributes.maxNodes);
         }
     }
 }

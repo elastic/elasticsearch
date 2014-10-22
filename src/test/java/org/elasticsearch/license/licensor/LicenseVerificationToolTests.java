@@ -8,16 +8,18 @@ package org.elasticsearch.license.licensor;
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.license.AbstractLicensingTestBase;
 import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.core.LicenseUtils;
 import org.elasticsearch.license.licensor.tools.LicenseVerificationTool;
 import org.junit.Test;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
 
@@ -39,12 +41,12 @@ public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
         String secondLicenseFile = getAsFilePath(signedLicense);
 
         String effectiveLicenseStr = runLicenseVerificationTool(new String[]{firstLicenseFile, secondLicenseFile});
-        ESLicenses effectiveLicense = LicenseUtils.readLicensesFromString(effectiveLicenseStr);
 
+        Set<ESLicense> esLicensesOutput = ESLicenses.fromSource(effectiveLicenseStr);
         map.put(TestUtils.SHIELD, featureWithLongerExpiryDate);
 
         // verify that the effective license strips out license for the same feature with earlier expiry dates
-        TestUtils.verifyESLicenses(effectiveLicense, map);
+        TestUtils.verifyESLicenses(esLicensesOutput, map);
     }
 
     @Test
@@ -65,10 +67,10 @@ public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
         String secondLicenseFile = getAsFilePath(signedLicense);
 
         String effectiveLicenseStr = runLicenseVerificationTool(new String[]{firstLicenseFile, secondLicenseFile});
-        ESLicenses effectiveLicense = LicenseUtils.readLicensesFromString(effectiveLicenseStr);
+        Set<ESLicense> esLicensesOutput = ESLicenses.fromSource(effectiveLicenseStr);
 
         // verify that the effective license contains both feature licenses
-        TestUtils.verifyESLicenses(effectiveLicense, map);
+        TestUtils.verifyESLicenses(esLicensesOutput, map);
     }
 
     @Test
@@ -98,13 +100,13 @@ public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
         String secondLicenseFile = getAsFilePath(signedLicense);
 
         String effectiveLicenseStr = runLicenseVerificationTool(new String[]{firstLicenseFile, secondLicenseFile});
-        ESLicenses effectiveLicense = LicenseUtils.readLicensesFromString(effectiveLicenseStr);
+        Set<ESLicense> esLicensesOutput = ESLicenses.fromSource(effectiveLicenseStr);
 
         map.put(TestUtils.SHIELD, shieldFeatureWithLongerExpiryDate);
         map.put(TestUtils.MARVEL, marvelFeatureWithLongerExpiryDate);
 
         // verify that the generated effective license is generated from choosing individual licences from multiple files
-        TestUtils.verifyESLicenses(effectiveLicense, map);
+        TestUtils.verifyESLicenses(esLicensesOutput, map);
     }
 
     public static String runLicenseVerificationTool(String[] licenseFiles) throws IOException {
@@ -128,7 +130,7 @@ public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
         return FileUtils.readFileToString(temp);
     }
 
-    public String runLicenseGenerationTool(String licenseInput) throws IOException {
+    public String runLicenseGenerationTool(String licenseInput) throws IOException, ParseException {
         return TestUtils.runLicenseGenerationTool(licenseInput, pubKeyPath, priKeyPath);
     }
 

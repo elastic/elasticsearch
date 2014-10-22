@@ -5,30 +5,40 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.core.LicenseUtils;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
+import org.elasticsearch.license.licensor.LicenseSpec;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.text.ParseException;
+import java.util.HashSet;
+import java.util.Set;
 
 public class LicenseGeneratorTool {
 
     static class Options {
-        private final ESLicenses licenses;
+        private final Set<LicenseSpec> licenseSpecs;
         private final String publicKeyFilePath;
         private final String privateKeyFilePath;
 
-        Options(ESLicenses licenses, String publicKeyFilePath, String privateKeyFilePath) {
-            this.licenses = licenses;
+        Options(Set<LicenseSpec> licenseSpecs, String publicKeyFilePath, String privateKeyFilePath) {
+            this.licenseSpecs = licenseSpecs;
             this.publicKeyFilePath = publicKeyFilePath;
             this.privateKeyFilePath = privateKeyFilePath;
         }
     }
 
-    private static Options parse(String[] args) throws IOException {
-        ESLicenses licenses = null;
+    private static Options parse(String[] args) throws IOException, ParseException {
+        Set<LicenseSpec> licenseSpecs = new HashSet<>();
         String privateKeyPath = null;
         String publicKeyPath = null;
 
@@ -36,19 +46,14 @@ public class LicenseGeneratorTool {
             String command = args[i].trim();
             switch (command) {
                 case "--license":
-                    if (licenses != null) {
-                        throw new IllegalArgumentException("only one of --licenses' or '--licenseFile' can be specified");
-                    }
                     String licenseInput = args[++i];
-                    licenses = LicenseUtils.readLicensesFromString(licenseInput);
+                    licenseSpecs.addAll(LicenseSpec.fromSource(licenseInput));
                     break;
                 case "--licenseFile":
-                    if (licenses != null) {
-                        throw new IllegalArgumentException("only one of --licenses' or '--licenseFile' can be specified");
-                    }
                     File licenseFile = new File(args[++i]);
                     if (licenseFile.exists()) {
-                        licenses = LicenseUtils.readLicenseFile(licenseFile);
+                        final byte[] bytes = Files.readAllBytes(Paths.get(licenseFile.getAbsolutePath()));
+                        licenseSpecs.addAll(LicenseSpec.fromSource(bytes));
                     } else {
                         throw new IllegalArgumentException(licenseFile.getAbsolutePath() + " does not exist!");
                     }
@@ -62,7 +67,7 @@ public class LicenseGeneratorTool {
             }
         }
 
-        if (licenses == null) {
+        if (licenseSpecs.size() == 0) {
             throw new IllegalArgumentException("at least one of '--licenses' or '--licenseFile' has to be provided");
         }
         if (publicKeyPath == null) {
@@ -72,21 +77,24 @@ public class LicenseGeneratorTool {
             throw new IllegalArgumentException("mandatory option '--privateKeyPath' is missing");
         }
 
-        return new Options(licenses, publicKeyPath, privateKeyPath);
+        return new Options(licenseSpecs, publicKeyPath, privateKeyPath);
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, ParseException {
         run(args, System.out);
     }
 
-    public static void run(String[] args, OutputStream out) throws IOException {
+    public static void run(String[] args, OutputStream out) throws IOException, ParseException {
         Options options = parse(args);
 
-
         ESLicenseSigner signer = new ESLicenseSigner(options.privateKeyFilePath, options.publicKeyFilePath);
-        ESLicenses signedLicences = signer.sign(options.licenses);
+        ImmutableSet<ESLicense> signedLicences = signer.sign(options.licenseSpecs);
 
-        LicenseUtils.dumpLicenseAsJson(signedLicences, out);
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, out);
+
+        ESLicenses.toXContent(signedLicences, builder);
+
+        builder.flush();
     }
 
 }

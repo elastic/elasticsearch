@@ -5,46 +5,35 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
-import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.core.LicenseBuilders;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.manager.ESLicenseProvider;
+import org.elasticsearch.license.manager.Utils;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
  */
 public class FileBasedESLicenseProvider implements ESLicenseProvider {
-    private ESLicenses esLicenses;
+    private ImmutableMap<String, ESLicense> esLicenses;
 
-    public FileBasedESLicenseProvider(ESLicenses esLicenses) {
-        this.esLicenses = esLicenses;
-    }
-
-    public FileBasedESLicenseProvider(Set<ESLicenses> esLicensesSet) {
-        this(merge(esLicensesSet));
+    public FileBasedESLicenseProvider(Set<ESLicense> esLicenses) {
+        this.esLicenses = Utils.reduceAndMap(esLicenses);
     }
 
     @Override
-    public ESLicenses.ESLicense getESLicense(String feature) {
+    public ESLicense getESLicense(String feature) {
         return esLicenses.get(feature);
     }
 
     @Override
-    public ESLicenses getEffectiveLicenses() {
+    public Map<String, ESLicense> getEffectiveLicenses() {
         return esLicenses;
     }
 
     // For testing
-    public void setLicenses(ESLicenses esLicenses) {
-        this.esLicenses = esLicenses;
+    public void setLicenses(Set<ESLicense> esLicenses) {
+        this.esLicenses = Utils.reduceAndMap(esLicenses);
     }
-
-    private static ESLicenses merge(Set<ESLicenses> esLicensesSet) {
-        ESLicenses mergedLicenses = null;
-        for (ESLicenses licenses : esLicensesSet) {
-            mergedLicenses = LicenseBuilders.merge(mergedLicenses, licenses);
-        }
-        return mergedLicenses;
-    }
-
 }

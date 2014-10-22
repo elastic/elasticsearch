@@ -7,15 +7,17 @@ package org.elasticsearch.license;
 
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.license.core.DateUtils;
-import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.core.LicenseBuilders;
+import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.licensor.tools.LicenseGeneratorTool;
+import org.elasticsearch.license.manager.Utils;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.Assert.assertTrue;
 
@@ -51,7 +53,7 @@ public class TestUtils {
 
     }
 
-    public static String runLicenseGenerationTool(String licenseInput, String pubKeyPath, String priKeyPath) throws IOException {
+    public static String runLicenseGenerationTool(String licenseInput, String pubKeyPath, String priKeyPath) throws IOException, ParseException {
         String args[] = new String[6];
         args[0] = "--license";
         args[1] = licenseInput;
@@ -63,7 +65,7 @@ public class TestUtils {
         return runLicenseGenerationTool(args);
     }
 
-    public static String runLicenseGenerationTool(String[] args) throws IOException {
+    public static String runLicenseGenerationTool(String[] args) throws IOException, ParseException {
         File temp = File.createTempFile("temp", ".out");
         temp.deleteOnExit();
         try (FileOutputStream outputStream = new FileOutputStream(temp)) {
@@ -72,12 +74,17 @@ public class TestUtils {
         return FileUtils.readFileToString(temp);
     }
 
-    public static void verifyESLicenses(ESLicenses esLicenses, Map<String, FeatureAttributes> featureAttributes) throws ParseException {
-        assertTrue("Number of feature licenses should be " + featureAttributes.size(), esLicenses.features().size() == featureAttributes.size());
+    public static void verifyESLicenses(Set<ESLicense> esLicenses, Map<String, FeatureAttributes> featureAttributesMap) throws ParseException {
+        verifyESLicenses(Utils.reduceAndMap(esLicenses), featureAttributesMap);
+
+    }
+
+    public static void verifyESLicenses(Map<String, ESLicense> esLicenses, Map<String, FeatureAttributes> featureAttributes) throws ParseException {
+        assertTrue("Number of feature licenses should be " + featureAttributes.size(), esLicenses.size() == featureAttributes.size());
         for (Map.Entry<String, FeatureAttributes> featureAttrTuple : featureAttributes.entrySet()) {
             String featureType = featureAttrTuple.getKey();
             FeatureAttributes attributes = featureAttrTuple.getValue();
-            final ESLicenses.ESLicense esLicense = esLicenses.get(featureType);
+            final ESLicense esLicense = esLicenses.get(featureType);
             assertTrue("license for " + featureType + " should be present", esLicense != null);
             assertTrue("expected value for issuedTo was: " + attributes.issuedTo + " but got: " + esLicense.issuedTo(), esLicense.issuedTo().equals(attributes.issuedTo));
             assertTrue("expected value for type was: " + attributes.type + " but got: " + esLicense.type().string(), esLicense.type().string().equals(attributes.type));
@@ -92,28 +99,27 @@ public class TestUtils {
         }
     }
 
-    //TODO: convert to asserts
-    public static void isSame(ESLicenses firstLicenses, ESLicenses secondLicenses) {
+    public static void isSame(Set<ESLicense> firstLicenses, Set<ESLicense> secondLicenses) {
 
         // we do the build to make sure we weed out any expired licenses
-        final ESLicenses licenses1 = LicenseBuilders.licensesBuilder().licenses(firstLicenses).build();
-        final ESLicenses licenses2 = LicenseBuilders.licensesBuilder().licenses(secondLicenses).build();
+        final Map<String, ESLicense> licenses1 = Utils.reduceAndMap(firstLicenses);
+        final Map<String, ESLicense> licenses2 = Utils.reduceAndMap(secondLicenses);
 
         // check if the effective licenses have the same feature set
-        assertTrue("Both licenses should have the same number of features", licenses1.features().equals(licenses2.features()));
+        assertTrue("Both licenses should have the same number of features", licenses1.size() == licenses2.size());
 
 
         // for every feature license, check if all the attributes are the same
-        for (String featureType : licenses1.features()) {
-            ESLicenses.ESLicense license1 = licenses1.get(featureType);
-            ESLicenses.ESLicense license2 = licenses2.get(featureType);
+        for (String featureType : licenses1.keySet()) {
+            ESLicense license1 = licenses1.get(featureType);
+            ESLicense license2 = licenses2.get(featureType);
 
             isSame(license1, license2);
 
         }
     }
 
-    public static void isSame(ESLicenses.ESLicense license1, ESLicenses.ESLicense license2) {
+    public static void isSame(ESLicense license1, ESLicense license2) {
 
         assertTrue("Should have same uid; got: " + license1.uid() + " and " + license2.uid(), license1.uid().equals(license2.uid()));
         assertTrue("Should have same feature; got: " + license1.feature() + " and " + license2.feature(), license1.feature().equals(license2.feature()));

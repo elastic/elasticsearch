@@ -8,8 +8,7 @@ package org.elasticsearch.license.plugin.core;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.inject.ImplementedBy;
-import org.elasticsearch.common.inject.Singleton;
-import org.elasticsearch.license.core.ESLicenses;
+import org.elasticsearch.license.core.ESLicense;
 
 import java.util.Set;
 
@@ -19,11 +18,15 @@ import static org.elasticsearch.license.plugin.core.LicensesService.PutLicenseRe
 @ImplementedBy(LicensesService.class)
 public interface LicensesManagerService {
 
+    //TODO: documentation
+
     public LicensesStatus registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener);
 
     public void unregisterLicenses(final DeleteLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener);
 
-    public LicensesStatus checkLicenses(ESLicenses licenses);
+    public LicensesStatus checkLicenses(Set<ESLicense> licenses);
 
     public Set<String> enabledFeatures();
+
+    public Set<ESLicense> getLicenses();
 }

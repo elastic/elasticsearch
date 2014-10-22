@@ -10,17 +10,16 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.core.LicenseUtils;
 
 import java.io.IOException;
+import java.util.Set;
 
-import static org.elasticsearch.license.plugin.action.Utils.readGeneratedLicensesFrom;
-import static org.elasticsearch.license.plugin.action.Utils.writeGeneratedLicensesTo;
 
 public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
 
-    private ESLicenses license;
+    private Set<ESLicense> licenses;
 
     public PutLicenseRequest() {
     }
@@ -31,37 +30,37 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
     }
 
     /**
-     * Parses license from json format to an instance of {@link org.elasticsearch.license.core.ESLicenses}
-     * @param licenseDefinition license definition
+     * Parses licenses from json format to an instance of {@link org.elasticsearch.license.core.ESLicenses}
+     * @param licenseDefinition licenses definition
      */
-    public PutLicenseRequest license(String licenseDefinition) {
+    public PutLicenseRequest licenses(String licenseDefinition) {
         try {
-            return license(LicenseUtils.readLicensesFromString(licenseDefinition));
+            return licenses(ESLicenses.fromSource(licenseDefinition));
         } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("failed to parse license source", e);
+            throw new ElasticsearchIllegalArgumentException("failed to parse licenses source", e);
         }
     }
 
-    public PutLicenseRequest license(ESLicenses esLicenses) {
-        this.license = esLicenses;
+    public PutLicenseRequest licenses(Set<ESLicense> esLicenses) {
+        this.licenses = esLicenses;
         return this;
     }
 
-    public ESLicenses license() {
-        return license;
+    public Set<ESLicense> licenses() {
+        return licenses;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        license = readGeneratedLicensesFrom(in);
+        licenses = ESLicenses.readFrom(in);
         readTimeout(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeGeneratedLicensesTo(license, out);
+        ESLicenses.writeTo(licenses, out);
         writeTimeout(out);
     }
 }

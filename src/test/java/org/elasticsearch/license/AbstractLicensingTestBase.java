@@ -10,6 +10,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.URL;
+import java.text.ParseException;
 import java.util.Map;
 
 public class AbstractLicensingTestBase {
@@ -29,7 +30,7 @@ public class AbstractLicensingTestBase {
         return url.toURI().getPath();
     }
 
-    public String generateSignedLicenses(Map<String, TestUtils.FeatureAttributes> map) throws IOException {
+    public String generateSignedLicenses(Map<String, TestUtils.FeatureAttributes> map) throws IOException, ParseException {
         String licenseString = TestUtils.generateESLicenses(map);
         return TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
     }

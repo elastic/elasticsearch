@@ -6,7 +6,6 @@
 package org.elasticsearch.license.licensor;
 
 import net.nicholaswilliams.java.licensing.License;
-import net.nicholaswilliams.java.licensing.SignedLicense;
 import net.nicholaswilliams.java.licensing.encryption.Hasher;
 import net.nicholaswilliams.java.licensing.encryption.PasswordProvider;
 import net.nicholaswilliams.java.licensing.encryption.PrivateKeyDataProvider;
@@ -14,8 +13,9 @@ import net.nicholaswilliams.java.licensing.exception.KeyNotFoundException;
 import net.nicholaswilliams.java.licensing.licensor.LicenseCreator;
 import net.nicholaswilliams.java.licensing.licensor.LicenseCreatorProperties;
 import org.apache.commons.codec.binary.Base64;
-import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.core.LicenseBuilders;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.license.core.*;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -24,8 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Random;
-
-import static org.elasticsearch.license.core.ESLicenses.ESLicense;
+import java.util.Set;
 
 public class ESLicenseSigner {
 
@@ -69,12 +68,13 @@ public class ESLicenseSigner {
         this.publicKeyPath = publicKeyPath;
     }
 
-    public ESLicenses sign(ESLicenses esLicenses) throws IOException {
-        final LicenseBuilders.LicensesBuilder licensesBuilder = LicenseBuilders.licensesBuilder();
-        for (ESLicense license : esLicenses) {
-            licensesBuilder.license(sign(license));
+
+    public ImmutableSet<ESLicense> sign(Set<LicenseSpec> licenseSpecs) throws IOException {
+        final ImmutableSet.Builder<ESLicense> builder = ImmutableSet.builder();
+        for (LicenseSpec licenseSpec : licenseSpecs) {
+            builder.add(sign(licenseSpec));
         }
-        return licensesBuilder.build();
+        return builder.build();
     }
 
     /**
@@ -85,25 +85,24 @@ public class ESLicenseSigner {
      * @return a signed ESLicense (with signature)
      * @throws IOException
      */
-    public ESLicense sign(ESLicense esLicense) throws IOException {
+    public ESLicense sign(LicenseSpec licenseSpec) throws IOException {
         License.Builder licenseBuilder = new License.Builder()
-                .withGoodBeforeDate(esLicense.expiryDate())
-                .withIssueDate(esLicense.issueDate())
-                .withProductKey(esLicense.uid())
-                .withHolder(esLicense.issuedTo())
-                .withIssuer(esLicense.issuer())
-                .addFeature("feature:" + esLicense.feature(), esLicense.expiryDate())
-                .addFeature("maxNodes:" + String.valueOf(esLicense.maxNodes()))
-                .addFeature("type:" + esLicense.type().string())
-                .addFeature("subscription_type:" + esLicense.subscriptionType().string());
+                .withGoodBeforeDate(licenseSpec.expiryDate)
+                .withIssueDate(licenseSpec.issueDate)
+                .withProductKey(licenseSpec.uid)
+                .withHolder(licenseSpec.issuedTo)
+                .withIssuer(licenseSpec.issuer)
+                .addFeature("feature:" + licenseSpec.feature, licenseSpec.expiryDate)
+                .addFeature("maxNodes:" + String.valueOf(licenseSpec.maxNodes))
+                .addFeature("type:" + licenseSpec.type.string())
+                .addFeature("subscription_type:" + licenseSpec.subscriptionType.string());
 
         final License license = licenseBuilder.build();
 
         final byte[] magic = new byte[MAGIC_LENGTH];
         Random random = new Random();
         random.nextBytes(magic);
-        //final SignedLicense signedLicense = licenseCreator.signLicense(license);
-        final byte[] licenseSignature = licenseCreator.signAndSerializeLicense(license);//signedLicense.getSignatureContent();
+        final byte[] licenseSignature = licenseCreator.signAndSerializeLicense(license);
         final byte[] hash = Hasher.hash(Base64.encodeBase64String(
                         Files.readAllBytes(publicKeyPath))
         ).getBytes(Charset.forName("UTF-8"));
@@ -118,6 +117,18 @@ public class ESLicenseSigner {
                 .put(licenseSignature);
         String signature = Base64.encodeBase64String(bytes);
 
-        return LicenseBuilders.licenseBuilder(true).fromLicense(esLicense).signature(signature).build();
+        return ESLicense.builder()
+                .uid(licenseSpec.uid)
+                .issuedTo(licenseSpec.issuedTo)
+                .issueDate(licenseSpec.issueDate)
+                .type(licenseSpec.type)
+                .subscriptionType(licenseSpec.subscriptionType)
+                .feature(licenseSpec.feature)
+                .maxNodes(licenseSpec.maxNodes)
+                .expiryDate(licenseSpec.expiryDate)
+                .issuer(licenseSpec.issuer)
+                .signature(signature)
+                .build();
     }
+
 }

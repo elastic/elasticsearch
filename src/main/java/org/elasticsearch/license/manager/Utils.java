@@ -8,9 +8,14 @@ package org.elasticsearch.license.manager;
 import net.nicholaswilliams.java.licensing.ObjectSerializer;
 import net.nicholaswilliams.java.licensing.SignedLicense;
 import org.apache.commons.codec.binary.Base64;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.license.core.ESLicense;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 public final class Utils {
     /**
@@ -30,5 +35,27 @@ public final class Utils {
         int start = byteBuffer.getInt();
         int version = byteBuffer.getInt();
         return new ObjectSerializer().readObject(SignedLicense.class, Arrays.copyOfRange(signatureBytes, start, signatureBytes.length));
+    }
+
+
+    public static ImmutableMap<String, ESLicense> reduceAndMap(Set<ESLicense> esLicensesSet) {
+        Map<String, ESLicense> map = new HashMap<>(esLicensesSet.size());
+        for (ESLicense license : esLicensesSet) {
+            putIfAppropriate(map, license);
+        }
+        return ImmutableMap.copyOf(map);
+    }
+
+
+    private static void putIfAppropriate(Map<String, ESLicense> licenseMap, ESLicense license) {
+        final String featureType = license.feature();
+        if (licenseMap.containsKey(featureType)) {
+            final ESLicense previousLicense = licenseMap.get(featureType);
+            if (license.expiryDate() > previousLicense.expiryDate()) {
+                licenseMap.put(featureType, license);
+            }
+        } else if (license.expiryDate() > System.currentTimeMillis()) {
+            licenseMap.put(featureType, license);
+        }
     }
 }

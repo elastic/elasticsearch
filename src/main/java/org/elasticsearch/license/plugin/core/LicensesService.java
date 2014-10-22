@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -23,11 +24,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.core.LicenseBuilders;
+import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.manager.ESLicenseManager;
 import org.elasticsearch.license.manager.ESLicenseProvider;
-import org.elasticsearch.license.plugin.action.Utils;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.license.plugin.core.trial.TrialLicenseUtils;
@@ -35,9 +34,7 @@ import org.elasticsearch.license.plugin.core.trial.TrialLicenses;
 import org.elasticsearch.license.plugin.core.trial.TrialLicensesBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,9 +44,10 @@ import static org.elasticsearch.license.plugin.core.trial.TrialLicenses.TrialLic
 /**
  * Service responsible for managing {@link org.elasticsearch.license.plugin.core.LicensesMetaData}
  * Interfaces through which this is exposed are:
- *  - LicensesManagerService - responsible for adding/deleting signed licenses
- *  - LicensesClientService - allow interested plugins (features) to register to licensing notifications
+ * - LicensesManagerService - responsible for adding/deleting signed licenses
+ * - LicensesClientService - allow interested plugins (features) to register to licensing notifications
  *
+ * TODO: documentation; remove ESLicenseProvider interface (almost done)
  */
 @Singleton
 public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ESLicenseProvider, ClusterStateListener, LicensesManagerService, LicensesClientService {
@@ -68,7 +66,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     public LicensesService(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
         super(settings);
         this.clusterService = clusterService;
-        this.esLicenseManager = new ESLicenseManager(this);
+        this.esLicenseManager = new ESLicenseManager();
         this.threadPool = threadPool;
     }
 
@@ -81,7 +79,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     @Override
     public LicensesStatus registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener) {
         final PutLicenseRequest request = requestHolder.request;
-        final ESLicenses newLicenses = request.license();
+        final Set<ESLicense> newLicenses = request.licenses();
         LicensesStatus status = checkLicenses(newLicenses);
         switch (status) {
             case VALID:
@@ -134,10 +132,15 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     }
 
     @Override
-    public LicensesStatus checkLicenses(ESLicenses licenses) {
+    public LicensesStatus checkLicenses(Set<ESLicense> licenses) {
+        final ImmutableMap<String, ESLicense> map = org.elasticsearch.license.manager.Utils.reduceAndMap(licenses);
+        return checkLicenses(map);
+    }
+
+    private LicensesStatus checkLicenses(Map<String, ESLicense> licenseMap) {
         LicensesStatus status = LicensesStatus.VALID;
         try {
-            esLicenseManager.verifyLicenses(licenses);
+            esLicenseManager.verifyLicenses(licenseMap);
         } catch (ExpiredLicenseException e) {
             status = LicensesStatus.EXPIRED;
         } catch (InvalidLicenseException e) {
@@ -159,6 +162,33 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         return enabledFeatures;
     }
 
+    @Override
+    public Set<ESLicense> getLicenses() {
+        LicensesMetaData currentMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
+        Set<ESLicense> trialLicenses = new HashSet<>();
+        if (currentMetaData != null) {
+            Set<ESLicense> currentLicenses = esLicenseManager.fromSignatures(currentMetaData.getSignatures());
+            TrialLicenses currentTrialLicenses = TrialLicenseUtils.fromEncodedTrialLicenses(currentMetaData.getEncodedTrialLicenses());
+            for (TrialLicense trialLicense : currentTrialLicenses) {
+                trialLicenses.add(ESLicense.builder()
+                                .uid(trialLicense.uid())
+                                .issuedTo(trialLicense.issuedTo())
+                                .issueDate(trialLicense.issueDate())
+                                .type(ESLicense.Type.TRIAL)
+                                .subscriptionType(ESLicense.SubscriptionType.NONE)
+                                .feature(trialLicense.feature())
+                                .maxNodes(trialLicense.maxNodes())
+                                .expiryDate(trialLicense.expiryDate())
+                                .issuer("elasticsearch").buildInternal()
+                );
+            }
+            Set<ESLicense> licenses = Sets.union(currentLicenses, trialLicenses);
+            //TODO: sort in some order
+            return licenses;
+        }
+        return Sets.newHashSet();
+    }
+
 
     private void registerTrialLicense(final TrialLicense trialLicense) {
         clusterService.submitStateUpdateTask("register trial license []", new ProcessedClusterStateUpdateTask() {
@@ -173,7 +203,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 LicensesMetaData currentLicenses = metaData.custom(LicensesMetaData.TYPE);
                 final LicensesWrapper licensesWrapper = LicensesWrapper.wrap(currentLicenses);
                 // do not generate a trial license for a feature that already has a signed license
-                if (!esLicenseManager.hasLicenseForFeature(trialLicense.feature())) {
+                if (!esLicenseManager.hasLicenseForFeature(trialLicense.feature(), getEffectiveLicenses())) {
                     licensesWrapper.addTrialLicense(trialLicense);
                 }
                 mdBuilder.putCustom(LicensesMetaData.TYPE, licensesWrapper.createLicensesMetaData());
@@ -245,7 +275,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     private void registerListeners(LicensesMetaData currentMetaData) {
         for (ListenerHolder listenerHolder : registeredListeners) {
             if (listenerHolder.registered.compareAndSet(false, true)) {
-                if (!esLicenseManager.hasLicenseForFeature(listenerHolder.feature)) {
+                if (!esLicenseManager.hasLicenseForFeature(listenerHolder.feature, getEffectiveLicenses())) {
                     // does not have actual license so generate a trial license
                     TrialLicenseOptions options = listenerHolder.trialLicenseOptions;
                     if (options != null) {
@@ -284,18 +314,24 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     }
 
     @Override
-    public ESLicenses.ESLicense getESLicense(String feature) {
+    public ESLicense getESLicense(String feature) {
         return getEffectiveLicenses().get(feature);
     }
 
     @Override
-    public ESLicenses getEffectiveLicenses() {
+    public Map<String, ESLicense> getEffectiveLicenses() {
         final ClusterState state = clusterService.state();
         LicensesMetaData metaData = state.metaData().custom(LicensesMetaData.TYPE);
+        Map<String, ESLicense> map = new HashMap<>();
+
         if (metaData != null) {
-            return esLicenseManager.fromSignatures(metaData.getSignatures());
+            Set<ESLicense> esLicenses = new HashSet<>();
+            for (String signature : metaData.getSignatures()) {
+                esLicenses.add(esLicenseManager.fromSignature(signature));
+            }
+            return org.elasticsearch.license.manager.Utils.reduceAndMap(esLicenses);
         }
-        return LicenseBuilders.licensesBuilder().build();
+        return ImmutableMap.copyOf(map);
 
     }
 
@@ -364,8 +400,9 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         long offset = TimeValue.timeValueMinutes(1).getMillis();
         for (ListenerHolder listenerHolder : registeredListeners) {
             long expiryDate = -1l;
-            if (esLicenseManager.hasLicenseForFeature(listenerHolder.feature)) {
-                expiryDate = esLicenseManager.getExpiryDateForLicense(listenerHolder.feature);
+            final Map<String, ESLicense> effectiveLicenses = getEffectiveLicenses();
+            if (esLicenseManager.hasLicenseForFeature(listenerHolder.feature, effectiveLicenses)) {
+                expiryDate = effectiveLicenses.get(listenerHolder.feature).expiryDate();
             } else {
                 final TrialLicense trialLicense = licensesWrapper.trialLicenses().getTrialLicense(listenerHolder.feature);
                 if (trialLicense != null) {
@@ -471,13 +508,13 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
         private LicensesWrapper(LicensesMetaData licensesMetaData) {
             if (licensesMetaData != null) {
-                this.signatures = ImmutableSet.copyOf(licensesMetaData.signatures);
-                this.encodedTrialLicenses = ImmutableSet.copyOf(licensesMetaData.encodedTrialLicenses);
+                this.signatures = ImmutableSet.copyOf(licensesMetaData.getSignatures());
+                this.encodedTrialLicenses = ImmutableSet.copyOf(licensesMetaData.getEncodedTrialLicenses());
             }
         }
 
-        public ESLicenses signedLicenses(ESLicenseManager licenseManage) {
-            return licenseManage.fromSignatures(signatures);
+        public Set<ESLicense> signedLicenses(ESLicenseManager licenseManager) {
+            return licenseManager.fromSignatures(signatures);
         }
 
         public TrialLicenses trialLicenses() {
@@ -488,6 +525,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
          * Check if any trial license for the feature exists,
          * if no trial license for feature exists, add new
          * trial license for feature
+         *
          * @param trialLicense to add
          */
         public void addTrialLicense(TrialLicense trialLicense) {
@@ -504,18 +542,23 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             }
         }
 
-        public void addSignedLicenses(ESLicenseManager licenseManager, ESLicenses licenses) {
-            ESLicenses currentSignedLicenses = signedLicenses(licenseManager);
-            final ESLicenses mergedLicenses = LicenseBuilders.merge(currentSignedLicenses, licenses);
-            Set<String> newSignatures = Sets.newHashSet(Utils.toSignatures(mergedLicenses));
-            this.signatures = ImmutableSet.copyOf(Sets.union(signatures, newSignatures));
+        public void addSignedLicenses(ESLicenseManager licenseManager, Set<ESLicense> newLicenses) {
+            Set<ESLicense> currentSignedLicenses = signedLicenses(licenseManager);
+            final ImmutableMap<String, ESLicense> licenseMap = org.elasticsearch.license.manager.Utils.reduceAndMap(Sets.union(currentSignedLicenses, newLicenses));
+            this.signatures = licenseManager.toSignatures(licenseMap.values());
         }
 
-        public void removeFeatures(ESLicenseManager licenseManage, Set<String> featuresToDelete) {
-            ESLicenses currentSignedLicenses = signedLicenses(licenseManage);
-            final ESLicenses reducedLicenses = LicenseBuilders.removeFeatures(currentSignedLicenses, featuresToDelete);
-            Set<String> reducedSignatures = Sets.newHashSet(Utils.toSignatures(reducedLicenses));
-            this.signatures = ImmutableSet.copyOf(Sets.intersection(signatures, reducedSignatures));
+        public void removeFeatures(ESLicenseManager licenseManager, Set<String> featuresToDelete) {
+            Set<ESLicense> currentSignedLicenses = signedLicenses(licenseManager);
+            final ImmutableMap<String, ESLicense> licenseMap = org.elasticsearch.license.manager.Utils.reduceAndMap(currentSignedLicenses);
+            Set<ESLicense> licensesToDelete = new HashSet<>();
+            for (Map.Entry<String, ESLicense> entry : licenseMap.entrySet()) {
+                if (featuresToDelete.contains(entry.getKey())) {
+                    licensesToDelete.add(entry.getValue());
+                }
+            }
+            Set<ESLicense> reducedLicenses = Sets.difference(currentSignedLicenses, licensesToDelete);
+            this.signatures = licenseManager.toSignatures(reducedLicenses);
         }
 
         public LicensesMetaData createLicensesMetaData() {

@@ -5,159 +5,64 @@
  */
 package org.elasticsearch.license.core;
 
-import java.util.Collection;
-import java.util.Set;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.util.*;
 
-/**
- * Interface for ESLicenses, ESLicense
- * and enums for Type, SubscriptionType and FeatureType.
- * <p/>
- * This is the main contract between the licensor and the license manager
- */
-public interface ESLicenses extends Iterable<ESLicenses.ESLicense> {
+public class ESLicenses {
 
-    /**
-     * @return list of licenses contained under this instance
-     */
-    public Collection<ESLicense> licenses();
-
-    /**
-     * @return Set of features for which there exists an underlying license
-     */
-    public Set<String> features();
-
-    /**
-     * @return a license for a code>featureType<</code>
-     * @param feature
-     */
-    public ESLicense get(String feature);
-
-    /**
-     * Enum for License Type
-     */
-    public enum Type {
-        TRIAL("trial"),
-        SUBSCRIPTION("subscription"),
-        INTERNAL("internal");
-
-        private final String name;
-
-        private Type(String name) {
-            this.name = name;
+    public static void toXContent(Collection<ESLicense> licenses, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.startArray("licenses");
+        for (ESLicense license : licenses) {
+            ESLicense.toXContent(license, builder);
         }
-
-        public String string() {
-            return name;
-        }
-
-        public static Type fromString(String type) {
-            if (type.equalsIgnoreCase(TRIAL.string())) {
-                return TRIAL;
-            } else if (type.equalsIgnoreCase(SUBSCRIPTION.string())) {
-                return SUBSCRIPTION;
-            } else if (type.equalsIgnoreCase(INTERNAL.string())) {
-                return INTERNAL;
-            } else {
-                throw new IllegalArgumentException("Invalid Type=" + type);
-            }
-
-        }
+        builder.endArray();
+        builder.endObject();
     }
 
-    /**
-     * Enum for License Subscription Type
-     */
-    public enum SubscriptionType {
-        NONE("none"),
-        DEVELOPMENT("development"),
-        SILVER("silver"),
-        GOLD("gold"),
-        PLATINUM("platinum");
-
-        public static SubscriptionType DEFAULT = NONE;
-
-        private final String name;
-
-        private SubscriptionType(String name) {
-            this.name = name;
-        }
-
-        public String string() {
-            return name;
-        }
-
-        public static SubscriptionType fromString(String subscriptionType) {
-            if (subscriptionType.equalsIgnoreCase(NONE.string())) {
-                return NONE;
-            } else if (subscriptionType.equalsIgnoreCase(DEVELOPMENT.string())) {
-                return DEVELOPMENT;
-            } else if (subscriptionType.equalsIgnoreCase(SILVER.string())) {
-                return SILVER;
-            } else if (subscriptionType.equalsIgnoreCase(GOLD.string())) {
-                return GOLD;
-            } else if (subscriptionType.equalsIgnoreCase(PLATINUM.string())) {
-                return PLATINUM;
-            } else {
-                throw new IllegalArgumentException("Invalid SubscriptionType=" + subscriptionType);
-            }
-        }
+    public static Set<ESLicense> fromSource(String content) throws IOException {
+        return fromSource(content.getBytes(Charset.forName("UTF-8")));
     }
 
-    /**
-     * Interface representing all the license fields
-     */
-    public interface ESLicense {
-
-        /**
-         * @return a unique identifier for a license (currently just a UUID)
-         */
-        public String uid();
-
-        /**
-         * @return type of the license [trial, subscription, internal]
-         */
-        public Type type();
-
-        /**
-         * @return subscription type of the license [none, silver, gold, platinum]
-         */
-        public SubscriptionType subscriptionType();
-
-        /**
-         * @return the issueDate in milliseconds
-         */
-        public long issueDate();
-
-        /**
-         * @return the featureType for the license [shield, marvel]
-         */
-        public String feature();
-
-        /**
-         * @return the expiry date in milliseconds
-         */
-        public long expiryDate();
-
-        /**
-         * @return the maximum number of nodes this license has been issued for
-         */
-        public int maxNodes();
-
-        /**
-         * @return a string representing the entity this licenses has been issued to
-         */
-        public String issuedTo();
-
-        /**
-         * @return a string representing the entity responsible for issuing this license (internal)
-         */
-        public String issuer();
-
-        /**
-         * @return a string representing the signature of the license used for license verification
-         */
-        public String signature();
+    public static Set<ESLicense> fromSource(byte[] bytes) throws IOException {
+        return fromXContent(XContentFactory.xContent(bytes).createParser(bytes));
     }
 
+    private static Set<ESLicense> fromXContent(XContentParser parser) throws IOException {
+        Set<ESLicense> esLicenses = new HashSet<>();
+        final Map<String, Object> licensesMap = parser.mapAndClose();
+        final List<Map<String, Object>> licenseMaps = (ArrayList<Map<String, Object>>)licensesMap.get("licenses");
+        for (Map<String, Object> licenseMap : licenseMaps) {
+            final ESLicense esLicense = ESLicense.fromXContent(licenseMap);
+            esLicenses.add(esLicense);
+        }
+        return esLicenses;
+    }
+
+    public static Set<ESLicense> readFrom(StreamInput in) throws IOException {
+        int size = in.readVInt();
+        Set<ESLicense> esLicenses = new HashSet<>(size);
+        for (int i = 0; i < size; i++) {
+            esLicenses.add(ESLicense.readFrom(in));
+        }
+        return esLicenses;
+    }
+
+    public static void writeTo(Set<ESLicense> esLicenses, StreamOutput out) throws IOException {
+        out.writeVInt(esLicenses.size());
+        for (ESLicense license : esLicenses) {
+            ESLicense.writeTo(license, out);
+        }
+
+    }
 }

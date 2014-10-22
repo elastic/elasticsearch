@@ -7,14 +7,15 @@ package org.elasticsearch.license.licensor;
 
 import org.elasticsearch.license.AbstractLicensingTestBase;
 import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.core.LicenseUtils;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -30,7 +31,7 @@ public class LicenseGenerationTests extends AbstractLicensingTestBase {
 
         String licenseOutput = generateSignedLicenses(map);
 
-        ESLicenses esLicensesOutput = LicenseUtils.readLicensesFromString(licenseOutput);
+        Set<ESLicense> esLicensesOutput = ESLicenses.fromSource(licenseOutput);
 
         TestUtils.verifyESLicenses(esLicensesOutput, map);
     }
@@ -48,7 +49,7 @@ public class LicenseGenerationTests extends AbstractLicensingTestBase {
 
         String licenseOutput = generateSignedLicenses(map);
 
-        ESLicenses esLicensesOutput = LicenseUtils.readLicensesFromString(licenseOutput);
+        Set<ESLicense> esLicensesOutput = ESLicenses.fromSource(licenseOutput);
 
         TestUtils.verifyESLicenses(esLicensesOutput, map);
     }

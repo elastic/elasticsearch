@@ -7,6 +7,7 @@ package org.elasticsearch.license.plugin.core.trial;
 
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.license.core.DateUtils;
+import org.elasticsearch.license.core.ESLicense;
 
 import java.util.*;
 
@@ -15,6 +16,12 @@ import static org.elasticsearch.license.plugin.core.trial.TrialLicenses.TrialLic
 public class TrialLicensesBuilder {
 
     public static TrialLicenses EMPTY = trialLicensesBuilder().build();
+
+    public static final String ISSUER = "elasticsearch";
+
+    public static final ESLicense.Type TYPE = ESLicense.Type.TRIAL;
+
+    public static final ESLicense.SubscriptionType SUBSCRIPTION_TYPE = ESLicense.SubscriptionType.NONE;
 
     public static TrialLicensesBuilder trialLicensesBuilder() {
         return new TrialLicensesBuilder();

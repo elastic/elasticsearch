@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.azure;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cloud.azure.AzureComputeService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -51,7 +50,7 @@ public class AzureDiscovery extends ZenDiscovery {
                           DiscoveryNodeService discoveryNodeService, AzureComputeService azureService, NetworkService networkService,
                           DiscoverySettings discoverySettings, ElectMasterService electMasterService) {
         super(settings, clusterName, threadPool, transportService, clusterService, nodeSettingsService,
-                discoveryNodeService, pingService, electMasterService, Version.CURRENT, discoverySettings);
+                discoveryNodeService, pingService, electMasterService, discoverySettings);
         if (settings.getAsBoolean("cloud.enabled", true)) {
             ImmutableList<? extends ZenPing> zenPings = pingService.zenPings();
             UnicastZenPing unicastZenPing = null;

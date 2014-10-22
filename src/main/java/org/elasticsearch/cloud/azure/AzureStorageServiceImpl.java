@@ -43,8 +43,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 
-import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
@@ -198,6 +198,11 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
+    public OutputStream getOutputStream(String container, String blob) throws URISyntaxException, StorageException {
+        return client.getContainerReference(container).getBlockBlobReference(blob).openOutputStream();
+    }
+
+    @Override
     public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException, ServiceException {
         logger.debug("listBlobsByPrefix container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix);
         ImmutableMap.Builder<String, BlobMetaData> blobsBuilder = ImmutableMap.builder();
@@ -221,16 +226,6 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         }
 
         return blobsBuilder.build();
-    }
-
-    @Override
-    public void putObject(String container, String blobname, InputStream is, long length) throws URISyntaxException, StorageException, IOException {
-        if (logger.isTraceEnabled()) {
-            logger.trace("creating blob in container [{}], blob [{}], length [{}]",
-                    container, blobname, length);
-        }
-        CloudBlockBlob blob = client.getContainerReference(container).getBlockBlobReference(blobname);
-        blob.upload(is, length);
     }
 
     @Override

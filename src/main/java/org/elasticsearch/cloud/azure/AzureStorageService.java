@@ -24,8 +24,8 @@ import com.microsoft.windowsazure.services.core.storage.StorageException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
 
-import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URISyntaxException;
 
 /**
@@ -38,7 +38,6 @@ public interface AzureStorageService {
         public static final String KEY = "storage_key";
         public static final String CONTAINER = "container";
         public static final String BASE_PATH = "base_path";
-        public static final String CONCURRENT_STREAMS = "concurrent_streams";
         public static final String CHUNK_SIZE = "chunk_size";
         public static final String COMPRESS = "compress";
     }
@@ -57,9 +56,7 @@ public interface AzureStorageService {
 
     InputStream getInputStream(String container, String blob) throws ServiceException;
 
+    OutputStream getOutputStream(String container, String blob) throws URISyntaxException, StorageException;
+
     ImmutableMap<String,BlobMetaData> listBlobsByPrefix(String container, String keyPath, String prefix) throws URISyntaxException, StorageException, ServiceException;
-
-    void putObject(String container, String blob, InputStream is, long length) throws URISyntaxException, StorageException, IOException;
-
-
 }

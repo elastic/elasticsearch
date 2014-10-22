@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
+import com.microsoft.windowsazure.services.core.storage.StorageException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.AzureStorageService;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -28,10 +29,8 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
+import java.net.URISyntaxException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,7 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureStorageServiceMock>
         implements AzureStorageService {
 
-    protected Map<String, byte[]> blobs = new ConcurrentHashMap<String, byte[]>();
+    protected Map<String, ByteArrayOutputStream> blobs = new ConcurrentHashMap<String, ByteArrayOutputStream>();
 
     @Inject
     protected AzureStorageServiceMock(Settings settings) {
@@ -78,7 +77,14 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
 
     @Override
     public InputStream getInputStream(String container, String blob) {
-        return new ByteArrayInputStream(blobs.get(blob));
+        return new ByteArrayInputStream(blobs.get(blob).toByteArray());
+    }
+
+    @Override
+    public OutputStream getOutputStream(String container, String blob) throws URISyntaxException, StorageException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        blobs.put(blob, outputStream);
+        return outputStream;
     }
 
     @Override
@@ -86,30 +92,11 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
         ImmutableMap.Builder<String, BlobMetaData> blobsBuilder = ImmutableMap.builder();
         for (String blobName : blobs.keySet()) {
             if (startsWithIgnoreCase(blobName, prefix)) {
-                blobsBuilder.put(blobName, new PlainBlobMetaData(blobName, blobs.get(blobName).length));
+                blobsBuilder.put(blobName, new PlainBlobMetaData(blobName, blobs.get(blobName).size()));
             }
         }
         ImmutableMap<String, BlobMetaData> map = blobsBuilder.build();
         return map;
-    }
-
-    @Override
-    public void putObject(String container, String blob, InputStream is, long length) {
-        try {
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-
-            int nRead;
-            byte[] data = new byte[65535];
-
-            while ((nRead = is.read(data, 0, data.length)) != -1) {
-                buffer.write(data, 0, nRead);
-            }
-
-            buffer.flush();
-
-            blobs.put(blob, buffer.toByteArray());
-        } catch (IOException e) {
-        }
     }
 
     @Override

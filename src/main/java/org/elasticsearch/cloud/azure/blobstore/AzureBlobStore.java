@@ -22,16 +22,13 @@ package org.elasticsearch.cloud.azure.blobstore;
 import com.microsoft.windowsazure.services.core.ServiceException;
 import com.microsoft.windowsazure.services.core.storage.StorageException;
 import org.elasticsearch.cloud.azure.AzureStorageService;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.net.URISyntaxException;
-import java.util.concurrent.Executor;
 
 /**
  *
@@ -42,17 +39,10 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
 
     private final String container;
 
-    private final Executor executor;
-
-    private final int bufferSizeInBytes;
-
-    public AzureBlobStore(Settings settings, AzureStorageService client, String container, Executor executor) throws URISyntaxException, StorageException {
+    public AzureBlobStore(Settings settings, AzureStorageService client, String container) throws URISyntaxException, StorageException {
         super(settings);
         this.client = client;
         this.container = container;
-        this.executor = executor;
-
-        this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
 
         if (!client.doesContainerExist(container)) {
             client.createContainer(container);
@@ -72,17 +62,9 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         return container;
     }
 
-    public Executor executor() {
-        return executor;
-    }
-
-    public int bufferSizeInBytes() {
-        return bufferSizeInBytes;
-    }
-
     @Override
-    public ImmutableBlobContainer immutableBlobContainer(BlobPath path) {
-        return new AzureImmutableBlobContainer(path, this);
+    public BlobContainer blobContainer(BlobPath path) {
+        return new AzureBlobContainer(path, this);
     }
 
     @Override

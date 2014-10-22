@@ -378,7 +378,6 @@ The Azure repository supports following settings:
 
 * `container`: Container name. Defaults to `elasticsearch-snapshots`
 * `base_path`: Specifies the path within container to repository data. Defaults to empty (root directory).
-* `concurrent_streams`: Throttles the number of streams (per node) preforming snapshot operation. Defaults to `5`.
 * `chunk_size`: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified
 in bytes or by using size value notation, i.e. `1g`, `10m`, `5k`. Defaults to `64m` (64m max)
 * `compress`: When set to `true` metadata files are stored in compressed format. This setting doesn't affect index
@@ -398,7 +397,6 @@ $ curl -XPUT 'http://localhost:9200/_snapshot/my_backup2' -d '{
     "settings": {
         "container": "backup_container",
         "base_path": "backups",
-        "concurrent_streams": 2,
         "chunk_size": "32m",
         "compress": true
     }

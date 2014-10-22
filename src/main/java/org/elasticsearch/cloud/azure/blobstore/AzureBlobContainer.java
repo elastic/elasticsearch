@@ -21,7 +21,6 @@ package org.elasticsearch.cloud.azure.blobstore;
 
 import com.microsoft.windowsazure.services.core.ServiceException;
 import com.microsoft.windowsazure.services.core.storage.StorageException;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -33,20 +32,21 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 
 /**
  *
  */
-public class AbstractAzureBlobContainer extends AbstractBlobContainer {
+public class AzureBlobContainer extends AbstractBlobContainer {
 
-    protected final ESLogger logger = ESLoggerFactory.getLogger(AbstractAzureBlobContainer.class.getName());
+    protected final ESLogger logger = ESLoggerFactory.getLogger(AzureBlobContainer.class.getName());
     protected final AzureBlobStore blobStore;
 
     protected final String keyPath;
 
-    public AbstractAzureBlobContainer(BlobPath path, AzureBlobStore blobStore) {
+    public AzureBlobContainer(BlobPath path, AzureBlobStore blobStore) {
         super(path);
         this.blobStore = blobStore;
         String keyPath = path.buildAsString("/");
@@ -69,6 +69,32 @@ public class AbstractAzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public InputStream openInput(String blobName) throws IOException {
+        try {
+            return blobStore.client().getInputStream(blobStore.container(), buildKey(blobName));
+        } catch (ServiceException e) {
+            if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
+                throw new FileNotFoundException(e.getMessage());
+            }
+            throw new IOException(e);
+        }
+    }
+
+    @Override
+    public OutputStream createOutput(String blobName) throws IOException {
+        try {
+            return new AzureOutputStream(blobStore.client().getOutputStream(blobStore.container(), buildKey(blobName)));
+        } catch (StorageException e) {
+            if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
+                throw new FileNotFoundException(e.getMessage());
+            }
+            throw new IOException(e);
+        } catch (URISyntaxException e) {
+            throw new IOException(e);
+        }
+    }
+
+    @Override
     public boolean deleteBlob(String blobName) throws IOException {
         try {
             blobStore.client().deleteBlob(blobStore.container(), buildKey(blobName));
@@ -80,35 +106,6 @@ public class AbstractAzureBlobContainer extends AbstractBlobContainer {
             logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore.container(), e.getMessage());
             throw new IOException(e);
         }
-    }
-
-    @Override
-    public void readBlob(final String blobName, final ReadBlobListener listener) {
-        blobStore.executor().execute(new Runnable() {
-            @Override
-            public void run() {
-            InputStream is = null;
-            try {
-                is = blobStore.client().getInputStream(blobStore.container(), buildKey(blobName));
-                byte[] buffer = new byte[blobStore.bufferSizeInBytes()];
-                int bytesRead;
-                while ((bytesRead = is.read(buffer)) != -1) {
-                    listener.onPartial(buffer, 0, bytesRead);
-                }
-                is.close();
-                listener.onCompleted();
-            } catch (ServiceException e) {
-                if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
-                    listener.onFailure(new FileNotFoundException(e.getMessage()));
-                } else {
-                    listener.onFailure(e);
-                }
-            } catch (Throwable e) {
-                IOUtils.closeWhileHandlingException(is);
-                listener.onFailure(e);
-            }
-            }
-        });
     }
 
     @Override

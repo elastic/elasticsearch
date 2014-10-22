@@ -28,7 +28,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
@@ -36,8 +35,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Azure file system implementation of the BlobStoreRepository
@@ -46,7 +43,6 @@ import java.util.concurrent.TimeUnit;
  * <dl>
  * <dt>{@code container}</dt><dd>Azure container name. Defaults to elasticsearch-snapshots</dd>
  * <dt>{@code base_path}</dt><dd>Specifies the path within bucket to repository data. Defaults to root directory.</dd>
- * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
  * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to 64mb.</dd>
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
@@ -80,12 +76,7 @@ public class AzureRepository extends BlobStoreRepository {
         String container = repositorySettings.settings().get(AzureStorageService.Fields.CONTAINER,
                 componentSettings.get(AzureStorageService.Fields.CONTAINER, CONTAINER_DEFAULT));
 
-        int concurrentStreams = repositorySettings.settings().getAsInt(AzureStorageService.Fields.CONCURRENT_STREAMS,
-                componentSettings.getAsInt(AzureStorageService.Fields.CONCURRENT_STREAMS, 5));
-        ExecutorService concurrentStreamPool = EsExecutors.newScaling(1, concurrentStreams, 5, TimeUnit.SECONDS,
-                EsExecutors.daemonThreadFactory(settings, "[azure_stream]"));
-
-        this.blobStore = new AzureBlobStore(settings, azureStorageService, container, concurrentStreamPool);
+        this.blobStore = new AzureBlobStore(settings, azureStorageService, container);
         this.chunkSize = repositorySettings.settings().getAsBytesSize(AzureStorageService.Fields.CHUNK_SIZE,
                 componentSettings.getAsBytesSize(AzureStorageService.Fields.CHUNK_SIZE, new ByteSizeValue(64, ByteSizeUnit.MB)));
 
@@ -109,8 +100,8 @@ public class AzureRepository extends BlobStoreRepository {
         } else {
             this.basePath = BlobPath.cleanPath();
         }
-        logger.debug("using container [{}], chunk_size [{}], concurrent_streams [{}], compress [{}], base_path [{}]",
-                container, chunkSize, concurrentStreams, compress, basePath);
+        logger.debug("using container [{}], chunk_size [{}], compress [{}], base_path [{}]",
+                container, chunkSize, compress, basePath);
     }
 
     /**

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -67,6 +68,18 @@ public class BooleansTests extends ElasticsearchTestCase {
         assertThat(Booleans.parseBoolean(chars,0, chars.length, randomBoolean()), is(false));
         chars = randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT).toCharArray();
         assertThat(Booleans.parseBoolean(chars,0, chars.length, randomBoolean()), is(true));
+    }
+
+    @Test
+    public void parseBooleanExact() {
+        assertThat(Booleans.parseBooleanExact(randomFrom("true", "on", "yes", "1")), is(true));
+        assertThat(Booleans.parseBooleanExact(randomFrom("false", "off", "no", "0")), is(false));
+        try {
+            Booleans.parseBooleanExact(randomFrom(null, "fred", "foo", "barney"));
+            fail("Expected exception while parsing invalid boolean value ");
+        } catch (Exception ex) {
+            assertTrue(ex instanceof ElasticsearchIllegalArgumentException);
+        }
     }
 
     public void testIsExplict() {

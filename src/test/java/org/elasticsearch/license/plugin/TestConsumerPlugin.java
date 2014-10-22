@@ -31,18 +31,4 @@ public class TestConsumerPlugin extends AbstractPlugin {
     public Collection<Class<? extends LifecycleComponent>> services() {
         return ImmutableSet.<Class<? extends LifecycleComponent>>of(TestPluginService.class);
     }
-
-    /*
-    @Override
-    public Collection<Class<? extends Module>> modules() {
-        return ImmutableSet.<Class<? extends Module>>of(TestPluginServiceModule.class);
-    }
-
-    public class TestPluginServiceModule extends AbstractModule {
-        @Override
-        protected void configure() {
-            bind(TestPluginService.class).in(Scopes.SINGLETON);
-        }
-    }
-    */
 }

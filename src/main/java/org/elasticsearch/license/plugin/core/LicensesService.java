@@ -26,7 +26,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.manager.ESLicenseManager;
-import org.elasticsearch.license.manager.ESLicenseProvider;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.license.plugin.core.trial.TrialLicenseUtils;
@@ -47,10 +46,10 @@ import static org.elasticsearch.license.plugin.core.trial.TrialLicenses.TrialLic
  * - LicensesManagerService - responsible for adding/deleting signed licenses
  * - LicensesClientService - allow interested plugins (features) to register to licensing notifications
  *
- * TODO: documentation; remove ESLicenseProvider interface (almost done)
+ * TODO: documentation
  */
 @Singleton
-public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ESLicenseProvider, ClusterStateListener, LicensesManagerService, LicensesClientService {
+public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener, LicensesManagerService, LicensesClientService {
 
     private ESLicenseManager esLicenseManager;
 
@@ -74,7 +73,9 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      * Registers new licenses in the cluster
      * <p/>
      * This method can be only called on the master node. It tries to create a new licenses on the master
-     * and if it was successful it adds the license to cluster metadata.
+     * and if provided license(s) is VALID it is added to cluster metadata.
+     *
+     * @return LicensesStatus indicating if the provided license(s) is VALID (accepted), INVALID (tampered license) or EXPIRED
      */
     @Override
     public LicensesStatus registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener) {
@@ -313,12 +314,6 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         return ThreadPool.Names.GENERIC;
     }
 
-    @Override
-    public ESLicense getESLicense(String feature) {
-        return getEffectiveLicenses().get(feature);
-    }
-
-    @Override
     public Map<String, ESLicense> getEffectiveLicenses() {
         final ClusterState state = clusterService.state();
         LicensesMetaData metaData = state.metaData().custom(LicensesMetaData.TYPE);

@@ -11,7 +11,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.manager.ESLicenseManager;
-import org.elasticsearch.license.manager.ESLicenseProvider;
 
 import java.io.File;
 import java.io.IOException;
@@ -75,13 +74,11 @@ public class LicenseVerificationTool {
         Options options = parse(args);
 
         // verify licenses
-        ESLicenseProvider licenseProvider = new FileBasedESLicenseProvider(options.licenses);
+        FileBasedESLicenseProvider licenseProvider = new FileBasedESLicenseProvider(options.licenses);
         ESLicenseManager licenseManager = new ESLicenseManager();
         licenseManager.verifyLicenses(licenseProvider.getEffectiveLicenses());
 
         // dump effective licences
-        //LicenseUtils.dumpLicenseAsJson(licenseManager.getEffectiveLicenses(), out);
-
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, out);
         ESLicenses.toXContent(licenseProvider.getEffectiveLicenses().values(), builder);
         builder.flush();

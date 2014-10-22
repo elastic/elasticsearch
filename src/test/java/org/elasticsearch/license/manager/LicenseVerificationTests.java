@@ -173,7 +173,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
         }
     }
 
-    public static void verifyLicenseManager(ESLicenseManager esLicenseManager, ESLicenseProvider licenseProvider, Map<String, TestUtils.FeatureAttributes> featureAttributeMap) throws ParseException {
+    public static void verifyLicenseManager(ESLicenseManager esLicenseManager, FileBasedESLicenseProvider licenseProvider, Map<String, TestUtils.FeatureAttributes> featureAttributeMap) throws ParseException {
 
         for (Map.Entry<String, TestUtils.FeatureAttributes> entry : featureAttributeMap.entrySet()) {
             TestUtils.FeatureAttributes featureAttributes = entry.getValue();

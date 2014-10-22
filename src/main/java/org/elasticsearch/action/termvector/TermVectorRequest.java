@@ -325,24 +325,30 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         return this;
     }
 
+    /**
+     * Return whether term vectors should be generated real-time (default to true).
+     */
     public boolean realtime() {
         return this.realtime == null ? true : this.realtime;
     }
 
+    /**
+     * Choose whether term vectors be generated real-time.
+     */
     public TermVectorRequest realtime(Boolean realtime) {
         this.realtime = realtime;
         return this;
     }
 
     /**
-     * Return the overridden analyzers at each field
+     * Return the overridden analyzers at each field.
      */
     public Map<String, String> perFieldAnalyzer() {
         return perFieldAnalyzer;
     }
 
     /**
-     * Override the analyzer used at each field when generating term vectors
+     * Override the analyzer used at each field when generating term vectors.
      */
     public TermVectorRequest perFieldAnalyzer(Map<String, String> perFieldAnalyzer) {
         this.perFieldAnalyzer = perFieldAnalyzer != null && perFieldAnalyzer.size() != 0 ? Maps.newHashMap(perFieldAnalyzer) : null;

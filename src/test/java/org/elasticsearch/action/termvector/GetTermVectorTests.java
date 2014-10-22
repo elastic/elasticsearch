@@ -27,7 +27,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.hamcrest.Matcher;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -1025,74 +1025,57 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         logger.info("Setting up the index ...");
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put(indexSettings())
-                .put("index.analysis.analyzer", "standard");
+                .put("index.analysis.analyzer", "standard")
+                .put("index.number_of_shards", randomIntBetween(2, 10)); // we need at least 2 shards
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
                 .addMapping("type1", "text", "type=string"));
         ensureGreen();
 
-        int numberShards = getNumShards("test").numPrimaries;
-
-        logger.info("Index 'cat' in each shard out of {} shards ...", numberShards);
+        int numDocs = scaledRandomIntBetween(25, 100);
+        logger.info("Indexing {} documents...", numDocs);
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (int i = 0; i < numberShards; i++) {
-            builders.add(client().prepareIndex("test", "type1", i + "")
-                    .setRouting(i + "")
-                    .setSource("text", "cat"));
+        for (int i = 0; i < numDocs; i++) {
+            builders.add(client().prepareIndex("test", "type1", i + "").setSource("text", "cat"));
         }
         indexRandom(true, builders);
 
-        logger.info("Without dfs 'cat' should appear only once.");
-        TermVectorResponse response = client().prepareTermVector("test", "type1", randomIntBetween(0, numberShards - 1) + "")
+        XContentBuilder expectedStats = jsonBuilder()
+                .startObject()
+                .startObject("text")
+                    .startObject("field_statistics")
+                    .field("sum_doc_freq", numDocs)
+                    .field("doc_count", numDocs)
+                    .field("sum_ttf", numDocs)
+                .endObject()
+                    .startObject("terms")
+                        .startObject("cat")
+                        .field("doc_freq", numDocs)
+                        .field("ttf", numDocs)
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject();
+
+        logger.info("Without dfs 'cat' should appear strictly less than {} times.", numDocs);
+        TermVectorResponse response = client().prepareTermVector("test", "type1", randomIntBetween(0, numDocs - 1) + "")
                 .setSelectedFields("text")
                 .setFieldStatistics(true)
                 .setTermStatistics(true)
                 .get();
+        checkStats(response.getFields(), expectedStats, false);
 
-        checkStats(response.getFields(), jsonBuilder()
-                .startObject()
-                .startObject("text")
-                    .startObject("field_statistics")
-                    .field("sum_doc_freq", 1)
-                    .field("doc_count", 1)
-                    .field("sum_ttf", 1)
-                    .endObject()
-                    .startObject("terms")
-                        .startObject("cat")
-                        .field("doc_freq", 1)
-                        .field("ttf", 1)
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .endObject());
-
-        logger.info("With dfs 'cat' should appear number {} times.", numberShards);
-        response = client().prepareTermVector("test", "type1", randomIntBetween(0, numberShards - 1) + "")
+        logger.info("With dfs 'cat' should appear exactly {} times.", numDocs);
+        response = client().prepareTermVector("test", "type1", randomIntBetween(0, numDocs - 1) + "")
                 .setSelectedFields("text")
                 .setFieldStatistics(true)
                 .setTermStatistics(true)
                 .setDfs(true)
                 .get();
+        checkStats(response.getFields(), expectedStats, true);
+    }
 
-        checkStats(response.getFields(), jsonBuilder()
-                .startObject()
-                .startObject("text")
-                    .startObject("field_statistics")
-                    .field("sum_doc_freq", numberShards)
-                    .field("doc_count", numberShards)
-                    .field("sum_ttf", numberShards)
-                    .endObject()
-                    .startObject("terms")
-                        .startObject("cat")
-                        .field("doc_freq", numberShards)
-                        .field("ttf", numberShards)
-                        .endObject()
-                    .endObject()
-                .endObject()
-                .endObject());
-        }
-
-    private void checkStats(Fields fields, XContentBuilder xContentBuilder) throws IOException {
+    private void checkStats(Fields fields, XContentBuilder xContentBuilder, boolean isEqual) throws IOException {
         Map<String, Object> stats = JsonXContent.jsonXContent.createParser(xContentBuilder.bytes()).map();
         assertThat("number of fields expected:", fields.size(), equalTo(stats.size()));
         for (String fieldName : fields) {
@@ -1101,14 +1084,14 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
             Map<String, Integer> fieldStatistics = getFieldStatistics(stats, fieldName);
             String msg = "field: " + fieldName + " ";
             assertThat(msg + "sum_doc_freq:",
-                    terms.getSumDocFreq(),
-                    equalTo(fieldStatistics.get("sum_doc_freq").longValue()));
+                    (int) terms.getSumDocFreq(),
+                    equalOrLessThanTo(fieldStatistics.get("sum_doc_freq"), isEqual));
             assertThat(msg + "doc_count:",
                     terms.getDocCount(),
-                    equalTo(fieldStatistics.get("doc_count")));
+                    equalOrLessThanTo(fieldStatistics.get("doc_count"), isEqual));
             assertThat(msg + "sum_ttf:",
-                    terms.getSumTotalTermFreq(),
-                    equalTo(fieldStatistics.get("sum_ttf").longValue()));
+                    (int) terms.getSumTotalTermFreq(),
+                    equalOrLessThanTo(fieldStatistics.get("sum_ttf"), isEqual));
 
             final TermsEnum termsEnum = terms.iterator(null);
             BytesRef text;
@@ -1119,10 +1102,10 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                 msg = "term: (" + fieldName + "," + term + ") ";
                 assertThat(msg + "doc_freq:",
                         termsEnum.docFreq(),
-                        equalTo(termStatistics.get("doc_freq")));
+                        equalOrLessThanTo(termStatistics.get("doc_freq"), isEqual));
                 assertThat(msg + "ttf:",
-                        termsEnum.totalTermFreq(),
-                        equalTo(termStatistics.get("ttf").longValue()));
+                        (int) termsEnum.totalTermFreq(),
+                        equalOrLessThanTo(termStatistics.get("ttf"), isEqual));
             }
         }
     }
@@ -1134,4 +1117,12 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
     private Map<String, Integer> getTermStatistics(Map<String, Object> stats, String fieldName, String term) {
         return (Map<String, Integer>) ((Map<String, Object>) ((Map<String, Object>) stats.get(fieldName)).get("terms")).get(term);
     }
+
+    private Matcher<Integer> equalOrLessThanTo(Integer value, boolean isEqual) {
+        if (isEqual) {
+            return equalTo(value);
+        }
+        return lessThan(value);
+    }
+
 }

@@ -37,10 +37,6 @@ public class DfsOnlyResponse extends BroadcastOperationResponse {
     private AggregatedDfs dfs;
     private long tookInMillis;
 
-    DfsOnlyResponse() {
-
-    }
-
     DfsOnlyResponse(AggregatedDfs dfs, int totalShards, int successfulShards, int failedShards,
                     List<ShardOperationFailedException> shardFailures, long tookInMillis) {
         super(totalShards, successfulShards, failedShards, shardFailures);

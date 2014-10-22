@@ -25,12 +25,12 @@ import org.apache.lucene.index.TermsEnum;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,14 +40,15 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
 public class DfsOnlyRequest extends BroadcastOperationRequest<DfsOnlyRequest> {
 
-    private SearchRequest searchRequest;
+    private SearchRequest searchRequest = new SearchRequest();
 
     long nowInMillis;
 
     DfsOnlyRequest() {
+
     }
 
-    public DfsOnlyRequest(Fields termVectorFields, String[] indices, String[] types, Set<String> selectedFields, Client client) throws IOException {
+    public DfsOnlyRequest(Fields termVectorFields, String[] indices, String[] types, Set<String> selectedFields) throws IOException {
         super(indices);
 
         // build a search request with a query of all the terms
@@ -65,7 +66,7 @@ public class DfsOnlyRequest extends BroadcastOperationRequest<DfsOnlyRequest> {
             }
         }
         // wrap a search request object
-        this.searchRequest = client.prepareSearch(indices).setTypes(types).setQuery(boolBuilder).request();
+        this.searchRequest = new SearchRequest(indices).types(types).source(new SearchSourceBuilder().query(boolBuilder));
     }
 
     public SearchRequest getSearchRequest() {

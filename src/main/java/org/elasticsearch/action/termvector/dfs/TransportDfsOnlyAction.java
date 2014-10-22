@@ -149,7 +149,7 @@ public class TransportDfsOnlyAction extends TransportBroadcastOperationAction<Df
     }
 
     /**
-     * Builds how long it took to execute the search.
+     * Builds how long it took to execute the dfs request.
      */
     protected final long buildTookInMillis(DfsOnlyRequest request) {
         // protect ourselves against time going backwards

@@ -23,11 +23,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorResponse;
-import org.elasticsearch.action.termvector.dfs.*;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.termvector.dfs.DfsOnlyRequest;
+import org.elasticsearch.action.termvector.dfs.DfsOnlyResponse;
+import org.elasticsearch.action.termvector.dfs.TransportDfsOnlyAction;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -42,8 +42,6 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -55,7 +53,6 @@ import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
 /**
  */
@@ -65,14 +62,12 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
     private IndexShard indexShard;
     private final MappingUpdatedAction mappingUpdatedAction;
     private final TransportDfsOnlyAction dfsAction;
-    private final Client client;
 
     @Inject
-    public ShardTermVectorService(ShardId shardId, @IndexSettings Settings indexSettings, MappingUpdatedAction mappingUpdatedAction, TransportDfsOnlyAction dfsAction, Client client) {
+    public ShardTermVectorService(ShardId shardId, @IndexSettings Settings indexSettings, MappingUpdatedAction mappingUpdatedAction, TransportDfsOnlyAction dfsAction) {
         super(shardId, indexSettings);
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.dfsAction = dfsAction;
-        this.client = client;
     }
 
     // sadly, to overcome cyclic dep, we need to do this and inject it ourselves...
@@ -339,7 +334,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
 
     private AggregatedDfs getAggregatedDfs(Fields termVectorFields, TermVectorRequest request) throws IOException {
         DfsOnlyRequest dfsOnlyRequest = new DfsOnlyRequest(termVectorFields, new String[]{request.index()},
-                new String[]{request.type()}, request.selectedFields(), client);
+                new String[]{request.type()}, request.selectedFields());
         DfsOnlyResponse response = dfsAction.execute(dfsOnlyRequest).actionGet();
         return response.getDfs();
     }

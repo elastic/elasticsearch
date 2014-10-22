@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 /**
  *
  */
@@ -76,6 +77,26 @@ public class Booleans {
             return (text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' && text[offset + 4] == 'e');
         }
         return false;
+    }
+
+    /***
+     *
+     * @param value
+     * @return true/false
+     * throws exception if string cannot be parsed to boolean
+     */
+    public static Boolean parseBooleanExact(String value){
+
+        boolean isFalse = isExplicitFalse(value);
+        if (isFalse) {
+            return false;
+        }
+        boolean isTrue = isExplicitTrue(value);
+        if (isTrue) {
+            return true;
+        }
+
+        throw new ElasticsearchIllegalArgumentException("value cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]  ");
     }
 
     public static Boolean parseBoolean(String value, Boolean defaultValue) {

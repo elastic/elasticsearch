@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -72,7 +73,7 @@ public class DiscoveryNode implements Streamable, Serializable {
 
     public static boolean clientNode(Settings settings) {
         String client = settings.get("node.client");
-        return client != null && client.equals("true");
+        return Booleans.isExplicitTrue(client);
     }
 
     public static boolean masterNode(Settings settings) {
@@ -80,7 +81,7 @@ public class DiscoveryNode implements Streamable, Serializable {
         if (master == null) {
             return !clientNode(settings);
         }
-        return master.equals("true");
+        return Booleans.isExplicitTrue(master);
     }
 
     public static boolean dataNode(Settings settings) {
@@ -88,7 +89,7 @@ public class DiscoveryNode implements Streamable, Serializable {
         if (data == null) {
             return !clientNode(settings);
         }
-        return data.equals("true");
+        return Booleans.isExplicitTrue(data);
     }
 
     public static final ImmutableList<DiscoveryNode> EMPTY_LIST = ImmutableList.of();
@@ -244,7 +245,7 @@ public class DiscoveryNode implements Streamable, Serializable {
         if (data == null) {
             return !clientNode();
         }
-        return data.equals("true");
+        return Booleans.parseBooleanExact(data);
     }
 
     /**
@@ -259,7 +260,7 @@ public class DiscoveryNode implements Streamable, Serializable {
      */
     public boolean clientNode() {
         String client = attributes.get("client");
-        return client != null && client.equals("true");
+        return client != null && Booleans.parseBooleanExact(client);
     }
 
     public boolean isClientNode() {
@@ -274,7 +275,7 @@ public class DiscoveryNode implements Streamable, Serializable {
         if (master == null) {
             return !clientNode();
         }
-        return master.equals("true");
+        return Booleans.parseBooleanExact(master);
     }
 
     /**

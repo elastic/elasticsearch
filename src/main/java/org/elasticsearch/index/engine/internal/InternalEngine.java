@@ -272,7 +272,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             try {
                 this.indexWriter = createWriter();
                 mergeScheduler.removeListener(this.throttle);
-                this.throttle = new IndexThrottle(mergeScheduler, logger);
+                this.throttle = new IndexThrottle(mergeScheduler, logger, indexingService);
                 mergeScheduler.addListener(throttle);
             } catch (IOException e) {
                 maybeFailEngine(e, "start");
@@ -844,7 +844,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         currentIndexWriter().close(false);
                         indexWriter = createWriter();
                         mergeScheduler.removeListener(this.throttle);
-                        this.throttle = new IndexThrottle(mergeScheduler, this.logger);
+
+                        this.throttle = new IndexThrottle(mergeScheduler, this.logger, indexingService);
                         mergeScheduler.addListener(throttle);
                         // commit on a just opened writer will commit even if there are no changes done to it
                         // we rely on that for the commit data translog id key
@@ -1716,7 +1717,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
 
-    private static final class IndexThrottle implements MergeSchedulerProvider.Listener {
+
+    static final class IndexThrottle implements MergeSchedulerProvider.Listener {
 
         private static final InternalLock NOOP_LOCK = new InternalLock(new NoOpLock());
         private final InternalLock lockReference = new InternalLock(new ReentrantLock());
@@ -1724,12 +1726,14 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         private final AtomicBoolean isThrottling = new AtomicBoolean();
         private final MergeSchedulerProvider mergeScheduler;
         private final ESLogger logger;
+        private final ShardIndexingService indexingService;
 
         private volatile InternalLock lock = NOOP_LOCK;
 
-        public IndexThrottle(MergeSchedulerProvider mergeScheduler, ESLogger logger) {
+        public IndexThrottle(MergeSchedulerProvider mergeScheduler, ESLogger logger, ShardIndexingService indexingService) {
             this.mergeScheduler = mergeScheduler;
             this.logger = logger;
+            this.indexingService = indexingService;
         }
 
         public Releasable acquireThrottle() {
@@ -1742,6 +1746,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
                 if (isThrottling.getAndSet(true) == false) {
                     logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                    indexingService.throttlingActivated();
                 }
                 lock = lockReference;
             }
@@ -1753,10 +1758,12 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
                 if (isThrottling.getAndSet(false)) {
                     logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                    indexingService.throttlingDeactivated();
                 }
                 lock = NOOP_LOCK;
             }
         }
+
     }
 
     private static final class NoOpLock implements Lock {

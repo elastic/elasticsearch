@@ -37,9 +37,9 @@ Note that it is valid and perfectly fine to have a cluster with only a single no
 
 A node is a single server that is part of your cluster, stores your data, and participates in the cluster's indexing and search capabilities. Just like a cluster, a node is identified by a name which by default is a random Marvel character name that is assigned to the node at startup. You can define any node name you want if you do not want the default.  This name is important for administration purposes where you want to identify which servers in your network correspond to which nodes in your Elasticsearch cluster.
 
-A node can be configured to join a specific cluster by the cluster name. By default, each node is set up to join a cluster named "elasticsearch" which means that if you start up a number of nodes on your network and assuming they can discover each other, they will all automatically form and join a single cluster named "elasticsearch".
+A node can be configured to join a specific cluster by the cluster name. By default, each node is set up to join a cluster named `elasticsearch` which means that if you start up a number of nodes on your network and--assuming they can discover each other--they will all automatically form and join a single cluster named `elasticsearch`.
 
-In a single cluster, you can have as many nodes as you want. Furthermore, if there are no other Elasticsearch nodes currently running on your network, starting a single node will by default make and then join itself into a single cluster named "elasticsearch".
+In a single cluster, you can have as many nodes as you want. Furthermore, if there are no other Elasticsearch nodes currently running on your network, starting a single node will by default form a new single-node cluster named `elasticsearch`.
 
 [sect2]
 [float]

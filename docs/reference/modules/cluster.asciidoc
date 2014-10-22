@@ -36,10 +36,11 @@ The following settings may be used:
      Defaults to `2`.
 
 `cluster.routing.allocation.enable`::
-    Controls shard allocation for all indices, by allowing specific
-    kinds of shard to be allocated.
 
-    Can be set to:
+Controls shard allocation for all indices, by allowing specific
+kinds of shard to be allocated.
+
+Can be set to:
     * `all` (default) - Allows shard allocation for all kinds of shards.
     * `primaries` - Allows shard allocation only for primary shards.
     * `new_primaries` - Allows shard allocation only for primary shards for new indices.

@@ -20,13 +20,13 @@ public class AbstractLicensingTestBase {
 
     @BeforeClass
     public static void setup() throws Exception {
-        pubKeyPath = getResourcePath("test_pub.key");
-        priKeyPath = getResourcePath("test_pri.key");
+        pubKeyPath = getResourcePath("/public.key");
+        priKeyPath = getResourcePath("/private.key");
 
     }
 
     private static String getResourcePath(String resource) throws Exception {
-        URL url = ESLicenseManager.class.getResource("/org.elasticsearch.license.plugin/" + resource);
+        URL url = ESLicenseManager.class.getResource(resource);
         return url.toURI().getPath();
     }
 

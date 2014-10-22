@@ -12,11 +12,10 @@ import net.nicholaswilliams.java.licensing.encryption.PasswordProvider;
 import net.nicholaswilliams.java.licensing.exception.ExpiredLicenseException;
 import net.nicholaswilliams.java.licensing.exception.InvalidLicenseException;
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.core.ESLicense;
+import org.elasticsearch.license.core.ResourcePublicKeyDataProvider;
 
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
@@ -46,31 +45,18 @@ public class ESLicenseManager {
 
     // Initialize LicenseManager
     static {
-        LicenseManagerProperties.setPublicKeyDataProvider(new FilePublicKeyDataProvider(getPublicKeyPath()));
+        LicenseManagerProperties.setPublicKeyDataProvider(new ResourcePublicKeyDataProvider("/public.key"));
         LicenseManagerProperties.setPublicKeyPasswordProvider(new ESPublicKeyPasswordProvider());
         LicenseManagerProperties.setLicenseValidator(new DefaultLicenseValidator());
         LicenseManagerProperties.setLicenseProvider(new LicenseProvider() {
             @Override
             public SignedLicense getLicense(Object context) {
-                throw new UnsupportedOperationException("This singelton license provider shouldn't be used");
+                throw new UnsupportedOperationException("This singleton license provider shouldn't be used");
             }
         });
     }
 
-    private static String getPublicKeyPath() {
-        //TODO: Imporove key management
-        URL resource = ESLicenseManager.class.getResource("public.key");
-        if (resource == null) {
-            //test REMOVE NOCOMMIT!!!!
-            resource = ESLicenseManager.class.getResource("/org.elasticsearch.license.plugin/test_pub.key");
-        }
-        try {
-            return Paths.get(resource.toURI()).toFile().getAbsolutePath();
-        } catch (URISyntaxException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
+    @Inject
     public ESLicenseManager() {
         this.licenseManager = LicenseManager.getInstance();
     }

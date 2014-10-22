@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.ElasticsearchParseException;
+
 /**
  *
  */
@@ -76,6 +78,26 @@ public class Booleans {
             return (text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' && text[offset + 4] == 'e');
         }
         return false;
+    }
+
+    /***
+     *
+     * @param value
+     * @return true/false
+     * throws exception if string cannot be parsed to boolean
+     */
+    public static Boolean parseBooleanExact(String value){
+        if (value != null) {
+            boolean isFalse = (value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
+            if (isFalse) {
+                return false;
+            }
+            boolean isTrue = (value.equals("true") || value.equals("1") || value.equals("on") || value.equals("yes"));
+            if (isTrue) {
+                return true;
+            }
+        }
+        throw new ElasticsearchParseException("value cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]  ");
     }
 
     public static Boolean parseBoolean(String value, Boolean defaultValue) {

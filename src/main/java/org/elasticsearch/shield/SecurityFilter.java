@@ -129,7 +129,12 @@ public class SecurityFilter extends AbstractComponent {
 
         @Override
         public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
-            filter.authenticate(request);
+
+            // CORS - allow for preflight unauthenticated OPTIONS request
+            if (request.method() != RestRequest.Method.OPTIONS) {
+                filter.authenticate(request);
+            }
+
             filterChain.continueProcessing(request, channel);
         }
     }

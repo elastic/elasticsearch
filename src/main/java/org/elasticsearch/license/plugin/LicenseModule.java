@@ -7,8 +7,6 @@ package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
-import org.elasticsearch.license.manager.ESLicenseManager;
-import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.core.LicensesService;
 
 public class LicenseModule extends AbstractModule {

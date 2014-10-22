@@ -9,7 +9,9 @@ import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.license.core.DateUtils;
 import org.elasticsearch.license.core.ESLicense;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.UUID;
 
 import static org.elasticsearch.license.plugin.core.trial.TrialLicenses.TrialLicense;
 

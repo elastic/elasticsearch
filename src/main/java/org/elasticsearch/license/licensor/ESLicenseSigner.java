@@ -13,13 +13,12 @@ import net.nicholaswilliams.java.licensing.exception.KeyNotFoundException;
 import net.nicholaswilliams.java.licensing.licensor.LicenseCreator;
 import net.nicholaswilliams.java.licensing.licensor.LicenseCreatorProperties;
 import org.apache.commons.codec.binary.Base64;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.license.core.*;
+import org.elasticsearch.license.core.ESLicense;
+import org.elasticsearch.license.core.LicensesCharset;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -105,7 +104,7 @@ public class ESLicenseSigner {
         final byte[] licenseSignature = licenseCreator.signAndSerializeLicense(license);
         final byte[] hash = Hasher.hash(Base64.encodeBase64String(
                         Files.readAllBytes(publicKeyPath))
-        ).getBytes(Charset.forName("UTF-8"));
+        ).getBytes(LicensesCharset.UTF_8);
         int headerLength = MAGIC_LENGTH + hash.length + 4 + 4;
         byte[] bytes = new byte[headerLength + licenseSignature.length];
 

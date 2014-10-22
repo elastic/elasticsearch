@@ -5,17 +5,13 @@
  */
 package org.elasticsearch.license.core;
 
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.util.*;
 
 public class ESLicenses {
@@ -31,7 +27,7 @@ public class ESLicenses {
     }
 
     public static Set<ESLicense> fromSource(String content) throws IOException {
-        return fromSource(content.getBytes(Charset.forName("UTF-8")));
+        return fromSource(content.getBytes(LicensesCharset.UTF_8));
     }
 
     public static Set<ESLicense> fromSource(byte[] bytes) throws IOException {
@@ -41,6 +37,7 @@ public class ESLicenses {
     private static Set<ESLicense> fromXContent(XContentParser parser) throws IOException {
         Set<ESLicense> esLicenses = new HashSet<>();
         final Map<String, Object> licensesMap = parser.mapAndClose();
+        @SuppressWarnings("unchecked")
         final List<Map<String, Object>> licenseMaps = (ArrayList<Map<String, Object>>)licensesMap.get("licenses");
         for (Map<String, Object> licenseMap : licenseMaps) {
             final ESLicense esLicense = ESLicense.fromXContent(licenseMap);

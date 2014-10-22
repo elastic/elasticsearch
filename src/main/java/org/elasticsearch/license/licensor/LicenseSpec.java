@@ -8,14 +8,14 @@ package org.elasticsearch.license.licensor;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.core.DateUtils;
+import org.elasticsearch.license.core.LicensesCharset;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.text.ParseException;
 import java.util.*;
 
-import static org.elasticsearch.license.core.ESLicense.Type;
 import static org.elasticsearch.license.core.ESLicense.SubscriptionType;
+import static org.elasticsearch.license.core.ESLicense.Type;
 
 public class LicenseSpec {
     final String uid;
@@ -43,7 +43,7 @@ public class LicenseSpec {
     }
 
 
-    public static class Builder {
+    private static class Builder {
         private String uid;
         private String issuer;
         private String issuedTo;
@@ -104,6 +104,7 @@ public class LicenseSpec {
             if (uid == null) {
                 uid = UUID.randomUUID().toString();
             }
+            //TODO: verify params
             return new LicenseSpec(uid, issuer, issuedTo, issueDate, type, subscriptionType,
                     feature ,expiryDate, maxNodes);
         }
@@ -128,7 +129,7 @@ public class LicenseSpec {
     }
 
     public static Set<LicenseSpec> fromSource(String content) throws IOException, ParseException {
-        return fromSource(content.getBytes(Charset.forName("UTF-8")));
+        return fromSource(content.getBytes(LicensesCharset.UTF_8));
     }
 
     public static Set<LicenseSpec> fromSource(byte[] bytes) throws IOException, ParseException {
@@ -138,6 +139,7 @@ public class LicenseSpec {
     private static Set<LicenseSpec> fromXContents(XContentParser parser) throws IOException, ParseException {
         Set<LicenseSpec> licenseSpecs = new HashSet<>();
         final Map<String, Object> licenseSpecMap = parser.mapAndClose();
+        @SuppressWarnings("unchecked")
         final List<Map<String, Object>> licenseSpecDefinitions = (ArrayList<Map<String, Object>>)licenseSpecMap.get("licenses");
         for (Map<String, Object> licenseSpecDef : licenseSpecDefinitions) {
             final LicenseSpec licenseSpec = fromXContent(licenseSpecDef);

@@ -5,13 +5,10 @@
  */
 package org.elasticsearch.license.plugin.action.delete;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.license.core.ESLicenses;
 
 import java.io.IOException;
 import java.util.Arrays;

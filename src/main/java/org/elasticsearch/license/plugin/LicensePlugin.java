@@ -6,7 +6,6 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.action.admin.cluster.ClusterAction;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableSet;
@@ -22,10 +21,10 @@ import org.elasticsearch.license.plugin.action.get.TransportGetLicenseAction;
 import org.elasticsearch.license.plugin.action.put.PutLicenseAction;
 import org.elasticsearch.license.plugin.action.put.TransportPutLicenseAction;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
+import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.rest.RestDeleteLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestGetLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestPutLicenseAction;
-import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.rest.RestModule;
 

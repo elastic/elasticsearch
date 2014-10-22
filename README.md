@@ -22,8 +22,10 @@ If you do not have Hadoop installed, then select either the default version (for
 
 ## Installation
 
+The HDFS Snapshot/Restore is an Elasticsearch plugin - be sure to familiarize with what these are and how they work by reading the [plugins chapter](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-plugins.html) in the Elasticsearch documentation.
+
 ### Node restart
-_After_ installing the plugin, be sure to restart the node. This applies to _all_ nodes on which the plugins have been installed.
+_After_ installing the plugin on _every_ Elasticsearch node, be sure to _restart_ it. This applies to _all_ nodes on which the plugins have been installed - without restarting the nodes, the plugin will not function properly.
 
 ### Stable version
 As with any other plugin, simply run:

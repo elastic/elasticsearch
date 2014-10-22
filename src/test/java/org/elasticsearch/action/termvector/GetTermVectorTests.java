@@ -1031,9 +1031,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                 .addMapping("type1", "text", "type=string"));
         ensureGreen();
 
-        // get the number of shards assigned
-        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
-        int numberShards = Integer.parseInt(getSettingsResponse.getSetting("test", "index.number_of_shards"));
+        int numberShards = getNumShards("test").numPrimaries;
 
         logger.info("Index 'cat' in each shard out of {} shards ...", numberShards);
         List<IndexRequestBuilder> builders = new ArrayList<>();

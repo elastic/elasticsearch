@@ -111,7 +111,7 @@ public class DfsOnlyRequest extends BroadcastOperationRequest<DfsOnlyRequest> {
         String sSource = "_na_";
         try {
             sSource = XContentHelper.convertToJson(searchRequest.source(), false);
-        } catch (Exception e) {
+        } catch (IOException e) {
             // ignore
         }
         return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types()) + ", source[" + sSource + "]";

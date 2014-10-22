@@ -46,6 +46,17 @@ Can be set to:
     * `new_primaries` - Allows shard allocation only for primary shards for new indices.
     * `none` - No shard allocations of any kind are allowed for all indices.
 
+`cluster.routing.rebalance.enable`::
+
+Controls shard rebalance for all indices, by allowing specific
+kinds of shard to be rebalanced.
+
+Can be set to:
+    * `all` (default) - Allows shard balancing for all kinds of shards.
+    * `primaries` - Allows shard balancing only for primary shards.
+    * `replicas` - Allows shard balancing only for replica shards.
+    * `none` - No shard balancing of any kind are allowed for all indices.
+
 `cluster.routing.allocation.same_shard.host`::
       Allows to perform a check to prevent allocation of multiple instances
       of the same shard on a single host, based on host name and host address.

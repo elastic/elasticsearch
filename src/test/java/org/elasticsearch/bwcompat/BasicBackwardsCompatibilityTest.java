@@ -248,20 +248,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         }
     }
 
-    public void assertAllShardsOnNodes(String index, String pattern) {
-        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    if (shardRouting.currentNodeId() != null &&  index.equals(shardRouting.getIndex())) {
-                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
-                        assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
-                    }
-                }
-            }
-        }
-    }
-
     /**
      * Upgrades a single node to the current version
      */

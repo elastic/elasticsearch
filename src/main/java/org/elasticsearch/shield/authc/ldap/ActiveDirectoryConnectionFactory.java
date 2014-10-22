@@ -48,14 +48,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
         }
         userSearchDN = componentSettings.get(AD_USER_SEARCH_BASEDN_SETTING, buildDnFromDomain(domainName));
 
-        String[] ldapUrls = componentSettings.getAsArray(URLS_SETTING);
-        if (ldapUrls == null) {
-            String url = componentSettings.get(URLS_SETTING);
-            ldapUrls = url == null ? null : new String[]{url};
-        }
-        if (ldapUrls == null) {
-            ldapUrls = new String[] { "ldaps://" + domainName + ":636" };
-        }
+        String[] ldapUrls = componentSettings.getAsArray(URLS_SETTING, new String[] { "ldaps://" + domainName + ":636"});
 
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")

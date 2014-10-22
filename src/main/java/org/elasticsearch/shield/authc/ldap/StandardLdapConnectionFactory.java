@@ -49,10 +49,6 @@ public class StandardLdapConnectionFactory extends AbstractComponent implements 
         }
         String[] ldapUrls = componentSettings.getAsArray(URLS_SETTING);
         if (ldapUrls == null) {
-            String url = componentSettings.get(URLS_SETTING);
-            ldapUrls = url == null ? null : new String[]{url};
-        }
-        if (ldapUrls == null) {
             throw new ShieldException("Missing required ldap setting [" + URLS_SETTING + "]");
         }
 

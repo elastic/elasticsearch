@@ -114,7 +114,7 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
 
     public static Settings buildAdSettings(String ldapUrl, String adDomainName) {
        return ImmutableSettings.builder()
-               .putArray(SETTINGS_PREFIX + ActiveDirectoryConnectionFactory.URLS_SETTING, ldapUrl)
+               .put(SETTINGS_PREFIX + ActiveDirectoryConnectionFactory.URLS_SETTING, ldapUrl)
                .put(SETTINGS_PREFIX + ActiveDirectoryConnectionFactory.AD_DOMAIN_NAME_SETTING, adDomainName)
                .build();
     }

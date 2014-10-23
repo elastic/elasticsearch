@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.stats;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -320,6 +321,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "This test intermittently fails with no throttling happening.")
     public void throttleStats() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(ImmutableSettings.builder()

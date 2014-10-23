@@ -29,7 +29,7 @@ public class ESUsersModule extends AbstractShieldModule.Node {
     @Override
     protected void configureNode() {
         if (enabled) {
-            bind(Realm.class).annotatedWith(named(ESUsersRealm.TYPE)).to(ESUsersRealm.class).asEagerSingleton();
+            bind(ESUsersRealm.class).asEagerSingleton();
             bind(UserPasswdStore.class).annotatedWith(named("file")).to(FileUserPasswdStore.class).asEagerSingleton();
             bind(UserRolesStore.class).annotatedWith(named("file")).to(FileUserRolesStore.class).asEagerSingleton();
         } else {

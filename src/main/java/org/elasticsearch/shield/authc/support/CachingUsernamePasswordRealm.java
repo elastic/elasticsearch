@@ -30,8 +30,11 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
 
     private final Cache<String, UserWithHash> cache;
 
+    private final Hasher hasher;
+
     protected CachingUsernamePasswordRealm(Settings settings) {
         super(settings);
+        hasher = Hasher.resolve(componentSettings.get("cache.hash_algo", null), Hasher.SHA2);
         TimeValue ttl = componentSettings.getAsTime(CACHE_TTL, DEFAULT_TTL);
         if (ttl.millis() > 0) {
             cache = CacheBuilder.newBuilder()
@@ -91,7 +94,7 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
                 if (user == null) {
                     throw new AuthenticationException("Could not authenticate ['" + token.principal() + "]");
                 }
-                return new UserWithHash(user, token.credentials());
+                return new UserWithHash(user, token.credentials(), hasher);
             }
         };
 
@@ -116,13 +119,15 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
     public static class UserWithHash {
         User user;
         char[] hash;
-        public UserWithHash(User user, SecuredString password){
+        Hasher hasher;
+        public UserWithHash(User user, SecuredString password, Hasher hasher){
             this.user = user;
-            this.hash = Hasher.HTPASSWD.hash(password);
+            this.hash = hasher.hash(password);
+            this.hasher = hasher;
         }
 
         public boolean verify(SecuredString password){
-            return Hasher.HTPASSWD.verify(password, hash);
+            return hasher.verify(password, hash);
         }
     }
 }

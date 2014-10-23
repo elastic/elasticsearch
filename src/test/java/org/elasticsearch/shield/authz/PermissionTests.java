@@ -25,9 +25,9 @@ public class PermissionTests extends ElasticsearchTestCase {
     @Before
     public void init() {
         Permission.Global.Builder builder = Permission.Global.builder(mock(AuthorizationService.class));
-        builder.add(union(SEARCH, MONITOR), "test_.*", "foo.*");
-        builder.add(union(READ), "baz_.*foo", "fool.*bar");
-        builder.add(union(MONITOR), "bar.*");
+        builder.add(union(SEARCH, MONITOR), "test_*", "/foo.*/");
+        builder.add(union(READ), "baz_*foo", "/fool.*bar/");
+        builder.add(union(MONITOR), "/bar.*/");
         permission = builder.build();
     }
 

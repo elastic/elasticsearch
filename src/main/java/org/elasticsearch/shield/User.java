@@ -7,6 +7,8 @@ package org.elasticsearch.shield;
 
 import org.elasticsearch.shield.authz.SystemRole;
 
+import java.util.Arrays;
+
 /**
  * An authenticated user
  */
@@ -48,6 +50,26 @@ public abstract class User {
         public String[] roles() {
             return roles;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Simple simple = (Simple) o;
+
+            if (!Arrays.equals(roles, simple.roles)) return false;
+            if (!username.equals(simple.username)) return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = username.hashCode();
+            result = 31 * result + Arrays.hashCode(roles);
+            return result;
+        }
     }
 
     private static class System extends User {
@@ -67,6 +89,7 @@ public abstract class User {
         public String[] roles() {
             return ROLES;
         }
+
     }
 
 }

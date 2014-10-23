@@ -33,7 +33,7 @@ import static org.elasticsearch.shield.support.Automatons.patterns;
  */
 public abstract class Privilege<P extends Privilege<P>> {
 
-    static final String SUB_ACTION_SUFFIX_PATTERN = ".*";
+    static final String SUB_ACTION_SUFFIX_PATTERN = "*";
 
     public static final System SYSTEM = new System();
 
@@ -76,7 +76,9 @@ public abstract class Privilege<P extends Privilege<P>> {
     public static class System extends Privilege<System> {
 
         protected static final Predicate<String> PREDICATE = new AutomatonPredicate(patterns(
-                "internal:.*"
+                "internal:*",
+                "indices:monitor/*",  // added for marvel
+                "cluster:monitor/*"   // added for marvel
         ));
 
         private System() {
@@ -97,18 +99,18 @@ public abstract class Privilege<P extends Privilege<P>> {
     public static class Index extends AutomatonPrivilege<Index> {
 
         public static final Index NONE =            new Index(Name.NONE,        Automata.makeEmpty());
-        public static final Index ALL =             new Index(Name.ALL,         "indices:.*");
-        public static final Index MANAGE =          new Index("manage",         "indices:monitor/.*", "indices:admin/.*");
+        public static final Index ALL =             new Index(Name.ALL,         "indices:*");
+        public static final Index MANAGE =          new Index("manage",         "indices:monitor/*", "indices:admin/*");
         public static final Index CREATE_INDEX =    new Index("create_index",   "indices:admin/create");
-        public static final Index MONITOR =         new Index("monitor",        "indices:monitor/.*");
-        public static final Index DATA_ACCESS =     new Index("data_access",    "indices:data/.*");
-        public static final Index CRUD =            new Index("crud",           "indices:data/write/.*", "indices:data/read/.*");
-        public static final Index READ =            new Index("read",           "indices:data/read/.*");
-        public static final Index SEARCH =          new Index("search",         SearchAction.NAME + ".*", GetAction.NAME + ".*");
-        public static final Index GET =             new Index("get",            GetAction.NAME + ".*");
-        public static final Index INDEX =           new Index("index",          "indices:data/write/index.*", "indices:data/write/update");
-        public static final Index DELETE =          new Index("delete",         "indices:data/write/delete.*");
-        public static final Index WRITE =           new Index("write",          "indices:data/write/.*");
+        public static final Index MONITOR =         new Index("monitor",        "indices:monitor/*");
+        public static final Index DATA_ACCESS =     new Index("data_access",    "indices:data/*");
+        public static final Index CRUD =            new Index("crud",           "indices:data/write/*", "indices:data/read/*");
+        public static final Index READ =            new Index("read",           "indices:data/read/*");
+        public static final Index SEARCH =          new Index("search",         SearchAction.NAME + "*", GetAction.NAME + "*");
+        public static final Index GET =             new Index("get",            GetAction.NAME + "*");
+        public static final Index INDEX =           new Index("index",          "indices:data/write/index*", "indices:data/write/update");
+        public static final Index DELETE =          new Index("delete",         "indices:data/write/delete*");
+        public static final Index WRITE =           new Index("write",          "indices:data/write/*");
         public static final Index BENCHMARK =       new Index("benchmark",      "indices:data/benchmark");
 
         private static final Index[] values = new Index[] {
@@ -196,8 +198,8 @@ public abstract class Privilege<P extends Privilege<P>> {
     public static class Cluster extends AutomatonPrivilege<Cluster> {
 
         public static final Cluster NONE    = new Cluster(Name.NONE,    Automata.makeEmpty());
-        public static final Cluster ALL     = new Cluster(Name.ALL,     "cluster:.*", "indices:admin/template/.*");
-        public static final Cluster MONITOR = new Cluster("monitor",    "cluster:monitor/.*");
+        public static final Cluster ALL     = new Cluster(Name.ALL,     "cluster:*", "indices:admin/template/*");
+        public static final Cluster MONITOR = new Cluster("monitor",    "cluster:monitor/*");
 
         private static final Cluster[] values = new Cluster[] { NONE, ALL, MONITOR };
 
@@ -272,7 +274,7 @@ public abstract class Privilege<P extends Privilege<P>> {
     }
 
     static String actionToPattern(String text) {
-        return text.replace(":", "\\:") + SUB_ACTION_SUFFIX_PATTERN;
+        return text + SUB_ACTION_SUFFIX_PATTERN;
     }
 
     @SuppressWarnings("unchecked")

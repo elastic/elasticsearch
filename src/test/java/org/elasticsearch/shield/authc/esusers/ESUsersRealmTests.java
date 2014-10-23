@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authc.esusers;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -28,9 +29,9 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.Matchers.arrayContaining;
+import java.util.Locale;
+
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -68,6 +69,19 @@ public class ESUsersRealmTests extends ElasticsearchTestCase {
         assertThat(user.roles(), notNullValue());
         assertThat(user.roles().length, equalTo(2));
         assertThat(user.roles(), arrayContaining("role1", "role2"));
+    }
+
+    @Test @Repeat(iterations = 20)
+    public void testAuthenticate_Caching() throws Exception {
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.authc.esusers.cache.hash_algo", Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT))
+                .build();
+        MockUserPasswdStore userPasswdStore = new MockUserPasswdStore("user1", "test123");
+        MockUserRolesStore userRolesStore = new MockUserRolesStore("user1", "role1", "role2");
+        ESUsersRealm realm = new ESUsersRealm(settings, userPasswdStore, userRolesStore, restController);
+        User user1 = realm.authenticate(new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
+        User user2 = realm.authenticate(new UsernamePasswordToken("user1", SecuredStringTests.build("test123")));
+        assertThat(user1, sameInstance(user2));
     }
 
     @Test

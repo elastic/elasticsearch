@@ -27,8 +27,8 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegrationTest {
     public static final String ROLES = "user:\n" +
             "  cluster: all\n" +
             "  indices:\n" +
-            "    '.*': manage\n" +
-            "    '.*': write\n" +
+            "    '*': manage\n" +
+            "    '/.*/': write\n" +
             "    'test': read\n" +
             "    'test1': read\n";
 

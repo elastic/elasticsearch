@@ -89,7 +89,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         group = permission.indices().groups()[0];
         assertThat(group.indices(), notNullValue());
         assertThat(group.indices().length, is(1));
-        assertThat(group.indices()[0], equalTo(".*_.*"));
+        assertThat(group.indices()[0], equalTo("/.*_.*/"));
         assertThat(group.privilege(), notNullValue());
         assertThat(group.privilege().isAlias(Privilege.Index.union(Privilege.Index.READ, Privilege.Index.WRITE)), is(true));
     }
@@ -164,7 +164,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
     @Test(expected = ElasticsearchException.class)
     public void testThatInvalidYAMLThrowsElasticsearchException() throws Exception {
         File file = tempFolder.newFile();
-        com.google.common.io.Files.write("user: cluster: ALL indices: '.*': ALL".getBytes(Charsets.UTF_8), file);
+        com.google.common.io.Files.write("user: cluster: ALL indices: '*': ALL".getBytes(Charsets.UTF_8), file);
         FileRolesStore.parseFile(file.toPath(), logger, mock(AuthorizationService.class));
     }
 }

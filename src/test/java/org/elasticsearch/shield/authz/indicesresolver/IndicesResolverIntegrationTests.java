@@ -29,8 +29,8 @@ public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
         return DEFAULT_ROLE + ":\n" +
                 "  cluster: ALL\n" +
                 "  indices:\n" +
-                "    '.*': manage,write\n" +
-                "    'test.*': read\n";
+                "    '*': manage,write\n" +
+                "    '/test.*/': read\n";
     }
 
     @Test

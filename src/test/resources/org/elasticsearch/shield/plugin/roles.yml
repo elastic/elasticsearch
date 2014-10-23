@@ -1,4 +1,4 @@
 user:
   cluster: ALL
   indices:
-    '.*': ALL
+    '*': ALL

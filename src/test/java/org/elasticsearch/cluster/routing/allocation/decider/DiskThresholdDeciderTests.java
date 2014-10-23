@@ -82,6 +82,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
+
+            @Override
+            public void addListener(Listener listener) {
+                // noop
+            }
         };
 
         AllocationService strategy = new AllocationService(settingsBuilder()
@@ -273,6 +278,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
+
+            @Override
+            public void addListener(Listener listener) {
+                // noop
+            }
         };
 
         AllocationService strategy = new AllocationService(settingsBuilder()
@@ -323,6 +333,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
             public ClusterInfo getClusterInfo() {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo2;
+            }
+
+            @Override
+            public void addListener(Listener listener) {
+                // noop
             }
         };
         strategy = new AllocationService(settingsBuilder()
@@ -524,6 +539,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
+
+            @Override
+            public void addListener(Listener listener) {
+                // noop
+            }
         };
 
         AllocationService strategy = new AllocationService(settingsBuilder()
@@ -585,6 +605,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
             public ClusterInfo getClusterInfo() {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
+            }
+
+            @Override
+            public void addListener(Listener listener) {
+                // noop
             }
         };
 
@@ -684,6 +709,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
             public ClusterInfo getClusterInfo() {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
+            }
+
+            @Override
+            public void addListener(Listener listener) {
+                // noop
             }
         };
 

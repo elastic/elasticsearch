@@ -27,7 +27,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
-import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
@@ -742,7 +741,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         /**
          * Performs restore operation
          */
-        public void restore() {
+        public void restore() throws IOException {
             store.incRef();
             try {
                 logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
@@ -753,15 +752,12 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 long totalSize = 0;
                 int numberOfReusedFiles = 0;
                 long reusedTotalSize = 0;
-                Store.MetadataSnapshot recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
+                final Store.MetadataSnapshot recoveryTargetMetadata;
                 try {
-                    recoveryTargetMetadata = store.getMetadata();
+                    recoveryTargetMetadata = store.getMetadataOrEmpty();
                 } catch (CorruptIndexException e) {
                     logger.warn("{} Can't read metadata from store", e, shardId);
                     throw new IndexShardRestoreFailedException(shardId, "Can't restore corrupted shard", e);
-                } catch (Throwable e) {
-                    // if the index is broken we might not be able to read it
-                    logger.warn("{} Can't read metadata from store", e, shardId);
                 }
 
                 final List<FileInfo> filesToRecover = Lists.newArrayList();

@@ -183,11 +183,22 @@ for filtering or aggregations.
 
 added[1.2.0]
 In case you would like to disable norms after the fact, it is possible to do so
-by using the <<indices-put-mapping,PUT mapping API>>. Please however note that
+by using the <<indices-put-mapping,PUT mapping API>> by setting `omit_norms` to `true`. 
+Please however note that
 norms won't be removed instantly, but as your index will receive new insertions
 or updates, and segments get merged. Any score computation on a field that got
 norms removed might return inconsistent results since some documents won't have
 norms anymore while other documents might still have norms.
+
+[source,js]
+--------------------------------------------------
+"properties": {
+    "field_name": {
+    "type": "string",
+    "omit_norms": true
+    }
+}
+--------------------------------------------------
 
 [float]
 [[number]]

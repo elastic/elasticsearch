@@ -73,10 +73,10 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     private volatile ScheduledFuture notificationScheduler;
 
     @Inject
-    public LicensesService(Settings settings, ClusterService clusterService, ThreadPool threadPool, TransportService transportService) {
+    public LicensesService(Settings settings, ClusterService clusterService, ThreadPool threadPool, TransportService transportService, ESLicenseManager esLicenseManager) {
         super(settings);
         this.clusterService = clusterService;
-        this.esLicenseManager = new ESLicenseManager();
+        this.esLicenseManager = esLicenseManager;
         this.threadPool = threadPool;
         this.transportService = transportService;
         transportService.registerHandler(REGISTER_TRIAL_LICENSE_ACTION_NAME, new RegisterTrialLicenseRequestHandler());

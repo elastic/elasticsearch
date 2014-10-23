@@ -120,6 +120,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
+        long otherDocCount = 0;
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         StringTerms.Bucket spare = null;
         for (int i = 0; i < bucketOrds.size(); i++) {
@@ -128,6 +129,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             }
             bucketOrds.get(i, spare.termBytes);
             spare.docCount = bucketDocCount(i);
+            otherDocCount += spare.docCount;
             spare.bucketOrd = i;
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
                 spare = (StringTerms.Bucket) ordered.insertWithOverflow(spare);
@@ -141,6 +143,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             final StringTerms.Bucket bucket = (StringTerms.Bucket) ordered.pop();
             survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
+            otherDocCount -= bucket.docCount;
         }
         // replay any deferred collections
         runDeferredCollections(survivingBucketOrds);
@@ -153,12 +156,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
           bucket.docCountError = 0;
         }
         
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0);
-    }
-
-    @Override
-    public InternalAggregation buildEmptyAggregation() {
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), showTermDocCountError, 0);
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount);
     }
 
     @Override

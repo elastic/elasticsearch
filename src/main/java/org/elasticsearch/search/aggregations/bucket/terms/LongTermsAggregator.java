@@ -115,6 +115,7 @@ public class LongTermsAggregator extends TermsAggregator {
 
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
+        long otherDocCount = 0;
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         LongTerms.Bucket spare = null;
         for (long i = 0; i < bucketOrds.size(); i++) {
@@ -123,6 +124,7 @@ public class LongTermsAggregator extends TermsAggregator {
             }
             spare.term = bucketOrds.get(i);
             spare.docCount = bucketDocCount(i);
+            otherDocCount += spare.docCount;
             spare.bucketOrd = i;
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
                 spare = (LongTerms.Bucket) ordered.insertWithOverflow(spare);
@@ -136,6 +138,7 @@ public class LongTermsAggregator extends TermsAggregator {
             final LongTerms.Bucket bucket = (LongTerms.Bucket) ordered.pop();
             survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
+            otherDocCount -= bucket.docCount;
         }
       
         runDeferredCollections(survivingBucketOrds);
@@ -146,13 +149,13 @@ public class LongTermsAggregator extends TermsAggregator {
           list[i].docCountError = 0;
         }
         
-        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0);
+        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount);
     }
     
     
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), showTermDocCountError, 0);
+        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), showTermDocCountError, 0, 0);
     }
 
     @Override

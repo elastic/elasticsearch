@@ -315,9 +315,10 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     public void register(String feature, TrialLicenseOptions trialLicenseOptions, Listener listener) {
         registeredListeners.add(new ListenerHolder(feature, trialLicenseOptions, listener));
 
-        // DO we need to check STATE_NOT_RECOVERED_BLOCK here
-        LicensesMetaData currentMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        registerListeners(currentMetaData);
+        if (!clusterService.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            LicensesMetaData currentMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
+            registerListeners(currentMetaData);
+        }
     }
 
     private void registerListeners(LicensesMetaData currentMetaData) {
@@ -333,8 +334,13 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                         if (clusterService.state().nodes().localNodeMaster()) {
                             registerTrialLicense(request);
                         } else {
-                            transportService.sendRequest(clusterService.state().nodes().masterNode(),
-                                    REGISTER_TRIAL_LICENSE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+                            DiscoveryNode masterNode;
+                            if ((masterNode = clusterService.state().nodes().masterNode()) != null) {
+                                transportService.sendRequest(masterNode,
+                                        REGISTER_TRIAL_LICENSE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+                            } else {
+                                // could not sent register trial license request to master
+                            }
                         }
                     } else {
                         // notify feature as clusterChangedEvent may not happen

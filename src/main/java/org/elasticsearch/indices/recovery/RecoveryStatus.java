@@ -27,13 +27,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
@@ -42,7 +42,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -51,7 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 
 
-public class RecoveryStatus {
+public class RecoveryStatus extends AbstractRefCounted {
 
     private final ESLogger logger;
 
@@ -72,13 +71,11 @@ public class RecoveryStatus {
 
     private final AtomicBoolean finished = new AtomicBoolean();
 
-    // we start with 1 which will be decremented on cancel/close/failure
-    private final AtomicInteger refCount = new AtomicInteger(1);
-
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
     private final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
 
     public RecoveryStatus(InternalIndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
+        super("recovery_status");
         this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;
         this.logger = Loggers.getLogger(getClass(), indexShard.indexSettings(), indexShard.shardId());
@@ -260,40 +257,8 @@ public class RecoveryStatus {
         return indexOutput;
     }
 
-    /**
-     * Tries to increment the refCount of this RecoveryStatus instance. This method will return <tt>true</tt> iff the refCount was
-     * incremented successfully otherwise <tt>false</tt>. Be sure to always call a corresponding {@link #decRef}, in a finally clause;
-     *
-     * @see #decRef()
-     */
-    public final boolean tryIncRef() {
-        do {
-            int i = refCount.get();
-            if (i > 0) {
-                if (refCount.compareAndSet(i, i + 1)) {
-                    return true;
-                }
-            } else {
-                return false;
-            }
-        } while (true);
-    }
-
-    /**
-     * Decreases the refCount of this Store instance.If the refCount drops to 0, the recovery process this status represents
-     * is seen as done and resources and temporary files are deleted.
-     *
-     * @see #tryIncRef
-     */
-    public final void decRef() {
-        int i = refCount.decrementAndGet();
-        assert i >= 0;
-        if (i == 0) {
-            closeInternal();
-        }
-    }
-
-    private void closeInternal() {
+    @Override
+    protected void closeInternal() {
         try {
             // clean open index outputs
             Iterator<Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();

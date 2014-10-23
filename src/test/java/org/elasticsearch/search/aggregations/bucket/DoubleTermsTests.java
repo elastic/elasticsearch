@@ -53,7 +53,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
-public class DoubleTermsTests extends ElasticsearchIntegrationTest {
+public class DoubleTermsTests extends AbstractTermsTests {
 
     private static final int NUM_DOCS = 5; // TODO: randomize the size?
     private static final String SINGLE_VALUED_FIELD_NAME = "d_value";
@@ -1265,4 +1265,8 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Test
+    public void otherDocCount() {
+        testOtherDocCount(SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME);
+    }
 }

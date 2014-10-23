@@ -90,6 +90,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                                             .type(Engine.Flush.Type.COMMIT) // Keep translog for tests that rely on replaying it
                                             .waitIfOngoing(true)
                             );
+                            logger.info("flush finished in beforeIndexShardClosed");
                         }
                     }
                 }

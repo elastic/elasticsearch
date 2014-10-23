@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticsearchException;
@@ -155,7 +154,7 @@ public class RecoveryTarget extends AbstractComponent {
         logger.trace("collecting local files for {}", recoveryStatus);
         final Map<String, StoreFileMetaData> existingFiles;
         try {
-            existingFiles = recoveryStatus.store().getMetadata().asMap();
+            existingFiles = recoveryStatus.store().getMetadataOrEmpty().asMap();
         } catch (Exception e) {
             logger.debug("error while listing local files, recovery as if there are none", e);
             onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(),

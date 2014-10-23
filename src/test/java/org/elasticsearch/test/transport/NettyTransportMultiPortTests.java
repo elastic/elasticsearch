@@ -18,12 +18,9 @@
  */
 package org.elasticsearch.test.transport;
 
-import com.carrotsearch.hppc.IntOpenHashSet;
 import com.google.common.base.Charsets;
-import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.cluster.metadata.BenchmarkMetaData;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -31,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.junit.annotations.Network;
@@ -39,16 +35,13 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.util.Set;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -72,13 +65,12 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
         if (threadPool != null) {
             threadPool.shutdownNow();
         }
-
     }
 
     @Test
     @TestLogging("shield.transport.netty:DEBUG")
     public void testThatNettyCanBindToMultiplePorts() throws Exception {
-        int[] ports = getRandomPorts(3);
+        int[] ports = SocketUtil.findFreeLocalPorts(3);
 
         Settings settings = settingsBuilder()
                 .put("network.host", "127.0.0.1")
@@ -97,7 +89,7 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
     @Test
     @TestLogging("transport.netty:DEBUG")
     public void testThatDefaultProfileInheritsFromStandardSettings() throws Exception {
-        int[] ports = getRandomPorts(2);
+        int[] ports = SocketUtil.findFreeLocalPorts(2);
 
         Settings settings = settingsBuilder()
                 .put("network.host", "127.0.0.1")
@@ -114,7 +106,7 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
     @Test
     @TestLogging("transport.netty:DEBUG")
     public void testThatProfileWithoutPortSettingsFails() throws Exception {
-        int[] ports = getRandomPorts(1);
+        int[] ports = SocketUtil.findFreeLocalPorts(1);
 
         Settings settings = settingsBuilder()
                 .put("network.host", "127.0.0.1")
@@ -130,7 +122,7 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
     @Test
     @TestLogging("transport.netty:DEBUG")
     public void testThatDefaultProfilePortOverridesGeneralConfiguration() throws Exception {
-        int[] ports = getRandomPorts(3);
+        int[] ports = SocketUtil.findFreeLocalPorts(3);
 
         Settings settings = settingsBuilder()
                 .put("network.host", "127.0.0.1")
@@ -149,7 +141,7 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
     @Test
     @Network
     public void testThatBindingOnDifferentHostsWorks() throws Exception {
-        int[] ports = getRandomPorts(2);
+        int[] ports = SocketUtil.findFreeLocalPorts(2);
         InetAddress firstNonLoopbackAddress = NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv4);
 
         Settings settings = settingsBuilder()
@@ -165,22 +157,6 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
         assertPortIsBound("127.0.0.1", ports[0]);
         assertPortIsBound(firstNonLoopbackAddress.getHostAddress(), ports[1]);
         assertConnectionRefused(ports[1]);
-    }
-
-    // TODO, make sure one can check more settings and that they are applied correctly
-
-    private int[] getRandomPorts(int numberOfPorts) {
-        IntOpenHashSet ports = new IntOpenHashSet();
-
-        for (int i = 0; i < numberOfPorts; i++) {
-            int port = randomIntBetween(1025, 65000);
-            while (ports.contains(port)) {
-                port = randomIntBetween(1025, 65000);
-            }
-            ports.add(port);
-        }
-
-        return ports.toArray();
     }
 
     private void startNettyTransport(Settings settings) {

@@ -40,10 +40,10 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, enableRandomBenchNodes = false)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, enableRandomBenchNodes = false, transportClientRatio = 1.0)
 public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegrationTest {
 
-    private final int randomPort = randomIntBetween(1025, 65000);
+    private final int randomPort = SocketUtil.findFreeLocalPort();
     private final String randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort+10);
 
     @Override

@@ -119,7 +119,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
                                 name = new Privilege.Name(names.build());
                             } else {
                                 throw new ElasticsearchException("Invalid roles file format [" + path.toAbsolutePath() +
-                                        "]. [cluster] field value can either be a string or a list of strings, but [" + token + "] was found instead");
+                                        "]. [cluster] field value can either be a string or a list of strings, but [" + token + "] was found instead in role [" + roleName + "]");
                             }
                             permission.set(Privilege.Cluster.get(name));
                         } else if ("indices".equals(currentFieldName)) {
@@ -140,13 +140,13 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
                                                     names.add(parser.text());
                                                 } else {
                                                     throw new ElasticsearchException("Invalid roles file format [" + path.toAbsolutePath() +
-                                                            "]. Could not parse [" + token + "] as index privilege. Privilege names must be strings");
+                                                            "]. Could not parse [" + token + "] as index privilege in role[" + roleName + "]. Privilege names must be strings");
                                                 }
                                             }
                                             name = new Privilege.Name(names);
                                         } else {
                                             throw new ElasticsearchException("Invalid roles file format [" + path.toAbsolutePath() +
-                                                    "]. Could not parse [" + token + "] as index privileges list. Privilege lists must either " +
+                                                    "]. Could not parse [" + token + "] as index privileges list in role [" + roleName + "]. Privilege lists must either " +
                                                     "be a comma delimited string or an array of strings");
                                         }
                                         permission.add(Privilege.Index.get(name), indices);
@@ -155,12 +155,12 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
                             } else {
                                 throw new ElasticsearchException("Invalid roles file format [" + path.toAbsolutePath() +
                                         "]. [indices] field value must be an array of indices-privileges mappings defined as a string" +
-                                        " in the form <comma-separated list of index name patterns>::<comma-separated list of privileges> , but [" + token + "] was found instead");
+                                        " in the form <comma-separated list of index name patterns>::<comma-separated list of privileges> , but [" + token + "] was found instead in role [" + roleName + "]");
                             }
                         } else {
                             throw new ElasticsearchException("Invalid roles file format [" + path.toAbsolutePath() +
                                     "]. each role may have [cluster] field (holding a list of cluster permissions) and/or " +
-                                    "[indices] field (holding a list of indices permissions. But [" + token + "] was found instead");
+                                    "[indices] field (holding a list of indices permissions. But [" + token + "] was found instead in role [" + roleName + "]");
                         }
                     }
                     roles.put(roleName, permission.build());

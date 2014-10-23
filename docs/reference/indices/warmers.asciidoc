@@ -4,6 +4,8 @@
 Index warming allows to run registered search requests to warm up the index
 before it is available for search. With the near real time aspect of search,
 cold data (segments) will be warmed up before they become available for search.
+This also means that warmer queries will be run automatically on node startup
+given that the segments will be cold then.
 This includes things such as the filter cache, filesystem cache, and loading
 field data for fields.
 

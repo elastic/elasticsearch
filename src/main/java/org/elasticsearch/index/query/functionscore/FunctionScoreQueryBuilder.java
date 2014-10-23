@@ -51,7 +51,7 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
 
     private ArrayList<FilterBuilder> filters = new ArrayList<>();
     private ArrayList<ScoreFunctionBuilder> scoreFunctions = new ArrayList<>();
-    private Float minScore;
+    private Float minScore = null;
 
     public FunctionScoreQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;

@@ -78,11 +78,11 @@ public class FiltersFunctionScoreQuery extends Query {
     final FilterFunction[] filterFunctions;
     final ScoreMode scoreMode;
     final float maxBoost;
-    private float minScore;
+    private Float minScore;
 
     protected CombineFunction combineFunction;
 
-    public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost, float minScore) {
+    public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost, Float minScore) {
         this.subQuery = subQuery;
         this.scoreMode = scoreMode;
         this.filterFunctions = filterFunctions;
@@ -253,7 +253,7 @@ public class FiltersFunctionScoreQuery extends Query {
         private final Bits[] docSets;
 
         private FiltersFunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode, FilterFunction[] filterFunctions,
-                                            float maxBoost, Bits[] docSets, CombineFunction scoreCombiner, float minScore) throws IOException {
+                                            float maxBoost, Bits[] docSets, CombineFunction scoreCombiner, Float minScore) throws IOException {
             super(w, scorer, maxBoost, scoreCombiner, minScore);
             this.scoreMode = scoreMode;
             this.filterFunctions = filterFunctions;

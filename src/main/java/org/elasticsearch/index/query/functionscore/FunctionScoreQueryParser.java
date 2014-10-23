@@ -89,7 +89,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         FiltersFunctionScoreQuery.ScoreMode scoreMode = FiltersFunctionScoreQuery.ScoreMode.Multiply;
         ArrayList<FiltersFunctionScoreQuery.FilterFunction> filterFunctions = new ArrayList<>();
         float maxBoost = Float.MAX_VALUE;
-        float minScore = Float.MAX_VALUE * -1f;
+        Float minScore = null;
 
         String currentFieldName = null;
         XContentParser.Token token;

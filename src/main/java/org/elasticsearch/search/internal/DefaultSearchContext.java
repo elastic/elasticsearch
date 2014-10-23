@@ -228,7 +228,7 @@ public class DefaultSearchContext extends SearchContext {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }
         if (queryBoost() != 1.0f) {
-            parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new BoostScoreFunction(queryBoost), Float.MAX_VALUE * -1f), parsedQuery()));
+            parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new BoostScoreFunction(queryBoost)), parsedQuery()));
         }
         Filter searchFilter = searchFilter(types());
         if (searchFilter != null) {

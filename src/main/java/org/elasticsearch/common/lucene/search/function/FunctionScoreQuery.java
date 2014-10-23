@@ -40,7 +40,7 @@ public class FunctionScoreQuery extends Query {
     CombineFunction combineFunction;
     private Float minScore = null;
 
-    public FunctionScoreQuery(Query subQuery, ScoreFunction function, float minScore) {
+    public FunctionScoreQuery(Query subQuery, ScoreFunction function, Float minScore) {
         this.subQuery = subQuery;
         this.function = function;
         this.combineFunction = function.getDefaultScoreCombiner();
@@ -148,7 +148,7 @@ public class FunctionScoreQuery extends Query {
 
         private final ScoreFunction function;
 
-        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function, float maxBoost, CombineFunction scoreCombiner, float minScore)
+        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function, float maxBoost, CombineFunction scoreCombiner, Float minScore)
                 throws IOException {
             super(w, scorer, maxBoost, scoreCombiner, minScore);
             this.function = function;

@@ -54,7 +54,7 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class TransportDfsOnlyAction extends TransportBroadcastOperationAction<DfsOnlyRequest, DfsOnlyResponse, ShardDfsOnlyRequest, ShardDfsOnlyResponse> {
 
-    public static final String NAME = "internal:data/read/dfs";
+    public static final String NAME = "internal:index/termvectors/dfs";
 
     private final SearchService searchService;
 

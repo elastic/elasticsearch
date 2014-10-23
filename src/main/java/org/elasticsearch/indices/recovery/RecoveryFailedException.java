@@ -37,6 +37,10 @@ public class RecoveryFailedException extends ElasticsearchException {
         this(request.shardId(), request.sourceNode(), request.targetNode(), extraInfo, cause);
     }
 
+    public RecoveryFailedException(RecoveryState state, @Nullable String extraInfo, Throwable cause) {
+        this(state.getShardId(), state.getSourceNode(), state.getTargetNode(), extraInfo, cause);
+    }
+
     public RecoveryFailedException(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, Throwable cause) {
         this(shardId, sourceNode, targetNode, null, cause);
     }

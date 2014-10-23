@@ -34,6 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -139,55 +140,27 @@ public class RecoveryTarget extends AbstractComponent {
         recoveryState.setTargetNode(clusterService.localNode());
         recoveryState.setPrimary(indexShard.routingEntry().primary());
         final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, recoveryState, listener);
-        threadPool.generic().execute(new Runnable() {
-            @Override
-            public void run() {
-                RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatus(recoveryId);
-                if (statusRef == null) {
-                    return;
-                }
-                try {
-                    doRecovery(statusRef.status());
-                } finally {
-                    // make sure we never interrupt the thread after we have released it back to the pool
-                    statusRef.status().clearWaitingRecoveryThread(Thread.currentThread());
-                    statusRef.close();
-                }
-            }
-        });
+        threadPool.generic().execute(new RecoveryRunner(recoveryId));
 
     }
 
     protected void retryRecovery(final long recoveryId, TimeValue retryAfter) {
         logger.trace("will retrying recovery with id [{}] in [{}]", recoveryId, retryAfter);
-        threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new Runnable() {
-            @Override
-            public void run() {
-                RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatus(recoveryId);
-                if (statusRef == null) {
-                    logger.trace("not retrying recovery with id [{}] - can't find it", recoveryId);
-                    return;
-                }
-                try {
-                    doRecovery(statusRef.status());
-                } finally {
-                    // make sure we never interrupt the thread after we have released it back to the pool
-                    statusRef.status().clearWaitingRecoveryThread(Thread.currentThread());
-                    statusRef.close();
-                }
-            }
-        });
+        threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryId));
     }
 
     private void doRecovery(final RecoveryStatus recoveryStatus) {
         assert recoveryStatus.sourceNode() != null : "can't do a recovery without a source node";
 
         logger.trace("collecting local files for {}", recoveryStatus);
-        Map<String, StoreFileMetaData> existingFiles = ImmutableMap.of();
+        final Map<String, StoreFileMetaData> existingFiles;
         try {
             existingFiles = recoveryStatus.store().getMetadata().asMap();
         } catch (Exception e) {
             logger.debug("error while listing local files, recovery as if there are none", e);
+            onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(),
+                    new RecoveryFailedException(recoveryStatus.state(), "failed to list local files", e), true);
+            return;
         }
         StartRecoveryRequest request = new StartRecoveryRequest(recoveryStatus.shardId(), recoveryStatus.sourceNode(), clusterService.localNode(),
                 false, existingFiles, recoveryStatus.state().getType(), recoveryStatus.recoveryId());
@@ -476,6 +449,46 @@ public class RecoveryTarget extends AbstractComponent {
                 }
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
+    }
+
+    class RecoveryRunner extends AbstractRunnable {
+
+        final long recoveryId;
+
+        RecoveryRunner(long recoveryId) {
+            this.recoveryId = recoveryId;
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+            try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatus(recoveryId)) {
+                if (statusRef == null) {
+                    logger.error("unexpected error during recovery [{}], failing shard", t, recoveryId);
+                    onGoingRecoveries.failRecovery(recoveryId,
+                            new RecoveryFailedException(statusRef.status().state(), "unexpected error", t),
+                            true // be safe
+                    );
+                } else {
+                    logger.debug("unexpected error during recovery, but recovery id [{}] is finished", t, recoveryId);
+                }
+            }
+        }
+
+        @Override
+        public void doRun() {
+            RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatus(recoveryId);
+            if (statusRef == null) {
+                logger.trace("not running recovery with id [{}] - can't find it (probably finished)", recoveryId);
+                return;
+            }
+            try {
+                doRecovery(statusRef.status());
+            } finally {
+                // make sure we never interrupt the thread after we have released it back to the pool
+                statusRef.status().clearWaitingRecoveryThread(Thread.currentThread());
+                statusRef.close();
+            }
         }
     }
 

@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 
-@ClusterScope(scope = SUITE, numDataNodes = 10)
+@ClusterScope(scope = SUITE, numDataNodes = 3)
 public class LicensesServiceTests extends ElasticsearchIntegrationTest {
 
 
@@ -89,9 +89,6 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         });
         latch.await();
         clear();
-        masterClusterService().remove(licensesService());
-        masterClusterService().add(licensesService());
-
     }
 
     @Test
@@ -193,6 +190,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         clientService.register("shield", new LicensesService.TrialLicenseOptions(10, 100), new LicensesClientService.Listener() {
             @Override
             public void onEnabled() {
+                logger.info("got onEnabled from LicensesClientService");
                 latch.countDown();
             }
 
@@ -201,6 +199,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
                 fail();
             }
         });
+        logger.info("waiting for onEnabled");
         latch.await();
         final LicensesMetaData metaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
         assertTrue(metaData.getEncodedTrialLicenses().size() == 1);
@@ -330,7 +329,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
 
     private LicensesClientService licensesClientService() {
         final InternalTestCluster clients = internalCluster();
-        return clients.getInstance(LicensesClientService.class, clients.getMasterName());
+        return clients.getInstance(LicensesClientService.class);
     }
 
     private LicensesService licensesService() {

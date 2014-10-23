@@ -55,6 +55,34 @@ public class LicensesMetaData implements MetaData.Custom {
         return encodedTrialLicenses;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof LicensesMetaData) {
+            LicensesMetaData other = (LicensesMetaData) obj;
+            boolean signaturesEqual = false;
+            boolean trialLicensesEqual = false;
+
+            if (other.getSignatures() != null) {
+                if (this.getSignatures() != null) {
+                    signaturesEqual = other.getSignatures().equals(this.getSignatures());
+                } else {
+                    return false;
+                }
+            }
+
+            if (other.getEncodedTrialLicenses() != null) {
+                if (this.getEncodedTrialLicenses() != null) {
+                    trialLicensesEqual = other.getEncodedTrialLicenses().equals(this.getEncodedTrialLicenses());
+                } else {
+                    return false;
+                }
+            }
+
+            return signaturesEqual && trialLicensesEqual;
+        }
+        return false;
+    }
+
     /**
      * Licenses metadata factory
      */

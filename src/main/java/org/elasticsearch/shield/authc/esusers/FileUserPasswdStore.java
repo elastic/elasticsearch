@@ -54,6 +54,9 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
         super(settings);
         file = resolveFile(settings, env);
         esUsers = parseFile(file, logger);
+        if (esUsers.isEmpty() && logger.isDebugEnabled()) {
+            logger.debug("Realm [esusers] has no users");
+        }
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);

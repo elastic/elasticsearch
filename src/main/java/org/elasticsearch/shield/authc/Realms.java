@@ -7,6 +7,8 @@ package org.elasticsearch.shield.authc;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.authc.system.SystemRealm;
@@ -19,6 +21,8 @@ import java.util.List;
  */
 public class Realms {
 
+    private static final ESLogger logger = ESLoggerFactory.getLogger(Realms.class.getName());
+
     private final Realm[] realms;
 
     @Inject
@@ -27,9 +31,11 @@ public class Realms {
         List<Realm> realms = new ArrayList<>();
         realms.add(system);
         if (esusers != null) {
+            logger.info("Realm [" + esusers.type() + "] is used");
             realms.add(esusers);
         }
         if (ldap != null) {
+            logger.info("Realm [" + ldap.type() + "] is used");
             realms.add(ldap);
         }
         this.realms = realms.toArray(new Realm[realms.size()]);

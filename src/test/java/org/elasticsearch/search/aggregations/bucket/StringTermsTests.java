@@ -58,15 +58,11 @@ import static org.hamcrest.core.IsNull.nullValue;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
-public class StringTermsTests extends ElasticsearchIntegrationTest {
+public class StringTermsTests extends AbstractTermsTests {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";
     private static final String MULTI_VALUED_FIELD_NAME = "s_values";
     private static Map<String, Map<String, Object>> expectedMultiSortBuckets;
-
-    public static String randomExecutionHint() {
-        return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();
-    }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -248,7 +244,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
-        assertSearchResponse(response);System.out.println(response);
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -1677,5 +1673,10 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
         terms = response.getAggregations().get("terms");
         assertEquals(5L, terms.getBucketByKey("i").getDocCount());
+    }
+    
+    @Test
+    public void otherDocCount() {
+        testOtherDocCount(SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME);
     }
 }

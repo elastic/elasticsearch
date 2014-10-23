@@ -28,10 +28,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
 import java.text.ParseException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -98,7 +95,7 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
 
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster());
         //putLicenseRequest.license(licenseString);
-        final Set<ESLicense> putLicenses = ESLicenses.fromSource(licenseOutput);
+        final List<ESLicense> putLicenses = ESLicenses.fromSource(licenseOutput);
         putLicenseRequestBuilder.setLicense(putLicenses);
         //LicenseUtils.printLicense(putLicenses);
         ensureGreen();
@@ -116,7 +113,7 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
         assertThat(getLicenseResponse.licenses(), notNullValue());
 
         //LicenseUtils.printLicense(getLicenseResponse.licenses());
-        TestUtils.isSame(putLicenses, getLicenseResponse.licenses());
+        TestUtils.isSame(new HashSet<>(putLicenses), new HashSet<>(getLicenseResponse.licenses()));
 
 
         final ActionFuture<DeleteLicenseResponse> deleteFuture = new DeleteLicenseRequestBuilder(client().admin().cluster())
@@ -137,7 +134,7 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
         String licenseString = TestUtils.generateESLicenses(map);
         String licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
 
-        Set<ESLicense> esLicenses = ESLicenses.fromSource(licenseOutput);
+        Set<ESLicense> esLicenses = new HashSet<>(ESLicenses.fromSource(licenseOutput));
 
         ESLicense esLicense = Utils.reduceAndMap(esLicenses).get(TestUtils.SHIELD);
 
@@ -149,7 +146,7 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
                 .build();
 
         PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster());
-        builder.setLicense(Collections.singleton(tamperedLicense));
+        builder.setLicense(Collections.singletonList(tamperedLicense));
 
         final ListenableActionFuture<PutLicenseResponse> execute = builder.execute();
 

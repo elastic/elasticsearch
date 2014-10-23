@@ -14,12 +14,12 @@ import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.List;
 
 
 public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
 
-    private Set<ESLicense> licenses;
+    private List<ESLicense> licenses;
 
     public PutLicenseRequest() {
     }
@@ -41,12 +41,12 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
         }
     }
 
-    public PutLicenseRequest licenses(Set<ESLicense> esLicenses) {
+    public PutLicenseRequest licenses(List<ESLicense> esLicenses) {
         this.licenses = esLicenses;
         return this;
     }
 
-    public Set<ESLicense> licenses() {
+    public List<ESLicense> licenses() {
         return licenses;
     }
 

@@ -38,6 +38,7 @@ import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -70,6 +71,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     private List<ListenerHolder> registeredListeners = new CopyOnWriteArrayList<>();
 
+    private Queue<ListenerHolder> pendingRegistrations = new ConcurrentLinkedQueue<>();
+
     private volatile ScheduledFuture notificationScheduler;
 
     @Inject
@@ -93,7 +96,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     @Override
     public LicensesStatus registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener) {
         final PutLicenseRequest request = requestHolder.request;
-        final Set<ESLicense> newLicenses = request.licenses();
+        final Set<ESLicense> newLicenses = Sets.newHashSet(request.licenses());
         LicensesStatus status = checkLicenses(newLicenses);
         switch (status) {
             case VALID:
@@ -114,7 +117,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 LicensesMetaData currentLicenses = metaData.custom(LicensesMetaData.TYPE);
                 final LicensesWrapper licensesWrapper = LicensesWrapper.wrap(currentLicenses);
-                licensesWrapper.addSignedLicenses(esLicenseManager, newLicenses);
+                licensesWrapper.addSignedLicenses(esLicenseManager, Sets.newHashSet(newLicenses));
                 mdBuilder.putCustom(LicensesMetaData.TYPE, licensesWrapper.createLicensesMetaData());
                 return ClusterState.builder(currentState).metaData(mdBuilder).build();
             }
@@ -177,7 +180,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     }
 
     @Override
-    public Set<ESLicense> getLicenses() {
+    public List<ESLicense> getLicenses() {
         LicensesMetaData currentMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
         Set<ESLicense> trialLicenses = new HashSet<>();
         if (currentMetaData != null) {
@@ -197,10 +200,31 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 );
             }
             Set<ESLicense> licenses = Sets.union(currentLicenses, trialLicenses);
-            //TODO: sort in some order
-            return licenses;
+
+            // bucket license for feature with the latest expiry date
+            Map<String, ESLicense> licenseMap = new HashMap<>();
+            for (ESLicense license : licenses) {
+                if (!licenseMap.containsKey(license.feature())) {
+                    licenseMap.put(license.feature(), license);
+                } else {
+                    ESLicense prevLicense = licenseMap.get(license.feature());
+                    if (license.expiryDate() > prevLicense.expiryDate()) {
+                        licenseMap.put(license.feature(), license);
+                    }
+                }
+            }
+
+            // sort the licenses by issue date
+            List<ESLicense> reducedLicenses = new ArrayList<>(licenseMap.values());
+            Collections.sort(reducedLicenses, new Comparator<ESLicense>() {
+                @Override
+                public int compare(ESLicense license1, ESLicense license2) {
+                    return (int) (license2.issueDate() - license1.issueDate());
+                }
+            });
+            return reducedLicenses;
         }
-        return Sets.newHashSet();
+        return Collections.emptyList();
     }
 
 
@@ -283,6 +307,17 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     public void clusterChanged(ClusterChangedEvent event) {
         if (!event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
 
+            if (!pendingRegistrations.isEmpty()) {
+                while (true) {
+                    ListenerHolder pendingRegistrationLister = pendingRegistrations.poll();
+                    if (pendingRegistrationLister != null) {
+                        registerListener(pendingRegistrationLister);
+                    } else {
+                        break;
+                    }
+                }
+            }
+
             // notify all interested plugins
             if (checkIfUpdatedMetaData(event)) {
                 final LicensesMetaData currentLicensesMetaData = event.state().getMetaData().custom(LicensesMetaData.TYPE);
@@ -313,43 +348,49 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     @Override
     public void register(String feature, TrialLicenseOptions trialLicenseOptions, Listener listener) {
-        registeredListeners.add(new ListenerHolder(feature, trialLicenseOptions, listener));
+        final ListenerHolder listenerHolder = new ListenerHolder(feature, trialLicenseOptions, listener);
+        registeredListeners.add(listenerHolder);
 
-        if (!clusterService.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            LicensesMetaData currentMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-            registerListeners(currentMetaData);
-        }
+        //if (!clusterService.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+        registerListener(listenerHolder);
+        //}
     }
 
-    private void registerListeners(LicensesMetaData currentMetaData) {
-        for (ListenerHolder listenerHolder : registeredListeners) {
-            if (listenerHolder.registered.compareAndSet(false, true)) {
-                if (!esLicenseManager.hasLicenseForFeature(listenerHolder.feature, getEffectiveLicenses())) {
-                    // does not have actual license so generate a trial license
-                    TrialLicenseOptions options = listenerHolder.trialLicenseOptions;
-                    if (options != null) {
-                        // Trial license option is provided
-                        RegisterTrialLicenseRequest request = new RegisterTrialLicenseRequest(listenerHolder.feature,
-                                new TimeValue(options.durationInDays, TimeUnit.DAYS), options.maxNodes);
-                        if (clusterService.state().nodes().localNodeMaster()) {
-                            registerTrialLicense(request);
-                        } else {
-                            DiscoveryNode masterNode;
-                            if ((masterNode = clusterService.state().nodes().masterNode()) != null) {
-                                transportService.sendRequest(masterNode,
-                                        REGISTER_TRIAL_LICENSE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
-                            } else {
-                                // could not sent register trial license request to master
-                            }
-                        }
+    private void registerListener(final ListenerHolder listenerHolder) {
+        LicensesMetaData currentMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
+        if (!esLicenseManager.hasLicenseForFeature(listenerHolder.feature, getEffectiveLicenses())) {
+            // does not have actual license so generate a trial license
+            TrialLicenseOptions options = listenerHolder.trialLicenseOptions;
+            if (options != null) {
+                // Trial license option is provided
+                RegisterTrialLicenseRequest request = new RegisterTrialLicenseRequest(listenerHolder.feature,
+                        new TimeValue(options.durationInDays, TimeUnit.DAYS), options.maxNodes);
+                if (clusterService.state().nodes().localNodeMaster()) {
+                    registerTrialLicense(request);
+                } else {
+                    DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
+                    logger.info("has STATE_NOT_RECOVERED_BLOCK: " + clusterService.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+                     + " has masterNode: " + (masterNode != null));
+                    if (masterNode != null) {
+                        transportService.sendRequest(masterNode,
+                                REGISTER_TRIAL_LICENSE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
                     } else {
-                        // notify feature as clusterChangedEvent may not happen
-                        // Change to debug
-                        logger.info("calling notifyFeatures from registerListeners");
-                        notifyFeatures(currentMetaData);
+                        // could not sent register trial license request to master
+                        pendingRegistrations.add(listenerHolder);
+
                     }
                 }
+            } else {
+                // notify feature as clusterChangedEvent may not happen
+                // as no trial or signed license has been found for feature
+                // Change to debug
+                logger.info("calling notifyFeatures from registerListeners");
+                notifyFeatures(currentMetaData);
             }
+        } else {
+            // signed license already found for the new registered
+            // feature, notify feature on registration
+            notifyFeatures(currentMetaData);
         }
     }
 
@@ -505,7 +546,6 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         final String feature;
         final TrialLicenseOptions trialLicenseOptions;
         final Listener listener;
-        final AtomicBoolean registered = new AtomicBoolean(false);
 
         final AtomicBoolean enabled = new AtomicBoolean(false); // by default, a consumer plugin should be disabled
 

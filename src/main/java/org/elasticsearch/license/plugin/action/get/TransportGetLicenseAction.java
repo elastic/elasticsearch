@@ -20,6 +20,7 @@ import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
 import java.util.Set;
 
 public class TransportGetLicenseAction extends TransportMasterNodeReadOperationAction<GetLicenseRequest, GetLicenseResponse> {
@@ -55,7 +56,7 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadOperationA
 
     @Override
     protected void masterOperation(final GetLicenseRequest request, ClusterState state, final ActionListener<GetLicenseResponse> listener) throws ElasticsearchException {
-        final Set<ESLicense> currentLicenses = licensesManagerService.getLicenses();
+        final List<ESLicense> currentLicenses = licensesManagerService.getLicenses();
         listener.onResponse(new GetLicenseResponse(currentLicenses));
     }
 }

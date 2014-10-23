@@ -26,15 +26,15 @@ public class ESLicenses {
         builder.endObject();
     }
 
-    public static Set<ESLicense> fromSource(String content) throws IOException {
+    public static List<ESLicense> fromSource(String content) throws IOException {
         return fromSource(content.getBytes(LicensesCharset.UTF_8));
     }
 
-    public static Set<ESLicense> fromSource(byte[] bytes) throws IOException {
+    public static List<ESLicense> fromSource(byte[] bytes) throws IOException {
         return fromXContent(XContentFactory.xContent(bytes).createParser(bytes));
     }
 
-    private static Set<ESLicense> fromXContent(XContentParser parser) throws IOException {
+    private static List<ESLicense> fromXContent(XContentParser parser) throws IOException {
         Set<ESLicense> esLicenses = new HashSet<>();
         final Map<String, Object> licensesMap = parser.mapAndClose();
         @SuppressWarnings("unchecked")
@@ -43,19 +43,19 @@ public class ESLicenses {
             final ESLicense esLicense = ESLicense.fromXContent(licenseMap);
             esLicenses.add(esLicense);
         }
-        return esLicenses;
+        return new ArrayList<>(esLicenses);
     }
 
-    public static Set<ESLicense> readFrom(StreamInput in) throws IOException {
+    public static List<ESLicense> readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
-        Set<ESLicense> esLicenses = new HashSet<>(size);
+        List<ESLicense> esLicenses = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             esLicenses.add(ESLicense.readFrom(in));
         }
         return esLicenses;
     }
 
-    public static void writeTo(Set<ESLicense> esLicenses, StreamOutput out) throws IOException {
+    public static void writeTo(List<ESLicense> esLicenses, StreamOutput out) throws IOException {
         out.writeVInt(esLicenses.size());
         for (ESLicense license : esLicenses) {
             ESLicense.writeTo(license, out);

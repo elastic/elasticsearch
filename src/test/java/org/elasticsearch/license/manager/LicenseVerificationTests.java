@@ -52,7 +52,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
                 new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, issueDateStr, expiryDateStr);
         map.put(TestUtils.SHIELD, featureAttributes);
 
-        Set<ESLicense> esLicensesOutput = ESLicenses.fromSource(generateSignedLicenses(map));
+        Set<ESLicense> esLicensesOutput = new HashSet<>(ESLicenses.fromSource(generateSignedLicenses(map)));
 
         esLicenseProvider.setLicenses(esLicensesOutput);
 
@@ -76,7 +76,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
         map.put(TestUtils.SHIELD, shildFeatureAttributes);
         map.put(TestUtils.MARVEL, marvelFeatureAttributes);
 
-        Set<ESLicense> esLicensesOutput = ESLicenses.fromSource(generateSignedLicenses(map));
+        Set<ESLicense> esLicensesOutput = new HashSet<>(ESLicenses.fromSource(generateSignedLicenses(map)));
 
         esLicenseProvider.setLicenses(esLicensesOutput);
 
@@ -131,7 +131,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
         map.put(TestUtils.SHIELD, shildFeatureAttributes);
         map.put(TestUtils.MARVEL, marvelFeatureAttributes);
 
-        Set<ESLicense> esLicensesOutput = ESLicenses.fromSource(generateSignedLicenses(map));
+        Set<ESLicense> esLicensesOutput = new HashSet<>(ESLicenses.fromSource(generateSignedLicenses(map)));
 
         esLicenseProvider.setLicenses(esLicensesOutput);
 
@@ -153,7 +153,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
                 new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, issueDateStr, expiryDateStr);
         map.put(TestUtils.SHIELD, featureAttributes);
 
-        Set<ESLicense> esLicensesOutput = ESLicenses.fromSource(generateSignedLicenses(map));
+        Set<ESLicense> esLicensesOutput = new HashSet<>(ESLicenses.fromSource(generateSignedLicenses(map)));
 
         ESLicense esLicense = Utils.reduceAndMap(esLicensesOutput).get(TestUtils.SHIELD);
 

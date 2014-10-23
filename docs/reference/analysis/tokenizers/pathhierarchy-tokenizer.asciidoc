@@ -1,7 +1,7 @@
 [[analysis-pathhierarchy-tokenizer]]
 === Path Hierarchy Tokenizer
 
-The `path_hierarchy` tokenizer takes something like this:
+The `PathHierarchy` tokenizer takes something like this:
 
 -------------------------
 /something/something/else

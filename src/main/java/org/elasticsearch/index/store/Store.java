@@ -26,7 +26,6 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.lucene46.Lucene46SegmentInfoFormat;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
@@ -42,6 +41,8 @@ import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -53,7 +54,6 @@ import java.io.*;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -77,7 +77,7 @@ import java.util.zip.Checksum;
  *      }
  * </pre>
  */
-public class Store extends AbstractIndexShardComponent implements CloseableIndexComponent, Closeable {
+public class Store extends AbstractIndexShardComponent implements CloseableIndexComponent, Closeable, RefCounted {
 
     private static final String CODEC = "store";
     private static final int VERSION_STACK_TRACE = 1; // we write the stack trace too since 1.4.0
@@ -86,11 +86,17 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private static final String CORRUPTED = "corrupted_";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
-    private final AtomicInteger refCount = new AtomicInteger(1);
     private final CodecService codecService;
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
     private final DistributorDirectory distributorDirectory;
+    private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
+        @Override
+        protected void closeInternal() {
+            // close us once we are done
+            Store.this.closeInternal();
+        }
+    };
 
     @Inject
     public Store(ShardId shardId, @IndexSettings Settings indexSettings, CodecService codecService, DirectoryService directoryService, Distributor distributor) throws IOException {
@@ -134,8 +140,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     final void ensureOpen() { // for testing
-        if (this.refCount.get() <= 0) {
-            throw new AlreadyClosedException("Store is already closed");
+        if (this.refCounter.refCount() <= 0) {
+            throw new AlreadyClosedException("store is already closed");
         }
     }
 
@@ -211,10 +217,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * @see #tryIncRef()
      * @throws AlreadyClosedException iff the reference counter can not be incremented.
      */
+    @Override
     public final void incRef() {
-        if (tryIncRef() == false) {
-            throw new AlreadyClosedException("Store is already closed can't increment refCount current count [" + refCount.get() + "]");
-        }
+       refCounter.incRef();
     }
 
     /**
@@ -229,17 +234,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * @see #decRef()
      * @see #incRef()
      */
+    @Override
     public final boolean tryIncRef() {
-        do {
-            int i = refCount.get();
-            if (i > 0) {
-                if (refCount.compareAndSet(i, i + 1)) {
-                    return true;
-                }
-            } else {
-                return false;
-            }
-        } while (true);
+       return refCounter.tryIncRef();
     }
 
     /**
@@ -247,13 +244,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * store is closed.
      * @see #incRef
      */
+    @Override
     public final void decRef() {
-        int i = refCount.decrementAndGet();
-        assert i >= 0;
-        if (i == 0) {
-            closeInternal();
-        }
-
+       refCounter.decRef();
     }
 
     @Override

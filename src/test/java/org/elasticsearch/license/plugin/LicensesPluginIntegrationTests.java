@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -32,13 +33,13 @@ public class LicensesPluginIntegrationTests extends ElasticsearchIntegrationTest
         return nodeSettings(0);
     }
 
-    @Test
+    @Test @Ignore
     public void testLicenseRegistration() throws Exception {
         LicensesManagerService managerService = licensesManagerService();
         assertTrue(managerService.enabledFeatures().contains(TestPluginService.FEATURE_NAME));
     }
 
-    @Test
+    @Test @Ignore
     public void testFeatureActivation() throws Exception {
         TestPluginService pluginService = consumerPluginService();
         assertTrue(pluginService.enabled());

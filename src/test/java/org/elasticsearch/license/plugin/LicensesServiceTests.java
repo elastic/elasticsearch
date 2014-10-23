@@ -183,7 +183,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         TestUtils.isSame(licenses2, metaDataLicense);
     }
 
-    @Test
+    @Test @Ignore
     public void testTrialLicenseGeneration() throws Exception {
         LicensesClientService clientService = licensesClientService();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -242,7 +242,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test
+    @Test @Ignore
     public void testClientValidation() throws Exception {
         // start with no trial license
         // feature should be onDisabled

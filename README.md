@@ -7,7 +7,7 @@ for the unicast discovery mechanism and add S3 repositories.
 In order to install the plugin, run: 
 
 ```sh
-bin/plugin -install elasticsearch/elasticsearch-cloud-aws/2.3.0
+bin/plugin -install elasticsearch/elasticsearch-cloud-aws/2.4.0
 ```
 
 You need to install a version matching your Elasticsearch version:
@@ -16,7 +16,7 @@ You need to install a version matching your Elasticsearch version:
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
 |    es-1.x              | Build from source | [2.5.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-1.x/#version-250-snapshot-for-elasticsearch-1x)  |
-|    es-1.4              | Build from source | [2.4.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/v2.4.0/#version-240-for-elasticsearch-1x)                    |
+|    es-1.4              |     2.4.0         | [2.4.0](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/v2.4.0/#version-240-for-elasticsearch-14)                  |
 |    es-1.3              |     2.3.0         | [2.3.0](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/v2.3.0/#version-230-for-elasticsearch-13)                    |
 |    es-1.2              |     2.2.0         | [2.2.0](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/v2.2.0/#aws-cloud-plugin-for-elasticsearch)                  |
 |    es-1.1              |     2.1.1         | [2.1.1](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/v2.1.1/#aws-cloud-plugin-for-elasticsearch)                  |

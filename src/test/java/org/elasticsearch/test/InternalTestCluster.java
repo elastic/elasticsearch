@@ -1169,7 +1169,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
 
-    private String getMasterName() {
+    public String getMasterName() {
         try {
             ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
             return state.nodes().masterNode().name();

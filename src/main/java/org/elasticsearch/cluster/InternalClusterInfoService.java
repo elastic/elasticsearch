@@ -84,7 +84,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.updateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, TimeValue.timeValueSeconds(30));
-        this.enabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, false);
+        this.enabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true);
         nodeSettingsService.addListener(new ApplySettings());
 
         // Add InternalClusterInfoService to listen for Master changes

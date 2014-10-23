@@ -67,10 +67,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.*;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -727,12 +724,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 try {
                     store.failIfCorrupted();
                     request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
-                            false, store.getMetadata().asMap(), type, recoveryIdGenerator.incrementAndGet());
+                            false, store.getMetadataOrEmpty().asMap(), type, recoveryIdGenerator.incrementAndGet());
                 } finally {
                     store.decRef();
                 }
                 recoveryTarget.startRecovery(request, indexShard, new PeerRecoveryListener(request, shardRouting, indexService, indexMetaData));
-
             } catch (Throwable e) {
                 indexShard.engine().failEngine("corrupted preexisting index", e);
                 handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);

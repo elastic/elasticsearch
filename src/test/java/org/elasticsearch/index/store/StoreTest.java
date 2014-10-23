@@ -40,9 +40,7 @@ import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static org.hamcrest.Matchers.*;
 
 public class StoreTest extends ElasticsearchLuceneTestCase {
@@ -184,9 +182,15 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         if (random().nextBoolean()) {
             DirectoryReader.open(writer, random().nextBoolean()).close(); // flush
         }
+        Store.MetadataSnapshot metadata;
         // check before we committed
-        Store.MetadataSnapshot metadata = store.getMetadata();
-        assertThat(metadata.asMap().isEmpty(), is(true));   // nothing committed
+        try {
+            store.getMetadata();
+            fail("no index present - expected exception");
+        } catch (IndexNotFoundException ex) {
+            // expected
+        }
+        assertThat(store.getMetadataOrEmpty(), is(Store.MetadataSnapshot.EMPTY)); // nothing committed
 
         writer.close();
         Store.LegacyChecksums checksums = new Store.LegacyChecksums();
@@ -247,10 +251,15 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         if (random().nextBoolean()) {
             DirectoryReader.open(writer, random().nextBoolean()).close(); // flush
         }
+        Store.MetadataSnapshot metadata;
         // check before we committed
-        Store.MetadataSnapshot metadata = store.getMetadata();
-        assertThat(metadata.asMap().isEmpty(), is(true)); // nothing committed
-
+        try {
+            store.getMetadata();
+            fail("no index present - expected exception");
+        } catch (IndexNotFoundException ex) {
+            // expected
+        }
+        assertThat(store.getMetadataOrEmpty(), is(Store.MetadataSnapshot.EMPTY)); // nothing committed
         writer.commit();
         writer.close();
         metadata = store.getMetadata();
@@ -302,9 +311,15 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         if (random().nextBoolean()) {
             DirectoryReader.open(writer, random().nextBoolean()).close(); // flush
         }
+        Store.MetadataSnapshot metadata;
         // check before we committed
-        Store.MetadataSnapshot metadata = store.getMetadata();
-        assertThat(metadata.asMap().isEmpty(), is(true)); // nothing committed
+        try {
+            store.getMetadata();
+            fail("no index present - expected exception");
+        } catch (IndexNotFoundException ex) {
+            // expected
+        }
+        assertThat(store.getMetadataOrEmpty(), is(Store.MetadataSnapshot.EMPTY)); // nothing committed
         writer.commit();
         writer.close();
         Store.LegacyChecksums checksums = new Store.LegacyChecksums();
@@ -707,7 +722,4 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         store.deleteContent();
         IOUtils.close(store);
     }
-
-
-
 }

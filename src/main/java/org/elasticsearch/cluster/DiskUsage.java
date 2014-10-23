@@ -55,6 +55,6 @@ public class DiskUsage {
     }
 
     public String toString() {
-        return "[" + nodeId + "] free: " + getFreeBytes() + "[" + getFreeDiskAsPercentage() + "]";
+        return "[" + nodeId + "] free: " + getFreeBytes() + "[" + getFreeDiskAsPercentage() + "%]";
     }
 }

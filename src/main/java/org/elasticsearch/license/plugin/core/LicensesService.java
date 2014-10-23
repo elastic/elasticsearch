@@ -308,13 +308,9 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         if (!event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
 
             if (!pendingRegistrations.isEmpty()) {
-                while (true) {
-                    ListenerHolder pendingRegistrationLister = pendingRegistrations.poll();
-                    if (pendingRegistrationLister != null) {
-                        registerListener(pendingRegistrationLister);
-                    } else {
-                        break;
-                    }
+                ListenerHolder pendingRegistrationLister;
+                while ((pendingRegistrationLister = pendingRegistrations.poll()) != null) {
+                    registerListener(pendingRegistrationLister);
                 }
             }
 

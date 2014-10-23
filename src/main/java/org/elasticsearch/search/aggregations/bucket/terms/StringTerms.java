@@ -98,8 +98,8 @@ public class StringTerms extends InternalTerms {
 
     StringTerms() {} // for serialization
 
-    public StringTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError) {
-        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError);
+    public StringTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount) {
+        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount);
     }
 
     @Override
@@ -108,8 +108,8 @@ public class StringTerms extends InternalTerms {
     }
 
     @Override
-    protected InternalTerms newAggregation(String name, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError) {
-        return new StringTerms(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError);
+    protected InternalTerms newAggregation(String name, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount) {
+        return new StringTerms(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount);
     }
 
     @Override
@@ -130,6 +130,9 @@ public class StringTerms extends InternalTerms {
             this.showTermDocCountError = false;
         }
         this.minDocCount = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            this.otherDocCount = in.readVLong();
+        }
         int size = in.readVInt();
         List<InternalTerms.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -159,6 +162,9 @@ public class StringTerms extends InternalTerms {
             out.writeBoolean(showTermDocCountError);
         }
         out.writeVLong(minDocCount);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            out.writeVLong(otherDocCount);
+        }
         out.writeVInt(buckets.size());
         for (InternalTerms.Bucket bucket : buckets) {
             out.writeBytesRef(((Bucket) bucket).termBytes);
@@ -173,6 +179,7 @@ public class StringTerms extends InternalTerms {
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, docCountError);
+        builder.field(SUM_OF_OTHER_DOC_COUNTS, otherDocCount);
         builder.startArray(CommonFields.BUCKETS);
         for (InternalTerms.Bucket bucket : buckets) {
             builder.startObject();

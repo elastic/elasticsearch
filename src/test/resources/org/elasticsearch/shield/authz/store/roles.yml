@@ -9,5 +9,5 @@ role2:
 
 role3:
   indices:
-    '.*_.*': READ, WRITE
+    '/.*_.*/': READ, WRITE
 

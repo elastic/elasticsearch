@@ -33,8 +33,6 @@ public class TriggerManager extends AbstractComponent {
     private final ScriptService scriptService;
 
     public static AlertTrigger parseTriggerFromMap(Map<String, Object> triggerMap) {
-
-        //For now just trigger on number of events greater than 1
         for (Map.Entry<String,Object> entry : triggerMap.entrySet()){
             AlertTrigger.TriggerType type = AlertTrigger.TriggerType.fromString(entry.getKey());
             if (type == AlertTrigger.TriggerType.SCRIPT) {
@@ -48,6 +46,7 @@ public class TriggerManager extends AbstractComponent {
         }
         throw new ElasticsearchIllegalArgumentException();
     }
+
     private static ScriptedAlertTrigger parseScriptedTrigger(Object value) {
         if (value instanceof Map) {
             Map<String,Object> valueMap = (Map<String,Object>)value;

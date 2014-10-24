@@ -3,8 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerting;
-
-public interface AlertActionFactory {
-    AlertAction createAction(Object parameters);
-}
+/**
+  */
+package org.elasticsearch.alerting.triggers;

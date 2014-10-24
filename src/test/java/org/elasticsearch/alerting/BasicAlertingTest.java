@@ -5,6 +5,12 @@
  */
 package org.elasticsearch.alerting;
 
+import org.elasticsearch.alerting.actions.AlertAction;
+import org.elasticsearch.alerting.actions.AlertActionFactory;
+import org.elasticsearch.alerting.actions.AlertActionManager;
+import org.elasticsearch.alerting.scheduler.AlertScheduler;
+import org.elasticsearch.alerting.triggers.AlertTrigger;
+import org.elasticsearch.alerting.triggers.ScriptedAlertTrigger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;

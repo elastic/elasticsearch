@@ -3,11 +3,16 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerting;
+package org.elasticsearch.alerting.scheduler;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.alerting.Alert;
+import org.elasticsearch.alerting.actions.AlertActionManager;
+import org.elasticsearch.alerting.AlertManager;
+import org.elasticsearch.alerting.AlertResult;
+import org.elasticsearch.alerting.triggers.TriggerManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -208,7 +213,7 @@ public class AlertScheduler extends AbstractLifecycleComponent implements Cluste
     }
 
     public void addAlert(String alertName, Alert alert) {
-        JobDetail job = JobBuilder.newJob(org.elasticsearch.alerting.AlertExecutorJob.class).withIdentity(alertName).build();
+        JobDetail job = JobBuilder.newJob(AlertExecutorJob.class).withIdentity(alertName).build();
         job.getJobDataMap().put("manager",this);
         CronTrigger cronTrigger = TriggerBuilder.newTrigger()
                 .withSchedule(CronScheduleBuilder.cronSchedule(alert.schedule()))

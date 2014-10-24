@@ -6,7 +6,7 @@
 package org.elasticsearch.plugin.alerting;
 
 import org.elasticsearch.alerting.AlertManager;
-import org.elasticsearch.alerting.AlertScheduler;
+import org.elasticsearch.alerting.scheduler.AlertScheduler;
 import org.elasticsearch.alerting.AlertingModule;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.LifecycleComponent;

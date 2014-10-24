@@ -100,6 +100,7 @@ public class SocketUtil {
         try {
             try(ServerSocket serverSocket = new ServerSocket()) {
                 SocketAddress sa = new InetSocketAddress(localAddress, port);
+                serverSocket.setReuseAddress(true);
                 serverSocket.bind(sa);
                 return true;
             }

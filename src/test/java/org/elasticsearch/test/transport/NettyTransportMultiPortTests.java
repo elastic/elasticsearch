@@ -24,6 +24,7 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
@@ -42,6 +43,7 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -53,6 +55,10 @@ import static org.hamcrest.Matchers.is;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 1)
 public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
+
+    // cannot be static due to randomization
+    private final String EXPECTED_CONNECTION_ACCEPTED_PORT = "a_" + randomAsciiOfLength(10);
+    private final String EXPECTED_CONNECTION_REFUSED_PORT = "r_" + randomAsciiOfLength(10);
 
     private NettyTransport nettyTransport;
     private ThreadPool threadPool;
@@ -70,96 +76,88 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
     @Test
     @TestLogging("shield.transport.netty:DEBUG")
     public void testThatNettyCanBindToMultiplePorts() throws Exception {
-        int[] ports = SocketUtil.findFreeLocalPorts(3);
-
         Settings settings = settingsBuilder()
                 .put("network.host", "127.0.0.1")
-                .put("transport.tcp.port", ports[0])
-                .put("transport.profiles.default.port", ports[1])
-                .put("transport.profiles.client1.port", ports[2])
+                .put("transport.tcp.port", EXPECTED_CONNECTION_REFUSED_PORT)
+                .put("transport.profiles.default.port", EXPECTED_CONNECTION_ACCEPTED_PORT)
+                .put("transport.profiles.client1.port", EXPECTED_CONNECTION_ACCEPTED_PORT)
                 .build();
 
-        startNettyTransport(settings);
-
-        assertConnectionRefused(ports[0]);
-        assertPortIsBound(ports[1]);
-        assertPortIsBound(ports[2]);
+        startNettyTransportAndCheckPortBindings(settings);
     }
 
     @Test
     @TestLogging("transport.netty:DEBUG")
     public void testThatDefaultProfileInheritsFromStandardSettings() throws Exception {
-        int[] ports = SocketUtil.findFreeLocalPorts(2);
-
         Settings settings = settingsBuilder()
                 .put("network.host", "127.0.0.1")
-                .put("transport.tcp.port", ports[0])
-                .put("transport.profiles.client1.port", ports[1])
+                .put("transport.tcp.port", EXPECTED_CONNECTION_ACCEPTED_PORT)
+                .put("transport.profiles.client1.port", EXPECTED_CONNECTION_ACCEPTED_PORT)
                 .build();
 
-        startNettyTransport(settings);
-
-        assertPortIsBound(ports[0]);
-        assertPortIsBound(ports[1]);
+        startNettyTransportAndCheckPortBindings(settings);
     }
 
     @Test
     @TestLogging("transport.netty:DEBUG")
     public void testThatProfileWithoutPortSettingsFails() throws Exception {
-        int[] ports = SocketUtil.findFreeLocalPorts(1);
-
         Settings settings = settingsBuilder()
                 .put("network.host", "127.0.0.1")
-                .put("transport.tcp.port", ports[0])
+                .put("transport.tcp.port", EXPECTED_CONNECTION_ACCEPTED_PORT)
                 .put("transport.profiles.client1.whatever", "foo")
                 .build();
 
-        startNettyTransport(settings);
-
-        assertPortIsBound(ports[0]);
+        startNettyTransportAndCheckPortBindings(settings);
     }
 
     @Test
     @TestLogging("transport.netty:DEBUG")
     public void testThatDefaultProfilePortOverridesGeneralConfiguration() throws Exception {
-        int[] ports = SocketUtil.findFreeLocalPorts(3);
-
         Settings settings = settingsBuilder()
                 .put("network.host", "127.0.0.1")
-                .put("transport.tcp.port", ports[0])
-                .put("transport.netty.port", ports[1])
-                .put("transport.profiles.default.port", ports[2])
+                .put("transport.tcp.port", EXPECTED_CONNECTION_REFUSED_PORT)
+                .put("transport.netty.port", EXPECTED_CONNECTION_REFUSED_PORT)
+                .put("transport.profiles.default.port", EXPECTED_CONNECTION_ACCEPTED_PORT)
                 .build();
 
-        startNettyTransport(settings);
-
-        assertConnectionRefused(ports[0]);
-        assertConnectionRefused(ports[1]);
-        assertPortIsBound(ports[2]);
+        startNettyTransportAndCheckPortBindings(settings);
     }
 
     @Test
     @Network
     public void testThatBindingOnDifferentHostsWorks() throws Exception {
-        int[] ports = SocketUtil.findFreeLocalPorts(2);
         InetAddress firstNonLoopbackAddress = NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv4);
 
         Settings settings = settingsBuilder()
                 .put("network.host", "127.0.0.1")
-                .put("transport.tcp.port", ports[0])
+                .put("transport.tcp.port", EXPECTED_CONNECTION_ACCEPTED_PORT)
                 .put("transport.profiles.default.bind_host", "127.0.0.1")
                 .put("transport.profiles.client1.bind_host", firstNonLoopbackAddress.getHostAddress())
-                .put("transport.profiles.client1.port", ports[1])
+                .put("transport.profiles.client1.port", EXPECTED_CONNECTION_ACCEPTED_PORT)
                 .build();
 
-        startNettyTransport(settings);
-
-        assertPortIsBound("127.0.0.1", ports[0]);
-        assertPortIsBound(firstNonLoopbackAddress.getHostAddress(), ports[1]);
-        assertConnectionRefused(ports[1]);
+        startNettyTransportAndCheckPortBindings(settings);
     }
 
-    private void startNettyTransport(Settings settings) {
+    private void startNettyTransportAndCheckPortBindings(Settings originalSettings) throws Exception {
+        ImmutableSettings.Builder settingsBuilder = settingsBuilder().put(originalSettings);
+
+        int numberOfPorts = 0;
+        for (String value : originalSettings.getAsMap().values()) {
+            if (EXPECTED_CONNECTION_ACCEPTED_PORT.equals(value) || EXPECTED_CONNECTION_REFUSED_PORT.equals(value)) {
+                numberOfPorts++;
+            }
+        }
+
+        int[] ports = SocketUtil.findFreeLocalPorts(numberOfPorts);
+        int idx = 0;
+        for (Map.Entry<String, String> entry : originalSettings.getAsMap().entrySet()) {
+            if (EXPECTED_CONNECTION_ACCEPTED_PORT.equals(entry.getValue()) || EXPECTED_CONNECTION_REFUSED_PORT.equals(entry.getValue())) {
+                settingsBuilder.put(entry.getKey(), ports[idx++]);
+            }
+        }
+
+        Settings settings = settingsBuilder.build();
         threadPool = new ThreadPool("tst");
         BigArrays bigArrays = new MockBigArrays(settings, new PageCacheRecycler(settings, threadPool), new NoneCircuitBreakerService());
 
@@ -167,20 +165,37 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
         nettyTransport.start();
 
         assertThat(nettyTransport.lifecycleState(), is(Lifecycle.State.STARTED));
+
+        assertExpectedPorts(originalSettings, settings);
     }
 
-    private void assertConnectionRefused(int port) throws Exception {
+    private void assertExpectedPorts(Settings originalSettings, Settings settings) throws Exception {
+        for (Map.Entry<String, String> entry : originalSettings.getAsMap().entrySet()) {
+            String bindHostSettingName = entry.getKey().replaceFirst("\\.port$", ".bind_host");
+            String bindHost = settings.get(bindHostSettingName, "localhost");
+
+            if (EXPECTED_CONNECTION_ACCEPTED_PORT.equals(entry.getValue())) {
+                int port = settings.getAsInt(entry.getKey(), null);
+                assertPortIsBound(bindHost, port);
+                // if bindHost is not localhost, make sure connection is refused on localhost
+                if (!"localhost".equals(bindHost)) {
+                    assertConnectionRefused("localhost", port);
+                }
+            } else if (EXPECTED_CONNECTION_REFUSED_PORT.equals(entry.getValue())) {
+                int port = settings.getAsInt(entry.getKey(), null);
+                assertConnectionRefused(bindHost, port);
+            }
+        }
+    }
+
+    private void assertConnectionRefused(String host, int port) throws Exception {
         try {
-            trySocketConnection(new InetSocketTransportAddress("localhost", port).address());
+            trySocketConnection(new InetSocketTransportAddress(host, port).address());
             fail("Expected to get exception when connecting to port " + port);
         } catch (IOException e) {
             // expected
             logger.info("Got expected connection message {}", e.getMessage());
         }
-    }
-
-    private void assertPortIsBound(int port) throws Exception {
-        assertPortIsBound("localhost", port);
     }
 
     private void assertPortIsBound(String host, int port) throws Exception {

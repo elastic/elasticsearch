@@ -103,6 +103,23 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             if (this.routing() != null) {
                 builder.field("_routing", this.routing());
             }
+            if (this.fetchSourceContext() != null) {
+                FetchSourceContext source = this.fetchSourceContext();
+                String[] includes = source.includes();
+                String[] excludes = source.excludes();
+                if (includes.length == 0 && excludes.length == 0) {
+                    builder.field("_source", source.fetchSource());
+                } else if (includes.length > 0 && excludes.length == 0) {
+                    builder.array("_source", source.includes());
+                } else if (excludes.length > 0) {
+                    builder.startObject("_source");
+                    if (includes.length > 0) {
+                        builder.array("includes", source.includes());
+                    }
+                    builder.array("excludes", source.excludes());
+                    builder.endObject();
+                }
+            }
             if (this.version() != Versions.MATCH_ANY) {
                 builder.field("_version", this.version());
             }

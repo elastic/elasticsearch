@@ -6,13 +6,19 @@
 
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-license</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.0-SNAPSHOT</version>
+
+    <parent>
+        <groupId>org.sonatype.oss</groupId>
+        <artifactId>oss-parent</artifactId>
+        <version>7</version>
+    </parent>
 
     <properties>
         <elasticsearch.version>1.4.0-SNAPSHOT</elasticsearch.version>
         <lucene.version>4.10.1</lucene.version>
+        <!-- TODO: do we want to always enforce non-default keys -->
         <keys.path>${basedir}/src/test/resources</keys.path>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <dependencies>
@@ -137,7 +143,7 @@
         <resources>
             <resource>
                 <directory>${keys.path}</directory>
-                <filtering>true</filtering>
+                <filtering>false</filtering>
                 <includes>
                     <include>public.key</include>
                 </includes>
@@ -241,7 +247,7 @@
                         </configuration>
                     </execution>
                     <!-- TODO: do we want to always enforce non-default keys -->
-                    <!-- execution>
+                    <execution>
                         <id>enforce-property</id>
                         <goals>
                             <goal>enforce</goal>
@@ -255,7 +261,7 @@
                             </rules>
                             <fail>true</fail>
                         </configuration>
-                    </execution -->
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
@@ -288,6 +294,7 @@
                                 <!-- exclude public key -->
                                 <exclude>public.key</exclude>
                                 <!-- exclude plugin-related classes -->
+                                <exclude>es-plugin.properties</exclude>
                                 <exclude>org/elasticsearch/license/plugin/**/*</exclude>
                             </excludes>
                         </configuration>

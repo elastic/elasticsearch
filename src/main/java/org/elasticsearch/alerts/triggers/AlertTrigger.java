@@ -3,10 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerting.triggers;
+package org.elasticsearch.alerts.triggers;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.alerting.triggers.ScriptedAlertTrigger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 

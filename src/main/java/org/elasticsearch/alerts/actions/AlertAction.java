@@ -3,9 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerting.actions;
+package org.elasticsearch.alerts.actions;
 
-import org.elasticsearch.alerting.AlertResult;
+import org.elasticsearch.alerts.AlertResult;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 

@@ -3,10 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerting;
+package org.elasticsearch.alerts;
 
-import org.elasticsearch.alerting.actions.AlertAction;
-import org.elasticsearch.alerting.triggers.AlertTrigger;
+import org.elasticsearch.alerts.actions.AlertAction;
+import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;

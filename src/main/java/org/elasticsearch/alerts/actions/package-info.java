@@ -5,4 +5,4 @@
  */
 /**
  */
-package org.elasticsearch.alerting.rest;
+package org.elasticsearch.alerts.actions;

@@ -3,16 +3,16 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerting.scheduler;
+package org.elasticsearch.alerts.scheduler;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.alerting.Alert;
-import org.elasticsearch.alerting.actions.AlertActionManager;
-import org.elasticsearch.alerting.AlertManager;
-import org.elasticsearch.alerting.AlertResult;
-import org.elasticsearch.alerting.triggers.TriggerManager;
+import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.actions.AlertActionManager;
+import org.elasticsearch.alerts.AlertManager;
+import org.elasticsearch.alerts.AlertResult;
+import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;

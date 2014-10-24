@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.common;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Test;
 
 import java.util.EnumSet;
 
@@ -27,6 +29,7 @@ import static org.hamcrest.CoreMatchers.*;
 
 public class ParseFieldTests extends ElasticsearchTestCase {
 
+    @Test
     public void testParse() {
         String[] values = new String[]{"foo_bar", "fooBar"};
         ParseField field = new ParseField(randomFrom(values));
@@ -67,18 +70,31 @@ public class ParseFieldTests extends ElasticsearchTestCase {
         }
     }
 
-    public void testParseReplacedWith() {
+    @Test
+    public void testAllDeprecated() {
         String[] values = new String[]{"like_text", "likeText"};
-        ParseField field = new ParseField(randomFrom(values), true, "like");
+
+        boolean withDeprecatedNames = randomBoolean();
+        String[] deprecated = new String[]{"text", "same_as_text"};
+        String[] allValues = values;
+        if (withDeprecatedNames) {
+            allValues = ArrayUtils.addAll(values, deprecated);
+        }
+
+        ParseField field = new ParseField(randomFrom(values));
+        if (withDeprecatedNames) {
+            field = field.withDeprecation(deprecated);
+        }
+        field = field.withAllDeprecated("like");
 
         // strict mode off
-        assertThat(field.match(randomFrom(values), ParseField.EMPTY_FLAGS), is(true));
-        assertThat(field.match("like text", ParseField.EMPTY_FLAGS), is(false));
+        assertThat(field.match(randomFrom(allValues), ParseField.EMPTY_FLAGS), is(true));
+        assertThat(field.match("not a field name", ParseField.EMPTY_FLAGS), is(false));
 
         // now with strict mode
         EnumSet<ParseField.Flag> flags = EnumSet.of(ParseField.Flag.STRICT);
         try {
-            field.match(randomFrom(values), flags);
+            field.match(randomFrom(allValues), flags);
             fail();
         } catch (ElasticsearchIllegalArgumentException ex) {
         }

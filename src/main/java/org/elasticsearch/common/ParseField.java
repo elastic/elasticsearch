@@ -29,7 +29,7 @@ public class ParseField {
     private final String camelCaseName;
     private final String underscoreName;
     private final String[] deprecatedNames;
-    private String replacedWith = null;
+    private String allReplacedWith = null;
 
     public static final EnumSet<Flag> EMPTY_FLAGS = EnumSet.noneOf(Flag.class);
 
@@ -52,15 +52,6 @@ public class ParseField {
         }
     }
 
-    /**
-     * Create a ParseField where the field name given by {@code value} is deprecated
-     * and replaced with {@code replacedWith} if {@code deprecated} is set to true.
-     */
-    public ParseField(String value, boolean deprecated, String replacedWith) {
-        this(value, value);
-        this.replacedWith = deprecated ? replacedWith : null;
-    }
-
     public String getPreferredName(){
         return underscoreName;
     }
@@ -78,13 +69,22 @@ public class ParseField {
     public ParseField withDeprecation(String... deprecatedNames) {
         return new ParseField(this.underscoreName, deprecatedNames);
     }
-    
+
+    /**
+     * Return a new ParseField where all field names are deprecated and replaced with {@code allReplacedWith}.
+     */
+    public ParseField withAllDeprecated(String allReplacedWith) {
+        ParseField parseField = this.withDeprecation(getAllNamesIncludedDeprecated());
+        parseField.allReplacedWith = allReplacedWith;
+        return parseField;
+    }
+
     public boolean match(String currentFieldName) {
         return match(currentFieldName, EMPTY_FLAGS);
     }
     
     public boolean match(String currentFieldName, EnumSet<Flag> flags) {
-        if (replacedWith == null && (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName))) {
+        if (allReplacedWith == null && (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName))) {
             return true;
         }
         String msg;
@@ -92,8 +92,8 @@ public class ParseField {
             if (currentFieldName.equals(depName)) {
                 if (flags.contains(Flag.STRICT)) {
                     msg = "Deprecated field [" + currentFieldName + "] used, expected [" + underscoreName + "] instead";
-                    if (replacedWith != null) {
-                        msg = "Deprecated field [" + currentFieldName + "] used, replaced by [" + replacedWith + "]";
+                    if (allReplacedWith != null) {
+                        msg = "Deprecated field [" + currentFieldName + "] used, replaced by [" + allReplacedWith + "]";
                     }
                     throw new ElasticsearchIllegalArgumentException(msg);
                 }

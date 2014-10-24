@@ -15,6 +15,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -96,6 +98,10 @@ public class TestUtils {
             assertTrue("generated licenses should have non-null uid field", esLicense.uid() != null);
             assertTrue("generated licenses should have non-null signature field", esLicense.signature() != null);
         }
+    }
+
+    public static void isSame(Collection<ESLicense> firstLicenses, Collection<ESLicense> secondLicenses) {
+        isSame(new HashSet<>(firstLicenses), new HashSet<>(secondLicenses));
     }
 
     public static void isSame(Set<ESLicense> firstLicenses, Set<ESLicense> secondLicenses) {

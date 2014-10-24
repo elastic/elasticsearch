@@ -172,7 +172,7 @@ public class LicensesMetaData implements MetaData.Custom {
 
         @Override
         public EnumSet<MetaData.XContentContext> context() {
-            return MetaData.API_ONLY;
+            return EnumSet.of(MetaData.XContentContext.GATEWAY);
         }
 
 

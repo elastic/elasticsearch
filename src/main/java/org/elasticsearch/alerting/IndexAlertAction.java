@@ -8,13 +8,11 @@ package org.elasticsearch.alerting;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
 
@@ -24,7 +22,6 @@ public class IndexAlertAction implements AlertAction, ToXContent {
     private Client client = null;
     ESLogger logger = Loggers.getLogger(IndexAlertAction.class);
 
-    @Inject
     public IndexAlertAction(String index, String type, Client client){
         this.index = index;
         this.type = type;

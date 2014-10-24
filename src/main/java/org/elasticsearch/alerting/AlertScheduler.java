@@ -9,39 +9,44 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.query.FilteredQueryBuilder;
+import org.elasticsearch.index.query.RangeFilterBuilder;
+import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.simpl.SimpleJobFactory;
 
-import java.io.IOException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class AlertScheduler extends AbstractLifecycleComponent {
+public class AlertScheduler extends AbstractLifecycleComponent implements ClusterStateListener {
 
-    Scheduler scheduler = null;
-    private final AlertManager alertManager;
     private final Client client;
+    private final Scheduler scheduler;
+    private final AlertManager alertManager;
+    private final ScriptService scriptService;
     private final TriggerManager triggerManager;
     private final AlertActionManager actionManager;
-    private final ScriptService scriptService;
 
+    private final AtomicBoolean run = new AtomicBoolean(false);
 
     @Inject
     public AlertScheduler(Settings settings, AlertManager alertManager, Client client,
                           TriggerManager triggerManager, AlertActionManager actionManager,
-                          ScriptService scriptService) {
+                          ScriptService scriptService, ClusterService clusterService) {
         super(settings);
         this.alertManager = alertManager;
         this.client = client;
@@ -52,9 +57,51 @@ public class AlertScheduler extends AbstractLifecycleComponent {
             SchedulerFactory schFactory = new StdSchedulerFactory();
             scheduler = schFactory.getScheduler();
             scheduler.setJobFactory(new SimpleJobFactory());
-        } catch (Throwable t) {
-            logger.error("Failed to instantiate scheduler", t);
+        } catch (SchedulerException e) {
+            throw new ElasticsearchException("Failed to instantiate scheduler", e);
         }
+        clusterService.add(this);
+        alertManager.setAlertScheduler(this);
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().nodes().localNodeMaster()) {
+            if (run.compareAndSet(false, true)) {
+                try {
+                    logger.info("Starting scheduler");
+                    scheduler.start();
+                } catch (SchedulerException se){
+                    logger.error("Failed to start quartz scheduler",se);
+                }
+            }
+        } else {
+            stopIfRunning();
+        }
+    }
+
+    private void stopIfRunning() {
+        if (run.compareAndSet(true, false)) {
+            try {
+                logger.info("Stopping scheduler");
+                scheduler.shutdown(true);
+            } catch (SchedulerException se){
+                logger.error("Failed to stop quartz scheduler",se);
+            }
+        }
+    }
+
+    @Override
+    protected void doStart() throws ElasticsearchException {
+    }
+
+    @Override
+    protected void doStop() throws ElasticsearchException {
+        stopIfRunning();
+    }
+
+    @Override
+    protected void doClose() throws ElasticsearchException {
     }
 
     public boolean deleteAlertFromSchedule(String alertName) {
@@ -174,26 +221,8 @@ public class AlertScheduler extends AbstractLifecycleComponent {
         }
     }
 
-    @Override
-    protected void doStart() throws ElasticsearchException {
-        logger.warn("Starting Scheduler");
-        try {
-            scheduler.start();
-        } catch (SchedulerException se){
-            logger.error("Failed to start quartz scheduler",se);
-        }
+    public boolean isRunning() {
+        return true;
     }
 
-    @Override
-    protected void doStop() throws ElasticsearchException {
-        try {
-            scheduler.shutdown(true);
-        } catch (SchedulerException se){
-            logger.error("Failed to stop quartz scheduler",se);
-        }
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
-    }
 }

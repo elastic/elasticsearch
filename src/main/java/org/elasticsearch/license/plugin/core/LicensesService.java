@@ -235,9 +235,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 // Change to debug
                 logger.info("Processed Trial License registration");
                 LicensesMetaData licensesMetaData = newState.metaData().custom(LicensesMetaData.TYPE);
-                if (licensesMetaData != null) {
-                    logger.info("New state: signedLicenses: " + licensesMetaData.getSignatures().size() + " trialLicenses: " + licensesMetaData.getEncodedTrialLicenses().size());
-                }
+                logLicenseMetaDataStats("new", licensesMetaData);
             }
 
             @Override
@@ -323,31 +321,45 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             }
 
             // notify all interested plugins
-            logger.info("LicensesService: cluster state changed");
-            if (checkIfUpdatedMetaData(event)) {
-                final LicensesMetaData currentLicensesMetaData = event.state().getMetaData().custom(LicensesMetaData.TYPE);
-                // Change to debug
-                if (currentLicensesMetaData != null) {
-                    logger.info("LicensesMetaData: signedLicenses: " + currentLicensesMetaData.getSignatures().size() + " trialLicenses: " + currentLicensesMetaData.getEncodedTrialLicenses().size());
-                } else {
-                    logger.info("LicensesMetaData: signedLicenses: 0 trialLicenses: 0");
-                }
+            LicensesMetaData currentLicensesMetaData = event.state().getMetaData().custom(LicensesMetaData.TYPE);
 
-                // Change to debug
-                logger.info("calling notifyFeatures from clusterChanged");
-                long nextScheduleFrequency = notifyFeatures(currentLicensesMetaData);
-                if (notificationScheduler == null) {
-                    notificationScheduler = threadPool.schedule(TimeValue.timeValueMillis(nextScheduleFrequency), executorName(),
-                            new SubmitReschedulingLicensingClientNotificationJob());
-                }
+            // checkIfUpdatedMetaData should be called to see if the license metaData has changed,
+            // but upon registration, the oldest cluster state might have a license
+
+            // Change to debug
+            logger.info("calling notifyFeatures from clusterChanged");
+            long nextScheduleFrequency = notifyFeatures(currentLicensesMetaData);
+            if (notificationScheduler == null) {
+                notificationScheduler = threadPool.schedule(TimeValue.timeValueMillis(nextScheduleFrequency), executorName(),
+                        new SubmitReschedulingLicensingClientNotificationJob());
             }
+        } else {
+            logger.info("clusterChanged: no action [has STATE_NOT_RECOVERED_BLOCK]");
         }
     }
 
-    private boolean checkIfUpdatedMetaData(ClusterChangedEvent event) {
+    private void logLicenseMetaDataStats(String prefix, LicensesMetaData licensesMetaData) {
+        if (licensesMetaData != null) {
+            logger.info(prefix + " LicensesMetaData: signedLicenses: " + licensesMetaData.getSignatures().size() + " trialLicenses: " + licensesMetaData.getEncodedTrialLicenses().size());
+        } else {
+            logger.info(prefix + " LicensesMetaData: signedLicenses: 0 trialLicenses: 0");
+        }
+    }
+
+    private LicensesMetaData checkIfUpdatedMetaData(ClusterChangedEvent event) {
         LicensesMetaData oldMetaData = event.previousState().getMetaData().custom(LicensesMetaData.TYPE);
         LicensesMetaData newMetaData = event.state().getMetaData().custom(LicensesMetaData.TYPE);
-        return !((oldMetaData == null && newMetaData == null) || (oldMetaData != null && oldMetaData.equals(newMetaData)));
+
+        logLicenseMetaDataStats("old", oldMetaData);
+        logLicenseMetaDataStats("new", newMetaData);
+
+        if ((oldMetaData == null && newMetaData == null) || (oldMetaData != null && oldMetaData.equals(newMetaData))) {
+            logger.info("no change in LicensesMetaData");
+            return null;
+        } else {
+            logger.info("detected change in LicensesMetaData");
+            return newMetaData;
+        }
     }
 
 
@@ -497,23 +509,43 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         StringBuilder sb = new StringBuilder("Registered listeners: [ ");
         for (ListenerHolder listenerHolder : registeredListeners) {
 
+            sb.append("( ");
+            sb.append("feature:");
             sb.append(listenerHolder.feature);
-            sb.append(" ");
+            sb.append(", ");
 
             long expiryDate = -1l;
             if (hasLicenseForFeature(listenerHolder.feature, currentLicensesMetaData)) {
                 final Map<String, ESLicense> effectiveLicenses = getEffectiveLicenses(currentLicensesMetaData);
                 expiryDate = effectiveLicenses.get(listenerHolder.feature).expiryDate();
+
+                sb.append("signed license expiry: ");
+                sb.append(expiryDate);
+                sb.append(", ");
             } else {
                 final TrialLicense trialLicense = licensesWrapper.trialLicenses().getTrialLicense(listenerHolder.feature);
                 if (trialLicense != null) {
                     expiryDate = trialLicense.expiryDate();
+
+                    sb.append("trial license expiry: ");
+                    sb.append(expiryDate);
+                    sb.append(", ");
                 }
             }
             long expiryDuration = expiryDate - System.currentTimeMillis();
+
+            if (expiryDate == -1l) {
+                sb.append("no trial/signed license found");
+                sb.append(", ");
+            } else {
+                sb.append("license expires in: ");
+                sb.append(TimeValue.timeValueMillis(expiryDuration).toString());
+                sb.append(", ");
+            }
+
             if (expiryDuration > 0l) {
-                // Change to debug
-                logger.info("calling enabledFeatureIfNeeded on " + listenerHolder.feature + " with trialLicense size=" + licensesWrapper.encodedTrialLicenses.size());
+                sb.append("calling enableFeatureIfNeeded");
+
                 listenerHolder.enableFeatureIfNeeded();
                 if (nextScheduleFrequency == -1l) {
                     nextScheduleFrequency = expiryDuration + offset;
@@ -522,16 +554,24 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 }
             } else {
                 // Change to debug
-                logger.info("calling disabledFeatureIfNeeded on " + listenerHolder.feature + " with trialLicense size=" + licensesWrapper.encodedTrialLicenses.size());
+                sb.append("calling disableFeatureIfNeeded");
+
                 listenerHolder.disableFeatureIfNeeded();
             }
+
+            sb.append(" )");
         }
         sb.append("]");
         logger.info(sb.toString());
 
         if (nextScheduleFrequency == -1l) {
             nextScheduleFrequency = TimeValue.timeValueMinutes(5).getMillis();
+            logger.info("next notification time set to default of 5 minutes");
+        } else {
+            logger.info("next notification time: " + TimeValue.timeValueMillis(nextScheduleFrequency).toString());
         }
+
+
 
         return nextScheduleFrequency;
     }

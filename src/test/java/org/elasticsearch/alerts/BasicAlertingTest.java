@@ -31,7 +31,7 @@ import static org.hamcrest.core.Is.is;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0, numDataNodes = 1)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0, maxNumDataNodes = 3)
 public class BasicAlertingTest extends ElasticsearchIntegrationTest {
 
     @Override
@@ -111,7 +111,7 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
                 1,
                 true,
                 true
-                );
+        );
         alertManager.addAlert("my-first-alert", alert, true);
         assertBusy(new Runnable() {
             @Override

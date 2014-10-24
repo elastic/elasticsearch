@@ -313,12 +313,17 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             if (!pendingRegistrations.isEmpty()) {
                 ListenerHolder pendingRegistrationLister;
                 while ((pendingRegistrationLister = pendingRegistrations.poll()) != null) {
-                    logger.info("trying to register pending listener for " + pendingRegistrationLister.feature);
-                    registerListener(pendingRegistrationLister);
+                    boolean masterAvailable = registerListener(pendingRegistrationLister);
+                    logger.info("trying to register pending listener for " + pendingRegistrationLister.feature + " masterAvailable: " + masterAvailable);
+                    if (!masterAvailable) {
+                        // if the master is not available do not, break out of trying pendingRegistrations
+                        break;
+                    }
                 }
             }
 
             // notify all interested plugins
+            logger.info("LicensesService: cluster state changed");
             if (checkIfUpdatedMetaData(event)) {
                 final LicensesMetaData currentLicensesMetaData = event.state().getMetaData().custom(LicensesMetaData.TYPE);
                 // Change to debug
@@ -360,8 +365,12 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      * then notifies features to be disabled
      *
      * @param listenerHolder of the feature to register
+     *
+     * @return true if registration has been completed, false otherwise (if masterNode is not available)
      */
-    private void registerListener(final ListenerHolder listenerHolder) {
+    private boolean registerListener(final ListenerHolder listenerHolder) {
+        logger.info("Registering listener for " + listenerHolder.feature);
+
         LicensesMetaData currentMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
         if (!hasLicenseForFeature(listenerHolder.feature, currentMetaData)) {
             // does not have actual license so generate a trial license
@@ -371,31 +380,35 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 RegisterTrialLicenseRequest request = new RegisterTrialLicenseRequest(listenerHolder.feature,
                         new TimeValue(options.durationInDays, TimeUnit.DAYS), options.maxNodes);
                 if (clusterService.state().nodes().localNodeMaster()) {
+                    logger.info("Executing trial license request");
                     registerTrialLicense(request);
                 } else {
                     DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
-                    logger.info("has STATE_NOT_RECOVERED_BLOCK: " + clusterService.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)
-                     + " has masterNode: " + (masterNode != null));
                     if (masterNode != null) {
+                        logger.info("Sending trial license request to master");
                         transportService.sendRequest(masterNode,
                                 REGISTER_TRIAL_LICENSE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
                     } else {
                         // could not sent register trial license request to master
+                        logger.info("Store as pendingRegistration [master not available yet]");
                         pendingRegistrations.add(listenerHolder);
+                        return false;
                     }
                 }
             } else {
                 // notify feature as clusterChangedEvent may not happen
                 // as no trial or signed license has been found for feature
                 // Change to debug
-                logger.info("calling notifyFeatures from registerListeners");
+                logger.info("Calling notifyFeatures [no trial license spec provided]");
                 notifyFeatures(currentMetaData);
             }
         } else {
             // signed license already found for the new registered
             // feature, notify feature on registration
+            logger.info("Calling notifyFeatures [signed license available]");
             notifyFeatures(currentMetaData);
         }
+        return true;
     }
 
     private boolean hasLicenseForFeature(String feature, LicensesMetaData currentLicensesMetaData) {
@@ -481,7 +494,12 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         LicensesWrapper licensesWrapper = LicensesWrapper.wrap(currentLicensesMetaData);
         long nextScheduleFrequency = -1l;
         long offset = TimeValue.timeValueMinutes(1).getMillis();
+        StringBuilder sb = new StringBuilder("Registered listeners: [ ");
         for (ListenerHolder listenerHolder : registeredListeners) {
+
+            sb.append(listenerHolder.feature);
+            sb.append(" ");
+
             long expiryDate = -1l;
             if (hasLicenseForFeature(listenerHolder.feature, currentLicensesMetaData)) {
                 final Map<String, ESLicense> effectiveLicenses = getEffectiveLicenses(currentLicensesMetaData);
@@ -508,6 +526,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 listenerHolder.disableFeatureIfNeeded();
             }
         }
+        sb.append("]");
+        logger.info(sb.toString());
 
         if (nextScheduleFrequency == -1l) {
             nextScheduleFrequency = TimeValue.timeValueMinutes(5).getMillis();

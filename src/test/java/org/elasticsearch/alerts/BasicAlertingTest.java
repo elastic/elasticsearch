@@ -8,6 +8,7 @@ package org.elasticsearch.alerts;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionFactory;
 import org.elasticsearch.alerts.actions.AlertActionManager;
+import org.elasticsearch.alerts.plugin.AlertsPlugin;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedAlertTrigger;
@@ -15,7 +16,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.plugin.alerting.AlertingPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -36,8 +36,8 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.mandatory", "alerting-plugin")
-                .put("plugin.types", AlertingPlugin.class.getName())
+                .put("plugin.mandatory", "alerts")
+                .put("plugin.types", AlertsPlugin.class.getName())
                 .put("node.mode", "network")
                 .put("plugins.load_classpath_plugins", false)
                 .build();

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.plugin.alerting;
+package org.elasticsearch.alerts.plugin;
 
 import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
@@ -15,13 +15,14 @@ import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.util.Collection;
 
-public class AlertingPlugin extends AbstractPlugin {
+public class AlertsPlugin extends AbstractPlugin {
+
     @Override public String name() {
-        return "alerting-plugin";
+        return "alerts";
     }
 
     @Override public String description() {
-        return "Alerting Plugin Description";
+        return "Elasticsearch Alerts";
     }
 
     @Override

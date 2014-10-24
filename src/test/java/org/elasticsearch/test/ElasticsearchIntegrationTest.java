@@ -58,9 +58,6 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
@@ -301,9 +298,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             switch (currentClusterScope) {
                 case GLOBAL:
                     clearClusters();
+                    assert GLOBAL_CLUSTER != null : "Scope.GLOBAL cluster must be initialied in a static context";
                     currentCluster = GLOBAL_CLUSTER;
                     break;
                 case SUITE:
+                    assert clusters.containsKey(this.getClass()) : "Scope.SUITE cluster must be initialized in a static context";
                     currentCluster = buildAndPutCluster(currentClusterScope, false);
                     break;
                 case TEST:
@@ -581,6 +580,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (createIfExists || testCluster == null) {
             testCluster = buildTestCluster(currentClusterScope);
         } else {
+            // if we carry that cluster over ie. it was already there we remove it and then call clearClusters
+            // and put it back afterwards such that all pending leftover clusters are closed and disposed...
             clusters.remove(this.getClass());
         }
         clearClusters();
@@ -1525,7 +1526,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         assertThat(clearResponse.isSucceeded(), equalTo(true));
     }
 
-    private ClusterScope getAnnotation(Class<?> clazz) {
+    private static ClusterScope getAnnotation(Class<?> clazz) {
         if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
             return null;
         }
@@ -1537,7 +1538,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     private Scope getCurrentClusterScope() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        return getCurrentClusterScope(this.getClass());
+    }
+
+    private static Scope getCurrentClusterScope(Class<?> clazz) {
+        ClusterScope annotation = getAnnotation(clazz);
         // if we are not annotated assume global!
         return annotation == null ? Scope.GLOBAL : annotation.scope();
     }
@@ -1782,8 +1787,20 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private static void initializeSuiteScope() throws Exception {
         Class<?> targetClass = getContext().getTargetClass();
+        /**
+         * Note we create these test class instance via reflection
+         * since JUnit creates a new instance per test and that is also
+         * the reason why INSTANCE is static since this entire method
+         * must be executed in a static context.
+         */
         assert INSTANCE == null;
-        if (isSuiteScope(targetClass)) {
+        if (getCurrentClusterScope(targetClass) == Scope.SUITE) {
+            final ElasticsearchIntegrationTest instance = (ElasticsearchIntegrationTest) targetClass.newInstance();
+            // if we have suite scoped cluster here we need to initialize the
+            // cluster before the first test starts for reproducibility
+            instance.buildAndPutCluster(Scope.SUITE, false);
+        }
+        if (isSuiteScopedTest(targetClass)) {
             // note we need to do this this way to make sure this is reproducible
             INSTANCE = (ElasticsearchIntegrationTest) targetClass.newInstance();
             boolean success = false;
@@ -1810,7 +1827,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     protected void setupSuiteScopeCluster() throws Exception {
     }
 
-    private static boolean isSuiteScope(Class<?> clazz) {
+    private static boolean isSuiteScopedTest(Class<?> clazz) {
         if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
             return false;
         }
@@ -1818,7 +1835,18 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (annotation != null) {
             return true;
         }
-        return isSuiteScope(clazz.getSuperclass());
+        return isSuiteScopedTest(clazz.getSuperclass());
+    }
+
+    private static boolean isSuiteScopeCluster(Class<?> clazz) {
+        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
+            return false;
+        }
+        SuiteScopeTest annotation = clazz.getAnnotation(SuiteScopeTest.class);
+        if (annotation != null) {
+            return true;
+        }
+        return isSuiteScopedTest(clazz.getSuperclass());
     }
 
     /**

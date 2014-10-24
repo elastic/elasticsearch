@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.SearchScript;
@@ -65,7 +65,7 @@ public class ScriptValuesTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext reader) {
+        public void setNextReader(LeafReaderContext reader) {
         }
 
         @Override

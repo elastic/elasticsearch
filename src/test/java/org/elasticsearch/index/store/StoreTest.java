@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.util.Version;
+
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.*;
@@ -113,7 +115,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         indexInput.seek(0);
         BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
         long length = indexInput.length();
-        IndexOutput verifyingOutput = new Store.VerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, checksum, TEST_VERSION_CURRENT), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+        IndexOutput verifyingOutput = new Store.VerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, checksum), dir.createOutput("foo1.bar", IOContext.DEFAULT));
         while (length > 0) {
             if (random().nextInt(10) == 0) {
                 verifyingOutput.writeByte(indexInput.readByte());
@@ -140,7 +142,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     public void testVerifyingIndexOutputWithBogusInput() throws IOException {
         Directory dir = newDirectory();
         int length = scaledRandomIntBetween(10, 1024);
-        IndexOutput verifyingOutput = new Store.VerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, "", TEST_VERSION_CURRENT), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+        IndexOutput verifyingOutput = new Store.VerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, ""), dir.createOutput("foo1.bar", IOContext.DEFAULT));
         try {
             while (length > 0) {
                 verifyingOutput.writeByte((byte) random().nextInt());
@@ -159,7 +161,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService));
         // set default codec - all segments need checksums
-        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
+        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
         int docs = 1 + random().nextInt(100);
 
         for (int i = 0; i < docs; i++) {
@@ -196,7 +198,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         Store.LegacyChecksums checksums = new Store.LegacyChecksums();
         Map<String, StoreFileMetaData> legacyMeta = new HashMap<>();
         for (String file : store.directory().listAll()) {
-            if (file.equals("write.lock") || file.equals(IndexFileNames.SEGMENTS_GEN)) {
+            if (file.equals("write.lock") || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
                 continue;
             }
             try (IndexInput input = store.directory().openInput(file, IOContext.READONCE)) {
@@ -228,7 +230,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService));
         // set default codec - all segments need checksums
-        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
+        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
         int docs = 1 + random().nextInt(100);
 
         for (int i = 0; i < docs; i++) {
@@ -269,7 +271,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                 assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
                 assertThat(meta.hasLegacyChecksum(), equalTo(false));
-                assertThat(meta.writtenBy(), equalTo(TEST_VERSION_CURRENT));
+                assertThat(meta.writtenBy(), equalTo(Version.LATEST));
                 if (meta.name().endsWith(".si") || meta.name().startsWith("segments_")) {
                     assertThat(meta.hash().length, greaterThan(0));
                 }
@@ -288,7 +290,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService));
         // this time random codec....
-        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
+        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
         int docs = 1 + random().nextInt(100);
 
         for (int i = 0; i < docs; i++) {
@@ -344,7 +346,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                     String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                     assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
                     assertThat(meta.hasLegacyChecksum(), equalTo(false));
-                    assertThat(meta.writtenBy(), equalTo(TEST_VERSION_CURRENT));
+                    assertThat(meta.writtenBy(), equalTo(Version.LATEST));
                 }
             }
         }
@@ -364,7 +366,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                     String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                     assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
                     assertThat(meta.hasLegacyChecksum(), equalTo(false));
-                    assertThat(meta.writtenBy(), equalTo(TEST_VERSION_CURRENT));
+                    assertThat(meta.writtenBy(), equalTo(Version.LATEST));
                 }
             }
         }
@@ -561,7 +563,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
         for (String file : store.directory().listAll()) {
-            if (!"write.lock".equals(file) && !IndexFileNames.SEGMENTS_GEN.equals(file) && !Store.isChecksum(file)) {
+            if (!"write.lock".equals(file) && !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && !Store.isChecksum(file)) {
                 assertTrue(file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length, metadata.asMap().containsKey(file));
             } else {
                 assertFalse(file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length, metadata.asMap().containsKey(file));
@@ -592,7 +594,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         Store.MetadataSnapshot first;
         {
             Random random = new Random(seed);
-            IndexWriterConfig iwc = new IndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(actualDefaultCodec());
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             iwc.setUseCompoundFile(random.nextBoolean());
             iwc.setMaxThreadStates(1);
@@ -622,7 +624,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         Store store;
         {
             Random random = new Random(seed);
-            IndexWriterConfig iwc = new IndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(actualDefaultCodec());
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             iwc.setUseCompoundFile(random.nextBoolean());
             iwc.setMaxThreadStates(1);
@@ -662,7 +664,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // lets add some deletes
         Random random = new Random(seed);
-        IndexWriterConfig iwc = new IndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+        IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(actualDefaultCodec());
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         iwc.setUseCompoundFile(random.nextBoolean());
         iwc.setMaxThreadStates(1);
@@ -697,7 +699,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         assertThat(selfDiff.missing, empty());
 
         // add a new commit
-        iwc = new IndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+        iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(actualDefaultCodec());
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         iwc.setUseCompoundFile(true); // force CFS - easier to test here since we know it will add 3 files
         iwc.setMaxThreadStates(1);

@@ -121,7 +121,7 @@ final class ParentIdsFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
         Terms terms = context.reader().terms(UidFieldMapper.NAME);
         if (terms == null) {
             return null;

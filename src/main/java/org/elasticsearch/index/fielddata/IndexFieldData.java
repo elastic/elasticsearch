@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
@@ -41,7 +41,7 @@ import java.io.IOException;
 
 /**
  * Thread-safe utility class that allows to get per-segment values via the
- * {@link #load(AtomicReaderContext)} method.
+ * {@link #load(LeafReaderContext)} method.
  */
 public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
 
@@ -87,12 +87,12 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     /**
      * Loads the atomic field data for the reader, possibly cached.
      */
-    FD load(AtomicReaderContext context);
+    FD load(LeafReaderContext context);
 
     /**
      * Loads directly the atomic field data for the reader, ignoring any caching involved.
      */
-    FD loadDirect(AtomicReaderContext context) throws Exception;
+    FD loadDirect(LeafReaderContext context) throws Exception;
 
     /**
      * Comparator used for sorting.
@@ -139,14 +139,14 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             /**
              * Get a {@link FixedBitSet} that matches the root documents.
              */
-            public FixedBitSet rootDocs(AtomicReaderContext ctx) throws IOException {
+            public FixedBitSet rootDocs(LeafReaderContext ctx) throws IOException {
                 return rootFilter.getDocIdSet(ctx, null);
             }
 
             /**
              * Get a {@link FixedBitSet} that matches the inner documents.
              */
-            public FixedBitSet innerDocs(AtomicReaderContext ctx) throws IOException {
+            public FixedBitSet innerDocs(LeafReaderContext ctx) throws IOException {
                 return innerFilter.getDocIdSet(ctx, null);
             }
         }

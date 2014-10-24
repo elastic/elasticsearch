@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.util.BitDocIdSet;
+
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
@@ -42,7 +44,7 @@ public class ApplyAcceptedDocsFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
         DocIdSet docIdSet = filter.getDocIdSet(context, acceptDocs);
         if (DocIdSets.isEmpty(docIdSet)) {
             return null;
@@ -52,7 +54,8 @@ public class ApplyAcceptedDocsFilter extends Filter {
         }
         if (acceptDocs == context.reader().getLiveDocs()) {
             // optimized wrapper for not deleted cases
-            return new NotDeletedDocIdSet(docIdSet, acceptDocs);
+            int cardinality = context.reader().numDocs();
+            return new NotDeletedDocIdSet(docIdSet, acceptDocs, cardinality);
         }
         // we wrap this to make sure we can unwrap the inner docIDset in #unwrap
         return new WrappedDocIdSet(BitsFilteredDocIdSet.wrap(docIdSet, acceptDocs), docIdSet);
@@ -80,10 +83,12 @@ public class ApplyAcceptedDocsFilter extends Filter {
 
         private final DocIdSet innerSet;
         private final Bits liveDocs;
+        private final int numLiveDocs;
 
-        NotDeletedDocIdSet(DocIdSet innerSet, Bits liveDocs) {
+        NotDeletedDocIdSet(DocIdSet innerSet, Bits liveDocs, int numLiveDocs) {
             this.innerSet = innerSet;
             this.liveDocs = liveDocs;
+            this.numLiveDocs = numLiveDocs;
         }
 
         @Override
@@ -112,7 +117,8 @@ public class ApplyAcceptedDocsFilter extends Filter {
                 // but we can only do that if we have Bits..., in short, we reverse the order...
                 Bits bits = innerSet.bits();
                 if (bits != null) {
-                    return new NotDeletedDocIdSetIterator(((FixedBitSet) liveDocs).iterator(), bits);
+                    DocIdSet liveDocIDSet = new BitDocIdSet((FixedBitSet) liveDocs, numLiveDocs);
+                    return new NotDeletedDocIdSetIterator(liveDocIDSet.iterator(), bits);
                 }
             }
             DocIdSetIterator iterator = innerSet.iterator();

@@ -19,10 +19,11 @@
 
 package org.elasticsearch.common.lucene.docset;
 
-import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
@@ -52,7 +53,8 @@ public class DocIdSets {
      * For example, it does not ends up iterating one doc at a time check for its "value".
      */
     public static boolean isFastIterator(DocIdSet set) {
-        return set instanceof FixedBitSet;
+        // TODO: this is really horrible
+        return set instanceof BitDocIdSet;
     }
 
     /**
@@ -62,7 +64,7 @@ public class DocIdSets {
      * might be expensive even if its cacheable (i.e. not going back to the reader to execute). We effectively
      * always either return an empty {@link DocIdSet} or {@link FixedBitSet} but never <code>null</code>.
      */
-    public static DocIdSet toCacheable(AtomicReader reader, @Nullable DocIdSet set) throws IOException {
+    public static DocIdSet toCacheable(LeafReader reader, @Nullable DocIdSet set) throws IOException {
         if (set == null || set == DocIdSet.EMPTY) {
             return DocIdSet.EMPTY;
         }
@@ -74,7 +76,7 @@ public class DocIdSets {
         if (doc == DocIdSetIterator.NO_MORE_DOCS) {
             return DocIdSet.EMPTY;
         }
-        if (set instanceof FixedBitSet) {
+        if (set instanceof BitDocIdSet) {
             return set;
         }
         // TODO: should we use WAH8DocIdSet like Lucene?
@@ -83,13 +85,13 @@ public class DocIdSets {
             fixedBitSet.set(doc);
             doc = it.nextDoc();
         } while (doc != DocIdSetIterator.NO_MORE_DOCS);
-        return fixedBitSet;
+        return new BitDocIdSet(fixedBitSet);
     }
 
     /**
      * Gets a set to bits.
      */
-    public static Bits toSafeBits(AtomicReader reader, @Nullable DocIdSet set) throws IOException {
+    public static Bits toSafeBits(LeafReader reader, @Nullable DocIdSet set) throws IOException {
         if (set == null) {
             return new Bits.MatchNoBits(reader.maxDoc());
         }

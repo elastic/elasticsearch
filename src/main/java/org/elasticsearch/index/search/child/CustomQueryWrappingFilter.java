@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchException;
@@ -43,7 +43,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
     private final Query query;
 
     private IndexSearcher searcher;
-    private IdentityHashMap<AtomicReader, DocIdSet> docIdSets;
+    private IdentityHashMap<LeafReader, DocIdSet> docIdSets;
 
     /** Constructs a filter which only matches documents matching
      * <code>query</code>.
@@ -60,7 +60,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
     }
 
     @Override
-    public DocIdSet getDocIdSet(final AtomicReaderContext context, final Bits acceptDocs) throws IOException {
+    public DocIdSet getDocIdSet(final LeafReaderContext context, final Bits acceptDocs) throws IOException {
         final SearchContext searchContext = SearchContext.current();
         if (docIdSets == null) {
             assert searcher == null;
@@ -70,7 +70,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
             searchContext.addReleasable(this, Lifetime.COLLECTION);
 
             final Weight weight = searcher.createNormalizedWeight(query);
-            for (final AtomicReaderContext leaf : searcher.getTopReaderContext().leaves()) {
+            for (final LeafReaderContext leaf : searcher.getTopReaderContext().leaves()) {
                 final DocIdSet set = DocIdSets.toCacheable(leaf.reader(), new DocIdSet() {
                     @Override
                     public DocIdSetIterator iterator() throws IOException {

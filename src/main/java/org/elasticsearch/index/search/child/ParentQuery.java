@@ -200,7 +200,7 @@ public class ParentQuery extends Query {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) throws IOException {
+        public void setNextReader(LeafReaderContext context) throws IOException {
             values = globalIfd.load(context).getOrdinalsValues(parentType);
         }
 
@@ -232,7 +232,7 @@ public class ParentQuery extends Query {
         }
 
         @Override
-        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return new Explanation(getBoost(), "not implemented yet...");
         }
 
@@ -253,7 +253,7 @@ public class ParentQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             DocIdSet childrenDocSet = childrenFilter.getDocIdSet(context, acceptDocs);
             if (DocIdSets.isEmpty(childrenDocSet)) {
                 return null;

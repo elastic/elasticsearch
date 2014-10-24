@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
@@ -60,7 +60,7 @@ public class IndexedGeoBoundingBoxFilter {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptedDocs) throws IOException {
             FixedBitSet main;
             DocIdSet set = lonFilter1.getDocIdSet(context, acceptedDocs);
             if (DocIdSets.isEmpty(set)) {
@@ -126,7 +126,7 @@ public class IndexedGeoBoundingBoxFilter {
         }
 
         @Override
-        public FixedBitSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
+        public FixedBitSet getDocIdSet(LeafReaderContext context, Bits acceptedDocs) throws IOException {
             FixedBitSet main;
             DocIdSet set = lonFilter.getDocIdSet(context, acceptedDocs);
             if (DocIdSets.isEmpty(set)) {

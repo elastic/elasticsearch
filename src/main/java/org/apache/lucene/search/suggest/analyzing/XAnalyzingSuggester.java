@@ -443,14 +443,15 @@ public class XAnalyzingSuggester extends Lookup {
 
   @Override
   public void build(InputIterator iterator) throws IOException {
+    // nocommit: sync up with lucene one, it has more safety here
     String prefix = getClass().getSimpleName();
-    File directory = OfflineSorter.defaultTempDir();
+    File directory = OfflineSorter.defaultTempDir().toFile();
     File tempInput = File.createTempFile(prefix, ".input", directory);
     File tempSorted = File.createTempFile(prefix, ".sorted", directory);
 
     hasPayloads = iterator.hasPayloads();
 
-    OfflineSorter.ByteSequencesWriter writer = new OfflineSorter.ByteSequencesWriter(tempInput);
+    OfflineSorter.ByteSequencesWriter writer = new OfflineSorter.ByteSequencesWriter(tempInput.toPath());
     OfflineSorter.ByteSequencesReader reader = null;
     BytesRefBuilder scratch = new BytesRefBuilder();
 
@@ -527,12 +528,12 @@ public class XAnalyzingSuggester extends Lookup {
       writer.close();
 
       // Sort all input/output pairs (required by FST.Builder):
-      new OfflineSorter(new AnalyzingComparator(hasPayloads)).sort(tempInput, tempSorted);
+      new OfflineSorter(new AnalyzingComparator(hasPayloads)).sort(tempInput.toPath(), tempSorted.toPath());
 
       // Free disk space:
       tempInput.delete();
 
-      reader = new OfflineSorter.ByteSequencesReader(tempSorted);
+      reader = new OfflineSorter.ByteSequencesReader(tempSorted.toPath());
      
       PairOutputs<Long,BytesRef> outputs = new PairOutputs<>(PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton());
       Builder<Pair<Long,BytesRef>> builder = new Builder<>(FST.INPUT_TYPE.BYTE1, outputs);

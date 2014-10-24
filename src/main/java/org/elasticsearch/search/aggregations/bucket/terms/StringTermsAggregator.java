@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.lease.Releasables;
@@ -64,7 +64,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         values = valuesSource.bytesValues();
     }
 
@@ -101,7 +101,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
         if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
-            for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
+            for (LeafReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
                 context.setNextReader(ctx);
                 final SortedBinaryDocValues values = valuesSource.bytesValues();
                 // brute force

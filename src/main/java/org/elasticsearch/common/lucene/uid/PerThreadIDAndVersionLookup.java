@@ -19,13 +19,12 @@ package org.elasticsearch.common.lucene.uid;
  * under the License.
  */
 
+import org.apache.lucene.index.LeafReaderContext;
+
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.Fields;
@@ -35,7 +34,6 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.uid.Versions.DocIdAndVersion;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -51,7 +49,7 @@ import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 
 final class PerThreadIDAndVersionLookup {
 
-    private final AtomicReaderContext[] readerContexts;
+    private final LeafReaderContext[] readerContexts;
     private final TermsEnum[] termsEnums;
     private final DocsEnum[] docsEnums;
     // Only used for back compat, to lookup a version from payload:
@@ -64,9 +62,9 @@ final class PerThreadIDAndVersionLookup {
 
     public PerThreadIDAndVersionLookup(IndexReader r) throws IOException {
 
-        List<AtomicReaderContext> leaves = new ArrayList<>(r.leaves());
+        List<LeafReaderContext> leaves = new ArrayList<>(r.leaves());
 
-        readerContexts = leaves.toArray(new AtomicReaderContext[leaves.size()]);
+        readerContexts = leaves.toArray(new LeafReaderContext[leaves.size()]);
         termsEnums = new TermsEnum[leaves.size()];
         docsEnums = new DocsEnum[leaves.size()];
         posEnums = new DocsAndPositionsEnum[leaves.size()];
@@ -78,7 +76,7 @@ final class PerThreadIDAndVersionLookup {
         // iterate backwards to optimize for the frequently updated documents
         // which are likely to be in the last segments
         for(int i=leaves.size()-1;i>=0;i--) {
-            AtomicReaderContext readerContext = leaves.get(i);
+            LeafReaderContext readerContext = leaves.get(i);
             Fields fields = readerContext.reader().fields();
             if (fields != null) {
                 Terms terms = fields.terms(UidFieldMapper.NAME);

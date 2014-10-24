@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldCache.Doubles;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
@@ -56,7 +56,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         return SortField.Type.DOUBLE;
     }
 
-    protected SortedNumericDoubleValues getValues(AtomicReaderContext context) {
+    protected SortedNumericDoubleValues getValues(LeafReaderContext context) {
         return indexFieldData.load(context).getDoubleValues();
     }
 
@@ -71,7 +71,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
         // the comparator doesn't check docsWithField since we replace missing values in select()
         return new FieldComparator.DoubleComparator(numHits, null, null, null) {
             @Override
-            protected Doubles getDoubleValues(AtomicReaderContext context, String field) throws IOException {
+            protected Doubles getDoubleValues(LeafReaderContext context, String field) throws IOException {
                 final SortedNumericDoubleValues values = getValues(context);
                 final NumericDoubleValues selectedValues;
                 if (nested == null) {

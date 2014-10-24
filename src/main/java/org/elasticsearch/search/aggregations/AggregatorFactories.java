@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lease.Releasables;
@@ -115,7 +115,7 @@ public class AggregatorFactories {
                 }
 
                 @Override
-                public void setNextReader(AtomicReaderContext reader) {
+                public void setNextReader(LeafReaderContext reader) {
                 }
 
                 @Override

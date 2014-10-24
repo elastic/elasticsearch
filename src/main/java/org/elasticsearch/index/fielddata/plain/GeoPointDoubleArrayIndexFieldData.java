@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.FixedBitSet;
@@ -59,8 +59,8 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexGeoPointFiel
     }
 
     @Override
-    public AtomicGeoPointFieldData loadDirect(AtomicReaderContext context) throws Exception {
-        AtomicReader reader = context.reader();
+    public AtomicGeoPointFieldData loadDirect(LeafReaderContext context) throws Exception {
+        LeafReader reader = context.reader();
 
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicGeoPointFieldData data = null;

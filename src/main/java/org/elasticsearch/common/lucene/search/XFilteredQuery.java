@@ -17,7 +17,8 @@ package org.elasticsearch.common.lucene.search;
  * limitations under the License.
  */
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
@@ -211,7 +212,7 @@ public final class XFilteredQuery extends Query {
         }
 
         @Override
-        public Scorer filteredScorer(AtomicReaderContext context, Weight weight, DocIdSet docIdSet) throws IOException {
+        public Scorer filteredScorer(LeafReaderContext context, Weight weight, DocIdSet docIdSet) throws IOException {
             // CHANGE: If threshold is 0, always pass down the accept docs, don't pay the price of calling nextDoc even...
             if (threshold == 0) {
                 final Bits filterAcceptDocs = docIdSet.bits();

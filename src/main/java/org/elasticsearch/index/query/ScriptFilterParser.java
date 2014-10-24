@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
@@ -168,7 +168,7 @@ public class ScriptFilterParser implements FilterParser {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             searchScript.setNextReader(context);
             // LUCENE 4 UPGRADE: we can simply wrap this here since it is not cacheable and if we are not top level we will get a null passed anyway 
             return BitsFilteredDocIdSet.wrap(new ScriptDocSet(context.reader().maxDoc(), acceptDocs, searchScript), acceptDocs);

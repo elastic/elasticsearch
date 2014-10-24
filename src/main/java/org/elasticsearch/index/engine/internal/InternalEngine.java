@@ -202,7 +202,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         this.similarityService = similarityService;
         this.codecService = codecService;
         this.compoundOnFlush = indexSettings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, this.compoundOnFlush);
-        this.checksumOnMerge = indexSettings.getAsBoolean(INDEX_CHECKSUM_ON_MERGE, this.checksumOnMerge);
         this.indexConcurrency = indexSettings.getAsInt(INDEX_INDEX_CONCURRENCY, Math.max(IndexWriterConfig.DEFAULT_MAX_THREAD_STATES, (int) (EsExecutors.boundedNumberOfProcessors(indexSettings) * 0.65)));
         this.versionMap = new LiveVersionMap();
         this.dirtyLocks = new Object[indexConcurrency * 50]; // we multiply it to have enough...
@@ -1172,7 +1171,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         return t;
     }
 
-    private static long getReaderRamBytesUsed(AtomicReaderContext reader) {
+    private static long getReaderRamBytesUsed(LeafReaderContext reader) {
         final SegmentReader segmentReader = SegmentReaderUtils.segmentReader(reader.reader());
         return segmentReader.ramBytesUsed();
     }
@@ -1183,7 +1182,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             ensureOpen();
             try (final Searcher searcher = acquireSearcher("segments_stats")) {
                 SegmentsStats stats = new SegmentsStats();
-                for (AtomicReaderContext reader : searcher.reader().leaves()) {
+                for (LeafReaderContext reader : searcher.reader().leaves()) {
                     stats.add(1, getReaderRamBytesUsed(reader));
                 }
                 stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
@@ -1203,7 +1202,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             // first, go over and compute the search ones...
             Searcher searcher = acquireSearcher("segments");
             try {
-                for (AtomicReaderContext reader : searcher.reader().leaves()) {
+                for (LeafReaderContext reader : searcher.reader().leaves()) {
                     assert reader.reader() instanceof SegmentReader;
                     SegmentCommitInfo info = SegmentReaderUtils.segmentReader(reader.reader()).getSegmentInfo();
                     assert !segments.containsKey(info.info.name);
@@ -1383,7 +1382,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     /**
      * Returns whether a leaf reader comes from a merge (versus flush or addIndexes).
      */
-    private static boolean isMergedSegment(AtomicReader reader) {
+    private static boolean isMergedSegment(LeafReader reader) {
         // We expect leaves to be segment readers
         final Map<String, String> diagnostics = SegmentReaderUtils.segmentReader(reader).getSegmentInfo().info.getDiagnostics();
         final String source = diagnostics.get(IndexWriter.SOURCE);
@@ -1399,7 +1398,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 IndexWriter.unlock(store.directory());
             }
             boolean create = !Lucene.indexExists(store.directory());
-            IndexWriterConfig config = new IndexWriterConfig(Lucene.VERSION, analysisService.defaultIndexAnalyzer());
+            IndexWriterConfig config = new IndexWriterConfig(analysisService.defaultIndexAnalyzer());
             config.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
             config.setIndexDeletionPolicy(deletionPolicy);
             config.setInfoStream(new LoggerInfoStream(indexSettings, shardId));
@@ -1420,12 +1419,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
              * in combination with the default writelock timeout*/
             config.setWriteLockTimeout(5000);
             config.setUseCompoundFile(this.compoundOnFlush);
-            config.setCheckIntegrityAtMerge(checksumOnMerge);
             // Warm-up hook for newly-merged segments. Warming up segments here is better since it will be performed at the end
             // of the merge operation and won't slow down _refresh
             config.setMergedSegmentWarmer(new IndexReaderWarmer() {
                 @Override
-                public void warm(AtomicReader reader) throws IOException {
+                public void warm(LeafReader reader) throws IOException {
                     try {
                         assert isMergedSegment(reader);
                         if (warmer != null) {
@@ -1455,7 +1453,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     public static final String INDEX_INDEX_CONCURRENCY = "index.index_concurrency";
     public static final String INDEX_COMPOUND_ON_FLUSH = "index.compound_on_flush";
-    public static final String INDEX_CHECKSUM_ON_MERGE = "index.checksum_on_merge";
     public static final String INDEX_GC_DELETES = "index.gc_deletes";
     public static final String INDEX_FAIL_ON_MERGE_FAILURE = "index.fail_on_merge_failure";
     public static final String INDEX_FAIL_ON_CORRUPTION = "index.fail_on_corruption";
@@ -1476,13 +1473,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 logger.info("updating {} from [{}] to [{}]", InternalEngine.INDEX_COMPOUND_ON_FLUSH, InternalEngine.this.compoundOnFlush, compoundOnFlush);
                 InternalEngine.this.compoundOnFlush = compoundOnFlush;
                 indexWriter.getConfig().setUseCompoundFile(compoundOnFlush);
-            }
-            
-            final boolean checksumOnMerge = settings.getAsBoolean(INDEX_CHECKSUM_ON_MERGE, InternalEngine.this.checksumOnMerge);
-            if (checksumOnMerge != InternalEngine.this.checksumOnMerge) {
-                logger.info("updating {} from [{}] to [{}]", InternalEngine.INDEX_CHECKSUM_ON_MERGE, InternalEngine.this.checksumOnMerge, checksumOnMerge);
-                InternalEngine.this.checksumOnMerge = checksumOnMerge;
-                indexWriter.getConfig().setCheckIntegrityAtMerge(checksumOnMerge);
             }
 
             InternalEngine.this.failEngineOnCorruption = settings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION, InternalEngine.this.failEngineOnCorruption);
@@ -1600,13 +1590,13 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         try (final Searcher currentSearcher = acquireSearcher("search_factory")) {
                             // figure out the newSearcher, with only the new readers that are relevant for us
                             List<IndexReader> readers = Lists.newArrayList();
-                            for (AtomicReaderContext newReaderContext : searcher.getIndexReader().leaves()) {
+                            for (LeafReaderContext newReaderContext : searcher.getIndexReader().leaves()) {
                                 if (isMergedSegment(newReaderContext.reader())) {
                                     // merged segments are already handled by IndexWriterConfig.setMergedSegmentWarmer
                                     continue;
                                 }
                                 boolean found = false;
-                                for (AtomicReaderContext currentReaderContext : currentSearcher.reader().leaves()) {
+                                for (LeafReaderContext currentReaderContext : currentSearcher.reader().leaves()) {
                                     if (currentReaderContext.reader().getCoreCacheKey().equals(newReaderContext.reader().getCoreCacheKey())) {
                                         found = true;
                                         break;

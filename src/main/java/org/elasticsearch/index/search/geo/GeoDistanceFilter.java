@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
@@ -103,7 +103,7 @@ public class GeoDistanceFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptedDocs) throws IOException {
         DocIdSet boundingBoxDocSet = null;
         if (boundingBoxFilter != null) {
             boundingBoxDocSet = boundingBoxFilter.getDocIdSet(context, acceptedDocs);

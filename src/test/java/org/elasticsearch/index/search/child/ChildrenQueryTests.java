@@ -99,8 +99,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
     public void testRandom() throws Exception {
         Directory directory = newDirectory();
         final Random r = random();
-        final IndexWriterConfig iwc = LuceneTestCase.newIndexWriterConfig(r,
-                LuceneTestCase.TEST_VERSION_CURRENT, new MockAnalyzer(r))
+        final IndexWriterConfig iwc = LuceneTestCase.newIndexWriterConfig(r, new MockAnalyzer(r))
                 .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
                 .setRAMBufferSizeMB(scaledRandomIntBetween(16, 64)); // we might index a lot - don't go crazy here
         RandomIndexWriter indexWriter = new RandomIndexWriter(r, directory, iwc);
@@ -242,8 +241,8 @@ public class ChildrenQueryTests extends AbstractChildTests {
             TopScoreDocCollector expectedTopDocsCollector = TopScoreDocCollector.create(numHits, false);
             expectedTopDocsCollector.setScorer(mockScorer);
             if (childValueToParentIds.containsKey(childValue)) {
-                AtomicReader slowAtomicReader = SlowCompositeReaderWrapper.wrap(indexReader);
-                Terms terms = slowAtomicReader.terms(UidFieldMapper.NAME);
+                LeafReader slowLeafReader = SlowCompositeReaderWrapper.wrap(indexReader);
+                Terms terms = slowLeafReader.terms(UidFieldMapper.NAME);
                 if (terms != null) {
                     NavigableMap<String, FloatArrayList> parentIdToChildScores = childValueToParentIds.lget();
                     TermsEnum termsEnum = terms.iterator(null);
@@ -253,7 +252,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
                         if (count >= minChildren && (maxChildren == 0 || count <= maxChildren)) {
                             TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(Uid.createUidAsBytes("parent", entry.getKey()));
                             if (seekStatus == TermsEnum.SeekStatus.FOUND) {
-                                docsEnum = termsEnum.docs(slowAtomicReader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
+                                docsEnum = termsEnum.docs(slowLeafReader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
                                 expectedResult.set(docsEnum.nextDoc());
                                 mockScorer.scores = entry.getValue();
                                 expectedTopDocsCollector.collect(docsEnum.docID());

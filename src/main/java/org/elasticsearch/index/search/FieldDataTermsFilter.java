@@ -21,7 +21,7 @@ package org.elasticsearch.index.search;
 import com.carrotsearch.hppc.DoubleOpenHashSet;
 import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
@@ -129,7 +129,7 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             // make sure there are terms to filter on
             if (terms == null || terms.isEmpty()) return null;
 
@@ -181,7 +181,7 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             // make sure there are terms to filter on
             if (terms == null || terms.isEmpty()) return null;
 
@@ -240,7 +240,7 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             // make sure there are terms to filter on
             if (terms == null || terms.isEmpty()) return null;
 

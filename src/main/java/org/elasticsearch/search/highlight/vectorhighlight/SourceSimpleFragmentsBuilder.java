@@ -20,7 +20,7 @@ package org.elasticsearch.search.highlight.vectorhighlight;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -53,7 +53,7 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
         SearchLookup lookup = searchContext.lookup();
-        lookup.setNextReader((AtomicReaderContext) reader.getContext());
+        lookup.setNextReader((LeafReaderContext) reader.getContext());
         lookup.setNextDocId(docId);
 
         List<Object> values = lookup.source().extractRawValues(hitContext.getSourcePath(mapper.names().sourcePath()));

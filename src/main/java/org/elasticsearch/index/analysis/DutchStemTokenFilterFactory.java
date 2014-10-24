@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.snowball.SnowballFilter;
+import org.tartarus.snowball.ext.DutchStemmer;
+
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.SetKeywordMarkerFilter;
-import org.apache.lucene.analysis.nl.DutchStemFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -39,11 +41,12 @@ public class DutchStemTokenFilterFactory extends AbstractTokenFilterFactory {
     @Inject
     public DutchStemTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version);
+        this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new DutchStemFilter(new SetKeywordMarkerFilter(tokenStream, exclusions));
+        tokenStream = new SetKeywordMarkerFilter(tokenStream, exclusions);
+        return new SnowballFilter(tokenStream, new DutchStemmer());
     }
 }

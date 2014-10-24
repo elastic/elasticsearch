@@ -292,7 +292,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         DirectoryReader reader = DirectoryReader.open(writer, true);
         assertThat(reader.leaves().size(), equalTo(1));
         assertThat(reader.leaves().get(0).reader().numDocs(), equalTo(weights.length));
-        AtomicReaderContext atomicReaderContext = reader.leaves().get(0);
+        LeafReaderContext atomicReaderContext = reader.leaves().get(0);
         Terms luceneTerms = atomicReaderContext.reader().terms(mapper.name());
         Lookup lookup = ((Completion090PostingsFormat.CompletionTerms) luceneTerms).getLookup(mapper, new CompletionSuggestionContext(null));
         reader.close();

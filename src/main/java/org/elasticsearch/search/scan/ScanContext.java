@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.scan;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
@@ -111,7 +111,7 @@ public class ScanContext {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) throws IOException {
+        public void setNextReader(LeafReaderContext context) throws IOException {
             // if we have a reader state, and we haven't registered one already, register it
             // we need to check in readersState since even when the filter return null, setNextReader is still
             // called for that reader (before)
@@ -152,7 +152,7 @@ public class ScanContext {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptedDocs) throws IOException {
             ReaderState readerState = readerStates.get(context.reader());
             if (readerState != null && readerState.done) {
                 scanCollector.incCounter(readerState.count);

@@ -485,7 +485,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         File fileToCorrupt = null;
         if (!files.isEmpty()) {
             fileToCorrupt = RandomPicks.randomFrom(getRandom(), files);
-            try (Directory dir = FSDirectory.open(fileToCorrupt.getParentFile())) {
+            try (Directory dir = FSDirectory.open(fileToCorrupt.getParentFile().toPath())) {
                 long checksumBeforeCorruption;
                 try (IndexInput input = dir.openInput(fileToCorrupt.getName(), IOContext.DEFAULT)) {
                     checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);

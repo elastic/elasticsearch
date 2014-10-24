@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
@@ -154,7 +154,7 @@ public class ScriptSortParser implements SortParser {
             case STRING_SORT_TYPE:
                 fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, sortMode, nested) {
                     @Override
-                    protected SortedBinaryDocValues getValues(AtomicReaderContext context) {
+                    protected SortedBinaryDocValues getValues(LeafReaderContext context) {
                         searchScript.setNextReader(context);
                         final BinaryDocValues values = new BinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
@@ -177,7 +177,7 @@ public class ScriptSortParser implements SortParser {
                 // TODO: should we rather sort missing values last?
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, sortMode, nested) {
                     @Override
-                    protected SortedNumericDoubleValues getValues(AtomicReaderContext context) {
+                    protected SortedNumericDoubleValues getValues(LeafReaderContext context) {
                         searchScript.setNextReader(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override

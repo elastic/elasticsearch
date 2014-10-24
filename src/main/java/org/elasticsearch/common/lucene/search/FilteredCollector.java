@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
@@ -63,7 +63,7 @@ public class FilteredCollector extends XCollector {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) throws IOException {
+    public void setNextReader(LeafReaderContext context) throws IOException {
         collector.setNextReader(context);
         docSet = DocIdSets.toSafeBits(context.reader(), filter.getDocIdSet(context, null));
     }

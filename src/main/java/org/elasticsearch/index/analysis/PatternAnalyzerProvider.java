@@ -37,7 +37,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.Reader;
 import java.util.regex.Pattern;
 
 /**
@@ -61,13 +60,13 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analy
         }
 
         @Override
-        protected TokenStreamComponents createComponents(String s, Reader reader) {
-            final TokenStreamComponents source = new TokenStreamComponents(new PatternTokenizer(reader, pattern, -1));
+        protected TokenStreamComponents createComponents(String s) {
+            final TokenStreamComponents source = new TokenStreamComponents(new PatternTokenizer(pattern, -1));
             TokenStream result = null;
             if (lowercase) {
-                 result = new LowerCaseFilter(version, source.getTokenStream());
+                 result = new LowerCaseFilter(source.getTokenStream());
             }
-            result = new StopFilter(version, (result == null) ? source.getTokenStream() : result, stopWords);
+            result = new StopFilter((result == null) ? source.getTokenStream() : result, stopWords);
             return new TokenStreamComponents(source.getTokenizer(), result);
         }
     }
@@ -84,7 +83,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analy
             defaultStopwords = StopAnalyzer.ENGLISH_STOP_WORDS_SET;
         }
         boolean lowercase = settings.getAsBoolean("lowercase", true);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords, version);
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
 
         String sPattern = settings.get("pattern", "\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/);
         if (sPattern == null) {

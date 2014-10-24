@@ -27,7 +27,6 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -79,12 +78,12 @@ public class MapperQueryParser extends QueryParser {
     private String quoteFieldSuffix;
 
     public MapperQueryParser(QueryParseContext parseContext) {
-        super(Lucene.QUERYPARSER_VERSION, null, null);
+        super(null, null);
         this.parseContext = parseContext;
     }
 
     public MapperQueryParser(QueryParserSettings settings, QueryParseContext parseContext) {
-        super(Lucene.QUERYPARSER_VERSION, settings.defaultField(), settings.defaultAnalyzer());
+        super(settings.defaultField(), settings.defaultAnalyzer());
         this.parseContext = parseContext;
         reset(settings);
     }

@@ -25,7 +25,7 @@ import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.CloseableThreadLocal;
@@ -578,7 +578,7 @@ public class DocumentMapper implements ToXContent {
             for (ParseContext.Document doc : context.docs()) {
                 encounteredFields.clear();
                 for (IndexableField field : doc) {
-                    if (field.fieldType().indexed() && !field.fieldType().omitNorms()) {
+                    if (field.fieldType().indexOptions() != null && !field.fieldType().omitNorms()) {
                         if (!encounteredFields.contains(field.name())) {
                             ((Field) field).setBoost(context.docBoost() * field.boost());
                             encounteredFields.add(field.name());
@@ -598,7 +598,7 @@ public class DocumentMapper implements ToXContent {
     /**
      * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
      */
-    public ObjectMapper findNestedObjectMapper(int nestedDocId, FixedBitSetFilterCache cache, AtomicReaderContext context) throws IOException {
+    public ObjectMapper findNestedObjectMapper(int nestedDocId, FixedBitSetFilterCache cache, LeafReaderContext context) throws IOException {
         ObjectMapper nestedObjectMapper = null;
         for (ObjectMapper objectMapper : objectMappers().values()) {
             if (!objectMapper.nested().isNested()) {

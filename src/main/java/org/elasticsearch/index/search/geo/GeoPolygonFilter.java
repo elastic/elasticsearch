@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
@@ -55,7 +55,7 @@ public class GeoPolygonFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptedDocs) throws IOException {
         final MultiGeoPointValues values = indexFieldData.load(context).getGeoPointValues();
         return new GeoPolygonDocIdSet(context.reader().maxDoc(), acceptedDocs, values, points);
     }

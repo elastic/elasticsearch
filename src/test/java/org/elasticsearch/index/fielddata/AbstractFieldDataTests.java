@@ -50,7 +50,7 @@ public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest
     protected IndexFieldDataService ifdService;
     protected MapperService mapperService;
     protected IndexWriter writer;
-    protected AtomicReaderContext readerContext;
+    protected LeafReaderContext readerContext;
     protected IndexReader topLevelReader;
     protected IndicesFieldDataCache indicesFieldDataCache;
 
@@ -101,14 +101,14 @@ public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest
         indicesFieldDataCache = indexService.injector().getInstance(IndicesFieldDataCache.class);
         ifdService = indexService.fieldData();
         // LogByteSizeMP to preserve doc ID order
-        writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)).setMergePolicy(new LogByteSizeMergePolicy()));
+        writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy()));
     }
 
-    protected AtomicReaderContext refreshReader() throws Exception {
+    protected LeafReaderContext refreshReader() throws Exception {
         if (readerContext != null) {
             readerContext.reader().close();
         }
-        AtomicReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader = DirectoryReader.open(writer, true));
+        LeafReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader = DirectoryReader.open(writer, true));
         readerContext = reader.getContext();
         return readerContext;
     }

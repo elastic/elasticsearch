@@ -514,7 +514,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
     @Test
     public void testTermsEnum() throws Exception {
         fillExtendedMvSet();
-        AtomicReaderContext atomicReaderContext = refreshReader();
+        LeafReaderContext atomicReaderContext = refreshReader();
 
         IndexOrdinalsFieldData ifd = getForField("value");
         AtomicOrdinalsFieldData afd = ifd.load(atomicReaderContext);

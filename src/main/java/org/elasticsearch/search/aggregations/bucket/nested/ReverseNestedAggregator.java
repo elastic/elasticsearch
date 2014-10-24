@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.nested;
 
 import com.carrotsearch.hppc.LongIntOpenHashMap;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
@@ -77,7 +77,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         bucketOrdToLastCollectedParentDoc.clear();
         try {
             // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives

@@ -20,7 +20,7 @@ package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.ByteObjectOpenHashMap;
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.ExtendedMemoryIndex;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -740,7 +740,7 @@ public class PercolatorService extends AbstractComponent {
                 int i = 0;
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                     int segmentIdx = ReaderUtil.subIndex(scoreDoc.doc, percolatorSearcher.reader().leaves());
-                    AtomicReaderContext atomicReaderContext = percolatorSearcher.reader().leaves().get(segmentIdx);
+                    LeafReaderContext atomicReaderContext = percolatorSearcher.reader().leaves().get(segmentIdx);
                     SortedBinaryDocValues values = idFieldData.load(atomicReaderContext).getBytesValues();
                     final int localDocId = scoreDoc.doc - atomicReaderContext.docBase;
                     values.setDocument(localDocId);

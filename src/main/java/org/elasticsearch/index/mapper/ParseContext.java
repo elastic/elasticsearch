@@ -761,7 +761,7 @@ public abstract class ParseContext {
     public abstract void version(Field version);
 
     public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
-        return includeInAll(includeInAll, mapper.fieldType().indexed());
+        return includeInAll(includeInAll, mapper.fieldType().indexOptions() != null);
     }
 
     /**

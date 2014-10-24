@@ -39,8 +39,8 @@ public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements 
     }
 
     @Override
-    public AtomicLongFieldData load(AtomicReaderContext context) {
-        final AtomicReader reader = context.reader();
+    public AtomicLongFieldData load(LeafReaderContext context) {
+        final LeafReader reader = context.reader();
         final String field = fieldNames.indexName();
         return new AtomicLongFieldData(-1) {
             @Override
@@ -58,7 +58,7 @@ public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements 
     }
 
     @Override
-    public AtomicLongFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicLongFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 

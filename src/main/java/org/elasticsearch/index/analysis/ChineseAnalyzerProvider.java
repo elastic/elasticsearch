@@ -19,7 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.cn.ChineseAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -29,18 +30,20 @@ import org.elasticsearch.index.settings.IndexSettings;
 /**
  *
  */
-public class ChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<ChineseAnalyzer> {
+// nocommit: Just remove this instead?
+public class ChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardAnalyzer> {
 
-    private final ChineseAnalyzer analyzer;
+    private final StandardAnalyzer analyzer;
 
     @Inject
     public ChineseAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        analyzer = new ChineseAnalyzer();
+        analyzer = new StandardAnalyzer();
+        analyzer.setVersion(version);
     }
 
     @Override
-    public ChineseAnalyzer get() {
+    public StandardAnalyzer get() {
         return this.analyzer;
     }
 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
@@ -45,7 +45,7 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
     private final LongObjectPagedHashMap<TopDocsCollector> topDocsCollectors;
 
     private Scorer currentScorer;
-    private AtomicReaderContext currentContext;
+    private LeafReaderContext currentContext;
 
     public TopHitsAggregator(FetchPhase fetchPhase, TopHitsContext topHitsContext, String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
         super(name, estimatedBucketsCount, context, parent);
@@ -116,7 +116,7 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) {
+    public void setNextReader(LeafReaderContext context) {
         this.currentContext = context;
         for (LongObjectPagedHashMap.Cursor<TopDocsCollector> cursor : topDocsCollectors) {
             try {

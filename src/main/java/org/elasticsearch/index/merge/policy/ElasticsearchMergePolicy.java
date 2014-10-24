@@ -68,7 +68,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     }
 
     /** Return an "upgraded" view of the reader. */
-    static AtomicReader filter(AtomicReader reader) throws IOException {
+    static LeafReader filter(LeafReader reader) throws IOException {
         final FieldInfos fieldInfos = reader.getFieldInfos();
         final FieldInfo versionInfo = fieldInfos.fieldInfo(VersionFieldMapper.NAME);
         if (versionInfo != null && versionInfo.hasDocValues()) {
@@ -130,7 +130,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
                 return versions.get(index);
             }
         };
-        return new FilterAtomicReader(reader) {
+        return new FilterLeafReader(reader) {
             @Override
             public FieldInfos getFieldInfos() {
                 return newFieldInfos;
@@ -156,10 +156,10 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         }
 
         @Override
-        public List<AtomicReader> getMergeReaders() throws IOException {
-            final List<AtomicReader> readers = super.getMergeReaders();
-            ImmutableList.Builder<AtomicReader> newReaders = ImmutableList.builder();
-            for (AtomicReader reader : readers) {
+        public List<LeafReader> getMergeReaders() throws IOException {
+            final List<LeafReader> readers = super.getMergeReaders();
+            ImmutableList.Builder<LeafReader> newReaders = ImmutableList.builder();
+            for (LeafReader reader : readers) {
                 newReaders.add(filter(reader));
             }
             return newReaders.build();

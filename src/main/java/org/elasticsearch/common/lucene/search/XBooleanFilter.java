@@ -17,8 +17,8 @@ package org.elasticsearch.common.lucene.search;
  * limitations under the License.
  */
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.DocIdSet;
@@ -49,9 +49,9 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
      * of the filters that have been added.
      */
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
         FixedBitSet res = null;
-        final AtomicReader reader = context.reader();
+        final LeafReader reader = context.reader();
 
         // optimize single case...
         if (clauses.size() == 1) {

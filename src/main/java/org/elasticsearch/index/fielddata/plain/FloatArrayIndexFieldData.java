@@ -64,8 +64,8 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
     }
 
     @Override
-    public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
-        final AtomicReader reader = context.reader();
+    public AtomicNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
+        final LeafReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicNumericFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.

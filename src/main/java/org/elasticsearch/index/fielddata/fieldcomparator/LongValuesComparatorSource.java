@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.FieldCache.Longs;
@@ -63,7 +63,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         // the comparator doesn't check docsWithField since we replace missing values in select()
         return new FieldComparator.LongComparator(numHits, null, null, null) {
             @Override
-            protected Longs getLongValues(AtomicReaderContext context, String field) throws IOException {
+            protected Longs getLongValues(LeafReaderContext context, String field) throws IOException {
                 final SortedNumericDocValues values = indexFieldData.load(context).getLongValues();
                 final NumericDocValues selectedValues;
                 if (nested == null) {

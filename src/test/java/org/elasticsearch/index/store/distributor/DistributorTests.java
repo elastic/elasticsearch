@@ -26,6 +26,8 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -158,7 +160,7 @@ public class DistributorTests extends ElasticsearchTestCase {
         public FakeFile fakeFile;
 
         public FakeFsDirectory(String path, long usableSpace) throws IOException {
-            super(new File(path), NoLockFactory.getNoLockFactory());
+            super(Paths.get(path), NoLockFactory.getNoLockFactory());
             fakeFile = new FakeFile(path, usableSpace);
             allocationCount = 0;
         }
@@ -185,11 +187,13 @@ public class DistributorTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public File getDirectory() {
-            return fakeFile;
+        public Path getDirectory() {
+            return fakeFile.toPath();
         }
     }
 
+    // nocommit: will this really work?
+    
     public static class FakeFile extends File {
         private long usableSpace;
 

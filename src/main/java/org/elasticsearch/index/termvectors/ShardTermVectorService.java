@@ -301,7 +301,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return parallelFields;
     }
 
-    // Poached from Lucene ParallelAtomicReader
+    // Poached from Lucene ParallelLeafReader
     private static final class ParallelFields extends Fields {
         final Map<String,Terms> fields = new TreeMap<>();
 

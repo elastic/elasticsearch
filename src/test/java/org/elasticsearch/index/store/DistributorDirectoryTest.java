@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.index.store;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 
 import org.apache.lucene.store.BaseDirectoryTestCase;
 import org.apache.lucene.store.Directory;
@@ -43,7 +43,7 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 public class DistributorDirectoryTest extends BaseDirectoryTestCase {
 
     @Override
-    protected Directory getDirectory(File path) throws IOException {
+    protected Directory getDirectory(Path path) throws IOException {
         Directory[] directories = new Directory[1 + random().nextInt(5)];
         for (int i = 0; i < directories.length; i++) {
             directories[i] = newDirectory();

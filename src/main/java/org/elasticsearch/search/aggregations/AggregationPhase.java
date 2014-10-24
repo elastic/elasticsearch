@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
@@ -163,7 +163,7 @@ public class AggregationPhase implements SearchPhase {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) throws IOException {
+        public void setNextReader(LeafReaderContext context) throws IOException {
             aggregationContext.setNextReader(context);
         }
 

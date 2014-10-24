@@ -284,7 +284,7 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
         docMapper.parse(SourceToParse.source(getResponse.getSourceAsBytesRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
             @Override
             public boolean beforeFieldAdded(FieldMapper fieldMapper, Field field, Object parseContext) {
-                if (!field.fieldType().indexed()) {
+                if (field.fieldType().indexOptions() == null) {
                     return false;
                 }
                 if (fieldMapper instanceof InternalMapper) {

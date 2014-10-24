@@ -20,7 +20,7 @@
 package org.elasticsearch.search.fetch;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.FixedBitSet;
@@ -159,7 +159,7 @@ public class FetchPhase implements SearchPhase {
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
             int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
-            AtomicReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+            LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
             int subDocId = docId - subReaderContext.docBase;
 
             final InternalSearchHit searchHit;
@@ -192,7 +192,7 @@ public class FetchPhase implements SearchPhase {
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));
     }
 
-    private int findRootDocumentIfNested(SearchContext context, AtomicReaderContext subReaderContext, int subDocId) throws IOException {
+    private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
         if (context.mapperService().hasNested()) {
             FixedBitSet nonNested = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE).getDocIdSet(subReaderContext, null);
             if (!nonNested.get(subDocId)) {
@@ -202,7 +202,7 @@ public class FetchPhase implements SearchPhase {
         return -1;
     }
 
-    private InternalSearchHit createSearchHit(SearchContext context, FieldsVisitor fieldsVisitor, int docId, int subDocId, List<String> extractFieldNames, AtomicReaderContext subReaderContext) {
+    private InternalSearchHit createSearchHit(SearchContext context, FieldsVisitor fieldsVisitor, int docId, int subDocId, List<String> extractFieldNames, LeafReaderContext subReaderContext) {
         loadStoredFields(context, subReaderContext, fieldsVisitor, subDocId);
         fieldsVisitor.postProcess(context.mapperService());
 
@@ -252,7 +252,7 @@ public class FetchPhase implements SearchPhase {
         return searchHit;
     }
 
-    private InternalSearchHit createNestedSearchHit(SearchContext context, int nestedTopDocId, int nestedSubDocId, int rootSubDocId, List<String> extractFieldNames, boolean loadAllStored, Set<String> fieldNames, AtomicReaderContext subReaderContext) throws IOException {
+    private InternalSearchHit createNestedSearchHit(SearchContext context, int nestedTopDocId, int nestedSubDocId, int rootSubDocId, List<String> extractFieldNames, boolean loadAllStored, Set<String> fieldNames, LeafReaderContext subReaderContext) throws IOException {
         final FieldsVisitor rootFieldsVisitor;
         if (context.sourceRequested() || extractFieldNames != null) {
             rootFieldsVisitor = new UidAndSourceFieldsVisitor();
@@ -315,7 +315,7 @@ public class FetchPhase implements SearchPhase {
         return searchHit;
     }
 
-    private Map<String, SearchHitField> getSearchFields(SearchContext context, int nestedSubDocId, boolean loadAllStored, Set<String> fieldNames, AtomicReaderContext subReaderContext) {
+    private Map<String, SearchHitField> getSearchFields(SearchContext context, int nestedSubDocId, boolean loadAllStored, Set<String> fieldNames, LeafReaderContext subReaderContext) {
         Map<String, SearchHitField> searchFields = null;
         if (context.hasFieldNames() && !context.fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = null;
@@ -339,7 +339,7 @@ public class FetchPhase implements SearchPhase {
         return searchFields;
     }
 
-    private InternalSearchHit.InternalNestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId, AtomicReaderContext subReaderContext, DocumentMapper documentMapper, ObjectMapper nestedObjectMapper) throws IOException {
+    private InternalSearchHit.InternalNestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId, LeafReaderContext subReaderContext, DocumentMapper documentMapper, ObjectMapper nestedObjectMapper) throws IOException {
         int currentParent = nestedSubDocId;
         ObjectMapper nestedParentObjectMapper;
         InternalSearchHit.InternalNestedIdentity nestedIdentity = null;
@@ -369,7 +369,7 @@ public class FetchPhase implements SearchPhase {
         return nestedIdentity;
     }
 
-    private void loadStoredFields(SearchContext searchContext, AtomicReaderContext readerContext, FieldsVisitor fieldVisitor, int docId) {
+    private void loadStoredFields(SearchContext searchContext, LeafReaderContext readerContext, FieldsVisitor fieldVisitor, int docId) {
         fieldVisitor.reset();
         try {
             readerContext.reader().document(docId, fieldVisitor);

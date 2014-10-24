@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.store.CompoundFileDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.FilterDirectory;
@@ -36,6 +35,7 @@ public final class DirectoryUtils {
      * Try and extract a store directory out of a directory, tries to take into
      * account the fact that a directory is a filter directory, and/or a compound dir.
      */
+    // nocommit: you cannot do this with compound directories anymore. what calls this code?
     @Nullable
     public static Store.StoreDirectory getStoreDirectory(Directory dir) {
         Directory current = dir;
@@ -45,8 +45,6 @@ public final class DirectoryUtils {
             }
             if (current instanceof FilterDirectory) {
                 current = ((FilterDirectory) current).getDelegate();
-            } else if (current instanceof CompoundFileDirectory) {
-                current = ((CompoundFileDirectory) current).getDirectory();
             } else {
                 return null;
             }

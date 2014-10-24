@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import com.google.common.base.Preconditions;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -64,7 +64,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
     }
 
     @Override
-    public AtomicNumericFieldData load(AtomicReaderContext context) {
+    public AtomicNumericFieldData load(LeafReaderContext context) {
         try {
             final BinaryDocValues values = DocValues.getBinary(context.reader(), fieldNames.indexName());
             if (numericType.isFloatingPoint()) {
@@ -99,7 +99,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
     }
 
     @Override
-    public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 

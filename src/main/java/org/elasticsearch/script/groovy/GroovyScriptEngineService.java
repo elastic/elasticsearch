@@ -22,7 +22,7 @@ package org.elasticsearch.script.groovy;
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
 import org.codehaus.groovy.ast.ClassNode;
@@ -216,7 +216,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) {
+        public void setNextReader(LeafReaderContext context) {
             if (lookup != null) {
                 lookup.setNextReader(context);
             }

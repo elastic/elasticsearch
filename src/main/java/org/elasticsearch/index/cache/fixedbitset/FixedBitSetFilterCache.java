@@ -23,8 +23,8 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
@@ -72,7 +72,7 @@ import java.util.concurrent.Executor;
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.elasticsearch.index.cache.filter.FilterCache} should be used instead.
  */
-public class FixedBitSetFilterCache extends AbstractIndexComponent implements AtomicReader.CoreClosedListener, RemovalListener<Object, Cache<Filter, FixedBitSetFilterCache.Value>>, CloseableComponent {
+public class FixedBitSetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Filter, FixedBitSetFilterCache.Value>>, CloseableComponent {
 
     public static final String LOAD_RANDOM_ACCESS_FILTERS_EAGERLY = "index.load_fixed_bitset_filters_eagerly";
 
@@ -126,7 +126,7 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
         loadedFilters.cleanUp();
     }
 
-    private FixedBitSet getAndLoadIfNotPresent(final Filter filter, final AtomicReaderContext context) throws IOException, ExecutionException {
+    private FixedBitSet getAndLoadIfNotPresent(final Filter filter, final LeafReaderContext context) throws IOException, ExecutionException {
         final Object coreCacheReader = context.reader().getCoreCacheKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
         Cache<Filter, Value> filterToFbs = loadedFilters.get(coreCacheReader, new Callable<Cache<Filter, Value>>() {
@@ -216,7 +216,7 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
         }
 
         @Override
-        public FixedBitSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public FixedBitSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             try {
                 return getAndLoadIfNotPresent(filter, context);
             } catch (ExecutionException e) {
@@ -276,7 +276,7 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
 
             final Executor executor = threadPool.executor(executor());
             final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
-            for (final AtomicReaderContext ctx : context.searcher().reader().leaves()) {
+            for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
                 for (final Filter filterToWarm : warmUp) {
                     executor.execute(new Runnable() {
 

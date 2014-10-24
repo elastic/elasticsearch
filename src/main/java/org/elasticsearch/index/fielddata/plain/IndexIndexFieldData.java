@@ -99,12 +99,12 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public final AtomicOrdinalsFieldData load(AtomicReaderContext context) {
+    public final AtomicOrdinalsFieldData load(LeafReaderContext context) {
         return atomicFieldData;
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(AtomicReaderContext context)
+    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context)
             throws Exception {
         return atomicFieldData;
     }

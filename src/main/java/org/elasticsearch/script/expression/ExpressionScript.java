@@ -22,7 +22,7 @@ package org.elasticsearch.script.expression;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.SimpleBindings;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.search.Scorer;
@@ -80,7 +80,7 @@ class ExpressionScript implements SearchScript {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext leaf) {
+    public void setNextReader(LeafReaderContext leaf) {
         try {
             values = source.getValues(context, leaf);
         } catch (IOException e) {

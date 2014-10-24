@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
@@ -125,7 +125,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    public void search(List<AtomicReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         final boolean timeoutSet = searchContext.timeoutInMillis() != -1;
         final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
 

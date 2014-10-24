@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.cache.fixedbitset;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
@@ -32,6 +32,6 @@ import java.io.IOException;
 public abstract class FixedBitSetFilter extends Filter {
 
     @Override
-    public abstract FixedBitSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException;
+    public abstract FixedBitSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException;
 
 }

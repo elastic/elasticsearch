@@ -22,7 +22,7 @@ package org.elasticsearch.index.cache.filter.weighted;
 import com.google.common.cache.Cache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.Weigher;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSet;
@@ -154,7 +154,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
 
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             Object filterKey = filter;
             if (filter instanceof CacheKeyFilter) {
                 filterKey = ((CacheKeyFilter) filter).cacheKey();

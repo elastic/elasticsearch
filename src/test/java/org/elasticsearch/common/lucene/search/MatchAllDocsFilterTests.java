@@ -44,7 +44,7 @@ public class MatchAllDocsFilterTests extends ElasticsearchTestCase {
     @Test
     public void testMatchAllDocsFilter() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));

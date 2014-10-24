@@ -48,13 +48,13 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
     
     private Directory directory;
-    private AtomicReader reader;
+    private LeafReader reader;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         directory = new RAMDirectory();
-        IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.VERSION, new WhitespaceAnalyzer(Lucene.VERSION)));
+        IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(new WhitespaceAnalyzer()));
 
         //Add series of docs with filterable fields : acces rights, prices, dates and "in-stock" flags
         addDoc(writer, "admin guest", "010", "20040101", "Y");
@@ -98,7 +98,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
     private Filter getEmptyFilter() {
         return new Filter() {
             @Override
-            public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) {
+            public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) {
                 return new FixedBitSet(context.reader().maxDoc());
             }
         };
@@ -107,7 +107,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
     private Filter getNullDISFilter() {
         return new Filter() {
             @Override
-            public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) {
+            public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) {
                 return null;
             }
         };
@@ -116,7 +116,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
     private Filter getNullDISIFilter() {
         return new Filter() {
             @Override
-            public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) {
+            public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) {
                 return new DocIdSet() {
                     @Override
                     public DocIdSetIterator iterator() {

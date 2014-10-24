@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -187,7 +187,7 @@ public class NestedQueryParser implements QueryParser {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits liveDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext ctx, Bits liveDocs) throws IOException {
             //LUCENE 4 UPGRADE just passing on ctx and live docs here
             return filter.getDocIdSet(ctx, liveDocs);
         }

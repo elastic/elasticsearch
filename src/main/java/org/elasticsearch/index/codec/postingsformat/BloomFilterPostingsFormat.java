@@ -211,7 +211,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
         }
     }
 
-    public static final class BloomFilteredTerms extends FilterAtomicReader.FilterTerms {
+    public static final class BloomFilteredTerms extends FilterLeafReader.FilterTerms {
         private BloomFilter filter;
 
         public BloomFilteredTerms(Terms terms, BloomFilter filter) {

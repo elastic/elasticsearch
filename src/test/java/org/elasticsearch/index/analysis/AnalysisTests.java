@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -34,14 +33,14 @@ public class AnalysisTests extends ElasticsearchTestCase {
 
         /* Comma separated list */
         Settings settings = settingsBuilder().put("stem_exclusion", "foo,bar").build();
-        CharArraySet set = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, Version.CURRENT.luceneVersion);
+        CharArraySet set = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         assertThat(set.contains("foo"), is(true));
         assertThat(set.contains("bar"), is(true));
         assertThat(set.contains("baz"), is(false));
 
         /* Array */
         settings = settingsBuilder().putArray("stem_exclusion", "foo","bar").build();
-        set = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, Version.CURRENT.luceneVersion);
+        set = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         assertThat(set.contains("foo"), is(true));
         assertThat(set.contains("bar"), is(true));
         assertThat(set.contains("baz"), is(false));

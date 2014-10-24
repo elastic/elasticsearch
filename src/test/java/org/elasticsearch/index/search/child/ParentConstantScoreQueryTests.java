@@ -84,8 +84,7 @@ public class ParentConstantScoreQueryTests extends AbstractChildTests {
     public void testRandom() throws Exception {
         Directory directory = newDirectory();
         final Random r = random();
-        final IndexWriterConfig iwc = LuceneTestCase.newIndexWriterConfig(r,
-                LuceneTestCase.TEST_VERSION_CURRENT, new MockAnalyzer(r))
+        final IndexWriterConfig iwc = LuceneTestCase.newIndexWriterConfig(r, new MockAnalyzer(r))
                 .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
                 .setRAMBufferSizeMB(scaledRandomIntBetween(16, 64)); // we might index a lot - don't go crazy here
         RandomIndexWriter indexWriter = new RandomIndexWriter(r, directory, iwc);
@@ -221,8 +220,8 @@ public class ParentConstantScoreQueryTests extends AbstractChildTests {
 
             FixedBitSet expectedResult = new FixedBitSet(indexReader.maxDoc());
             if (parentValueToChildDocIds.containsKey(parentValue)) {
-                AtomicReader slowAtomicReader = SlowCompositeReaderWrapper.wrap(indexReader);
-                Terms terms = slowAtomicReader.terms(UidFieldMapper.NAME);
+                LeafReader slowLeafReader = SlowCompositeReaderWrapper.wrap(indexReader);
+                Terms terms = slowLeafReader.terms(UidFieldMapper.NAME);
                 if (terms != null) {
                     NavigableSet<String> childIds = parentValueToChildDocIds.lget();
                     TermsEnum termsEnum = terms.iterator(null);
@@ -230,7 +229,7 @@ public class ParentConstantScoreQueryTests extends AbstractChildTests {
                     for (String id : childIds) {
                         TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(Uid.createUidAsBytes("child", id));
                         if (seekStatus == TermsEnum.SeekStatus.FOUND) {
-                            docsEnum = termsEnum.docs(slowAtomicReader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
+                            docsEnum = termsEnum.docs(slowLeafReader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
                             expectedResult.set(docsEnum.nextDoc());
                         } else if (seekStatus == TermsEnum.SeekStatus.END) {
                             break;

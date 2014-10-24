@@ -58,7 +58,7 @@ public class QueryParserSettings {
     private Analyzer forcedAnalyzer = null;
     private Analyzer forcedQuoteAnalyzer = null;
     private String quoteFieldSuffix = null;
-    private MultiTermQuery.RewriteMethod rewriteMethod = MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT;
+    private MultiTermQuery.RewriteMethod rewriteMethod = MultiTermQuery.CONSTANT_SCORE_FILTER_REWRITE;
     private String minimumShouldMatch;
     private boolean lenient;
     private Locale locale;

@@ -47,7 +47,7 @@ public class TermsFilterTests extends ElasticsearchTestCase {
     public void testTermFilter() throws Exception {
         String fieldName = "field1";
         Directory rd = new RAMDirectory();
-        IndexWriter w = new IndexWriter(rd, new IndexWriterConfig(Lucene.VERSION, new KeywordAnalyzer()));
+        IndexWriter w = new IndexWriter(rd, new IndexWriterConfig(new KeywordAnalyzer()));
         for (int i = 0; i < 100; i++) {
             Document doc = new Document();
             int term = i * 10; //terms are units of 10;
@@ -58,7 +58,7 @@ public class TermsFilterTests extends ElasticsearchTestCase {
                 w.commit();
             }
         }
-        AtomicReader reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(w, true));
+        LeafReader reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(w, true));
         w.close();
 
         TermFilter tf = new TermFilter(new Term(fieldName, "19"));
@@ -83,7 +83,7 @@ public class TermsFilterTests extends ElasticsearchTestCase {
     public void testTermsFilter() throws Exception {
         String fieldName = "field1";
         Directory rd = new RAMDirectory();
-        IndexWriter w = new IndexWriter(rd, new IndexWriterConfig(Lucene.VERSION, new KeywordAnalyzer()));
+        IndexWriter w = new IndexWriter(rd, new IndexWriterConfig(new KeywordAnalyzer()));
         for (int i = 0; i < 100; i++) {
             Document doc = new Document();
             int term = i * 10; //terms are units of 10;
@@ -94,7 +94,7 @@ public class TermsFilterTests extends ElasticsearchTestCase {
                 w.commit();
             }
         }
-        AtomicReader reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(w, true));
+        LeafReader reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(w, true));
         w.close();
 
         TermsFilter tf = new TermsFilter(new Term[]{new Term(fieldName, "19")});

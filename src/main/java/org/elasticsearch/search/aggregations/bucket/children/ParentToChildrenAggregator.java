@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.children;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -67,7 +67,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
     private final LongObjectPagedHashMap<long[]> parentOrdToOtherBuckets;
     private boolean multipleBucketsPerParentOrd = false;
 
-    private List<AtomicReaderContext> replay = new ArrayList<>();
+    private List<LeafReaderContext> replay = new ArrayList<>();
     private SortedDocValues globalOrdinals;
     private Bits parentDocs;
 
@@ -120,7 +120,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         if (replay == null) {
             return;
         }
@@ -145,10 +145,10 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
 
     @Override
     protected void doPostCollection() throws IOException {
-        List<AtomicReaderContext> replay = this.replay;
+        List<LeafReaderContext> replay = this.replay;
         this.replay = null;
 
-        for (AtomicReaderContext atomicReaderContext : replay) {
+        for (LeafReaderContext atomicReaderContext : replay) {
             context.setNextReader(atomicReaderContext);
 
             SortedDocValues globalOrdinals = valuesSource.globalOrdinalsValues(parentType);

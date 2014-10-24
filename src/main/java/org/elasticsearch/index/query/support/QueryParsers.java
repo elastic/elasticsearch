@@ -55,7 +55,7 @@ public final class QueryParsers {
     }
 
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod) {
-        return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT);
+        return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_FILTER_REWRITE);
     }
 
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod, @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod) {
@@ -63,7 +63,7 @@ public final class QueryParsers {
             return defaultRewriteMethod;
         }
         if ("constant_score_auto".equals(rewriteMethod) || "constant_score_auto".equals(rewriteMethod)) {
-            return MultiTermQuery.CONSTANT_SCORE_AUTO_REWRITE_DEFAULT;
+            return MultiTermQuery.CONSTANT_SCORE_FILTER_REWRITE;
         }
         if ("scoring_boolean".equals(rewriteMethod) || "scoringBoolean".equals(rewriteMethod)) {
             return MultiTermQuery.SCORING_BOOLEAN_QUERY_REWRITE;

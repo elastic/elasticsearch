@@ -479,11 +479,6 @@ public final class OrdinalsBuilder implements Closeable {
                 }
                 return ref;
             }
-
-            @Override
-            public Comparator<BytesRef> getComparator() {
-                return termsEnum.getComparator();
-            }
         };
     }
 

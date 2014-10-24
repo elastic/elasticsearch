@@ -295,11 +295,6 @@ public final class TermVectorFields extends Fields {
                 }
 
                 @Override
-                public Comparator<BytesRef> getComparator() {
-                    return BytesRef.getUTF8SortedAsUnicodeComparator();
-                }
-
-                @Override
                 public SeekStatus seekCeil(BytesRef text) throws IOException {
                     throw new UnsupportedOperationException();
                 }
@@ -343,11 +338,6 @@ public final class TermVectorFields extends Fields {
                 }
 
             };
-        }
-
-        @Override
-        public Comparator<BytesRef> getComparator() {
-            return BytesRef.getUTF8SortedAsUnicodeComparator();
         }
 
         @Override

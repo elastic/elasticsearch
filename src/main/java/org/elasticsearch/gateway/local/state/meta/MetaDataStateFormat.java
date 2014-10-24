@@ -114,9 +114,9 @@ public abstract class MetaDataStateFormat<T> {
                 }
                 CodecUtil.writeFooter(out);
             }
-            IOUtils.fsync(tmpStateFile, false); // fsync the state file
+            IOUtils.fsync(tmpStateFile.toPath(), false); // fsync the state file
             Files.move(tmpStatePath, finalStatePath, StandardCopyOption.ATOMIC_MOVE);
-            IOUtils.fsync(stateLocation, true);
+            IOUtils.fsync(stateLocation.toPath(), true);
             for (int i = 1; i < locations.length; i++) {
                 stateLocation = new File(locations[i], STATE_DIR_NAME);
                 FileSystemUtils.mkdirs(stateLocation);
@@ -125,7 +125,7 @@ public abstract class MetaDataStateFormat<T> {
                 try {
                     Files.copy(finalStatePath, tmpPath);
                     Files.move(tmpPath, finalPath, StandardCopyOption.ATOMIC_MOVE); // we are on the same FileSystem / Partition here we can do an atomic move
-                    IOUtils.fsync(stateLocation, true); // we just fsync the dir here..
+                    IOUtils.fsync(stateLocation.toPath(), true); // we just fsync the dir here..
                 } finally {
                     Files.deleteIfExists(tmpPath);
                 }
@@ -184,7 +184,7 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     protected Directory newDirectory(File dir) throws IOException {
-        return new SimpleFSDirectory(dir);
+        return new SimpleFSDirectory(dir.toPath());
     }
 
     private void cleanupOldFiles(String prefix, String fileName, File[] locations) throws IOException {

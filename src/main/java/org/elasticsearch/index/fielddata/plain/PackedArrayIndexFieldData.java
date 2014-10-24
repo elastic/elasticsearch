@@ -83,8 +83,8 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
     }
 
     @Override
-    public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
-        final AtomicReader reader = context.reader();
+    public AtomicNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
+        final LeafReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicNumericFieldData data = null;
         PackedArrayEstimator estimator = new PackedArrayEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA), getNumericType(), getFieldNames().fullName());
@@ -259,7 +259,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
 
     }
 
-    protected CommonSettings.MemoryStorageFormat chooseStorageFormat(AtomicReader reader, PackedLongValues values, Ordinals build, RandomAccessOrds ordinals,
+    protected CommonSettings.MemoryStorageFormat chooseStorageFormat(LeafReader reader, PackedLongValues values, Ordinals build, RandomAccessOrds ordinals,
                                                                      long minValue, long maxValue, float acceptableOverheadRatio, int pageSize) {
 
         CommonSettings.MemoryStorageFormat format;

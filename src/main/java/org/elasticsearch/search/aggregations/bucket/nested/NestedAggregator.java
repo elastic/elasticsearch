@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
@@ -69,7 +69,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         if (parentFilter == null) {
             // The aggs are instantiated in reverse, first the most inner nested aggs and lastly the top level aggs
             // So at the time a nested 'nested' aggs is parsed its closest parent nested aggs hasn't been constructed.

@@ -33,7 +33,6 @@ import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -76,9 +75,9 @@ public class FilterableTermsEnum extends TermsEnum {
             numDocs = reader.maxDoc();
         }
         ApplyAcceptedDocsFilter acceptedDocsFilter = filter == null ? null : new ApplyAcceptedDocsFilter(filter);
-        List<AtomicReaderContext> leaves = reader.leaves();
+        List<LeafReaderContext> leaves = reader.leaves();
         List<Holder> enums = Lists.newArrayListWithExpectedSize(leaves.size());
-        for (AtomicReaderContext context : leaves) {
+        for (LeafReaderContext context : leaves) {
             Terms terms = context.reader().terms(field);
             if (terms == null) {
                 continue;
@@ -208,11 +207,6 @@ public class FilterableTermsEnum extends TermsEnum {
 
     @Override
     public BytesRef next() throws IOException {
-        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
-    }
-
-    @Override
-    public Comparator<BytesRef> getComparator() {
         throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 }

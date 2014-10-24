@@ -66,8 +66,6 @@ public class UpgradeReallyOldIndexTest extends ElasticsearchIntegrationTest {
     }
 
     public void testUpgrade_0_20() throws Exception {
-        // If this assert trips it means we are not suppressing enough codecs up above:
-        assertFalse("test infra is broken!", LuceneTestCase.OLD_FORMAT_IMPERSONATION_IS_ACTIVE);
         File dataDir = prepareBackwardsDataDir(new File(getClass().getResource("index-0.20.zip").toURI()));
         internalCluster().startNode(ImmutableSettings.builder()
                 .put("path.data", dataDir.getPath())

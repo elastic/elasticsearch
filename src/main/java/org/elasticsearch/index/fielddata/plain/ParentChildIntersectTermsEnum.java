@@ -43,7 +43,7 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
 
     private BytesRef current;
 
-    ParentChildIntersectTermsEnum(AtomicReader atomicReader, String... fields) throws IOException {
+    ParentChildIntersectTermsEnum(LeafReader atomicReader, String... fields) throws IOException {
         List<TermsEnum> fieldEnums = new ArrayList<>();
         for (String field : fields) {
             Terms terms = atomicReader.terms(field);

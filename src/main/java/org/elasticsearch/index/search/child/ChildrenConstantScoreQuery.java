@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
@@ -98,7 +98,7 @@ public class ChildrenConstantScoreQuery extends Query {
         assert rewriteIndexReader == searcher.getIndexReader()  : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
 
         final long valueCount;
-        List<AtomicReaderContext> leaves = searcher.getIndexReader().leaves();
+        List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         if (globalIfd == null || leaves.isEmpty()) {
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         } else {
@@ -190,7 +190,7 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         @Override
-        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return new Explanation(getBoost(), "not implemented yet...");
         }
 
@@ -212,7 +212,7 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             if (remaining == 0) {
                 return null;
             }
@@ -275,7 +275,7 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) throws IOException {
+        public void setNextReader(LeafReaderContext context) throws IOException {
             values = indexFieldData.load(context).getOrdinalsValues(parentType);
         }
 

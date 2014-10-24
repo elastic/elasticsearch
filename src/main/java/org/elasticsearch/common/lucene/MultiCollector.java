@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.Scorer;
@@ -62,7 +62,7 @@ public class MultiCollector extends XCollector {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) throws IOException {
+    public void setNextReader(LeafReaderContext context) throws IOException {
         collector.setNextReader(context);
         for (Collector collector : collectors) {
             collector.setNextReader(context);

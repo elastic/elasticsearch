@@ -1731,7 +1731,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     private static Fields generateFields(String[] fieldNames, String text) throws IOException {
         MemoryIndex index = new MemoryIndex();
         for (String fieldName : fieldNames) {
-            index.addField(fieldName, text, new WhitespaceAnalyzer(Lucene.VERSION));
+            index.addField(fieldName, text, new WhitespaceAnalyzer());
         }
         return MultiFields.getFields(index.createSearcher().getIndexReader());
     }

@@ -173,7 +173,7 @@ public class TopChildrenQuery extends Query {
         ObjectObjectOpenHashMap<Object, IntObjectOpenHashMap<ParentDoc>> parentDocsPerReader = new ObjectObjectOpenHashMap<>(context.searcher().getIndexReader().leaves().size());
         child_hits: for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             int readerIndex = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
-            AtomicReaderContext subContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+            LeafReaderContext subContext = context.searcher().getIndexReader().leaves().get(readerIndex);
             SortedDocValues parentValues = parentChildIndexFieldData.load(subContext).getOrdinalsValues(parentType);
             int subDoc = scoreDoc.doc - subContext.docBase;
 
@@ -184,8 +184,8 @@ public class TopChildrenQuery extends Query {
                 continue;
             }
             // now go over and find the parent doc Id and reader tuple
-            for (AtomicReaderContext atomicReaderContext : context.searcher().getIndexReader().leaves()) {
-                AtomicReader indexReader = atomicReaderContext.reader();
+            for (LeafReaderContext atomicReaderContext : context.searcher().getIndexReader().leaves()) {
+                LeafReader indexReader = atomicReaderContext.reader();
                 FixedBitSet nonNestedDocs = null;
                 if (nonNestedDocsFilter != null) {
                     nonNestedDocs = (FixedBitSet) nonNestedDocsFilter.getDocIdSet(atomicReaderContext, indexReader.getLiveDocs());
@@ -323,7 +323,7 @@ public class TopChildrenQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             ParentDoc[] readerParentDocs = parentDocs.get(context.reader().getCoreCacheKey());
             if (readerParentDocs != null) {
                 if (scoreType == ScoreType.MIN) {
@@ -366,7 +366,7 @@ public class TopChildrenQuery extends Query {
         }
 
         @Override
-        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return new Explanation(getBoost(), "not implemented yet...");
         }
     }

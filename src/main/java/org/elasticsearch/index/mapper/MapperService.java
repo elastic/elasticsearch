@@ -518,7 +518,7 @@ public class MapperService extends AbstractIndexComponent  {
                 useTermsFilter = false;
                 break;
             }
-            if (!docMapper.typeMapper().fieldType().indexed()) {
+            if (docMapper.typeMapper().fieldType().indexOptions() == null) {
                 useTermsFilter = false;
                 break;
             }

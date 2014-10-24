@@ -21,7 +21,7 @@ package org.elasticsearch.percolator;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
@@ -109,7 +109,7 @@ abstract class QueryCollector extends Collector {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) throws IOException {
+    public void setNextReader(LeafReaderContext context) throws IOException {
         // we use the UID because id might not be indexed
         values = idFieldData.load(context).getBytesValues();
         for (Collector collector : aggregatorCollector) {
@@ -254,7 +254,7 @@ abstract class QueryCollector extends Collector {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) throws IOException {
+        public void setNextReader(LeafReaderContext context) throws IOException {
             super.setNextReader(context);
             topDocsCollector.setNextReader(context);
         }

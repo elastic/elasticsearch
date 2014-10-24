@@ -19,7 +19,8 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
+
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
@@ -58,7 +59,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         return SortField.Type.STRING;
     }
 
-    protected SortedBinaryDocValues getValues(AtomicReaderContext context) {
+    protected SortedBinaryDocValues getValues(LeafReaderContext context) {
         return indexFieldData.load(context).getBytesValues();
     }
 
@@ -74,7 +75,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
             return new FieldComparator.TermOrdValComparator(numHits, null, sortMissingLast) {
                 
                 @Override
-                protected SortedDocValues getSortedDocValues(AtomicReaderContext context, String field) throws IOException {
+                protected SortedDocValues getSortedDocValues(LeafReaderContext context, String field) throws IOException {
                     final RandomAccessOrds values = ((IndexOrdinalsFieldData) indexFieldData).load(context).getOrdinalsValues();
                     final SortedDocValues selectedValues;
                     if (nested == null) {
@@ -110,7 +111,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         return new FieldComparator.TermValComparator(numHits, null, sortMissingLast) {
 
             @Override
-            protected BinaryDocValues getBinaryDocValues(AtomicReaderContext context, String field) throws IOException {
+            protected BinaryDocValues getBinaryDocValues(LeafReaderContext context, String field) throws IOException {
                 final SortedBinaryDocValues values = getValues(context);
                 final BinaryDocValues selectedValues;
                 if (nested == null) {
@@ -124,7 +125,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
             }
 
             @Override
-            protected Bits getDocsWithField(AtomicReaderContext context, String field) throws IOException {
+            protected Bits getDocsWithField(LeafReaderContext context, String field) throws IOException {
                 return new Bits.MatchAllBits(context.reader().maxDoc());
             }
 

@@ -49,7 +49,7 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
     public void prepare(PercolateContext context, ParsedDocument parsedDocument) {
         MemoryIndex memoryIndex = cache.get();
         for (IndexableField field : parsedDocument.rootDoc().getFields()) {
-            if (!field.fieldType().indexed() && field.name().equals(UidFieldMapper.NAME)) {
+            if (field.fieldType().indexOptions() == null && field.name().equals(UidFieldMapper.NAME)) {
                 continue;
             }
             try {

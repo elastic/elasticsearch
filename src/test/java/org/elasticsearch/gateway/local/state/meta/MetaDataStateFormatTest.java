@@ -183,7 +183,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
 
     public static void corruptFile(File file, ESLogger logger) throws IOException {
         File fileToCorrupt = file;
-        try (final SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParentFile())) {
+        try (final SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParentFile().toPath())) {
             long checksumBeforeCorruption;
             try (IndexInput input = dir.openInput(fileToCorrupt.getName(), IOContext.DEFAULT)) {
                 checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);

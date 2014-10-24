@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.ArrayUtil;
@@ -54,7 +54,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
     private List<TopReaderContextAware> topReaderAwares = new ArrayList<TopReaderContextAware>();
     private List<ScorerAware> scorerAwares = new ArrayList<>();
 
-    private AtomicReaderContext reader;
+    private LeafReaderContext reader;
     private Scorer scorer;
     private boolean scoreDocsInOrder = false;
 
@@ -74,7 +74,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         return searchContext.bigArrays();
     }
 
-    public AtomicReaderContext currentReader() {
+    public LeafReaderContext currentReader() {
         return reader;
     }
 
@@ -88,7 +88,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         }
     }
 
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         this.reader = reader;
         for (ReaderContextAware aware : readerAwares) {
             aware.setNextReader(reader);

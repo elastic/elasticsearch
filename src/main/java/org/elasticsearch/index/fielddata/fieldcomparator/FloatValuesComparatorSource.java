@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldCache.Floats;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
@@ -63,7 +63,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         // the comparator doesn't check docsWithField since we replace missing values in select()
         return new FieldComparator.FloatComparator(numHits, null, null, null) {
             @Override
-            protected Floats getFloatValues(AtomicReaderContext context, String field) throws IOException {
+            protected Floats getFloatValues(LeafReaderContext context, String field) throws IOException {
                 final SortedNumericDoubleValues values = indexFieldData.load(context).getDoubleValues();
                 final NumericDoubleValues selectedValues;
                 if (nested == null) {

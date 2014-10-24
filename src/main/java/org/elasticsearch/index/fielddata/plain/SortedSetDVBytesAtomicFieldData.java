@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -33,10 +33,10 @@ import java.io.IOException;
  */
 public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
-    private final AtomicReader reader;
+    private final LeafReader reader;
     private final String field;
 
-    SortedSetDVBytesAtomicFieldData(AtomicReader reader, String field) {
+    SortedSetDVBytesAtomicFieldData(LeafReader reader, String field) {
         this.reader = reader;
         this.field = field;
     }

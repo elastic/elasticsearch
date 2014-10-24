@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldCache.Doubles;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Filter;
@@ -179,7 +179,7 @@ public class GeoDistanceSortParser implements SortParser {
             public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
                 return new FieldComparator.DoubleComparator(numHits, null, null, null) {
                     @Override
-                    protected Doubles getDoubleValues(AtomicReaderContext context, String field) throws IOException {
+                    protected Doubles getDoubleValues(LeafReaderContext context, String field) throws IOException {
                         final MultiGeoPointValues geoPointValues = geoIndexFieldData.load(context).getGeoPointValues();
                         final SortedNumericDoubleValues distanceValues = GeoDistance.distanceValues(geoPointValues, distances);
                         final NumericDoubleValues selectedValues;

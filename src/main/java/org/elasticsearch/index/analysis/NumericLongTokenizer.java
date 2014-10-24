@@ -29,8 +29,8 @@ import java.io.Reader;
  */
 public class NumericLongTokenizer extends NumericTokenizer {
 
-    public NumericLongTokenizer(Reader reader, int precisionStep, char[] buffer) throws IOException {
-        super(reader, new NumericTokenStream(precisionStep), buffer, null);
+    public NumericLongTokenizer(int precisionStep, char[] buffer) throws IOException {
+        super(new NumericTokenStream(precisionStep), buffer, null);
     }
 
     @Override

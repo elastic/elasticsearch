@@ -19,7 +19,7 @@
 package org.elasticsearch.percolator;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.*;
@@ -132,7 +132,7 @@ public class PercolateContext extends SearchContext {
         this.docSearcher = docSearcher;
 
         IndexReader indexReader = docSearcher.reader();
-        AtomicReaderContext atomicReaderContext = indexReader.leaves().get(0);
+        LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
         lookup().setNextReader(atomicReaderContext);
         lookup().setNextDocId(0);
         lookup().source().setNextSource(parsedDocument.source());

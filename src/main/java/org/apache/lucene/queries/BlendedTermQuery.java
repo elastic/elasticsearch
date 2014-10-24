@@ -18,6 +18,8 @@
  */
 package org.apache.lucene.queries;
 
+import org.apache.lucene.index.LeafReaderContext;
+
 import com.google.common.primitives.Ints;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
@@ -162,7 +164,7 @@ public abstract class BlendedTermQuery extends Query {
             return termContext;
         }
         TermContext newTermContext = new TermContext(termContext.topReaderContext);
-        List<AtomicReaderContext> leaves = termContext.topReaderContext.leaves();
+        List<LeafReaderContext> leaves = termContext.topReaderContext.leaves();
         final int len;
         if (leaves == null) {
             len = 1;

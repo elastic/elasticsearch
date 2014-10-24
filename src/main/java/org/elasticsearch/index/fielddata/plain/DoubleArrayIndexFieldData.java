@@ -65,9 +65,9 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
     }
 
     @Override
-    public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
 
-        final AtomicReader reader = context.reader();
+        final LeafReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicNumericFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.

@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import com.carrotsearch.hppc.hash.MurmurHash3;
 import com.google.common.base.Preconditions;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -69,12 +69,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         postCollectLastCollector();
         collector = createCollector(reader);
     }
 
-    private Collector createCollector(AtomicReaderContext reader) {
+    private Collector createCollector(LeafReaderContext reader) {
 
         // if rehash is false then the value source is either already hashed, or the user explicitly
         // requested not to hash the values (perhaps they already hashed the values themselves before indexing the doc)

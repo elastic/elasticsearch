@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.*;
@@ -99,7 +99,7 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) {
+    public void setNextReader(LeafReaderContext context) {
         lookup.setNextReader(context);
     }
 

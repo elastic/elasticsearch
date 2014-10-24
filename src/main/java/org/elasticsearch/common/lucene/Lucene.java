@@ -57,7 +57,7 @@ public class Lucene {
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
-    public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer(ANALYZER_VERSION));
+    public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
 
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
@@ -81,18 +81,14 @@ public class Lucene {
      * Reads the segments infos, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
-        final SegmentInfos sis = new SegmentInfos();
-        sis.read(directory);
-        return sis;
+        return SegmentInfos.readLatestCommit(directory);
     }
 
     /**
      * Reads the segments infos from the given commit, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(IndexCommit commit, Directory directory) throws IOException {
-        final SegmentInfos sis = new SegmentInfos();
-        sis.read(directory, commit.getSegmentsFileName());
-        return sis;
+        return SegmentInfos.readCommit(directory, commit.getSegmentsFileName());
     }
 
     public static void checkSegmentInfoIntegrity(final Directory directory) throws IOException {
@@ -525,7 +521,7 @@ public class Lucene {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext atomicReaderContext) throws IOException {
+        public void setNextReader(LeafReaderContext atomicReaderContext) throws IOException {
             delegate.setNextReader(atomicReaderContext);
         }
 

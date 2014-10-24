@@ -41,12 +41,13 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 @UsesLuceneFieldCacheOnPurpose
+// nocommit: wrap with uninvertingreader, whereever it does this
 public class SimpleLuceneTests extends ElasticsearchTestCase {
 
     @Test
     public void testSortValues() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         for (int i = 0; i < 10; i++) {
             Document document = new Document();
             document.add(new TextField("str", new String(new char[]{(char) (97 + i), (char) (97 + i)}), Field.Store.YES));
@@ -64,7 +65,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
     @Test
     public void testAddDocAfterPrepareCommit() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
         indexWriter.addDocument(document);
@@ -86,7 +87,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
     @Test
     public void testSimpleNumericOps() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
@@ -118,7 +119,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
     @Test
     public void testOrdering() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();
         document.add(new TextField("_id", "1", Field.Store.YES));
@@ -147,7 +148,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
     @Test
     public void testBoost() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         for (int i = 0; i < 100; i++) {
             // TODO (just setting the boost value does not seem to work...)
@@ -182,7 +183,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
     @Test
     public void testNRTSearchOnClosedWriter() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         DirectoryReader reader = DirectoryReader.open(indexWriter, true);
 
         for (int i = 0; i < 100; i++) {
@@ -207,7 +208,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
     @Test
     public void testNumericTermDocsFreqs() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
         FieldType type = IntField.TYPE_NOT_STORED;
@@ -230,7 +231,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
         indexWriter.addDocument(doc);
 
         IndexReader reader = DirectoryReader.open(indexWriter, true);
-        AtomicReader atomicReader = SlowCompositeReaderWrapper.wrap(reader);
+        LeafReader atomicReader = SlowCompositeReaderWrapper.wrap(reader);
 
         Terms terms = atomicReader.terms("int1");
         TermsEnum termsEnum = terms.iterator(null);

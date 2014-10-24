@@ -19,6 +19,13 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.lucene.util.Accountables;
+
+import org.apache.lucene.util.Accountable;
+
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
@@ -83,6 +90,14 @@ public class MultiOrdinals extends Ordinals {
     @Override
     public long ramBytesUsed() {
         return endOffsets.ramBytesUsed() + ords.ramBytesUsed();
+    }
+
+    @Override
+    public Iterable<? extends Accountable> getChildResources() {
+        List<Accountable> resources = new ArrayList<>();
+        resources.add(Accountables.namedAccountable("offsets", endOffsets));
+        resources.add(Accountables.namedAccountable("ordinals", ords));
+        return resources;
     }
 
     @Override

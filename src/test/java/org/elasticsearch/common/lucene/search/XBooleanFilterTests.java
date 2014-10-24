@@ -49,7 +49,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
 
     private Directory directory;
-    private AtomicReader reader;
+    private LeafReader reader;
     private static final char[] distinctValues = new char[] {'a', 'b', 'c', 'd', 'v','z','y'};
 
     @Before
@@ -70,7 +70,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
             documents.add(document);
         }
         directory = newDirectory();
-        IndexWriter w = new IndexWriter(directory, new IndexWriterConfig(Lucene.VERSION, new KeywordAnalyzer()));
+        IndexWriter w = new IndexWriter(directory, new IndexWriterConfig(new KeywordAnalyzer()));
         w.addDocuments(documents);
         w.close();
         reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(directory));
@@ -550,7 +550,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
     public final class EmptyFilter extends Filter {
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             return random().nextBoolean() ? new Empty() : null;
         }
 

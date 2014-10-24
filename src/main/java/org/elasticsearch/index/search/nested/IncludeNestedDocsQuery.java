@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.search.nested;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
@@ -104,7 +104,7 @@ public class IncludeNestedDocsQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             final Scorer parentScorer = parentWeight.scorer(context, acceptDocs);
 
             // no matches
@@ -127,7 +127,7 @@ public class IncludeNestedDocsQuery extends Query {
         }
 
         @Override
-        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return null; //Query is used internally and not by users, so explain can be empty
         }
 

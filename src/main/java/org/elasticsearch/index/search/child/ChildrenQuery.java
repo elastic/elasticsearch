@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
@@ -252,7 +252,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return new Explanation(getBoost(), "not implemented yet...");
         }
 
@@ -279,7 +279,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             DocIdSet parentsSet = parentFilter.getDocIdSet(context, acceptDocs);
             if (DocIdSets.isEmpty(parentsSet) || remaining == 0) {
                 return null;
@@ -364,7 +364,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) throws IOException {
+        public void setNextReader(LeafReaderContext context) throws IOException {
             values = globalIfd.load(context).getOrdinalsValues(parentType);
         }
 

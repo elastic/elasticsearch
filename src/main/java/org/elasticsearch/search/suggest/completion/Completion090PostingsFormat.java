@@ -22,7 +22,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
 import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.*;
-import org.apache.lucene.index.FilterAtomicReader.FilterTerms;
+import org.apache.lucene.index.FilterLeafReader.FilterTerms;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.IOContext.Context;
 import org.apache.lucene.store.*;
@@ -351,8 +351,8 @@ public class Completion090PostingsFormat extends PostingsFormat {
 
     public CompletionStats completionStats(IndexReader indexReader, String ... fields) {
         CompletionStats completionStats = new CompletionStats();
-        for (AtomicReaderContext atomicReaderContext : indexReader.leaves()) {
-            AtomicReader atomicReader = atomicReaderContext.reader();
+        for (LeafReaderContext atomicReaderContext : indexReader.leaves()) {
+            LeafReader atomicReader = atomicReaderContext.reader();
             try {
                 for (String fieldName : atomicReader.fields()) {
                     Terms terms = atomicReader.fields().terms(fieldName);

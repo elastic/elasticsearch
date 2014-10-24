@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.util.Bits;
@@ -32,10 +32,10 @@ import java.io.IOException;
 /** {@link AtomicFieldData} impl on top of Lucene's binary doc values. */
 public class BinaryDVAtomicFieldData implements AtomicFieldData {
 
-    private final AtomicReader reader;
+    private final LeafReader reader;
     private final String field;
 
-    public BinaryDVAtomicFieldData(AtomicReader reader, String field) {
+    public BinaryDVAtomicFieldData(LeafReader reader, String field) {
         this.reader = reader;
         this.field = field;
     }

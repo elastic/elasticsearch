@@ -19,7 +19,10 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.util.RamUsageEstimator;
+
+import org.apache.lucene.index.LeafReaderContext;
+
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.Nullable;
@@ -41,7 +44,7 @@ public class LimitFilter extends NoCacheFilter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
         if (counter > limit) {
             return null;
         }
@@ -63,6 +66,11 @@ public class LimitFilter extends NoCacheFilter {
                 return false;
             }
             return true;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return RamUsageEstimator.NUM_BYTES_INT;
         }
     }
 }

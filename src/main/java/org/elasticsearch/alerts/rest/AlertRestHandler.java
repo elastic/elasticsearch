@@ -3,9 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerting;
+package org.elasticsearch.alerts.rest;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;

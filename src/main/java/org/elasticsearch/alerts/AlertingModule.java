@@ -3,8 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerting;
+package org.elasticsearch.alerts;
 
+import org.elasticsearch.alerts.actions.AlertActionManager;
+import org.elasticsearch.alerts.rest.AlertRestHandler;
+import org.elasticsearch.alerts.scheduler.AlertScheduler;
+import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.common.inject.AbstractModule;
 
 public class AlertingModule extends AbstractModule {

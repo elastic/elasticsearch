@@ -3,8 +3,14 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerting;
+package org.elasticsearch.alerts;
 
+import org.elasticsearch.alerts.actions.AlertAction;
+import org.elasticsearch.alerts.actions.AlertActionFactory;
+import org.elasticsearch.alerts.actions.AlertActionManager;
+import org.elasticsearch.alerts.scheduler.AlertScheduler;
+import org.elasticsearch.alerts.triggers.AlertTrigger;
+import org.elasticsearch.alerts.triggers.ScriptedAlertTrigger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -42,6 +48,7 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
     public void testAlerSchedulerStartsProperly() throws Exception {
         createIndex("my-index");
         createIndex(ScriptService.SCRIPT_INDEX);
+        client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "query")
                 .setSource(jsonBuilder().startObject().startObject("template").startObject("match_all").endObject().endObject().endObject())

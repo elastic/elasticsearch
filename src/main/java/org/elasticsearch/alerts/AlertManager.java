@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerting;
+package org.elasticsearch.alerts;
 
 
 import org.elasticsearch.ElasticsearchException;
@@ -20,6 +20,11 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.alerts.actions.AlertAction;
+import org.elasticsearch.alerts.actions.AlertActionManager;
+import org.elasticsearch.alerts.scheduler.AlertScheduler;
+import org.elasticsearch.alerts.triggers.AlertTrigger;
+import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
@@ -44,10 +49,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AlertManager extends AbstractLifecycleComponent {
 
-    public final String ALERT_INDEX = ".alerts";
-    public final String ALERT_TYPE = "alert";
-    public final String ALERT_HISTORY_INDEX = "alerthistory";
-    public final String ALERT_HISTORY_TYPE = "alertHistory";
+    public static final String ALERT_INDEX = ".alerts";
+    public static final String ALERT_TYPE = "alert";
+    public static final String ALERT_HISTORY_INDEX = "alerthistory";
+    public static final String ALERT_HISTORY_TYPE = "alertHistory";
 
     public static final ParseField QUERY_FIELD =  new ParseField("query");
     public static final ParseField SCHEDULE_FIELD =  new ParseField("schedule");
@@ -73,6 +78,8 @@ public class AlertManager extends AbstractLifecycleComponent {
     private AlertActionManager actionManager;
     final TimeValue defaultTimePeriod = new TimeValue(300*1000); //TODO : read from config
 
+
+
     class StarterThread implements Runnable {
         @Override
         public void run() {
@@ -81,7 +88,7 @@ public class AlertManager extends AbstractLifecycleComponent {
             while (attempts < 2) {
                 try {
                     logger.warn("Sleeping [{}]", attempts);
-                    Thread.sleep(20000);
+                    Thread.sleep(5000);
                     logger.warn("Slept");
                     break;
                 } catch (InterruptedException ie) {
@@ -255,11 +262,11 @@ public class AlertManager extends AbstractLifecycleComponent {
     }
 
     private void loadAlerts() {
-        if (!client.admin().indices().prepareExists(ALERT_INDEX).execute().actionGet().isExists()) {
-            createAlertsIndex();
-        }
-
         synchronized (alertMap) {
+            if (!client.admin().indices().prepareExists(ALERT_INDEX).execute().actionGet().isExists()) {
+                createAlertsIndex();
+            }
+
             SearchResponse searchResponse = client.prepareSearch().setSource(
                     "{ \"query\" : " +
                             "{ \"match_all\" :  {}}," +
@@ -386,6 +393,10 @@ public class AlertManager extends AbstractLifecycleComponent {
 
     public boolean addAlert(String alertName, Alert alert, boolean persist) {
         synchronized (alertMap) {
+            if (!client.admin().indices().prepareExists(ALERT_INDEX).execute().actionGet().isExists()) {
+                createAlertsIndex();
+            }
+
             if (alertMap.containsKey(alertName)) {
                 throw new ElasticsearchIllegalArgumentException("There is already an alert named ["+alertName+"]");
             } else {

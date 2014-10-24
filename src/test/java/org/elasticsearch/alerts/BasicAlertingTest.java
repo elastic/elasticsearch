@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.alerts;
 
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionFactory;
 import org.elasticsearch.alerts.actions.AlertActionManager;
@@ -22,7 +23,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.Is.is;
@@ -67,7 +69,7 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
         assertThat(alertScheduler.isRunning(), is(true));
 
         AlertManager alertManager = internalCluster().getInstance(AlertManager.class, internalCluster().getMasterName());
-        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean alertActionInvoked = new AtomicBoolean(false);
         final AlertAction alertAction = new AlertAction() {
             @Override
             public String getActionName() {
@@ -84,7 +86,7 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
             @Override
             public boolean doAction(String alertName, AlertResult alert) {
                 logger.info("Alert {} invoked: {}", alertName, alert);
-                latch.countDown();
+                alertActionInvoked.set(true);
                 return true;
             }
         };
@@ -102,7 +104,7 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
                 alertTrigger,
                 TimeValue.timeValueSeconds(1),
                 Arrays.asList(alertAction),
-                "* * * * * ? *",
+                "0/5 * * * * ? *",
                 null,
                 Arrays.asList("my-index"),
                 null,
@@ -111,7 +113,14 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
                 true
                 );
         alertManager.addAlert("my-first-alert", alert, true);
-        latch.await();
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertThat(alertActionInvoked.get(), is(true));
+                IndicesExistsResponse indicesExistsResponse = client().admin().indices().prepareExists(AlertManager.ALERT_HISTORY_INDEX).get();
+                assertThat(indicesExistsResponse.isExists(), is(true));
+            }
+        }, 30, TimeUnit.SECONDS);
     }
 
 }

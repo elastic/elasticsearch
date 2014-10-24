@@ -9,9 +9,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.AlertResult;
+import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -89,7 +89,8 @@ public class AlertScheduler extends AbstractLifecycleComponent implements Cluste
         if (run.compareAndSet(true, false)) {
             try {
                 logger.info("Stopping scheduler");
-                scheduler.shutdown(true);
+                scheduler.clear();
+                scheduler.shutdown(false);
             } catch (SchedulerException se){
                 logger.error("Failed to stop quartz scheduler",se);
             }

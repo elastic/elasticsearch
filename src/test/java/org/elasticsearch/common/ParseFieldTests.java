@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.common;
 
-import org.apache.commons.lang3.ArrayUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.*;
 
@@ -78,7 +80,11 @@ public class ParseFieldTests extends ElasticsearchTestCase {
         String[] deprecated = new String[]{"text", "same_as_text"};
         String[] allValues = values;
         if (withDeprecatedNames) {
-            allValues = ArrayUtils.addAll(values, deprecated);
+            List<String> tmp = new ArrayList<>(Arrays.asList(values));
+            for (String v : deprecated) {
+                tmp.add(v);
+            }
+            allValues = tmp.toArray(new String[0]);
         }
 
         ParseField field = new ParseField(randomFrom(values));

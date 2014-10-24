@@ -19,6 +19,7 @@
 package org.elasticsearch.test.transport;
 
 import com.google.common.base.Charsets;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.component.Lifecycle;
@@ -34,6 +35,7 @@ import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.After;
 import org.junit.Test;
@@ -56,20 +58,20 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 1)
 public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
 
+    private final static short MAX_RUNS_BEFORE_GIVING_UP = 10;
+
     // cannot be static due to randomization
     private final String EXPECTED_CONNECTION_ACCEPTED_PORT = "a_" + randomAsciiOfLength(10);
     private final String EXPECTED_CONNECTION_REFUSED_PORT = "r_" + randomAsciiOfLength(10);
 
     private NettyTransport nettyTransport;
     private ThreadPool threadPool;
+    private int runs = 0;
 
     @After
-    public void shutdownNettyTransport() {
-        if (nettyTransport != null) {
-            nettyTransport.stop();
-        }
-        if (threadPool != null) {
-            threadPool.shutdownNow();
+    public void ensureMaxRunsAreNotReached() {
+        if (runs >= MAX_RUNS_BEFORE_GIVING_UP) {
+            throw new ElasticsearchException("Maximum number of runs[" + MAX_RUNS_BEFORE_GIVING_UP + "] reached without being able to bind to port");
         }
     }
 
@@ -140,33 +142,50 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
     }
 
     private void startNettyTransportAndCheckPortBindings(Settings originalSettings) throws Exception {
-        ImmutableSettings.Builder settingsBuilder = settingsBuilder().put(originalSettings);
+        while (runs++ < MAX_RUNS_BEFORE_GIVING_UP) {
+            try {
+                ImmutableSettings.Builder settingsBuilder = settingsBuilder().put(originalSettings);
 
-        int numberOfPorts = 0;
-        for (String value : originalSettings.getAsMap().values()) {
-            if (EXPECTED_CONNECTION_ACCEPTED_PORT.equals(value) || EXPECTED_CONNECTION_REFUSED_PORT.equals(value)) {
-                numberOfPorts++;
+                int numberOfPorts = 0;
+                for (String value : originalSettings.getAsMap().values()) {
+                    if (EXPECTED_CONNECTION_ACCEPTED_PORT.equals(value) || EXPECTED_CONNECTION_REFUSED_PORT.equals(value)) {
+                        numberOfPorts++;
+                    }
+                }
+
+                int[] ports = SocketUtil.findFreeLocalPorts(numberOfPorts);
+                int idx = 0;
+                for (Map.Entry<String, String> entry : originalSettings.getAsMap().entrySet()) {
+                    if (EXPECTED_CONNECTION_ACCEPTED_PORT.equals(entry.getValue()) || EXPECTED_CONNECTION_REFUSED_PORT.equals(entry.getValue())) {
+                        settingsBuilder.put(entry.getKey(), ports[idx++]);
+                    }
+                }
+
+                Settings settings = settingsBuilder.build();
+                threadPool = new ThreadPool("tst");
+                BigArrays bigArrays = new MockBigArrays(settings, new PageCacheRecycler(settings, threadPool), new NoneCircuitBreakerService());
+
+                nettyTransport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays, Version.CURRENT);
+                nettyTransport.start();
+                assertThat(nettyTransport.lifecycleState(), is(Lifecycle.State.STARTED));
+
+                assertExpectedPorts(originalSettings, settings);
+                break;
+            } catch (BindTransportException e) {
+                logger.warn("Could not bind to port, on test run {}: {}", runs, e.getMessage());
+            } finally {
+                shutdownNettyTransport();
             }
         }
+    }
 
-        int[] ports = SocketUtil.findFreeLocalPorts(numberOfPorts);
-        int idx = 0;
-        for (Map.Entry<String, String> entry : originalSettings.getAsMap().entrySet()) {
-            if (EXPECTED_CONNECTION_ACCEPTED_PORT.equals(entry.getValue()) || EXPECTED_CONNECTION_REFUSED_PORT.equals(entry.getValue())) {
-                settingsBuilder.put(entry.getKey(), ports[idx++]);
-            }
+    public void shutdownNettyTransport() {
+        if (nettyTransport != null) {
+            nettyTransport.stop();
         }
-
-        Settings settings = settingsBuilder.build();
-        threadPool = new ThreadPool("tst");
-        BigArrays bigArrays = new MockBigArrays(settings, new PageCacheRecycler(settings, threadPool), new NoneCircuitBreakerService());
-
-        nettyTransport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays, Version.CURRENT);
-        nettyTransport.start();
-
-        assertThat(nettyTransport.lifecycleState(), is(Lifecycle.State.STARTED));
-
-        assertExpectedPorts(originalSettings, settings);
+        if (threadPool != null) {
+            threadPool.shutdownNow();
+        }
     }
 
     private void assertExpectedPorts(Settings originalSettings, Settings settings) throws Exception {

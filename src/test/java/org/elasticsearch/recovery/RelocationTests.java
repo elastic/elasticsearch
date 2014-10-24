@@ -516,7 +516,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
                                 }
                             });
                         } catch (IOException e) {
-                            throw new ElasticsearchException("failed to walk tree", e);
+                            throw new AssertionError("failed to walk file tree starting at [" + shardLoc.toPath() + "]", e);
                         }
                     }
                 });

@@ -1238,8 +1238,8 @@ public class LongTermsTests extends AbstractTermsTests {
         }
     }
 
-    
-    public void testOtherDocCount() {
+    @Test
+    public void otherDocCount() {
         testOtherDocCount(SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME);
     }
 }

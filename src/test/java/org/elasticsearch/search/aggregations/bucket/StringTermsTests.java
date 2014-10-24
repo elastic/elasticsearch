@@ -1675,8 +1675,8 @@ public class StringTermsTests extends AbstractTermsTests {
         assertEquals(5L, terms.getBucketByKey("i").getDocCount());
     }
     
-
-    public void testOtherDocCount() {
+    @Test
+    public void otherDocCount() {
         testOtherDocCount(SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME);
     }
 }

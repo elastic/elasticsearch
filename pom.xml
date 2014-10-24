@@ -6,9 +6,10 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.elasticsearch.plugin.alerting</groupId>
-    <artifactId>alerting-plugin</artifactId>
-    <version>0.1-SNAPSHOT</version>
+    <groupId>org.elasticsearch</groupId>
+    <artifactId>elasticsearch-shield</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+
 
     <packaging>jar</packaging>
 

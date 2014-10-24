@@ -68,8 +68,8 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                 .put("discovery.type", "zen")
                 .put("node.mode", "network")
                 .put("plugin.types", ShieldPlugin.class.getName())
-                .put("shield.authc.esusers.files.users", writeFile(folder, "users", CONFIG_STANDARD_USER))
-                .put("shield.authc.esusers.files.users_roles", writeFile(folder, "users_roles", CONFIG_STANDARD_USER_ROLES))
+                .put("shield.authc.esusers.files.users", writeFile(folder, "users", configUsers()))
+                .put("shield.authc.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRole()))
                 .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", CONFIG_IPFILTER_ALLOW_ALL))
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
@@ -85,6 +85,14 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
 
     protected String configRole() {
         return CONFIG_ROLE_ALLOW_ALL;
+    }
+
+    protected String configUsers() {
+        return CONFIG_STANDARD_USER;
+    }
+
+    protected String configUsersRoles() {
+        return CONFIG_STANDARD_USER_ROLES;
     }
 
     @Override

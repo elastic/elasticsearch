@@ -257,7 +257,7 @@ To enable discovery across more than one zone, just enter add your zone list to 
   cloud:
       gce:
           project_id: <your-google-project-id>
-          zone: <your-zone1>, <your-zone2>
+          zone: ["<your-zone1>", "<your-zone2>"]
   discovery:
           type: gce
 ```

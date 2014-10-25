@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
@@ -154,8 +155,7 @@ public class RecoveryStatus extends AbstractRefCounted {
             // first, go and delete the existing ones
             try {
                 directory.deleteFile(origFile);
-            } catch (NoSuchFileException e) {
-
+            } catch (FileNotFoundException | NoSuchFileException e) {
             } catch (Throwable ex) {
                 logger.debug("failed to delete file [{}]", ex, origFile);
             }

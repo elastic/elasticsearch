@@ -187,7 +187,7 @@ See <<generated-fields>> for fields are generated only when indexing.
 [[mget-routing]]
 === Routing
 
-You can specify also specify routing value as a parameter:
+You can also specify routing value as a parameter:
 
 [source,js]
 --------------------------------------------------

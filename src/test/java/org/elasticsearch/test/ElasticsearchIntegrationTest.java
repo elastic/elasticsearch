@@ -118,6 +118,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -1280,7 +1281,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
 
-            Random random = getRandom();
+        Random random = getRandom();
         Set<String> indicesSet = new HashSet<>();
         for (IndexRequestBuilder builder : builders) {
             indicesSet.add(builder.request().index());
@@ -1293,9 +1294,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             final int numBogusDocs = scaledRandomIntBetween(1, builders.size() * 2);
             final int unicodeLen = between(1, 10);
             for (int i = 0; i < numBogusDocs; i++) {
-                String id = randomRealisticUnicodeOfLength(unicodeLen);
+                String id = randomRealisticUnicodeOfLength(unicodeLen) + Integer.toString(dummmyDocIdGenerator.incrementAndGet());
                 String index = RandomPicks.randomFrom(random, indices);
-                bogusIds.add(new Tuple<String, String>(index, id));
+                bogusIds.add(new Tuple<>(index, id));
                 builders.add(client().prepareIndex(index, RANDOM_BOGUS_TYPE, id).setSource("{}"));
             }
         }
@@ -1352,8 +1353,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (forceRefresh) {
             assertNoFailures(client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
         }
-
     }
+
+    private AtomicInteger dummmyDocIdGenerator = new AtomicInteger();
 
     /** Disables translog flushing for the specified index */
     public static void disableTranslogFlush(String index) {

@@ -183,7 +183,7 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
     }
     
     @Test
-    public void testBackwardsCompatibilityEdgeNgramTokenFilter() throws IllegalArgumentException, IllegalAccessException {
+    public void testBackwardsCompatibilityEdgeNgramTokenFilter() throws Exception {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
             final Index index = new Index("test");
@@ -201,8 +201,9 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
                 }
                 Settings settings = builder.build();
                 Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
-                TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(index, indexSettings, name, settings).create(new MockTokenizer(new StringReader(
-                        "foo bar")));
+                Tokenizer tokenizer = new MockTokenizer();
+                tokenizer.setReader(new StringReader("foo bar"));
+                TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(index, indexSettings, name, settings).create(tokenizer);
                 if (compatVersion) { 
                     assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
                 } else if (reverse && !compatVersion){
@@ -219,8 +220,9 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
                 }
                 Settings settings = builder.build();
                 Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
-                TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(index, indexSettings, name, settings).create(new MockTokenizer(new StringReader(
-                        "foo bar")));
+                Tokenizer tokenizer = new MockTokenizer();
+                tokenizer.setReader(new StringReader("foo bar"));
+                TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(index, indexSettings, name, settings).create(tokenizer);
                 assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
             }
         }

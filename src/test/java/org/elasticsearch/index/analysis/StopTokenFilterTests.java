@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Tokenizer;
+
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
@@ -69,7 +71,9 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(builder.build());
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");
         assertThat(tokenFilter, instanceOf(StopTokenFilterFactory.class));
-        TokenStream create = tokenFilter.create(new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader("foo bar")));
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader("foo bar"));
+        TokenStream create = tokenFilter.create(tokenizer);
         assertThat(create, instanceOf(StopFilter.class));
         assertThat(((StopFilter)create).getEnablePositionIncrements(), equalTo(true));
     }
@@ -82,7 +86,9 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");
         assertThat(tokenFilter, instanceOf(StopTokenFilterFactory.class));
-        TokenStream create = tokenFilter.create(new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader("foo bar")));
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader("foo bar"));
+        TokenStream create = tokenFilter.create(tokenizer);
         assertThat(create, instanceOf(StopFilter.class));
         assertThat(((StopFilter)create).getEnablePositionIncrements(), equalTo(false));
     }
@@ -96,7 +102,9 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");
         assertThat(tokenFilter, instanceOf(StopTokenFilterFactory.class));
-        TokenStream create = tokenFilter.create(new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader("foo an")));
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader("foo an"));
+        TokenStream create = tokenFilter.create(tokenizer);
         assertThat(create, instanceOf(SuggestStopFilter.class));
     }
 }

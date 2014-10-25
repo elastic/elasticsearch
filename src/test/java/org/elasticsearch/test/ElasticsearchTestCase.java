@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.test;
 
+import org.apache.lucene.uninverting.UninvertingReader;
+
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.search.FieldCache;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.LuceneTestCase;
@@ -100,7 +101,8 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     @Before
     public void cleanFieldCache() {
-        FieldCache.DEFAULT.purgeAllCaches();
+        // nocommit: we should make this a static method on uninvertingreader?
+        // FieldCache.DEFAULT.purgeAllCaches();
     }
 
     @After
@@ -108,7 +110,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         // We use the lucene comparators, and by default they work on field cache.
         // However, given the way that we use them, field cache should NEVER get loaded.
         if (getClass().getAnnotation(UsesLuceneFieldCacheOnPurpose.class) == null) {
-            FieldCache.CacheEntry[] entries = FieldCache.DEFAULT.getCacheEntries();
+            String[] entries = UninvertingReader.getUninvertedStats();
             assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
         }
     }
@@ -263,7 +265,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     }
 
     public static boolean maybeDocValues() {
-        return LuceneTestCase.defaultCodecSupportsSortedSet() && randomBoolean();
+        return randomBoolean();
     }
 
     private static final List<Version> SORTED_VERSIONS;

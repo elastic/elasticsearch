@@ -29,7 +29,6 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.English;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -57,7 +56,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
     public void testDuelAllTypesSingleValue() throws Exception {
         final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                    .startObject("bytes").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", LuceneTestCase.defaultCodecSupportsSortedSet() ? "doc_values" : "fst").endObject().endObject()
+                    .startObject("bytes").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", "doc_values").endObject().endObject()
                     .startObject("byte").field("type", "byte").startObject("fielddata").field("format", "doc_values").endObject().endObject()
                     .startObject("short").field("type", "short").startObject("fielddata").field("format", "doc_values").endObject().endObject()
                     .startObject("integer").field("type", "integer").startObject("fielddata").field("format", "doc_values").endObject().endObject()

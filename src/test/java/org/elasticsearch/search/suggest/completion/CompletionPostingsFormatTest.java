@@ -72,7 +72,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
         PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
-        NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
+        NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer());
         Lookup lookup = load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING), new CompletionSuggestionContext(null));
         List<LookupResult> result = lookup.lookup("ge", false, 10);
         assertThat(result.get(0).key.toString(), equalTo("Generator - Foo Fighters"));
@@ -91,7 +91,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
         PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
-        NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
+        NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer());
         AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder analyzingSuggestHolder = load.getAnalyzingSuggestHolder(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING));
         assertThat(analyzingSuggestHolder.sepLabel, is(AnalyzingCompletionLookupProviderV1.SEP_LABEL));
         assertThat(analyzingSuggestHolder.payloadSep, is(AnalyzingCompletionLookupProviderV1.PAYLOAD_SEP));
@@ -109,7 +109,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
         PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
-        NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
+        NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer());
         AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder analyzingSuggestHolder = load.getAnalyzingSuggestHolder(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING));
         assertThat(analyzingSuggestHolder.sepLabel, is(XAnalyzingSuggester.SEP_LABEL));
         assertThat(analyzingSuggestHolder.payloadSep, is(XAnalyzingSuggester.PAYLOAD_SEP));
@@ -125,8 +125,8 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         final boolean usePayloads = getRandom().nextBoolean();
         final int options = preserveSeparators ? AnalyzingSuggester.PRESERVE_SEP : 0;
 
-        XAnalyzingSuggester reference = new XAnalyzingSuggester(new StandardAnalyzer(TEST_VERSION_CURRENT), null, new StandardAnalyzer(
-                TEST_VERSION_CURRENT), options, 256, -1, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
+        XAnalyzingSuggester reference = new XAnalyzingSuggester(new StandardAnalyzer(), null, new StandardAnalyzer(), 
+                options, 256, -1, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
         LineFileDocs docs = new LineFileDocs(getRandom());
         int num = scaledRandomIntBetween(150, 300);
         final String[] titles = new String[num];
@@ -142,11 +142,6 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         final InputIterator primaryIter = new InputIterator() {
             int index = 0;
             long currentWeight = -1;
-
-            @Override
-            public Comparator<BytesRef> getComparator() {
-                return null;
-            }
 
             @Override
             public BytesRef next() throws IOException {
@@ -192,11 +187,6 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                 }
 
                 @Override
-                public Comparator<BytesRef> getComparator() {
-                    return primaryIter.getComparator();
-                }
-
-                @Override
                 public BytesRef next() throws IOException {
                     return primaryIter.next();
                 }
@@ -227,7 +217,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         reference.build(iter);
         PostingsFormatProvider provider = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
 
-        NamedAnalyzer namedAnalzyer = new NamedAnalyzer("foo", new StandardAnalyzer(TEST_VERSION_CURRENT));
+        NamedAnalyzer namedAnalzyer = new NamedAnalyzer("foo", new StandardAnalyzer());
         final CompletionFieldMapper mapper = new CompletionFieldMapper(new Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, usePayloads,
                 preserveSeparators, preservePositionIncrements, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING);
         Lookup buildAnalyzingLookup = buildAnalyzingLookup(mapper, titles, titles, weights);
@@ -273,7 +263,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                 return mapper.postingsFormatProvider().get();
             }
         };
-        IndexWriterConfig indexWriterConfig = new IndexWriterConfig(TEST_VERSION_CURRENT, mapper.indexAnalyzer());
+        IndexWriterConfig indexWriterConfig = new IndexWriterConfig(mapper.indexAnalyzer());
 
         indexWriterConfig.setCodec(filterCodec);
         IndexWriter writer = new IndexWriter(dir, indexWriterConfig);

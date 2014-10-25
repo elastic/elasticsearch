@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.search.child;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedDocValues;
@@ -30,7 +32,6 @@ import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.search.internal.SearchContext;
@@ -48,14 +49,14 @@ public class ChildrenConstantScoreQuery extends Query {
     private Query originalChildQuery;
     private final String parentType;
     private final String childType;
-    private final FixedBitSetFilter parentFilter;
+    private final BitsetFilter parentFilter;
     private final int shortCircuitParentDocSet;
-    private final FixedBitSetFilter nonNestedDocsFilter;
+    private final BitsetFilter nonNestedDocsFilter;
 
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
-    public ChildrenConstantScoreQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, FixedBitSetFilter parentFilter, int shortCircuitParentDocSet, FixedBitSetFilter nonNestedDocsFilter) {
+    public ChildrenConstantScoreQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, BitsetFilter parentFilter, int shortCircuitParentDocSet, BitsetFilter nonNestedDocsFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.parentFilter = parentFilter;
         this.parentType = parentType;

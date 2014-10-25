@@ -19,17 +19,19 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.util.BitDocIdSet;
+
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -129,24 +131,24 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
          * parent + 1, or 0 if there is no previous parent, and R (excluded).
          */
         public static class Nested {
-            private final FixedBitSetFilter rootFilter, innerFilter;
+            private final BitsetFilter rootFilter, innerFilter;
 
-            public Nested(FixedBitSetFilter rootFilter, FixedBitSetFilter innerFilter) {
+            public Nested(BitsetFilter rootFilter, BitsetFilter innerFilter) {
                 this.rootFilter = rootFilter;
                 this.innerFilter = innerFilter;
             }
 
             /**
-             * Get a {@link FixedBitSet} that matches the root documents.
+             * Get a {@link BitDocIdSet} that matches the root documents.
              */
-            public FixedBitSet rootDocs(LeafReaderContext ctx) throws IOException {
+            public BitDocIdSet rootDocs(LeafReaderContext ctx) throws IOException {
                 return rootFilter.getDocIdSet(ctx, null);
             }
 
             /**
-             * Get a {@link FixedBitSet} that matches the inner documents.
+             * Get a {@link BitDocIdSet} that matches the inner documents.
              */
-            public FixedBitSet innerDocs(LeafReaderContext ctx) throws IOException {
+            public BitDocIdSet innerDocs(LeafReaderContext ctx) throws IOException {
                 return innerFilter.getDocIdSet(ctx, null);
             }
         }

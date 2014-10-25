@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
@@ -25,7 +27,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -43,8 +44,8 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     private final String nestedPath;
     private final Aggregator parentAggregator;
-    private FixedBitSetFilter parentFilter;
-    private final FixedBitSetFilter childFilter;
+    private BitsetFilter parentFilter;
+    private final BitsetFilter childFilter;
 
     private Bits childDocs;
     private FixedBitSet parentDocs;
@@ -65,7 +66,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] is not nested");
         }
 
-        childFilter = aggregationContext.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
+        childFilter = aggregationContext.searchContext().bitsetFilterCache().getBitsetFilter(objectMapper.nestedTypeFilter());
     }
 
     @Override
@@ -79,7 +80,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             if (parentFilterNotCached == null) {
                 parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
             }
-            parentFilter = SearchContext.current().fixedBitSetFilterCache().getFixedBitSetFilter(parentFilterNotCached);
+            parentFilter = SearchContext.current().bitsetFilterCache().getBitsetFilter(parentFilterNotCached);
         }
 
         try {
@@ -89,7 +90,8 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             if (DocIdSets.isEmpty(docIdSet)) {
                 parentDocs = null;
             } else {
-                parentDocs = (FixedBitSet) docIdSet;
+                // TODO: Remove cast when BitSet gets prevSetBit
+                parentDocs = (FixedBitSet) docIdSet.bits();
             }
         } catch (IOException ioe) {
             throw new AggregationExecutionException("Failed to aggregate [" + name + "]", ioe);

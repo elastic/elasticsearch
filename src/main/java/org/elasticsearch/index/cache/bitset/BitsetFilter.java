@@ -17,16 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.fixedbitset;
+package org.elasticsearch.index.cache.bitset;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.apache.lucene.util.BitDocIdSet;
+
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
+
+import java.io.IOException;
 
 /**
+ * A filter that always returns a {@link BitDocIdSet}.
  */
-public class ShardFixedBitSetFilterCacheModule extends AbstractModule {
+public abstract class BitsetFilter extends Filter {
 
     @Override
-    protected void configure() {
-        bind(ShardFixedBitSetFilterCache.class).asEagerSingleton();
-    }
+    public abstract BitDocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException;
+
 }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
@@ -31,7 +33,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -138,7 +139,7 @@ public class NestedQueryParser implements QueryParser {
                 throw new QueryParsingException(parseContext.index(), "[nested] nested object under path [" + path + "] is not of nested type");
             }
 
-            FixedBitSetFilter childFilter = parseContext.fixedBitSetFilter(objectMapper.nestedTypeFilter());
+            BitsetFilter childFilter = parseContext.bitsetFilter(objectMapper.nestedTypeFilter());
             usAsParentFilter.filter = childFilter;
             // wrap the child query to only work on the nested path type
             query = new XFilteredQuery(query, childFilter);
@@ -152,7 +153,7 @@ public class NestedQueryParser implements QueryParser {
                 //    parentFilter = mapper.docMapper().typeFilter();
                 //}
             }
-            parentFilter = parseContext.fixedBitSetFilter(parentFilter);
+            parentFilter = parseContext.bitsetFilter(parentFilter);
             ToParentBlockJoinQuery joinQuery = new ToParentBlockJoinQuery(query, parentFilter, scoreMode);
             joinQuery.setBoost(boost);
             if (queryName != null) {

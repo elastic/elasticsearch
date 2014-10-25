@@ -62,7 +62,7 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         if (thingToDo == 0) {
             builder.put("index.analysis.filter.my_stop.version", Version.LATEST);
         } else if (thingToDo == 1) {
-            builder.put("index.analysis.filter.my_stop.version", Version.LUCENE_30);
+            builder.put("index.analysis.filter.my_stop.version", Version.LUCENE_4_0);
         } else {
             // don't specify
         }

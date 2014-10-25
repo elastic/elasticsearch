@@ -194,7 +194,7 @@ public class FetchPhase implements SearchPhase {
 
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
         if (context.mapperService().hasNested()) {
-            FixedBitSet nonNested = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE).getDocIdSet(subReaderContext, null);
+            FixedBitSet nonNested = context.bitsetFilterCache().getBitsetFilter(NonNestedDocsFilter.INSTANCE).getDocIdSet(subReaderContext, null);
             if (!nonNested.get(subDocId)) {
                 return nonNested.nextSetBit(subDocId);
             }
@@ -267,7 +267,7 @@ public class FetchPhase implements SearchPhase {
         context.lookup().setNextReader(subReaderContext);
         context.lookup().setNextDocId(nestedSubDocId);
 
-        ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedSubDocId, context.fixedBitSetFilterCache(), subReaderContext);
+        ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedSubDocId, context.bitsetFilterCache(), subReaderContext);
         assert nestedObjectMapper != null;
         InternalSearchHit.InternalNestedIdentity nestedIdentity = getInternalNestedIdentity(context, nestedSubDocId, subReaderContext, documentMapper, nestedObjectMapper);
 
@@ -355,9 +355,9 @@ public class FetchPhase implements SearchPhase {
                 parentFilter = NonNestedDocsFilter.INSTANCE;
             }
 
-            FixedBitSet parentBitSet = context.fixedBitSetFilterCache().getFixedBitSetFilter(parentFilter).getDocIdSet(subReaderContext, null);
+            FixedBitSet parentBitSet = context.bitsetFilterCache().getBitsetFilter(parentFilter).getDocIdSet(subReaderContext, null);
             int offset = 0;
-            FixedBitSet nestedDocsBitSet = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedObjectMapper.nestedTypeFilter()).getDocIdSet(subReaderContext, null);
+            FixedBitSet nestedDocsBitSet = context.bitsetFilterCache().getBitsetFilter(nestedObjectMapper.nestedTypeFilter()).getDocIdSet(subReaderContext, null);
             int nextParent = parentBitSet.nextSetBit(currentParent);
             for (int docId = nestedDocsBitSet.nextSetBit(currentParent + 1); docId < nextParent && docId != -1; docId = nestedDocsBitSet.nextSetBit(docId + 1)) {
                 offset++;

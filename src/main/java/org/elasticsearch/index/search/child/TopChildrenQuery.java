@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.search.child;
 
+import org.elasticsearch.index.cache.bitset.FixedBitSetFilter;
+
 import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.index.*;
@@ -30,7 +32,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;

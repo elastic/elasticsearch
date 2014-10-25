@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.percolator;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
@@ -33,7 +35,6 @@ import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -439,7 +440,7 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public FixedBitSetFilterCache fixedBitSetFilterCache() {
+    public BitsetFilterCache bitsetFilterCache() {
         return indexService.fixedBitSetFilterCache();
     }
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.fixedbitset;
+package org.elasticsearch.index.cache.bitset;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -28,12 +28,12 @@ import org.elasticsearch.index.shard.ShardId;
 
 /**
  */
-public class ShardFixedBitSetFilterCache extends AbstractIndexShardComponent {
+public class ShardBitsetFilterCache extends AbstractIndexShardComponent {
 
     private final CounterMetric totalMetric = new CounterMetric();
 
     @Inject
-    public ShardFixedBitSetFilterCache(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public ShardBitsetFilterCache(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
     }
 

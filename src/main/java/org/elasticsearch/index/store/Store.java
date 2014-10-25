@@ -504,7 +504,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             Map<String, String> checksumMap = readLegacyChecksums(directory).v1();
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
-                Version maxVersion = Version.LUCENE_3_0; // we don't know which version was used to write so we take the max version.
+                Version maxVersion = Version.LUCENE_4_0; // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = info.info.getVersion();
                     if (version != null && version.onOrAfter(maxVersion)) {

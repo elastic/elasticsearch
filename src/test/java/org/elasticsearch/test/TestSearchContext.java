@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -29,7 +31,6 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -69,7 +70,7 @@ public class TestSearchContext extends SearchContext {
     final IndexService indexService;
     final FilterCache filterCache;
     final IndexFieldDataService indexFieldDataService;
-    final FixedBitSetFilterCache fixedBitSetFilterCache;
+    final BitsetFilterCache fixedBitSetFilterCache;
     final ThreadPool threadPool;
 
     ContextIndexSearcher searcher;
@@ -315,7 +316,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public FixedBitSetFilterCache fixedBitSetFilterCache() {
+    public BitsetFilterCache bitsetFilterCache() {
         return fixedBitSetFilterCache;
     }
 

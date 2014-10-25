@@ -19,10 +19,13 @@
 
 package org.elasticsearch.index.search.geo;
 
+import org.apache.lucene.util.BitDocIdSet;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -61,12 +64,12 @@ public class IndexedGeoBoundingBoxFilter {
 
         @Override
         public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptedDocs) throws IOException {
-            FixedBitSet main;
+            BitSet main;
             DocIdSet set = lonFilter1.getDocIdSet(context, acceptedDocs);
             if (DocIdSets.isEmpty(set)) {
                 main = null;
             } else {
-                main = (FixedBitSet) set;
+                main = ((BitDocIdSet) set).bits();
             }
 
             set = lonFilter2.getDocIdSet(context, acceptedDocs);

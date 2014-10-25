@@ -19,12 +19,13 @@
 
 package org.elasticsearch.index.search.child;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
+
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.service.IndexService;
@@ -96,8 +97,8 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTe
         }
     }
 
-    static FixedBitSetFilter wrap(Filter filter) {
-        return SearchContext.current().fixedBitSetFilterCache().getFixedBitSetFilter(filter);
+    static BitsetFilter wrap(Filter filter) {
+        return SearchContext.current().bitsetFilterCache().getBitsetFilter(filter);
     }
 
 }

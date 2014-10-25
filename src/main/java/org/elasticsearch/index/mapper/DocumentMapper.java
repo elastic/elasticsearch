@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -46,7 +48,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
@@ -598,14 +599,14 @@ public class DocumentMapper implements ToXContent {
     /**
      * Returns the best nested {@link ObjectMapper} instances that is in the scope of the specified nested docId.
      */
-    public ObjectMapper findNestedObjectMapper(int nestedDocId, FixedBitSetFilterCache cache, LeafReaderContext context) throws IOException {
+    public ObjectMapper findNestedObjectMapper(int nestedDocId, BitsetFilterCache cache, LeafReaderContext context) throws IOException {
         ObjectMapper nestedObjectMapper = null;
         for (ObjectMapper objectMapper : objectMappers().values()) {
             if (!objectMapper.nested().isNested()) {
                 continue;
             }
 
-            FixedBitSet nestedTypeBitSet = cache.getFixedBitSetFilter(objectMapper.nestedTypeFilter()).getDocIdSet(context, null);
+            FixedBitSet nestedTypeBitSet = cache.getBitsetFilter(objectMapper.nestedTypeFilter()).getDocIdSet(context, null);
             if (nestedTypeBitSet != null && nestedTypeBitSet.get(nestedDocId)) {
                 if (nestedObjectMapper == null) {
                     nestedObjectMapper = objectMapper;

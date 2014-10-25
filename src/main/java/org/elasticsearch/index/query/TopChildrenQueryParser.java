@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.index.cache.bitset.FixedBitSetFilter;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -128,7 +129,7 @@ public class TopChildrenQueryParser implements QueryParser {
 
         FixedBitSetFilter nonNestedDocsFilter = null;
         if (childDocMapper.hasNestedObjects()) {
-            nonNestedDocsFilter = parseContext.fixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
+            nonNestedDocsFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
         }
 
         innerQuery.setBoost(boost);

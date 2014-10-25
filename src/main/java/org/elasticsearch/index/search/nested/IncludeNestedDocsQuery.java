@@ -19,13 +19,16 @@
 
 package org.elasticsearch.index.search.nested;
 
+import org.apache.lucene.util.BitDocIdSet;
+
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -39,7 +42,7 @@ import java.util.Set;
  */
 public class IncludeNestedDocsQuery extends Query {
 
-    private final FixedBitSetFilter parentFilter;
+    private final BitsetFilter parentFilter;
     private final Query parentQuery;
 
     // If we are rewritten, this is the original childQuery we
@@ -50,7 +53,7 @@ public class IncludeNestedDocsQuery extends Query {
     private final Query origParentQuery;
 
 
-    public IncludeNestedDocsQuery(Query parentQuery, FixedBitSetFilter parentFilter) {
+    public IncludeNestedDocsQuery(Query parentQuery, BitsetFilter parentFilter) {
         this.origParentQuery = parentQuery;
         this.parentQuery = parentQuery;
         this.parentFilter = parentFilter;
@@ -80,9 +83,9 @@ public class IncludeNestedDocsQuery extends Query {
 
         private final Query parentQuery;
         private final Weight parentWeight;
-        private final FixedBitSetFilter parentsFilter;
+        private final BitsetFilter parentsFilter;
 
-        IncludeNestedDocsWeight(Query parentQuery, Weight parentWeight, FixedBitSetFilter parentsFilter) {
+        IncludeNestedDocsWeight(Query parentQuery, Weight parentWeight, BitsetFilter parentsFilter) {
             this.parentQuery = parentQuery;
             this.parentWeight = parentWeight;
             this.parentsFilter = parentsFilter;
@@ -112,7 +115,7 @@ public class IncludeNestedDocsQuery extends Query {
                 return null;
             }
 
-            FixedBitSet parents = parentsFilter.getDocIdSet(context, acceptDocs);
+            BitDocIdSet parents = parentsFilter.getDocIdSet(context, acceptDocs);
             if (parents == null) {
                 // No matches
                 return null;
@@ -123,7 +126,7 @@ public class IncludeNestedDocsQuery extends Query {
                 // No matches
                 return null;
             }
-            return new IncludeNestedDocsScorer(this, parentScorer, (FixedBitSet) parents, firstParentDoc);
+            return new IncludeNestedDocsScorer(this, parentScorer, parents, firstParentDoc);
         }
 
         @Override
@@ -146,15 +149,16 @@ public class IncludeNestedDocsQuery extends Query {
         int currentParentPointer = -1;
         int currentDoc = -1;
 
-        IncludeNestedDocsScorer(Weight weight, Scorer parentScorer, FixedBitSet parentBits, int currentParentPointer) {
+        IncludeNestedDocsScorer(Weight weight, Scorer parentScorer, BitDocIdSet parentBits, int currentParentPointer) {
             super(weight);
             this.parentScorer = parentScorer;
-            this.parentBits = parentBits;
+            // TODO: remove this cast
+            this.parentBits = (FixedBitSet) parentBits.bits();
             this.currentParentPointer = currentParentPointer;
             if (currentParentPointer == 0) {
                 currentChildPointer = 0;
             } else {
-                this.currentChildPointer = parentBits.prevSetBit(currentParentPointer - 1);
+                this.currentChildPointer = this.parentBits.prevSetBit(currentParentPointer - 1);
                 if (currentChildPointer == -1) {
                     // no previous set parent, we delete from doc 0
                     currentChildPointer = 0;

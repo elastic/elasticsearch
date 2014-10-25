@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
@@ -34,7 +36,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -208,7 +209,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract FilterCache filterCache();
 
-    public abstract FixedBitSetFilterCache fixedBitSetFilterCache();
+    public abstract BitsetFilterCache bitsetFilterCache();
 
     public abstract IndexFieldDataService fieldData();
 

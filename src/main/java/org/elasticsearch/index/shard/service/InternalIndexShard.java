@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.shard.service;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
+
 import com.google.common.base.Charsets;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
@@ -48,8 +51,6 @@ import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
-import org.elasticsearch.index.cache.fixedbitset.ShardFixedBitSetFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.codec.CodecService;
@@ -132,7 +133,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private final IndexFieldDataService indexFieldDataService;
     private final IndexService indexService;
     private final ShardSuggestService shardSuggestService;
-    private final ShardFixedBitSetFilterCache shardFixedBitSetFilterCache;
+    private final ShardBitsetFilterCache shardFixedBitSetFilterCache;
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -158,7 +159,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                               ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                               ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
-                              ShardTermVectorService termVectorService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardFixedBitSetFilterCache shardFixedBitSetFilterCache) {
+                              ShardTermVectorService termVectorService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardFixedBitSetFilterCache) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -234,7 +235,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public ShardFixedBitSetFilterCache shardFixedBitSetFilterCache() {
+    public ShardBitsetFilterCache shardBitsetFilterCache() {
         return shardFixedBitSetFilterCache;
     }
 
@@ -467,7 +468,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         query = filterQueryIfNeeded(query, types);
 
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
-        FixedBitSetFilter parentFilter = mapperService.hasNested() ? indexCache.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE) : null;
+        BitsetFilter parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitsetFilter(NonNestedDocsFilter.INSTANCE) : null;
         return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
     }
 

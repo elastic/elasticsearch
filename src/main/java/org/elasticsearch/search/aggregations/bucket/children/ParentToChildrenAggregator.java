@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.children;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.DocIdSet;
@@ -32,7 +34,6 @@ import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.search.child.ConstantScorer;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -54,7 +55,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
 
     private final String parentType;
     private final Filter childFilter;
-    private final FixedBitSetFilter parentFilter;
+    private final BitsetFilter parentFilter;
     private final ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource;
 
     // Maybe use PagedGrowableWriter? This will be less wasteful than LongArray, but then we don't have the reuse feature of BigArrays.
@@ -80,7 +81,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
         // so use the filter cache instead. When the filter cache is smarter with what filter impl to pick we can benefit
         // from it here
         this.childFilter = new ApplyAcceptedDocsFilter(aggregationContext.searchContext().filterCache().cache(childFilter));
-        this.parentFilter = aggregationContext.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(parentFilter);
+        this.parentFilter = aggregationContext.searchContext().bitsetFilterCache().getBitsetFilter(parentFilter);
         this.parentOrdToBuckets = aggregationContext.bigArrays().newLongArray(maxOrd, false);
         this.parentOrdToBuckets.fill(0, maxOrd, -1);
         this.parentOrdToOtherBuckets = new LongObjectPagedHashMap<>(aggregationContext.bigArrays());

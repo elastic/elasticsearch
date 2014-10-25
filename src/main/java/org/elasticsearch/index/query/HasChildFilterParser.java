@@ -18,13 +18,14 @@
  */
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
+
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -149,12 +150,12 @@ public class HasChildFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "[has_child] 'max_children' is less than 'min_children'");
         }
 
-        FixedBitSetFilter nonNestedDocsFilter = null;
+        BitsetFilter nonNestedDocsFilter = null;
         if (parentDocMapper.hasNestedObjects()) {
-            nonNestedDocsFilter = parseContext.fixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
+            nonNestedDocsFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
         }
 
-        FixedBitSetFilter parentFilter = parseContext.fixedBitSetFilter(parentDocMapper.typeFilter());
+        BitsetFilter parentFilter = parseContext.bitsetFilter(parentDocMapper.typeFilter());
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
 
         Query childrenQuery;

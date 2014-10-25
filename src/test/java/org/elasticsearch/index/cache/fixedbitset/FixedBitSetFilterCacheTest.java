@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.cache.fixedbitset;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
+
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -65,8 +69,8 @@ public class FixedBitSetFilterCacheTest extends ElasticsearchTestCase {
         IndexReader reader = DirectoryReader.open(writer, false);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        FixedBitSetFilterCache cache = new FixedBitSetFilterCache(new Index("test"), ImmutableSettings.EMPTY);
-        FixedBitSetFilter filter = cache.getFixedBitSetFilter(new TermFilter(new Term("field", "value")));
+        BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), ImmutableSettings.EMPTY);
+        BitsetFilter filter = cache.getBitsetFilter(new TermFilter(new Term("field", "value")));
         TopDocs docs = searcher.search(new XConstantScoreQuery(filter), 1);
         assertThat(docs.totalHits, equalTo(3));
 

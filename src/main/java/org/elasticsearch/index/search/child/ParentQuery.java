@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.search.child;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
+
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
@@ -32,7 +34,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.search.internal.SearchContext;
@@ -51,12 +52,12 @@ public class ParentQuery extends Query {
     private final ParentChildIndexFieldData parentChildIndexFieldData;
     private Query originalParentQuery;
     private final String parentType;
-    private final FixedBitSetFilter childrenFilter;
+    private final BitsetFilter childrenFilter;
 
     private Query rewrittenParentQuery;
     private IndexReader rewriteIndexReader;
 
-    public ParentQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query parentQuery, String parentType, FixedBitSetFilter childrenFilter) {
+    public ParentQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query parentQuery, String parentType, BitsetFilter childrenFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.originalParentQuery = parentQuery;
         this.parentType = parentType;

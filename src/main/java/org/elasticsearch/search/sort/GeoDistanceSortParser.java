@@ -19,6 +19,10 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
+
+import org.elasticsearch.index.cache.bitset.FixedBitSetFilter;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldCache.Doubles;
 import org.apache.lucene.search.FieldComparator;
@@ -33,7 +37,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -156,12 +159,12 @@ public class GeoDistanceSortParser implements SortParser {
         }
         final Nested nested;
         if (objectMapper != null && objectMapper.nested().isNested()) {
-            FixedBitSetFilter rootDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
-            FixedBitSetFilter innerDocumentsFilter;
+            BitsetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(NonNestedDocsFilter.INSTANCE);
+            BitsetFilter innerDocumentsFilter;
             if (nestedFilter != null) {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedFilter);
+                innerDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(nestedFilter);
             } else {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
+                innerDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(objectMapper.nestedTypeFilter());
             }
             nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {

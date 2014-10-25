@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.search.Filter;
@@ -28,7 +30,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -137,12 +138,12 @@ public class ScriptSortParser implements SortParser {
                 throw new ElasticsearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
             }
 
-            FixedBitSetFilter rootDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
-            FixedBitSetFilter innerDocumentsFilter;
+            BitsetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(NonNestedDocsFilter.INSTANCE);
+            BitsetFilter innerDocumentsFilter;
             if (nestedFilter != null) {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedFilter);
+                innerDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(nestedFilter);
             } else {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
+                innerDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(objectMapper.nestedTypeFilter());
             }
             nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {

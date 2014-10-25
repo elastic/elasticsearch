@@ -184,7 +184,7 @@ curl 'localhost:9200/_mget' -d '{
 [[mget-routing]]
 === Routing
 
-You can specify also specify routing value as a parameter:
+You can also specify routing value as a parameter:
 
 [source,js]
 --------------------------------------------------

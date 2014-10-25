@@ -42,6 +42,6 @@ public class MmapFsDirectoryService extends FsDirectoryService {
 
     @Override
     protected Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
-        return new MMapDirectory(location, buildLockFactory());
+        return new MMapDirectory(location.toPath(), buildLockFactory());
     }
 }

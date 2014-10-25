@@ -36,7 +36,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
-import java.io.Reader;
 import java.util.Locale;
 
 /**
@@ -46,91 +45,95 @@ public enum PreBuiltTokenizers {
 
     STANDARD(CachingStrategy.LUCENE) {
         @Override
-        protected Tokenizer create(Reader reader, Version version) {
-            return new StandardTokenizer(version.luceneVersion, reader);
+        protected Tokenizer create(Version version) {
+            // nocommit
+            return new StandardTokenizer();
         }
     },
 
     CLASSIC(CachingStrategy.LUCENE) {
         @Override
-        protected Tokenizer create(Reader reader, Version version) {
-            return new ClassicTokenizer(version.luceneVersion, reader);
+        protected Tokenizer create(Version version) {
+            return new ClassicTokenizer();
         }
     },
 
     UAX_URL_EMAIL(CachingStrategy.LUCENE) {
         @Override
-        protected Tokenizer create(Reader reader, Version version) {
-            return new UAX29URLEmailTokenizer(version.luceneVersion, reader);
+        protected Tokenizer create(Version version) {
+            // nocommit
+            return new UAX29URLEmailTokenizer();
         }
     },
 
     PATH_HIERARCHY(CachingStrategy.ONE) {
         @Override
-        protected Tokenizer create(Reader reader, Version version) {
-            return new PathHierarchyTokenizer(reader);
+        protected Tokenizer create(Version version) {
+            return new PathHierarchyTokenizer();
         }
     },
 
     KEYWORD(CachingStrategy.ONE) {
         @Override
-        protected Tokenizer create(Reader reader, Version version) {
-            return new KeywordTokenizer(reader);
+        protected Tokenizer create(Version version) {
+            return new KeywordTokenizer();
         }
     },
 
     LETTER(CachingStrategy.LUCENE) {
         @Override
-        protected Tokenizer create(Reader reader, Version version) {
-            return new LetterTokenizer(version.luceneVersion, reader);
+        protected Tokenizer create(Version version) {
+            return new LetterTokenizer();
         }
     },
 
     LOWERCASE(CachingStrategy.LUCENE) {
         @Override
-        protected Tokenizer create(Reader reader, Version version) {
-            return new LowerCaseTokenizer(version.luceneVersion, reader);
+        protected Tokenizer create(Version version) {
+            return new LowerCaseTokenizer();
         }
     },
 
     WHITESPACE(CachingStrategy.LUCENE) {
         @Override
-        protected Tokenizer create(Reader reader, Version version) {
-            return new WhitespaceTokenizer(version.luceneVersion, reader);
+        protected Tokenizer create(Version version) {
+            return new WhitespaceTokenizer();
         }
     },
 
     NGRAM(CachingStrategy.LUCENE) {
         @Override
-        protected Tokenizer create(Reader reader, Version version) {
-            return new NGramTokenizer(version.luceneVersion, reader);
+        protected Tokenizer create(Version version) {
+            // nocommit
+            return new NGramTokenizer();
         }
     },
 
     EDGE_NGRAM(CachingStrategy.LUCENE) {
         @Override
-        protected Tokenizer create(Reader reader, Version version) {
-            return new EdgeNGramTokenizer(version.luceneVersion, reader, EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+        protected Tokenizer create(Version version) {
+            // nocommit
+            return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
         }
     },
 
     PATTERN(CachingStrategy.ONE) {
         @Override
-        protected Tokenizer create(Reader reader, Version version) {
-            return new PatternTokenizer(reader, Regex.compile("\\W+", null), -1);
+        protected Tokenizer create(Version version) {
+            return new PatternTokenizer(Regex.compile("\\W+", null), -1);
         }
     },
 
     THAI(CachingStrategy.ONE) {
         @Override
-        protected Tokenizer create(Reader reader, Version version) {
-            return new ThaiTokenizer(reader);
+        protected Tokenizer create(Version version) {
+            return new ThaiTokenizer();
         }
     }
 
     ;
 
-    abstract protected Tokenizer create(Reader reader, Version version);
+    abstract protected Tokenizer create(Version version);
 
     protected final PreBuiltCacheFactory.PreBuiltCache<TokenizerFactory> cache;
 
@@ -151,8 +154,8 @@ public enum PreBuiltTokenizers {
                 }
 
                 @Override
-                public Tokenizer create(Reader reader) {
-                    return valueOf(finalName).create(reader, version);
+                public Tokenizer create() {
+                    return valueOf(finalName).create(version);
                 }
             };
             cache.put(version, tokenizerFactory);

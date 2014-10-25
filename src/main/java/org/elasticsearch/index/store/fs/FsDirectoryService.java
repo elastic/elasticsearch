@@ -74,36 +74,7 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
     
     @Override
     public final void renameFile(Directory dir, String from, String to) throws IOException {
-        final FSDirectory fsDirectory = DirectoryUtils.getLeaf(dir, FSDirectory.class);
-        if (fsDirectory == null) {
-            throw new ElasticsearchIllegalArgumentException("Can not rename file on non-filesystem based directory ");
-        }
-        File directory = fsDirectory.getDirectory();
-        File old = new File(directory, from);
-        File nu = new File(directory, to);
-        if (nu.exists())
-            if (!nu.delete())
-                throw new IOException("Cannot delete " + nu);
-
-        if (!old.exists()) {
-            throw new FileNotFoundException("Can't rename from [" + from + "] to [" + to + "], from does not exists");
-        }
-
-        boolean renamed = false;
-        for (int i = 0; i < 3; i++) {
-            if (old.renameTo(nu)) {
-                renamed = true;
-                break;
-            }
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                throw new InterruptedIOException(e.getMessage());
-            }
-        }
-        if (!renamed) {
-            throw new IOException("Failed to rename, from [" + from + "], to [" + to + "]");
-        }
+        dir.renameFile(from, to);
     }
 
     @Override
@@ -112,11 +83,11 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
         if (fsDirectory == null) {
             throw new ElasticsearchIllegalArgumentException("Can not fully delete on non-filesystem based directory");
         }
-        FileSystemUtils.deleteRecursively(fsDirectory.getDirectory());
+        FileSystemUtils.deleteRecursively(fsDirectory.getDirectory().toFile());
         // if we are the last ones, delete also the actual index
-        String[] list = fsDirectory.getDirectory().getParentFile().list();
+        String[] list = fsDirectory.getDirectory().toFile().getParentFile().list();
         if (list == null || list.length == 0) {
-            FileSystemUtils.deleteRecursively(fsDirectory.getDirectory().getParentFile());
+            FileSystemUtils.deleteRecursively(fsDirectory.getDirectory().toFile().getParentFile());
         }
     }
     

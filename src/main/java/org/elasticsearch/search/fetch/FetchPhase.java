@@ -19,6 +19,10 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.apache.lucene.util.BitSet;
+
+import org.apache.lucene.util.BitDocIdSet;
+
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -58,7 +62,12 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.contentBuilder;
@@ -194,9 +203,10 @@ public class FetchPhase implements SearchPhase {
 
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
         if (context.mapperService().hasNested()) {
-            FixedBitSet nonNested = context.bitsetFilterCache().getBitsetFilter(NonNestedDocsFilter.INSTANCE).getDocIdSet(subReaderContext, null);
-            if (!nonNested.get(subDocId)) {
-                return nonNested.nextSetBit(subDocId);
+            BitDocIdSet nonNested = context.bitsetFilterCache().getBitsetFilter(NonNestedDocsFilter.INSTANCE).getDocIdSet(subReaderContext, null);
+            BitSet bits = nonNested.bits();
+            if (!bits.get(subDocId)) {
+                return bits.nextSetBit(subDocId);
             }
         }
         return -1;
@@ -355,11 +365,13 @@ public class FetchPhase implements SearchPhase {
                 parentFilter = NonNestedDocsFilter.INSTANCE;
             }
 
-            FixedBitSet parentBitSet = context.bitsetFilterCache().getBitsetFilter(parentFilter).getDocIdSet(subReaderContext, null);
+            BitDocIdSet parentBitSet = context.bitsetFilterCache().getBitsetFilter(parentFilter).getDocIdSet(subReaderContext, null);
+            BitSet parentBits = parentBitSet.bits();
             int offset = 0;
-            FixedBitSet nestedDocsBitSet = context.bitsetFilterCache().getBitsetFilter(nestedObjectMapper.nestedTypeFilter()).getDocIdSet(subReaderContext, null);
-            int nextParent = parentBitSet.nextSetBit(currentParent);
-            for (int docId = nestedDocsBitSet.nextSetBit(currentParent + 1); docId < nextParent && docId != -1; docId = nestedDocsBitSet.nextSetBit(docId + 1)) {
+            BitDocIdSet nestedDocsBitSet = context.bitsetFilterCache().getBitsetFilter(nestedObjectMapper.nestedTypeFilter()).getDocIdSet(subReaderContext, null);
+            BitSet nestedBits = nestedDocsBitSet.bits();
+            int nextParent = parentBits.nextSetBit(currentParent);
+            for (int docId = nestedBits.nextSetBit(currentParent + 1); docId < nextParent && docId != -1; docId = nestedBits.nextSetBit(docId + 1)) {
                 offset++;
             }
             currentParent = nextParent;

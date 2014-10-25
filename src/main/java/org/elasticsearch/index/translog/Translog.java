@@ -41,6 +41,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
 import java.io.IOException;
+import java.util.Collections;
 
 
 /**
@@ -151,6 +152,11 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         @Override
         public long ramBytesUsed() {
             return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2*RamUsageEstimator.NUM_BYTES_LONG + RamUsageEstimator.NUM_BYTES_INT;
+        }
+
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            return Collections.emptyList();
         }
 
         @Override

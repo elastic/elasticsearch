@@ -42,6 +42,6 @@ public class NioFsDirectoryService extends FsDirectoryService {
 
     @Override
     protected Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
-        return new NIOFSDirectory(location, lockFactory);
+        return new NIOFSDirectory(location.toPath(), lockFactory);
     }
 }

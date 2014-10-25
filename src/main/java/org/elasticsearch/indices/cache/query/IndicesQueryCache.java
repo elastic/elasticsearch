@@ -54,6 +54,7 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -280,6 +281,12 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         @Override
         public long ramBytesUsed() {
             return RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_LONG + value.length();
+        }
+
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            // TODO: more detailed ram usage?
+            return Collections.emptyList();
         }
 
         @Override

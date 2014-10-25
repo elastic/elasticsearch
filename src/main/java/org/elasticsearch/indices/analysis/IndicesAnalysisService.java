@@ -20,45 +20,13 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
-import org.apache.lucene.analysis.ar.ArabicStemFilter;
-import org.apache.lucene.analysis.br.BrazilianStemFilter;
-import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
-import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
-import org.apache.lucene.analysis.core.*;
-import org.apache.lucene.analysis.cz.CzechStemFilter;
-import org.apache.lucene.analysis.de.GermanStemFilter;
-import org.apache.lucene.analysis.en.KStemFilter;
-import org.apache.lucene.analysis.en.PorterStemFilter;
-import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
-import org.apache.lucene.analysis.fr.FrenchAnalyzer;
-import org.apache.lucene.analysis.fr.FrenchStemFilter;
-import org.apache.lucene.analysis.miscellaneous.*;
-import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
-import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
-import org.apache.lucene.analysis.ngram.NGramTokenFilter;
-import org.apache.lucene.analysis.ngram.NGramTokenizer;
-import org.apache.lucene.analysis.nl.DutchStemFilter;
-import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
-import org.apache.lucene.analysis.pattern.PatternTokenizer;
-import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
-import org.apache.lucene.analysis.reverse.ReverseStringFilter;
-import org.apache.lucene.analysis.snowball.SnowballFilter;
-import org.apache.lucene.analysis.standard.*;
-import org.apache.lucene.analysis.util.CharArraySet;
-import org.apache.lucene.analysis.util.ElisionFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.analysis.*;
 
-import java.io.Reader;
 import java.util.Locale;
 import java.util.Map;
 

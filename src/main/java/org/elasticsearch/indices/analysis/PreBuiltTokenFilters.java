@@ -18,6 +18,10 @@
  */
 package org.elasticsearch.indices.analysis;
 
+import org.tartarus.snowball.ext.FrenchStemmer;
+
+import org.tartarus.snowball.ext.DutchStemmer;
+
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
@@ -37,13 +41,11 @@ import org.apache.lucene.analysis.en.KStemFilter;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
-import org.apache.lucene.analysis.fr.FrenchStemFilter;
 import org.apache.lucene.analysis.hi.HindiNormalizationFilter;
 import org.apache.lucene.analysis.in.IndicNormalizationFilter;
 import org.apache.lucene.analysis.miscellaneous.*;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
-import org.apache.lucene.analysis.nl.DutchStemFilter;
 import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilter;
 import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
@@ -70,7 +72,7 @@ public enum PreBuiltTokenFilters {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
             if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_8)) {
-                return new WordDelimiterFilter(version.luceneVersion, tokenStream,
+                return new WordDelimiterFilter(tokenStream,
                            WordDelimiterFilter.GENERATE_WORD_PARTS |
                            WordDelimiterFilter.GENERATE_NUMBER_PARTS |
                            WordDelimiterFilter.SPLIT_ON_CASE_CHANGE |
@@ -92,21 +94,23 @@ public enum PreBuiltTokenFilters {
     STOP(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new StopFilter(version.luceneVersion, tokenStream, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+            // nocommit
+            return new StopFilter(tokenStream, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
         }
     },
 
     TRIM(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new TrimFilter(version.luceneVersion, tokenStream);
+            // nocommit
+            return new TrimFilter(tokenStream);
         }
     },
 
     REVERSE(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new ReverseStringFilter(version.luceneVersion, tokenStream);
+            return new ReverseStringFilter(tokenStream);
         }
     },
 
@@ -120,28 +124,28 @@ public enum PreBuiltTokenFilters {
     LENGTH(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new LengthFilter(version.luceneVersion, tokenStream, 0, Integer.MAX_VALUE);
+            return new LengthFilter(tokenStream, 0, Integer.MAX_VALUE);
         }
     },
 
     COMMON_GRAMS(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new CommonGramsFilter(version.luceneVersion, tokenStream, CharArraySet.EMPTY_SET);
+            return new CommonGramsFilter(tokenStream, CharArraySet.EMPTY_SET);
         }
     },
 
     LOWERCASE(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new LowerCaseFilter(version.luceneVersion, tokenStream);
+            return new LowerCaseFilter(tokenStream);
         }
     },
 
     UPPERCASE(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new UpperCaseFilter(version.luceneVersion, tokenStream);
+            return new UpperCaseFilter(tokenStream);
         }
     },
 
@@ -162,7 +166,7 @@ public enum PreBuiltTokenFilters {
     STANDARD(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new StandardFilter(version.luceneVersion, tokenStream);
+            return new StandardFilter(tokenStream);
         }
     },
 
@@ -176,14 +180,16 @@ public enum PreBuiltTokenFilters {
     NGRAM(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new NGramTokenFilter(version.luceneVersion, tokenStream);
+            // nocommit
+            return new NGramTokenFilter(tokenStream);
         }
     },
 
     EDGE_NGRAM(CachingStrategy.LUCENE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new EdgeNGramTokenFilter(version.luceneVersion, tokenStream, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
+            // nocommit
+            return new EdgeNGramTokenFilter(tokenStream, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
         }
     },
 
@@ -247,14 +253,14 @@ public enum PreBuiltTokenFilters {
     DUTCH_STEM(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new DutchStemFilter(tokenStream);
+            return new SnowballFilter(tokenStream, new DutchStemmer());
         }
     },
 
     FRENCH_STEM(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new FrenchStemFilter(tokenStream);
+            return new SnowballFilter(tokenStream, new FrenchStemmer());
         }
     },
 

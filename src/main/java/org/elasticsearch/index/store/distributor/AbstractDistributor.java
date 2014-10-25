@@ -57,7 +57,8 @@ public abstract class AbstractDistributor implements Distributor {
     protected long getUsableSpace(Directory directory) {
         final FSDirectory leaf = DirectoryUtils.getLeaf(directory, FSDirectory.class);
         if (leaf != null) {
-            return leaf.getDirectory().getUsableSpace();
+            // TODO: use filestore api instead for this
+            return leaf.getDirectory().toFile().getUsableSpace();
         } else {
             return 0;
         }

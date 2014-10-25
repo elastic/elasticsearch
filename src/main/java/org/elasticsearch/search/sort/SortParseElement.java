@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.index.cache.bitset.FixedBitSetFilter;
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -251,8 +251,8 @@ public class SortParseElement implements SearchParseElement {
             }
             final Nested nested;
             if (objectMapper != null && objectMapper.nested().isNested()) {
-                FixedBitSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(NonNestedDocsFilter.INSTANCE);
-                FixedBitSetFilter innerDocumentsFilter;
+                BitsetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(NonNestedDocsFilter.INSTANCE);
+                BitsetFilter innerDocumentsFilter;
                 if (nestedFilter != null) {
                     innerDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(nestedFilter);
                 } else {

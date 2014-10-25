@@ -90,6 +90,12 @@
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-backward-codecs</artifactId>
+            <version>${lucene.maven.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-analyzers-common</artifactId>
             <version>${lucene.maven.version}</version>
             <scope>compile</scope>

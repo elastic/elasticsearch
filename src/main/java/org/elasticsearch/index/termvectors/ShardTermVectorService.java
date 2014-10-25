@@ -159,7 +159,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             return false;
         }
         // and must be indexed
-        if (!field.fieldType().indexed()) {
+        if (field.fieldType().indexOptions() == null) {
             return false;
         }
         return true;

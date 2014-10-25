@@ -68,7 +68,15 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
         AlertScheduler alertScheduler = internalCluster().getInstance(AlertScheduler.class, internalCluster().getMasterName());
         assertThat(alertScheduler.isRunning(), is(true));
 
-        AlertManager alertManager = internalCluster().getInstance(AlertManager.class, internalCluster().getMasterName());
+        final AlertManager alertManager = internalCluster().getInstance(AlertManager.class, internalCluster().getMasterName());
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertThat(alertManager.isStarted(), is(true));
+            }
+        });
+
+
         final AtomicBoolean alertActionInvoked = new AtomicBoolean(false);
         final AlertAction alertAction = new AlertAction() {
             @Override

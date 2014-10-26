@@ -19,19 +19,17 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
@@ -48,6 +46,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
@@ -606,8 +605,8 @@ public class DocumentMapper implements ToXContent {
                 continue;
             }
 
-            FixedBitSet nestedTypeBitSet = cache.getBitsetFilter(objectMapper.nestedTypeFilter()).getDocIdSet(context, null);
-            if (nestedTypeBitSet != null && nestedTypeBitSet.get(nestedDocId)) {
+            BitDocIdSet nestedTypeBitSet = cache.getBitsetFilter(objectMapper.nestedTypeFilter()).getDocIdSet(context, null);
+            if (nestedTypeBitSet != null && nestedTypeBitSet.bits().get(nestedDocId)) {
                 if (nestedObjectMapper == null) {
                     nestedObjectMapper = objectMapper;
                 } else {

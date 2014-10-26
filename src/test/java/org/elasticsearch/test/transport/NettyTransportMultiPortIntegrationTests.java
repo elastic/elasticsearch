@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.transport;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.transport.TransportClient;
@@ -43,11 +44,15 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, enableRandomBenchNodes = false)
 public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegrationTest {
 
-    private final int randomPort = randomIntBetween(1025, 65000);
-    private final String randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort+10);
+    private static int randomPort = -1;
+    private static String randomPortRange;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        if (randomPort == -1) {
+            randomPort = randomIntBetween(1025, 65000);
+            randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort+10);
+        }
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("network.host", "127.0.0.1")

@@ -318,7 +318,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                 }
             }
         }
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != null || fieldType.stored()) {
             CustomByteNumericField field = new CustomByteNumericField(this, value, fieldType);
             field.setBoost(boost);
             fields.add(field);
@@ -376,7 +376,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
 
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) {
-            if (fieldType().indexed()) {
+            if (fieldType().indexOptions() != null) {
                 return mapper.popCachedStream().setIntValue(number);
             }
             return null;

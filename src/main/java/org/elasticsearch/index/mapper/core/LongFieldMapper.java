@@ -303,7 +303,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
                 }
             }
         }
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != null || fieldType.stored()) {
             CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType);
             field.setBoost(boost);
             fields.add(field);
@@ -361,7 +361,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
-            if (fieldType().indexed()) {
+            if (fieldType().indexOptions() != null) {
                 return mapper.popCachedStream().setLongValue(number);
             }
             return null;

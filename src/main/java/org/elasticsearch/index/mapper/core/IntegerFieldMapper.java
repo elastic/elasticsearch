@@ -317,7 +317,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     protected void addIntegerFields(ParseContext context, List<Field> fields, int value, float boost) {
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != null || fieldType.stored()) {
             CustomIntegerNumericField field = new CustomIntegerNumericField(this, value, fieldType);
             field.setBoost(boost);
             fields.add(field);
@@ -380,7 +380,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
 
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
-            if (fieldType().indexed()) {
+            if (fieldType().indexOptions() != null) {
                 return mapper.popCachedStream().setIntValue(number);
             }
             return null;

@@ -131,7 +131,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             return;
         }
 
-        if (fieldType.indexed() || fieldType.stored() || hasDocValues()) {
+        if (fieldType.indexOptions() != null || fieldType.stored() || hasDocValues()) {
             int count;
             if (valueAndBoost.value() == null) {
                 count = nullValue();

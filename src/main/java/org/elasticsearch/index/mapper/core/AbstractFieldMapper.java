@@ -72,12 +72,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         public static final boolean DOC_VALUES = false;
 
         static {
-            FIELD_TYPE.setIndexed(true);
             FIELD_TYPE.setTokenized(true);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setStoreTermVectors(false);
             FIELD_TYPE.setOmitNorms(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.freeze();
         }
 
@@ -88,6 +86,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     public abstract static class Builder<T extends Builder, Y extends AbstractFieldMapper> extends Mapper.Builder<T, Y> {
 
         protected final FieldType fieldType;
+        protected boolean index = true;
         protected Boolean docValues;
         protected float boost = Defaults.BOOST;
         protected boolean omitNormsSet = false;
@@ -112,7 +111,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         public T index(boolean index) {
-            this.fieldType.setIndexed(index);
+            this.index = true;
             return builder;
         }
 
@@ -292,13 +291,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         this.fieldType.freeze();
 
         // automatically set to keyword analyzer if its indexed and not analyzed
-        if (indexAnalyzer == null && !this.fieldType.tokenized() && this.fieldType.indexed()) {
+        if (indexAnalyzer == null && !this.fieldType.tokenized() && this.fieldType.indexOptions() != null) {
             this.indexAnalyzer = Lucene.KEYWORD_ANALYZER;
         } else {
             this.indexAnalyzer = indexAnalyzer;
         }
         // automatically set to keyword analyzer if its indexed and not analyzed
-        if (searchAnalyzer == null && !this.fieldType.tokenized() && this.fieldType.indexed()) {
+        if (searchAnalyzer == null && !this.fieldType.tokenized() && this.fieldType.indexOptions() != null) {
             this.searchAnalyzer = Lucene.KEYWORD_ANALYZER;
         } else {
             this.searchAnalyzer = searchAnalyzer;
@@ -565,7 +564,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             return;
         }
         AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
-        if (this.fieldType().indexed() != fieldMergeWith.fieldType().indexed() || this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
+        boolean indexed =  fieldType.indexOptions() != null;
+        boolean mergeWithIndexed = fieldMergeWith.fieldType().indexOptions() != null;
+        if (indexed != mergeWithIndexed || this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index values");
         }
         if (this.fieldType().stored() != fieldMergeWith.fieldType().stored()) {
@@ -676,9 +677,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         FieldType defaultFieldType = defaultFieldType();
-        if (includeDefaults || fieldType.indexed() != defaultFieldType.indexed() ||
+        boolean indexed =  fieldType.indexOptions() != null;
+        boolean defaultIndexed = defaultFieldType.indexOptions() != null;
+        if (includeDefaults || indexed != defaultIndexed ||
                 fieldType.tokenized() != defaultFieldType.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
+            builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
         }
         if (includeDefaults || fieldType.stored() != defaultFieldType.stored()) {
             builder.field("store", fieldType.stored());

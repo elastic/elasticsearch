@@ -314,7 +314,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             }
         }
 
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != null || fieldType.stored()) {
             CustomDoubleNumericField field = new CustomDoubleNumericField(this, value, fieldType);
             field.setBoost(boost);
             fields.add(field);
@@ -383,7 +383,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
-            if (fieldType().indexed()) {
+            if (fieldType().indexOptions() != null) {
                 return mapper.popCachedStream().setDoubleValue(number);
             }
             return null;

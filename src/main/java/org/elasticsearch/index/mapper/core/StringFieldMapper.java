@@ -126,7 +126,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             // we also change the values on the default field type so that toXContent emits what
             // differs from the defaults
             FieldType defaultFieldType = new FieldType(Defaults.FIELD_TYPE);
-            if (fieldType.indexed() && !fieldType.tokenized()) {
+            if (fieldType.indexOptions() != null && !fieldType.tokenized()) {
                 defaultFieldType.setOmitNorms(true);
                 defaultFieldType.setIndexOptions(IndexOptions.DOCS_ONLY);
                 if (!omitNormsSet && boost == Defaults.BOOST) {
@@ -203,7 +203,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, 
                 similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
-        if (fieldType.tokenized() && fieldType.indexed() && hasDocValues()) {
+        if (fieldType.tokenized() && fieldType.indexOptions() != null && hasDocValues()) {
             throw new MapperParsingException("Field [" + names.fullName() + "] cannot be analyzed and have doc values");
         }
         this.defaultFieldType = defaultFieldType;
@@ -285,7 +285,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             context.allEntries().addText(names.fullName(), valueAndBoost.value(), valueAndBoost.boost());
         }
 
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != null || fieldType.stored()) {
             Field field = new Field(names.indexName(), valueAndBoost.value(), fieldType);
             field.setBoost(valueAndBoost.boost());
             fields.add(field);

@@ -205,7 +205,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (!fieldType().indexed() && !fieldType().stored()) {
+        if (fieldType().indexOptions() == null && !fieldType().stored()) {
             return;
         }
 

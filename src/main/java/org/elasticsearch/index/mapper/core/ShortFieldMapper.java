@@ -319,7 +319,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
                 }
             }
         }
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != null || fieldType.stored()) {
             CustomShortNumericField field = new CustomShortNumericField(this, value, fieldType);
             field.setBoost(boost);
             fields.add(field);
@@ -378,7 +378,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
 
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
-            if (fieldType().indexed()) {
+            if (fieldType().indexOptions() != null) {
                 return mapper.popCachedStream().setIntValue(number);
             }
             return null;

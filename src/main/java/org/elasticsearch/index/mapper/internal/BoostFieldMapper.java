@@ -31,7 +31,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -69,7 +68,6 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexed(false);
             FIELD_TYPE.setStored(false);
         }
     }
@@ -282,10 +280,12 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+        boolean indexed = fieldType.indexOptions() != null;
+        boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != null;
 
         // all are defaults, don't write it at all
         if (!includeDefaults && name().equals(Defaults.NAME) && nullValue == null &&
-                fieldType.indexed() == Defaults.FIELD_TYPE.indexed() &&
+                indexed == indexedDefault &&
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
                 customFieldDataSettings == null) {
             return builder;
@@ -297,8 +297,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         if (includeDefaults || nullValue != null) {
             builder.field("null_value", nullValue);
         }
-        if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
+        if (includeDefaults || indexed != indexedDefault) {
+            builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
         }
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());

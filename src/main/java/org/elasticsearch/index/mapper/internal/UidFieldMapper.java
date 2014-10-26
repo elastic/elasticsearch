@@ -64,11 +64,10 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         public static final FieldType NESTED_FIELD_TYPE;
 
         static {
-            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
 
             NESTED_FIELD_TYPE = new FieldType(FIELD_TYPE);

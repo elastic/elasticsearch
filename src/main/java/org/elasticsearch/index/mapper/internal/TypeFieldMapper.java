@@ -66,11 +66,10 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
         }
     }
@@ -142,7 +141,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        if (!fieldType.indexed()) {
+        if (fieldType.indexOptions() == null) {
             return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(BytesRefs.toBytesRef(value))));
         }
         return new TermFilter(names().createIndexNameTerm(BytesRefs.toBytesRef(value)));
@@ -174,7 +173,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (!fieldType.indexed() && !fieldType.stored()) {
+        if (fieldType.indexOptions() == null && !fieldType.stored()) {
             return;
         }
         fields.add(new Field(names.indexName(), context.type(), fieldType));
@@ -193,15 +192,17 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all are defaults, no sense to write it at all
-        if (!includeDefaults && fieldType.stored() == Defaults.FIELD_TYPE.stored() && fieldType.indexed() == Defaults.FIELD_TYPE.indexed()) {
+        boolean indexed = fieldType.indexOptions() != null;
+        boolean defaultIndexed = Defaults.FIELD_TYPE.indexOptions() != null;
+        if (!includeDefaults && fieldType.stored() == Defaults.FIELD_TYPE.stored() && indexed == defaultIndexed) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
+        if (includeDefaults || indexed != defaultIndexed) {
+            builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
         }
         builder.endObject();
         return builder;

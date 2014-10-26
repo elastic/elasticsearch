@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
@@ -106,7 +105,7 @@ public class ExistsFilterParser implements FilterParser {
                 nonNullFieldMappers = smartNameFieldMappers;
             }
             Filter filter = null;
-            if (fieldNamesMapper!= null && fieldNamesMapper.mapper().fieldType().indexed()) {
+            if (fieldNamesMapper!= null && fieldNamesMapper.mapper().fieldType().indexOptions() != null) {
                 final String f;
                 if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
                     f = smartNameFieldMappers.mapper().names().indexName();

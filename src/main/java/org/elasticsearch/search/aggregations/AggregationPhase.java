@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -140,7 +141,7 @@ public class AggregationPhase implements SearchPhase {
     }
 
 
-    public static class AggregationsCollector extends XCollector {
+    public static class AggregationsCollector extends SimpleCollector implements XCollector {
 
         private final AggregationContext aggregationContext;
         private final Aggregator[] collectors;
@@ -163,7 +164,7 @@ public class AggregationPhase implements SearchPhase {
         }
 
         @Override
-        public void setNextReader(LeafReaderContext context) throws IOException {
+        public void doSetNextReader(LeafReaderContext context) throws IOException {
             aggregationContext.setNextReader(context);
         }
 

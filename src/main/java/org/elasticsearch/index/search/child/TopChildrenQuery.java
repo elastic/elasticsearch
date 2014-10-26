@@ -18,20 +18,16 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.elasticsearch.index.cache.bitset.FixedBitSetFilter;
-
 import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.ToStringUtils;
+import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -68,14 +64,14 @@ public class TopChildrenQuery extends Query {
     private final int factor;
     private final int incrementalFactor;
     private Query originalChildQuery;
-    private final FixedBitSetFilter nonNestedDocsFilter;
+    private final BitsetFilter nonNestedDocsFilter;
 
     // This field will hold the rewritten form of originalChildQuery, so that we can reuse it
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
     // Note, the query is expected to already be filtered to only child type docs
-    public TopChildrenQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, FixedBitSetFilter nonNestedDocsFilter) {
+    public TopChildrenQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, BitsetFilter nonNestedDocsFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.originalChildQuery = childQuery;
         this.childType = childType;
@@ -187,9 +183,12 @@ public class TopChildrenQuery extends Query {
             // now go over and find the parent doc Id and reader tuple
             for (LeafReaderContext atomicReaderContext : context.searcher().getIndexReader().leaves()) {
                 LeafReader indexReader = atomicReaderContext.reader();
-                FixedBitSet nonNestedDocs = null;
+                BitSet nonNestedDocs = null;
                 if (nonNestedDocsFilter != null) {
-                    nonNestedDocs = (FixedBitSet) nonNestedDocsFilter.getDocIdSet(atomicReaderContext, indexReader.getLiveDocs());
+                    BitDocIdSet nonNestedDocIdSet = nonNestedDocsFilter.getDocIdSet(atomicReaderContext, indexReader.getLiveDocs());
+                    if (nonNestedDocIdSet != null) {
+                        nonNestedDocs = nonNestedDocIdSet.bits();
+                    }
                 }
 
                 Terms terms = indexReader.terms(UidFieldMapper.NAME);

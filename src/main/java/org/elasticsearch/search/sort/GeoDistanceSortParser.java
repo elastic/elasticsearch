@@ -21,8 +21,6 @@ package org.elasticsearch.search.sort;
 
 import org.elasticsearch.index.cache.bitset.BitsetFilter;
 
-import org.elasticsearch.index.cache.bitset.FixedBitSetFilter;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldCache.Doubles;
 import org.apache.lucene.search.FieldComparator;

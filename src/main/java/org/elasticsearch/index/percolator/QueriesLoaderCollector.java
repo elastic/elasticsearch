@@ -21,9 +21,9 @@ package org.elasticsearch.index.percolator;
 import com.google.common.collect.Maps;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -39,7 +39,7 @@ import java.util.Map;
 
 /**
  */
-final class QueriesLoaderCollector extends Collector {
+final class QueriesLoaderCollector extends SimpleCollector {
 
     private final Map<BytesRef, Query> queries = Maps.newHashMap();
     private final JustSourceFieldsVisitor fieldsVisitor = new JustSourceFieldsVisitor();
@@ -88,7 +88,7 @@ final class QueriesLoaderCollector extends Collector {
     }
 
     @Override
-    public void setNextReader(LeafReaderContext context) throws IOException {
+    protected void doSetNextReader(LeafReaderContext context) throws IOException {
         reader = context.reader();
         idValues = idFieldData.load(context).getBytesValues();
     }

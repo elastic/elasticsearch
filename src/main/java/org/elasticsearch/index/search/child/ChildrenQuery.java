@@ -365,7 +365,7 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public void setNextReader(LeafReaderContext context) throws IOException {
+        protected void doSetNextReader(LeafReaderContext context) throws IOException {
             values = globalIfd.load(context).getOrdinalsValues(parentType);
         }
 

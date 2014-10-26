@@ -47,7 +47,7 @@ import java.util.concurrent.ConcurrentMap;
 
 /**
  */
-abstract class QueryCollector extends Collector {
+abstract class QueryCollector extends SimpleCollector {
 
     final IndexFieldData<?> idFieldData;
     final IndexSearcher searcher;
@@ -61,6 +61,8 @@ abstract class QueryCollector extends Collector {
     SortedBinaryDocValues values;
 
     final List<Collector> aggregatorCollector;
+
+    List<LeafCollector> aggregatorLeafCollectors;
 
     QueryCollector(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
         this.logger = logger;
@@ -93,27 +95,29 @@ abstract class QueryCollector extends Collector {
             aggregationContext.setNextReader(context.searcher().getIndexReader().getContext());
         }
         aggregatorCollector = aggCollectorBuilder.build();
+        aggregatorLeafCollectors = new ArrayList<>(aggregatorCollector.size());
     }
 
     public void postMatch(int doc) throws IOException {
-        for (Collector collector : aggregatorCollector) {
+        for (LeafCollector collector : aggregatorLeafCollectors) {
             collector.collect(doc);
         }
     }
 
     @Override
     public void setScorer(Scorer scorer) throws IOException {
-        for (Collector collector : aggregatorCollector) {
+        for (LeafCollector collector : aggregatorLeafCollectors) {
             collector.setScorer(scorer);
         }
     }
 
     @Override
-    public void setNextReader(LeafReaderContext context) throws IOException {
+    public void doSetNextReader(LeafReaderContext context) throws IOException {
         // we use the UID because id might not be indexed
         values = idFieldData.load(context).getBytesValues();
+        aggregatorLeafCollectors.clear();
         for (Collector collector : aggregatorCollector) {
-            collector.setNextReader(context);
+            aggregatorLeafCollectors.add(collector.getLeafCollector(context));
         }
     }
 
@@ -254,9 +258,10 @@ abstract class QueryCollector extends Collector {
         }
 
         @Override
-        public void setNextReader(LeafReaderContext context) throws IOException {
-            super.setNextReader(context);
-            topDocsCollector.setNextReader(context);
+        public void doSetNextReader(LeafReaderContext context) throws IOException {
+            super.doSetNextReader(context);
+            LeafCollector leafCollector = topDocsCollector.getLeafCollector(context);
+            assert leafCollector == topDocsCollector : "TopDocsCollector returns itself as leaf collector";
         }
 
         @Override

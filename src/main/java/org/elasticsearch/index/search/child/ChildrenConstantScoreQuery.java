@@ -276,7 +276,7 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         @Override
-        public void setNextReader(LeafReaderContext context) throws IOException {
+        protected void doSetNextReader(LeafReaderContext context) throws IOException {
             values = indexFieldData.load(context).getOrdinalsValues(parentType);
         }
 

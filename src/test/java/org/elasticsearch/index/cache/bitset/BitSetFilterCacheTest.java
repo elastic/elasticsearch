@@ -17,11 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.fixedbitset;
-
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
-
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+package org.elasticsearch.index.cache.bitset;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
@@ -32,7 +28,6 @@ import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.Index;
@@ -43,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class FixedBitSetFilterCacheTest extends ElasticsearchTestCase {
+public class BitSetFilterCacheTest extends ElasticsearchTestCase {
 
     @Test
     public void testInvalidateEntries() throws Exception {

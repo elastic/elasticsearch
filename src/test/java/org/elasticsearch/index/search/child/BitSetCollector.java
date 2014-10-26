@@ -39,7 +39,7 @@ class BitSetCollector extends NoopCollector {
     }
 
     @Override
-    public void setNextReader(LeafReaderContext context) throws IOException {
+    protected void doSetNextReader(LeafReaderContext context) throws IOException {
         docBase = context.docBase;
     }
 

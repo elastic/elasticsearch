@@ -479,11 +479,13 @@ public class Lucene {
      * A collector that terminates early by throwing {@link org.elasticsearch.common.lucene.Lucene.EarlyTerminationException}
      * when count of matched documents has reached <code>maxCountHits</code>
      */
-    public final static class EarlyTerminatingCollector extends Collector {
+    public final static class EarlyTerminatingCollector extends SimpleCollector {
 
         private final int maxCountHits;
         private final Collector delegate;
+
         private int count = 0;
+        private LeafCollector leafCollector;
 
         EarlyTerminatingCollector(int maxCountHits) {
             this.maxCountHits = maxCountHits;
@@ -508,12 +510,12 @@ public class Lucene {
 
         @Override
         public void setScorer(Scorer scorer) throws IOException {
-            delegate.setScorer(scorer);
+            leafCollector.setScorer(scorer);
         }
 
         @Override
         public void collect(int doc) throws IOException {
-            delegate.collect(doc);
+            leafCollector.collect(doc);
 
             if (++count >= maxCountHits) {
                 throw new EarlyTerminationException("early termination [CountBased]");
@@ -521,13 +523,13 @@ public class Lucene {
         }
 
         @Override
-        public void setNextReader(LeafReaderContext atomicReaderContext) throws IOException {
-            delegate.setNextReader(atomicReaderContext);
+        public void doSetNextReader(LeafReaderContext atomicReaderContext) throws IOException {
+            leafCollector = delegate.getLeafCollector(atomicReaderContext);
         }
 
         @Override
         public boolean acceptsDocsOutOfOrder() {
-            return delegate.acceptsDocsOutOfOrder();
+            return leafCollector.acceptsDocsOutOfOrder();
         }
     }
 

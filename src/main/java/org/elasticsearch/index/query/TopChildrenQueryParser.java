@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.index.cache.bitset.FixedBitSetFilter;
+import org.elasticsearch.index.cache.bitset.BitsetFilter;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
@@ -127,7 +127,7 @@ public class TopChildrenQueryParser implements QueryParser {
         }
         String parentType = childDocMapper.parentFieldMapper().type();
 
-        FixedBitSetFilter nonNestedDocsFilter = null;
+        BitsetFilter nonNestedDocsFilter = null;
         if (childDocMapper.hasNestedObjects()) {
             nonNestedDocsFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
         }

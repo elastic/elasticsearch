@@ -20,8 +20,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.index.cache.bitset.BitsetFilter;
 
-import org.elasticsearch.index.cache.bitset.FixedBitSetFilter;
-
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;

@@ -259,7 +259,7 @@ public class ParentConstantScoreQuery extends Query {
         }
 
         @Override
-        public void setNextReader(LeafReaderContext readerContext) throws IOException {
+        public void doSetNextReader(LeafReaderContext readerContext) throws IOException {
             globalOrdinals = globalIfd.load(readerContext).getOrdinalsValues(parentType);
         }
 

@@ -37,6 +37,7 @@ import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.junit.Ignore;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
@@ -50,7 +51,9 @@ public class UpgradeReallyOldIndexTest extends ElasticsearchIntegrationTest {
     // this can maybe go into  ElasticsearchIntegrationTest
     public File prepareBackwardsDataDir(File backwardsIndex) throws IOException {
         File dataDir = new File(newTempDir(), "data");
-        TestUtil.unzip(backwardsIndex, dataDir.getParentFile());
+        try (FileInputStream indexStream = new FileInputStream(backwardsIndex)) {
+            TestUtil.unzip(indexStream, dataDir.getParentFile().toPath());
+        }
         assertTrue(dataDir.exists());
         String[] list = dataDir.list();
         if (list == null || list.length > 1) {

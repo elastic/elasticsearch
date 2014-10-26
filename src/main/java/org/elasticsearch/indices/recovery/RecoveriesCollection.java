@@ -130,19 +130,18 @@ public class RecoveriesCollection {
     @Nullable
     public StatusRef findRecoveryByShard(IndexShard indexShard) {
         for (RecoveryStatus recoveryStatus : onGoingRecoveries.values()) {
-            if (!recoveryStatus.tryIncRef()) {
-                // the recovery is finished
-                continue;
-            }
-            try {
-                if (recoveryStatus.indexShard() == indexShard) {
-                    recoveryStatus.incRef();
-                    return new StatusRef(recoveryStatus);
+            // check if the recovery has already finished and if not protect
+            // against it being closed on us while we check
+            if (recoveryStatus.tryIncRef()) {
+                try {
+                    if (recoveryStatus.indexShard() == indexShard) {
+                        recoveryStatus.incRef();
+                        return new StatusRef(recoveryStatus);
+                    }
+                } finally {
+                    recoveryStatus.decRef();
                 }
-            } finally {
-                recoveryStatus.decRef();
             }
-
         }
         return null;
     }

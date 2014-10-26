@@ -20,8 +20,6 @@ package org.elasticsearch.index.search.child;
 
 import org.elasticsearch.index.cache.bitset.BitsetFilter;
 
-import org.elasticsearch.index.cache.bitset.FixedBitSetFilter;
-
 import com.carrotsearch.hppc.IntIntOpenHashMap;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.analysis.MockAnalyzer;

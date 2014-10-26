@@ -102,7 +102,6 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
     }
 
     private void assertEquals(IndexableFieldType ft1, IndexableFieldType ft2) {
-        assertEquals(ft1.indexed(), ft2.indexed());
         assertEquals(ft1.tokenized(), ft2.tokenized());
         assertEquals(ft1.omitNorms(), ft2.omitNorms());
         assertEquals(ft1.indexOptions(), ft2.indexOptions());

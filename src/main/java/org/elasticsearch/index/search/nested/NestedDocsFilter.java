@@ -30,16 +30,19 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.io.IOException;
 
+/**
+ * Filter that returns all nested documents.
+ * A nested document is a sub documents that belong to a root document.
+ * Nested documents share the unique id and type and optionally the _source with root documents.
+ */
 public class NestedDocsFilter extends Filter {
 
     public static final NestedDocsFilter INSTANCE = new NestedDocsFilter();
 
-    private final PrefixFilter filter = new PrefixFilter(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
-
+    private final Filter filter = nestedFilter();
     private final int hashCode = filter.hashCode();
 
     private NestedDocsFilter() {
-
     }
 
     @Override
@@ -56,4 +59,9 @@ public class NestedDocsFilter extends Filter {
     public boolean equals(Object obj) {
         return obj == INSTANCE;
     }
+
+    static Filter nestedFilter() {
+        return new PrefixFilter(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
+    }
+
 }

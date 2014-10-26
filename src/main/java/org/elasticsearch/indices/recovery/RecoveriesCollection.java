@@ -103,8 +103,8 @@ public class RecoveriesCollection {
     /**
      * fail the recovery with the given id (if found) and remove it from the recovery collection
      *
-     * @param id id of the recovery to fail
-     * @param e  exception with reason for the failure
+     * @param id               id of the recovery to fail
+     * @param e                exception with reason for the failure
      * @param sendShardFailure true a shard failed message should be sent to the master
      */
     public void failRecovery(long id, RecoveryFailedException e, boolean sendShardFailure) {
@@ -130,11 +130,16 @@ public class RecoveriesCollection {
     @Nullable
     public StatusRef findRecoveryByShard(IndexShard indexShard) {
         for (RecoveryStatus recoveryStatus : onGoingRecoveries.values()) {
-            if (recoveryStatus.indexShard() == indexShard) {
-                if (recoveryStatus.tryIncRef()) {
-                    return new StatusRef(recoveryStatus);
-                } else {
-                    return null;
+            // check if the recovery has already finished and if not protect
+            // against it being closed on us while we check
+            if (recoveryStatus.tryIncRef()) {
+                try {
+                    if (recoveryStatus.indexShard() == indexShard) {
+                        recoveryStatus.incRef();
+                        return new StatusRef(recoveryStatus);
+                    }
+                } finally {
+                    recoveryStatus.decRef();
                 }
             }
         }

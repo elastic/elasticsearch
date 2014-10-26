@@ -56,7 +56,7 @@ public class ScanContext {
         return collector.topDocs();
     }
 
-    static class ScanCollector extends Collector {
+    static class ScanCollector extends SimpleCollector {
 
         private final ConcurrentMap<IndexReader, ReaderState> readerStates;
 
@@ -111,7 +111,7 @@ public class ScanContext {
         }
 
         @Override
-        public void setNextReader(LeafReaderContext context) throws IOException {
+        public void doSetNextReader(LeafReaderContext context) throws IOException {
             // if we have a reader state, and we haven't registered one already, register it
             // we need to check in readersState since even when the filter return null, setNextReader is still
             // called for that reader (before)

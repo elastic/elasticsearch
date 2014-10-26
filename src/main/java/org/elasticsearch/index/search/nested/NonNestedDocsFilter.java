@@ -20,40 +20,30 @@
 package org.elasticsearch.index.search.nested;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.PrefixFilter;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.common.lucene.search.NotFilter;
 
 import java.io.IOException;
 
+/**
+ * A filter that returns all root (non nested) documents.
+ * Root documents have an unique id, a type and optionally have a _source and other indexed and stored fields.
+ */
 public class NonNestedDocsFilter extends Filter {
 
     public static final NonNestedDocsFilter INSTANCE = new NonNestedDocsFilter();
 
-    private final PrefixFilter filter = new PrefixFilter(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
-
+    private final Filter filter = new NotFilter(NestedDocsFilter.nestedFilter());
     private final int hashCode = filter.hashCode();
 
     private NonNestedDocsFilter() {
-
     }
 
     @Override
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-        DocIdSet docSet = filter.getDocIdSet(context, acceptDocs);
-        if (DocIdSets.isEmpty(docSet)) {
-            // will almost never happen, and we need an OpenBitSet for the parent filter in
-            // BlockJoinQuery, we cache it anyhow...
-            docSet = new FixedBitSet(context.reader().maxDoc());
-        }
-        ((FixedBitSet) docSet).flip(0, context.reader().maxDoc());
-        return docSet;
+        return filter.getDocIdSet(context, acceptDocs);
     }
 
     @Override

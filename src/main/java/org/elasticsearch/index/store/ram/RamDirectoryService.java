@@ -52,17 +52,6 @@ public final class RamDirectoryService extends AbstractIndexShardComponent imple
         return new Directory[]{new CustomRAMDirectory()};
     }
 
-    @Override
-    public void renameFile(Directory dir, String from, String to) throws IOException {
-        CustomRAMDirectory leaf = DirectoryUtils.getLeaf(dir, CustomRAMDirectory.class);
-        assert leaf != null;
-        leaf.renameTo(from, to);
-    }
-
-    @Override
-    public void fullDelete(Directory dir) {
-    }
-
     static class CustomRAMDirectory extends RAMDirectory {
 
         public synchronized void renameTo(String from, String to) throws IOException {

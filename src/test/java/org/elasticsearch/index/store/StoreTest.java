@@ -546,19 +546,6 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         public long throttleTimeInNanos() {
             return random.nextInt(1000);
         }
-
-        @Override
-        public void renameFile(Directory dir, String from, String to) throws IOException {
-            dir.copy(dir, from, to, IOContext.DEFAULT);
-            dir.deleteFile(from);
-        }
-
-        @Override
-        public void fullDelete(Directory dir) throws IOException {
-            for (String file : dir.listAll()) {
-                dir.deleteFile(file);
-            }
-        }
     }
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {

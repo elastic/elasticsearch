@@ -143,14 +143,6 @@ public class DistributorTests extends ElasticsearchTestCase {
         public long throttleTimeInNanos() {
             return 0;
         }
-
-        @Override
-        public void renameFile(Directory dir, String from, String to) throws IOException {
-        }
-
-        @Override
-        public void fullDelete(Directory dir) throws IOException {
-        }
     }
 
     public static class FakeFsDirectory extends FSDirectory {

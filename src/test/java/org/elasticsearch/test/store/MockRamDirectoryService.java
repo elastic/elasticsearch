@@ -53,14 +53,4 @@ public class MockRamDirectoryService extends AbstractIndexShardComponent impleme
     public long throttleTimeInNanos() {
         return delegateService.throttleTimeInNanos();
     }
-
-    @Override
-    public void renameFile(Directory dir, String from, String to) throws IOException {
-        delegateService.renameFile(dir, from, to);
-    }
-
-    @Override
-    public void fullDelete(Directory dir) throws IOException {
-        delegateService.fullDelete(dir);
-    }
 }

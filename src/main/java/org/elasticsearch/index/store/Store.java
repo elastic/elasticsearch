@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.codecs.lucene46.Lucene46SegmentInfoFormat;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -131,11 +130,11 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             return commit == null ? Lucene.readSegmentInfos(directory) : Lucene.readSegmentInfos(commit, directory);
         } catch (EOFException eof) {
             // TODO this should be caught by lucene - EOF is almost certainly an index corruption
-            throw new CorruptIndexException("Read past EOF while reading segment infos", eof);
+            throw new CorruptIndexException("Read past EOF while reading segment infos", "commit(" + commit + ")", eof);
         } catch (IOException exception) {
             throw exception; // IOExceptions like too many open files are not necessarily a corruption - just bubble it up
         } catch (Exception ex) {
-            throw new CorruptIndexException("Hit unexpected exception while reading segment infos", ex);
+            throw new CorruptIndexException("Hit unexpected exception while reading segment infos", "commit(" + commit + ")", ex);
         }
 
     }
@@ -225,7 +224,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
     public void renameFile(String from, String to) throws IOException {
         ensureOpen();
-        distributorDirectory.renameFile(directoryService, from, to);
+        distributorDirectory.renameFile(from, to);
     }
 
     /**
@@ -304,7 +303,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         final Directory[] dirs = new Directory[indexLocations.length];
         try {
             for (int i=0; i< indexLocations.length; i++) {
-                dirs[i] = new SimpleFSDirectory(indexLocations[i]);
+                dirs[i] = new SimpleFSDirectory(indexLocations[i].toPath());
             }
             DistributorDirectory dir = new DistributorDirectory(dirs);
             failIfCorrupted(dir, new ShardId("", 1));
@@ -333,7 +332,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             return directory().createOutput(filename, context);
         }
         assert metadata.writtenBy() != null;
-        assert metadata.writtenBy().onOrAfter(Version.LUCENE_48);
+        assert metadata.writtenBy().onOrAfter(Version.LUCENE_4_8_0);
         return new VerifyingIndexOutput(metadata, directory().createOutput(filename, context));
     }
 
@@ -349,7 +348,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             return directory().openInput(filename, context);
         }
         assert metadata.writtenBy() != null;
-        assert metadata.writtenBy().onOrAfter(Version.LUCENE_48);
+        assert metadata.writtenBy().onOrAfter(Version.LUCENE_4_8_0);
         return new VerifyingIndexInput(directory().openInput(filename, context));
     }
 
@@ -360,7 +359,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     public boolean checkIntegrity(StoreFileMetaData md) {
-        if (md.writtenBy() != null && md.writtenBy().onOrAfter(Version.LUCENE_48)) {
+        if (md.writtenBy() != null && md.writtenBy().onOrAfter(Version.LUCENE_4_8_0)) {
             try (IndexInput input = directory().openInput(md.name(), IOContext.READONCE)) {
                 CodecUtil.checksumEntireFile(input);
             } catch (IOException  e) {
@@ -405,7 +404,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                         builder.append(System.lineSeparator());
                         builder.append(input.readString());
                     }
-                    ex.add(new CorruptIndexException(builder.toString()));
+                    ex.add(new CorruptIndexException(builder.toString(), "preexisting_corruption"));
                     CodecUtil.checkFooter(input);
                 }
             }
@@ -513,7 +512,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     for (String file : info.files()) {
                         String legacyChecksum = checksumMap.get(file);
                         if (version.onOrAfter(Version.LUCENE_4_8) && legacyChecksum == null) {
-                            checksumFromLuceneFile(directory, file, builder, logger, version, Lucene46SegmentInfoFormat.SI_EXTENSION.equals(IndexFileNames.getExtension(file)));
+                            checksumFromLuceneFile(directory, file, builder, logger, version, SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)));
                         } else {
                             builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), legacyChecksum, null));
                         }
@@ -575,7 +574,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 try {
                     if (in.length() < CodecUtil.footerLength()) {
                         // truncated files trigger IAE if we seek negative... these files are really corrupted though
-                        throw new CorruptIndexException("Can't retrieve checksum from file: " + file + " file length must be >= " + CodecUtil.footerLength() + " but was: " + in.length());
+                        throw new CorruptIndexException("Can't retrieve checksum from file: " + file + " file length must be >= " + CodecUtil.footerLength() + " but was: " + in.length(), in);
                     }
                     if (readFileAsHash) {
                        hashFile(fileHash, new InputStreamIndexInput(in, in.length()), in.length());
@@ -617,6 +616,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         private static final String DEL_FILE_EXTENSION = "del";  // TODO think about how we can detect if this changes?
         private static final String FIELD_INFOS_FILE_EXTENSION = "fnm";
+        private static final String SEGMENT_INFO_EXTENSION = "si";
 
         /**
          * Returns a diff between the two snapshots that can be used for recovery. The given snapshot is treated as the
@@ -657,7 +657,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             final List<StoreFileMetaData> perCommitStoreFiles = new ArrayList<>();
 
             for (StoreFileMetaData meta : this) {
-                if (IndexFileNames.SEGMENTS_GEN.equals(meta.name())) {
+                if (IndexFileNames.OLD_SEGMENTS_GEN.equals(meta.name())) { // legacy
                     continue; // we don't need that file at all
                 }
                 final String segmentId = IndexFileNames.parseSegmentName(meta.name());
@@ -699,8 +699,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 }
             }
             RecoveryDiff recoveryDiff = new RecoveryDiff(identical.build(), different.build(), missing.build());
-            assert recoveryDiff.size() == this.metadata.size() - (metadata.containsKey(IndexFileNames.SEGMENTS_GEN) ? 1: 0)
-                    : "some files are missing recoveryDiff size: [" + recoveryDiff.size() + "] metadata size: [" + this.metadata.size()  + "] contains  segments.gen: [" + metadata.containsKey(IndexFileNames.SEGMENTS_GEN) + "]"   ;
+            assert recoveryDiff.size() == this.metadata.size() - (metadata.containsKey(IndexFileNames.OLD_SEGMENTS_GEN) ? 1: 0)
+                    : "some files are missing recoveryDiff size: [" + recoveryDiff.size() + "] metadata size: [" + this.metadata.size()  + "] contains  segments.gen: [" + metadata.containsKey(SEGMENTS_GEN) + "]"   ;
             return recoveryDiff;
         }
 
@@ -819,11 +819,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
 
         @Override
-        public void flush() throws IOException {
-            output.flush();
-        }
-
-        @Override
         public void close() throws IOException {
             output.close();
         }
@@ -838,11 +833,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             return output.getChecksum();
         }
 
-        @Override
-        public long length() throws IOException {
-            return output.length();
-        }
-
         /**
          * Verifies the checksum and compares the written length with the expected file length. This method should bec
          * called after all data has been written to this output.
@@ -853,7 +843,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             throw new CorruptIndexException("verification failed (hardware problem?) : expected=" + metadata.checksum() +
                     " actual=" + actualChecksum + " writtenLength=" + writtenBytes + " expectedLength=" + metadata.length() +
-                    " (resource=" + metadata.toString() + ")");
+                    " (resource=" + metadata.toString() + ")", "VerifyingIndexOutput(" + metadata.name() + ")");
         }
 
         @Override
@@ -869,7 +859,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             if (!metadata.checksum().equals(actualChecksum)) {
                 throw new CorruptIndexException("checksum failed (hardware problem?) : expected=" + metadata.checksum() +
                         " actual=" + actualChecksum +
-                        " (resource=" + metadata.toString() + ")");
+                        " (resource=" + metadata.toString() + ")", "VerifyingIndexOutput(" + metadata.name() + ")");
             }
         }
 
@@ -1017,7 +1007,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 return;
             }
             throw new CorruptIndexException("verification failed : calculated=" + Store.digestToString(getChecksum()) +
-                    " stored=" + Store.digestToString(storedChecksum));
+                    " stored=" + Store.digestToString(storedChecksum), this);
         }
 
     }

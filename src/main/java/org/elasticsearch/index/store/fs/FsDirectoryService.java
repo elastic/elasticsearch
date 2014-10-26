@@ -73,25 +73,6 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
     }
     
     @Override
-    public final void renameFile(Directory dir, String from, String to) throws IOException {
-        dir.renameFile(from, to);
-    }
-
-    @Override
-    public final void fullDelete(Directory dir) throws IOException {
-        final FSDirectory fsDirectory = DirectoryUtils.getLeaf(dir, FSDirectory.class);
-        if (fsDirectory == null) {
-            throw new ElasticsearchIllegalArgumentException("Can not fully delete on non-filesystem based directory");
-        }
-        FileSystemUtils.deleteRecursively(fsDirectory.getDirectory().toFile());
-        // if we are the last ones, delete also the actual index
-        String[] list = fsDirectory.getDirectory().toFile().getParentFile().list();
-        if (list == null || list.length == 0) {
-            FileSystemUtils.deleteRecursively(fsDirectory.getDirectory().toFile().getParentFile());
-        }
-    }
-    
-    @Override
     public Directory[] build() throws IOException {
         File[] locations = indexStore.shardIndexLocations(shardId);
         Directory[] dirs = new Directory[locations.length];

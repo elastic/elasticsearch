@@ -93,15 +93,6 @@ public final class DistributorDirectory extends BaseDirectory {
     }
 
     @Override
-    public boolean fileExists(String name) throws IOException {
-        try {
-            return getDirectory(name).fileExists(name);
-        } catch (FileNotFoundException ex) {
-            return false;
-        }
-    }
-
-    @Override
     public void deleteFile(String name) throws IOException {
         getDirectory(name, true).deleteFile(name);
         Directory remove = nameDirMapping.remove(name);
@@ -122,6 +113,25 @@ public final class DistributorDirectory extends BaseDirectory {
     public void sync(Collection<String> names) throws IOException {
         for (Directory dir : distributor.all()) {
             dir.sync(names);
+        }
+    }
+
+    @Override
+    public void renameFile(String source, String dest) throws IOException {
+        Directory directory = getDirectory(source);
+        if (nameDirMapping.putIfAbsent(dest, directory) != null) {
+            throw new IOException("Can't rename file from " + source
+                    + " to: " + dest + ": target file already exists");
+        }
+        boolean success = false;
+        try {
+            directory.renameFile(source, dest);
+            nameDirMapping.remove(source);
+            success = true;
+        } finally {
+            if (!success) {
+                nameDirMapping.remove(dest);
+            }
         }
     }
 
@@ -148,7 +158,7 @@ public final class DistributorDirectory extends BaseDirectory {
      * Returns true if the primary directory should be used for the given file.
      */
     private boolean usePrimary(String name) {
-        return IndexFileNames.SEGMENTS_GEN.equals(name) || Store.isChecksum(name);
+        return IndexFileNames.OLD_SEGMENTS_GEN.equals(name) || Store.isChecksum(name) || name.startsWith(IndexFileNames.SEGMENTS) || name.startsWith(IndexFileNames.PENDING_SEGMENTS);
     }
 
     /**
@@ -205,31 +215,5 @@ public final class DistributorDirectory extends BaseDirectory {
     @Override
     public String toString() {
         return distributor.toString();
-    }
-
-    /**
-     * Renames the given source file to the given target file unless the target already exists.
-     *
-     * @param directoryService the DirecotrySerivce to use.
-     * @param from the source file name.
-     * @param to the target file name
-     * @throws IOException if the target file already exists.
-     */
-    public void renameFile(DirectoryService directoryService, String from, String to) throws IOException {
-        Directory directory = getDirectory(from);
-        if (nameDirMapping.putIfAbsent(to, directory) != null) {
-            throw new IOException("Can't rename file from " + from
-                    + " to: " + to + ": target file already exists");
-        }
-        boolean success = false;
-        try {
-            directoryService.renameFile(directory, from, to);
-            nameDirMapping.remove(from);
-            success = true;
-        } finally {
-            if (!success) {
-                nameDirMapping.remove(to);
-            }
-        }
     }
 }

@@ -32,6 +32,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
@@ -500,7 +501,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         ImmutableMap<String, StoreFileMetaData> buildMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
             ImmutableMap.Builder<String, StoreFileMetaData> builder = ImmutableMap.builder();
-            Map<String, String> checksumMap = readLegacyChecksums(directory);
+            Map<String, String> checksumMap = readLegacyChecksums(directory).v1();
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
                 Version maxVersion = Version.LUCENE_3_0; // we don't know which version was used to write so we take the max version.
@@ -545,7 +546,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             return builder.build();
         }
 
-        static Map<String, String> readLegacyChecksums(Directory directory) throws IOException {
+        static Tuple<Map<String, String>, Long> readLegacyChecksums(Directory directory) throws IOException {
             synchronized (directory) {
                 long lastFound = -1;
                 for (String name : directory.listAll()) {
@@ -560,10 +561,10 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 if (lastFound > -1) {
                     try (IndexInput indexInput = directory.openInput(CHECKSUMS_PREFIX + lastFound, IOContext.READONCE)) {
                         indexInput.readInt(); // version
-                        return indexInput.readStringStringMap();
+                        return new Tuple(indexInput.readStringStringMap(), lastFound);
                     }
                 }
-                return new HashMap<>();
+                return new Tuple(new HashMap<>(), -1l);
             }
         }
 
@@ -758,19 +759,20 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         public synchronized void write(Store store) throws IOException {
             synchronized (store.distributorDirectory) {
-                Map<String, String> stringStringMap = MetadataSnapshot.readLegacyChecksums(store.distributorDirectory);
-                stringStringMap.putAll(legacyChecksums);
-                if (!stringStringMap.isEmpty()) {
-                    writeChecksums(store.directory, stringStringMap);
+                Tuple<Map<String, String>, Long> tuple = MetadataSnapshot.readLegacyChecksums(store.distributorDirectory);
+                tuple.v1().putAll(legacyChecksums);
+                if (!tuple.v1().isEmpty()) {
+                    writeChecksums(store.directory, tuple.v1(), tuple.v2());
                 }
             }
         }
 
-        synchronized void writeChecksums(Directory directory, Map<String, String> checksums) throws IOException {
-            String checksumName = CHECKSUMS_PREFIX + System.currentTimeMillis();
-            while (directory.fileExists(checksumName)) {
-                checksumName = CHECKSUMS_PREFIX + System.currentTimeMillis();
+        synchronized void writeChecksums(Directory directory, Map<String, String> checksums, long lastVersion) throws IOException {
+            long nextVersion = System.currentTimeMillis();
+            while (nextVersion <= lastVersion) {
+                nextVersion = System.currentTimeMillis();
             }
+            final String checksumName = CHECKSUMS_PREFIX + nextVersion;
             try (IndexOutput output = directory.createOutput(checksumName, IOContext.DEFAULT)) {
                 output.writeInt(0); // version
                 output.writeStringStringMap(checksums);

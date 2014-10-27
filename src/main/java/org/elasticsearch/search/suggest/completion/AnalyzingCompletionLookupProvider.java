@@ -22,8 +22,8 @@ package org.elasticsearch.search.suggest.completion;
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.codecs.*;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.index.*;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
@@ -88,7 +88,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     public FieldsConsumer consumer(SegmentWriteState state, final IndexOutput output) throws IOException {
         CodecUtil.writeHeader(output, CODEC_NAME, CODEC_VERSION_LATEST);
         return new FieldsConsumer() {
-            private Map<FieldInfo, Long> fieldOffsets = new HashMap<>();
+            private Map<String, Long> fieldOffsets = new HashMap<>();
 
             @Override
             public void close() throws IOException {
@@ -99,8 +99,8 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                    */
                     long pointer = output.getFilePointer();
                     output.writeVInt(fieldOffsets.size());
-                    for (Map.Entry<FieldInfo, Long> entry : fieldOffsets.entrySet()) {
-                        output.writeString(entry.getKey().name);
+                    for (Map.Entry<String, Long> entry : fieldOffsets.entrySet()) {
+                        output.writeString(entry.getKey());
                         output.writeVLong(entry.getValue());
                     }
                     output.writeLong(pointer);
@@ -111,36 +111,41 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             }
 
             @Override
-            public TermsConsumer addField(final FieldInfo field) throws IOException {
-
-                return new TermsConsumer() {
-                    final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XAnalyzingSuggester.PAYLOAD_SEP);
-                    final CompletionPostingsConsumer postingsConsumer = new CompletionPostingsConsumer(AnalyzingCompletionLookupProvider.this, builder);
-
-                    @Override
-                    public PostingsConsumer startTerm(BytesRef text) throws IOException {
-                        builder.startTerm(text);
-                        return postingsConsumer;
+            public void write(Fields fields) throws IOException {
+                for(String field : fields) {
+                    Terms terms = fields.terms(field);
+                    if (terms == null) {
+                        continue;
                     }
+                    TermsEnum termsEnum = terms.iterator(null);
+                    DocsAndPositionsEnum docsEnum = null;
+                    final SuggestPayload spare = new SuggestPayload();
+                    int maxAnalyzedPathsForOneInput = 0;
 
-                    @Override
-                    public Comparator<BytesRef> getComparator() throws IOException {
-                        return BytesRef.getUTF8SortedAsUnicodeComparator();
-                    }
-
-                    @Override
-                    public void finishTerm(BytesRef text, TermStats stats) throws IOException {
-                        builder.finishTerm(stats.docFreq); // use  doc freq as a fallback
-                    }
-
-                    @Override
-                    public void finish(long sumTotalTermFreq, long sumDocFreq, int docCount) throws IOException {
+                    while (true) {
+                        BytesRef term = termsEnum.next();
+                        if (term == null) {
+                            break;
+                        }
+                        final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XAnalyzingSuggester.PAYLOAD_SEP);
+                        docsEnum = termsEnum.docsAndPositions(null, docsEnum, DocsAndPositionsEnum.FLAG_PAYLOADS);
+                        builder.startTerm(term);
+                        while(docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                            for (int i = 0; i < docsEnum.freq(); i++) {
+                                final int position = docsEnum.nextPosition();
+                                AnalyzingCompletionLookupProvider.this.parsePayload(docsEnum.getPayload(), spare);
+                                builder.addSurface(spare.surfaceForm.get(), spare.payload.get(), spare.weight);
+                                // multi fields have the same surface form so we sum up here
+                                maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, position + 1);
+                            }
+                        }
+                        builder.finishTerm(docsEnum.freq());
                         /*
                          * Here we are done processing the field and we can
                          * buid the FST and write it to disk.
                          */
                         FST<Pair<Long, BytesRef>> build = builder.build();
-                        assert build != null || docCount == 0 : "the FST is null but docCount is != 0 actual value: [" + docCount + "]";
+                        assert build != null || terms.getDocCount() == 0 : "the FST is null but docCount is != 0 actual value: [" + terms.getDocCount() + "]";
                         /*
                          * it's possible that the FST is null if we have 2 segments that get merged
                          * and all docs that have a value in this field are deleted. This will cause
@@ -151,7 +156,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                             fieldOffsets.put(field, output.getFilePointer());
                             build.save(output);
                             /* write some more meta-info */
-                            output.writeVInt(postingsConsumer.getMaxAnalyzedPathsForOneInput());
+                            output.writeVInt(maxAnalyzedPathsForOneInput);
                             output.writeVInt(maxSurfaceFormsPerAnalyzedForm);
                             output.writeInt(maxGraphExpansions); // can be negative
                             int options = 0;
@@ -165,42 +170,11 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                             output.writeVInt(XAnalyzingSuggester.HOLE_CHARACTER);
                         }
                     }
-                };
+                }
             }
         };
     }
 
-    private static final class CompletionPostingsConsumer extends PostingsConsumer {
-        private final SuggestPayload spare = new SuggestPayload();
-        private AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider;
-        private XAnalyzingSuggester.XBuilder builder;
-        private int maxAnalyzedPathsForOneInput = 0;
-
-        public CompletionPostingsConsumer(AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider, XAnalyzingSuggester.XBuilder builder) {
-            this.analyzingSuggestLookupProvider = analyzingSuggestLookupProvider;
-            this.builder = builder;
-        }
-
-        @Override
-        public void startDoc(int docID, int freq) throws IOException {
-        }
-
-        @Override
-        public void addPosition(int position, BytesRef payload, int startOffset, int endOffset) throws IOException {
-            analyzingSuggestLookupProvider.parsePayload(payload, spare);
-            builder.addSurface(spare.surfaceForm.get(), spare.payload.get(), spare.weight);
-            // multi fields have the same surface form so we sum up here
-            maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, position + 1);
-        }
-
-        @Override
-        public void finishDoc() throws IOException {
-        }
-
-        public int getMaxAnalyzedPathsForOneInput() {
-            return maxAnalyzedPathsForOneInput;
-        }
-    }
 
     @Override
     public LookupFactory load(IndexInput input) throws IOException {

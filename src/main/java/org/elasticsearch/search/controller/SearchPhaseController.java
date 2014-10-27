@@ -59,9 +59,9 @@ public class SearchPhaseController extends AbstractComponent {
     public static final Comparator<AtomicArray.Entry<? extends QuerySearchResultProvider>> QUERY_RESULT_ORDERING = new Comparator<AtomicArray.Entry<? extends QuerySearchResultProvider>>() {
         @Override
         public int compare(AtomicArray.Entry<? extends QuerySearchResultProvider> o1, AtomicArray.Entry<? extends QuerySearchResultProvider> o2) {
-            int i = o1.value.shardTarget().index().compareTo(o2.value.shardTarget().index());
+            final int i = o1.value.shardTarget().index().compareTo(o2.value.shardTarget().index());
             if (i == 0) {
-                i = o1.value.shardTarget().shardId() - o2.value.shardTarget().shardId();
+                return o1.value.shardTarget().shardId() - o2.value.shardTarget().shardId();
             }
             return i;
         }
@@ -84,6 +84,7 @@ public class SearchPhaseController extends AbstractComponent {
     public boolean optimizeSingleShard() {
         return optimizeSingleShard;
     }
+
 
     public AggregatedDfs aggregateDfs(AtomicArray<DfsSearchResult> results) {
         ObjectObjectOpenHashMap<Term, TermStatistics> termStatistics = HppcMaps.newNoNullKeysMap();
@@ -198,11 +199,11 @@ public class SearchPhaseController extends AbstractComponent {
         @SuppressWarnings("unchecked")
         AtomicArray.Entry<? extends QuerySearchResultProvider>[] sortedResults = results.toArray(new AtomicArray.Entry[results.size()]);
         Arrays.sort(sortedResults, QUERY_RESULT_ORDERING);
-        QuerySearchResultProvider firstResult = sortedResults[0].value;
-
+        final QuerySearchResultProvider firstResult = sortedResults[0].value;
+        final TopDocs sortTopDocs = findSortTopDocs(results);
         final Sort sort;
-        if (firstResult.queryResult().topDocs() instanceof TopFieldDocs) {
-            TopFieldDocs firstTopDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
+        if (sortTopDocs instanceof TopFieldDocs) {
+            TopFieldDocs firstTopDocs = (TopFieldDocs) sortTopDocs;
             sort = new Sort(firstTopDocs.fields);
         } else {
             sort = null;
@@ -265,6 +266,23 @@ public class SearchPhaseController extends AbstractComponent {
         }
     }
 
+    /**
+     * Returns the first result that is either non-empty or an instance of TopFieldDocs. If a misbehaving node returns
+     * a empty TopDocs instance instead of empty TopFieldDocs due to an empty shards it's likely to show up as the first
+     * result in the list which needs to be skipped otherwise the entire merged search result  is unsorted.
+     */
+    private static TopDocs findSortTopDocs(List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> results) {
+        assert results.size() > 0;
+        for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : results) {
+            TopDocs topDocs = entry.value.queryResult().topDocs();
+            if (topDocs.totalHits > 0 || topDocs instanceof TopFieldDocs) {
+                return topDocs;
+            }
+        }
+        // get the first one just in case if we didn't find anything
+        return results.get(0).value.queryResult().topDocs();
+    }
+
     public InternalSearchResponse merge(ScoreDoc[] sortedDocs, AtomicArray<? extends QuerySearchResultProvider> queryResultsArr, AtomicArray<? extends FetchSearchResultProvider> fetchResultsArr) {
 
         List<? extends AtomicArray.Entry<? extends QuerySearchResultProvider>> queryResults = queryResultsArr.asList();
@@ -274,13 +292,13 @@ public class SearchPhaseController extends AbstractComponent {
             return InternalSearchResponse.empty();
         }
 
-        QuerySearchResult firstResult = queryResults.get(0).value.queryResult();
-
+        final QuerySearchResult firstResult =  queryResults.get(0).value.queryResult();
         boolean sorted = false;
         int sortScoreIndex = -1;
-        if (firstResult.topDocs() instanceof TopFieldDocs) {
+        final TopDocs sortTopDocs = findSortTopDocs(queryResults);
+        if (sortTopDocs instanceof TopFieldDocs) {
             sorted = true;
-            TopFieldDocs fieldDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
+            TopFieldDocs fieldDocs = (TopFieldDocs) sortTopDocs;
             for (int i = 0; i < fieldDocs.fields.length; i++) {
                 if (fieldDocs.fields[i].getType() == SortField.Type.SCORE) {
                     sortScoreIndex = i;

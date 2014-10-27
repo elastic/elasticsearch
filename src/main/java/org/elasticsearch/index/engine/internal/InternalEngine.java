@@ -1401,6 +1401,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             boolean create = !Lucene.indexExists(store.directory());
             IndexWriterConfig config = new IndexWriterConfig(analysisService.defaultIndexAnalyzer());
+            config.setCommitOnClose(false); // we by default don't commit on close
             config.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
             config.setIndexDeletionPolicy(deletionPolicy);
             config.setInfoStream(new LoggerInfoStream(indexSettings, shardId));

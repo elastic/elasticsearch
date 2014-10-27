@@ -13,13 +13,13 @@ As an example, here is what the recovery state of a cluster may look like when t
 are no shards in transit from one node to another:
 
 [source,shell]
------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------
 > curl -XGET 'localhost:9200/_cat/recovery?v'
-index shard time type    stage source_host source_node target_host target_node repository snapshot files files_percent bytes    bytes_percent
-wiki  0     73   gateway done  hostA       Athena      hostA       Athena      n/a        n/a      36    100.0%        24982806 100.0%
-wiki  1     245  gateway done  hostA       Athena      hostA       Athena      n/a        n/a      33    100.0%        24501912 100.0%
-wiki  2     230  gateway done  hostA       Athena      hostA       Athena      n/a        n/a      36    100.0%        30267222 100.0%
------------------------------------------------------------------------------------------------------------------------------------------------
+index shard time type    stage source target files percent bytes     percent
+wiki  0     73   gateway done  hostA  hostA  36    100.0%  24982806 100.0%
+wiki  1     245  gateway done  hostA  hostA  33    100.0%  24501912 100.0%
+wiki  2     230  gateway done  hostA  hostA  36    100.0%  30267222 100.0%
+---------------------------------------------------------------------------
 
 In the above case, the source and target nodes are the same because the recovery
 type was gateway, i.e. they were read from local storage on node start.
@@ -29,19 +29,19 @@ of our index and bringing another node online to host the replicas, we can see
 what a live shard recovery looks like.
 
 [source,shell]
------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------
 > curl -XPUT 'localhost:9200/wiki/_settings' -d'{"number_of_replicas":1}'
 {"acknowledged":true}
 
-    > curl -XGET 'localhost:9200/_cat/recovery?v'
-index shard time type    stage source_host source_node target_host target_node repository snapshot files files_percent bytes    bytes_percent
-wiki  0     1252 gateway done  hostA       Athena      hostA       Athena      n/a        n/a      4     100.0%        23638870 100.0%
-wiki  0     1672 replica index hostA       Athena      hostB       Boneyard    n/a        n/a      4     75.0%         23638870 48.8%
-wiki  1     1698 replica index hostA       Athena      hostB       Boneyard    n/a        n/a      4     75.0%         23348540 49.4%
-wiki  1     4812 gateway done  hostA       Athena      hostA       Athena      n/a        n/a      33    100.0%        24501912 100.0%
-wiki  2     1689 replica index hostA       Athena      hostB       Boneyard    n/a        n/a      4     75.0%         28681851 40.2%
-wiki  2     5317 gateway done  hostA       Athena      hostA       Athena      n/a        n/a      36    100.0%        30267222 100.0%
------------------------------------------------------------------------------------------------------------------------------------------------
+> curl -XGET 'localhost:9200/_cat/recovery?v'
+index shard time type    stage source target files percent bytes    percent
+wiki  0     1252 gateway done  hostA  hostA  4     100.0%  23638870 100.0%
+wiki  0     1672 replica index hostA  hostB  4     75.0%   23638870 48.8%
+wiki  1     1698 replica index hostA  hostB  4     75.0%   23348540 49.4%
+wiki  1     4812 gateway done  hostA  hostA  33    100.0%  24501912 100.0%
+wiki  2     1689 replica index hostA  hostB  4     75.0%   28681851 40.2%
+wiki  2     5317 gateway done  hostA  hostA  36    100.0%  30267222 100.0%
+----------------------------------------------------------------------------
 
 We can see in the above listing that our 3 initial shards are in various stages
 of being replicated from one node to another. Notice that the recovery type is
@@ -52,14 +52,19 @@ made a backup of my index, I can restore it using the <<modules-snapshots,snapsh
 API.
 
 [source,shell]
------------------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 > curl -XPOST 'localhost:9200/_snapshot/imdb/snapshot_2/_restore'
 {"acknowledged":true}
 > curl -XGET 'localhost:9200/_cat/recovery?v'
-index shard time type     stage  source_host source_node target_host target_node  repository snapshot files files_percent bytes    bytes_percent
-imdb  0     1978 snapshot done   n/a         n/a         hostA       Athena       imdb       snap_1   79    8.0%          12086    9.0%
-imdb  1     2790 snapshot index  n/a         n/a         hostA       Athena       imdb       snap_1   88    7.7%          11025    8.1%
-imdb  2     2790 snapshot index  n/a         n/a         hostA       Athena       imdb       snap_1   85    0.0%          12072    0.0%
-imdb  3     2796 snapshot index  n/a         n/a         hostA       Athena       imdb       snap_1   85    2.4%          12048    7.2%
-imdb  4     819  snapshot init   n/a         n/a         hostA       Athena       imdb       snap_1   0     0.0%          0        0.0%
------------------------------------------------------------------------------------------------------------------------------------------------
+index shard time type     stage repository snapshot files percent bytes percent
+imdb  0     1978 snapshot done  imdb       snap_1   79    8.0%    12086 9.0%
+imdb  1     2790 snapshot index imdb       snap_1   88    7.7%    11025 8.1%
+imdb  2     2790 snapshot index imdb       snap_1   85    0.0%    12072 0.0%
+imdb  3     2796 snapshot index imdb       snap_1   85    2.4%    12048 7.2%
+imdb  4     819  snapshot init  imdb       snap_1   0     0.0%    0     0.0%
+--------------------------------------------------------------------------------
+
+
+
+
+

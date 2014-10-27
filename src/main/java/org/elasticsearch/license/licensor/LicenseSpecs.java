@@ -9,7 +9,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.core.DateUtils;
 import org.elasticsearch.license.core.ESLicense;
-import org.elasticsearch.license.core.LicensesCharset;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -41,10 +40,6 @@ public class LicenseSpecs {
         builder.expiryDate(DateUtils.longExpiryDateFromString(expiryDate));
 
         return builder.build();
-    }
-
-    public static Set<ESLicense> fromSource(String content) throws IOException, ParseException {
-        return fromSource(content.getBytes(LicensesCharset.UTF_8));
     }
 
     public static Set<ESLicense> fromSource(byte[] bytes) throws IOException, ParseException {

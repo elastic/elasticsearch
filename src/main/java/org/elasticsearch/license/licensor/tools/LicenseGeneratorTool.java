@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
+import org.elasticsearch.license.core.LicensesCharset;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
 import org.elasticsearch.license.licensor.LicenseSpecs;
 
@@ -47,7 +48,7 @@ public class LicenseGeneratorTool {
             switch (command) {
                 case "--license":
                     String licenseInput = args[++i];
-                    licenseSpecs.addAll(LicenseSpecs.fromSource(licenseInput));
+                    licenseSpecs.addAll(LicenseSpecs.fromSource(licenseInput.getBytes(LicensesCharset.UTF_8)));
                     break;
                 case "--licenseFile":
                     File licenseFile = new File(args[++i]);

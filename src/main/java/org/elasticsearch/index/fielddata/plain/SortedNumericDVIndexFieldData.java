@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.util.Accountable;
+
 import com.google.common.base.Preconditions;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.NumericUtils;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.Collections;
 
 /**
  * FieldData backed by {@link LeafReader#getSortedNumericDocValues(String)}
@@ -116,6 +119,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
                 throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
             }
         }
+        
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            return Collections.emptyList();
+        }
     }
     
     /**
@@ -159,6 +167,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
             } catch (IOException e) {
                 throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
             }
+        }
+        
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            return Collections.emptyList();
         }
     }
     
@@ -239,6 +252,11 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
             } catch (IOException e) {
                 throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
             }
+        }
+        
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            return Collections.emptyList();
         }
     }
 }

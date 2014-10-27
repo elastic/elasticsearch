@@ -163,7 +163,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
                 final Terms fieldTerms = fields.terms(getFieldNames().indexName());
 
                 if (fieldTerms instanceof FieldReader) {
-                    final Stats stats = ((FieldReader) fieldTerms).computeStats();
+                    final Stats stats = ((FieldReader) fieldTerms).getStats();
                     long totalTermBytes = stats.totalTermBytes;
                     if (logger.isTraceEnabled()) {
                         logger.trace("totalTermBytes: {}, terms.size(): {}, terms.getSumDocFreq(): {}",

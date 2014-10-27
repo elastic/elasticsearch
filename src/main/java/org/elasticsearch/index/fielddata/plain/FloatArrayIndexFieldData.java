@@ -18,6 +18,10 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.Nullable;
@@ -100,6 +104,14 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
                     public SortedNumericDoubleValues getDoubleValues() {
                         return withOrdinals(build, finalValues, reader.maxDoc());
                     }
+                    
+                    @Override
+                    public Iterable<? extends Accountable> getChildResources() {
+                        List<Accountable> resources = new ArrayList<>();
+                        resources.add(Accountables.namedAccountable("ordinals", build));
+                        resources.add(Accountables.namedAccountable("values", finalValues));
+                        return Collections.unmodifiableList(resources);
+                    }
 
                 };
             } else {
@@ -117,6 +129,14 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
                         @Override
                         public SortedNumericDoubleValues getDoubleValues() {
                             return withOrdinals(build, finalValues, reader.maxDoc());
+                        }
+                        
+                        @Override
+                        public Iterable<? extends Accountable> getChildResources() {
+                            List<Accountable> resources = new ArrayList<>();
+                            resources.add(Accountables.namedAccountable("ordinals", build));
+                            resources.add(Accountables.namedAccountable("values", finalValues));
+                            return Collections.unmodifiableList(resources);
                         }
 
                     };
@@ -138,6 +158,14 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
                     @Override
                     public SortedNumericDoubleValues getDoubleValues() {
                         return singles(sValues, set);
+                    }
+                    
+                    @Override
+                    public Iterable<? extends Accountable> getChildResources() {
+                        List<Accountable> resources = new ArrayList<>();
+                        resources.add(Accountables.namedAccountable("values", sValues));
+                        resources.add(Accountables.namedAccountable("missing bitset", set));
+                        return Collections.unmodifiableList(resources);
                     }
 
                 };

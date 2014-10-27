@@ -22,7 +22,8 @@ package org.elasticsearch.index.search.child;
 import org.elasticsearch.index.cache.bitset.BitsetFilter;
 
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
@@ -56,8 +57,12 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTe
         mapperService.merge(childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType, CHILD_SCORE_NAME, "type=double").string()), true);
         return createSearchContext(indexService);
     }
+    
+    static void assertBitSet(BitSet actual, BitSet expected, IndexSearcher searcher) throws IOException {
+        assertBitSet(new BitDocIdSet(actual), new BitDocIdSet(expected), searcher);
+    }
 
-    static void assertBitSet(FixedBitSet actual, FixedBitSet expected, IndexSearcher searcher) throws IOException {
+    static void assertBitSet(BitDocIdSet actual, BitDocIdSet expected, IndexSearcher searcher) throws IOException {
         if (!actual.equals(expected)) {
             Description description = new StringDescription();
             description.appendText(reason(actual, expected, searcher));
@@ -70,14 +75,14 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTe
         }
     }
 
-    static String reason(FixedBitSet actual, FixedBitSet expected, IndexSearcher indexSearcher) throws IOException {
+    static String reason(BitDocIdSet actual, BitDocIdSet expected, IndexSearcher indexSearcher) throws IOException {
         StringBuilder builder = new StringBuilder();
-        builder.append("expected cardinality:").append(expected.cardinality()).append('\n');
+        builder.append("expected cardinality:").append(expected.bits().cardinality()).append('\n');
         DocIdSetIterator iterator = expected.iterator();
         for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
             builder.append("Expected doc[").append(doc).append("] with id value ").append(indexSearcher.doc(doc).get(UidFieldMapper.NAME)).append('\n');
         }
-        builder.append("actual cardinality: ").append(actual.cardinality()).append('\n');
+        builder.append("actual cardinality: ").append(actual.bits().cardinality()).append('\n');
         iterator = actual.iterator();
         for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
             builder.append("Actual doc[").append(doc).append("] with id value ").append(indexSearcher.doc(doc).get(UidFieldMapper.NAME)).append('\n');

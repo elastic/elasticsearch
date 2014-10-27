@@ -18,6 +18,13 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.lucene.util.Accountables;
+
+import org.apache.lucene.util.Accountable;
+
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
@@ -59,6 +66,15 @@ public abstract class GeoPointCompressedAtomicFieldData extends AbstractAtomicGe
         @Override
         public long ramBytesUsed() {
             return RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed();
+        }
+
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            List<Accountable> resources = new ArrayList<>();
+            // nocommit: https://issues.apache.org/jira/browse/LUCENE-6026
+            resources.add(Accountables.namedAccountable("latitude", lat));
+            resources.add(Accountables.namedAccountable("longitude", lon));
+            return resources;
         }
 
         @Override

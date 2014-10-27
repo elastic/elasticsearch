@@ -368,6 +368,12 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                     }
 
                     @Override
+                    public Iterable<? extends Accountable> getChildResources() {
+                        // TODO: is this really the best?
+                        return Collections.emptyList();
+                    }
+
+                    @Override
                     public void close() {
                     }
 
@@ -385,7 +391,12 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                         return dv;
                     }
                 };
-            }
+            }   
+        }
+
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            return Collections.emptyList();
         }
 
         @Override

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.util.Accountable;
+
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 
 import java.io.IOException;
+import java.util.Collections;
 
 /**
  * An {@link AtomicFieldData} implementation that uses Lucene {@link org.apache.lucene.index.SortedSetDocValues}.
@@ -56,7 +59,13 @@ public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinal
 
     @Override
     public long ramBytesUsed() {
+        // nocommit: negative values are illegal.
         return -1; // unknown
+    }
+    
+    @Override
+    public Iterable<? extends Accountable> getChildResources() {
+        return Collections.emptyList();
     }
 
 }

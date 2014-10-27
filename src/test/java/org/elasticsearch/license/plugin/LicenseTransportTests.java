@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.manager.Utils;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseResponse;
 import org.elasticsearch.license.plugin.action.get.GetLicenseRequestBuilder;
@@ -122,7 +121,7 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
         assertTrue(deleteLicenseResponse.isAcknowledged());
 
         //getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).execute().get();
-        //TestUtils.isSame(getLicenseResponse.licenses(), LicenseBuilders.licensesBuilder().build());
+        //TestUtils.isSame(getLicenseResponse.licenses(), LicenseBuilders.licensesBuilder().verifyAndBuild());
     }
 
     @Test
@@ -136,14 +135,14 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
 
         Set<ESLicense> esLicenses = new HashSet<>(ESLicenses.fromSource(licenseOutput));
 
-        ESLicense esLicense = Utils.reduceAndMap(esLicenses).get(TestUtils.SHIELD);
+        ESLicense esLicense = ESLicenses.reduceAndMap(esLicenses).get(TestUtils.SHIELD);
 
         final ESLicense tamperedLicense = ESLicense.builder()
                 .fromLicense(esLicense)
                 .expiryDate(esLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
                 .feature(TestUtils.SHIELD)
                 .issuer("elasticsqearch")
-                .build();
+                .verifyAndBuild();
 
         PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster());
         builder.setLicense(Collections.singletonList(tamperedLicense));

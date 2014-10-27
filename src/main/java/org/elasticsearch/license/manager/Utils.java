@@ -36,26 +36,4 @@ public final class Utils {
         int version = byteBuffer.getInt();
         return new ObjectSerializer().readObject(SignedLicense.class, Arrays.copyOfRange(signatureBytes, start, signatureBytes.length));
     }
-
-
-    public static ImmutableMap<String, ESLicense> reduceAndMap(Set<ESLicense> esLicensesSet) {
-        Map<String, ESLicense> map = new HashMap<>(esLicensesSet.size());
-        for (ESLicense license : esLicensesSet) {
-            putIfAppropriate(map, license);
-        }
-        return ImmutableMap.copyOf(map);
-    }
-
-
-    private static void putIfAppropriate(Map<String, ESLicense> licenseMap, ESLicense license) {
-        final String featureType = license.feature();
-        if (licenseMap.containsKey(featureType)) {
-            final ESLicense previousLicense = licenseMap.get(featureType);
-            if (license.expiryDate() > previousLicense.expiryDate()) {
-                licenseMap.put(featureType, license);
-            }
-        } else if (license.expiryDate() > System.currentTimeMillis()) {
-            licenseMap.put(featureType, license);
-        }
-    }
 }

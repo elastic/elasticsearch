@@ -10,6 +10,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.license.plugin.core.LicensesService;
 
@@ -26,7 +27,7 @@ public class TestPluginService extends AbstractLifecycleComponent<TestPluginServ
 
     // specify the trial license spec for the feature
     // example: 30 day trial on 1000 nodes
-    final LicensesService.TrialLicenseOptions trialLicenseOptions = new LicensesService.TrialLicenseOptions(30, 1000);
+    final LicensesService.TrialLicenseOptions trialLicenseOptions;
 
     private AtomicBoolean enabled = new AtomicBoolean(false);
 
@@ -34,6 +35,13 @@ public class TestPluginService extends AbstractLifecycleComponent<TestPluginServ
     public TestPluginService(Settings settings, LicensesClientService licensesClientService) {
         super(settings);
         this.licensesClientService = licensesClientService;
+        int durationInSec = settings.getAsInt("test_consumer_plugin.trial_license_duration_in_seconds", -1);
+        logger.info("Trial license Duration in seconds: " + durationInSec);
+        if (durationInSec == -1) {
+            this.trialLicenseOptions = null;
+        } else {
+            this.trialLicenseOptions = new LicensesService.TrialLicenseOptions(TimeValue.timeValueSeconds(durationInSec), 1000);
+        }
     }
 
     // check if feature is enabled

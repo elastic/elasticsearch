@@ -8,12 +8,9 @@ package org.elasticsearch.license.plugin.action.put;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.license.core.ESLicense;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Register license request builder

@@ -7,13 +7,19 @@ package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.util.Collection;
 
 public class TestConsumerPlugin extends AbstractPlugin {
 
-    public TestConsumerPlugin() {
+    private final Settings settings;
+
+    @Inject
+    public TestConsumerPlugin(Settings settings) {
+    this.settings = settings;
     }
 
     @Override

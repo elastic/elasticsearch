@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license.core;
 
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -61,5 +62,25 @@ public class ESLicenses {
             ESLicense.writeTo(license, out);
         }
 
+    }
+
+    public static ImmutableMap<String, ESLicense> reduceAndMap(Set<ESLicense> esLicensesSet) {
+        Map<String, ESLicense> map = new HashMap<>(esLicensesSet.size());
+        for (ESLicense license : esLicensesSet) {
+            putIfAppropriate(map, license);
+        }
+        return ImmutableMap.copyOf(map);
+    }
+
+    private static void putIfAppropriate(Map<String, ESLicense> licenseMap, ESLicense license) {
+        final String featureType = license.feature();
+        if (licenseMap.containsKey(featureType)) {
+            final ESLicense previousLicense = licenseMap.get(featureType);
+            if (license.expiryDate() > previousLicense.expiryDate()) {
+                licenseMap.put(featureType, license);
+            }
+        } else if (license.expiryDate() > System.currentTimeMillis()) {
+            licenseMap.put(featureType, license);
+        }
     }
 }

@@ -14,13 +14,14 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.manager.ESLicenseManager;
-import org.elasticsearch.license.manager.Utils;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.license.plugin.core.*;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -32,10 +33,12 @@ import java.net.URISyntaxException;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
+import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = TEST, numDataNodes = 10)
 public class LicensesServiceTests extends ElasticsearchIntegrationTest {
@@ -69,6 +72,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
     @Before
     public void beforeTest() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
+        // todo: fix with awaitBusy
         masterClusterService().submitStateUpdateTask("delete licensing metadata", new ProcessedClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
@@ -121,14 +125,14 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
 
         assertTrue(LicensesStatus.VALID == licensesManagerService.checkLicenses(licenses));
 
-        ESLicense esLicense = Utils.reduceAndMap(licenses).get(TestUtils.SHIELD);
+        ESLicense esLicense = ESLicenses.reduceAndMap(licenses).get(TestUtils.SHIELD);
 
         final ESLicense tamperedLicense = ESLicense.builder()
                 .fromLicense(esLicense)
                 .expiryDate(esLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
                 .feature(TestUtils.SHIELD)
                 .issuer("elasticsqearch")
-                .build();
+                .verifyAndBuild();
 
         assertTrue(LicensesStatus.INVALID == licensesManagerService.checkLicenses(Collections.singleton(tamperedLicense)));
     }
@@ -146,6 +150,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         LicensesManagerService licensesManagerService = masterLicensesManagerService();
         ESLicenseManager esLicenseManager = ((LicensesService) licensesManagerService).getEsLicenseManager();
         final CountDownLatch latch1 = new CountDownLatch(1);
+        // todo: fix with awaitBusy
         licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses), "test"), new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
@@ -173,6 +178,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
         List<ESLicense> licenses2 = ESLicenses.fromSource(licenseOutput);
         final CountDownLatch latch2 = new CountDownLatch(1);
+        // todo: fix with awaitBusy
         licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses2), "test"), new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
@@ -197,7 +203,8 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
     public void testTrialLicenseGeneration() throws Exception {
         LicensesClientService clientService = licensesClientService();
         final CountDownLatch latch = new CountDownLatch(1);
-        clientService.register("shield", new LicensesService.TrialLicenseOptions(10, 100), new LicensesClientService.Listener() {
+        // todo: fix with awaitBusy
+        clientService.register("shield", new LicensesService.TrialLicenseOptions(TimeValue.timeValueHours(10), 100), new LicensesClientService.Listener() {
             @Override
             public void onEnabled() {
                 logger.info("got onEnabled from LicensesClientService");
@@ -211,8 +218,6 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         });
         logger.info("waiting for onEnabled");
         latch.await();
-        final LicensesMetaData metaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
-        assertTrue(metaData.getEncodedTrialLicenses().size() == 1);
     }
 
     @Test
@@ -262,7 +267,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         // feature should be onEnabled
 
         LicensesClientService clientService = licensesClientService();
-        LicensesManagerService managerService = licensesManagerService();
+        final LicensesManagerService managerService = licensesManagerService();
         LicensesManagerService masterLicensesManagerService = masterLicensesManagerService();
         final TestLicenseClientListener testLicenseClientListener = new TestLicenseClientListener(false);
         clientService.register("shield", null, testLicenseClientListener);
@@ -284,6 +289,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         List<ESLicense> licenses = ESLicenses.fromSource(licenseOutput);
 
         final CountDownLatch latch1 = new CountDownLatch(1);
+        // todo: fix with awaitBusy
         masterLicensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses), "test"), new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
@@ -301,16 +307,19 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         latch1.await();
 
         logger.info("waiting for onEnabled");
-        while (!testLicenseClientListener.processed.get()) {
-        }
-
-        assertTrue(managerService.enabledFeatures().contains("shield"));
+        assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                return managerService.enabledFeatures().contains("shield");
+            }
+        }, 1, TimeUnit.MINUTES), equalTo(true));
 
     }
 
     @Test
     public void testFeatureWithoutLicense() throws Exception {
         LicensesClientService clientService = licensesClientService();
+        // todo: fix with awaitBusy
         clientService.register("marvel", null, new LicensesClientService.Listener() {
             @Override
             public void onEnabled() {
@@ -343,11 +352,6 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
 
     private LicensesClientService licensesClientService() {
         return internalCluster().getInstance(LicensesClientService.class, node);
-    }
-
-    private LicensesService licensesService() {
-        final InternalTestCluster clients = internalCluster();
-        return clients.getInstance(LicensesService.class, clients.getMasterName());
     }
 
     private static ClusterService masterClusterService() {

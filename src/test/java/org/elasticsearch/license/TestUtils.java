@@ -8,8 +8,8 @@ package org.elasticsearch.license;
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.license.core.DateUtils;
 import org.elasticsearch.license.core.ESLicense;
+import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.licensor.tools.LicenseGeneratorTool;
-import org.elasticsearch.license.manager.Utils;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -76,7 +76,7 @@ public class TestUtils {
     }
 
     public static void verifyESLicenses(Set<ESLicense> esLicenses, Map<String, FeatureAttributes> featureAttributesMap) throws ParseException {
-        verifyESLicenses(Utils.reduceAndMap(esLicenses), featureAttributesMap);
+        verifyESLicenses(ESLicenses.reduceAndMap(esLicenses), featureAttributesMap);
 
     }
 
@@ -106,9 +106,9 @@ public class TestUtils {
 
     public static void isSame(Set<ESLicense> firstLicenses, Set<ESLicense> secondLicenses) {
 
-        // we do the build to make sure we weed out any expired licenses
-        final Map<String, ESLicense> licenses1 = Utils.reduceAndMap(firstLicenses);
-        final Map<String, ESLicense> licenses2 = Utils.reduceAndMap(secondLicenses);
+        // we do the verifyAndBuild to make sure we weed out any expired licenses
+        final Map<String, ESLicense> licenses1 = ESLicenses.reduceAndMap(firstLicenses);
+        final Map<String, ESLicense> licenses2 = ESLicenses.reduceAndMap(secondLicenses);
 
         // check if the effective licenses have the same feature set
         assertTrue("Both licenses should have the same number of features", licenses1.size() == licenses2.size());

@@ -71,7 +71,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
 
         esLicenseManager.verifyLicenses(esLicenseProvider.getEffectiveLicenses());
 
-        verifyLicenseManager(esLicenseManager, esLicenseProvider, map);
+        verifyLicenses(esLicenseProvider, map);
 
     }
 
@@ -95,7 +95,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
 
         esLicenseManager.verifyLicenses(esLicenseProvider.getEffectiveLicenses());
 
-        verifyLicenseManager(esLicenseManager, esLicenseProvider, map);
+        verifyLicenses(esLicenseProvider, map);
 
     }
 
@@ -120,9 +120,8 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
 
         // All validation for shield license should be normal as expected
 
-        verifyLicenseManager(esLicenseManager, esLicenseProvider, Collections.singletonMap(TestUtils.SHIELD, shildFeatureAttributes));
+        verifyLicenses(esLicenseProvider, Collections.singletonMap(TestUtils.SHIELD, shildFeatureAttributes));
 
-        assertFalse("license for marvel should not be valid due to expired expiry date", esLicenseManager.hasLicenseForFeature(TestUtils.MARVEL, esLicenseProvider.getEffectiveLicenses()));
     }
 
     @Test
@@ -137,14 +136,14 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
 
         Set<ESLicense> esLicensesOutput = new HashSet<>(ESLicenses.fromSource(generateSignedLicenses(map)));
 
-        ESLicense esLicense = Utils.reduceAndMap(esLicensesOutput).get(TestUtils.SHIELD);
+        ESLicense esLicense = ESLicenses.reduceAndMap(esLicensesOutput).get(TestUtils.SHIELD);
 
         final ESLicense tamperedLicense = ESLicense.builder()
                 .fromLicense(esLicense)
                 .expiryDate(esLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
                 .feature(TestUtils.SHIELD)
                 .issuer("elasticsqearch")
-                .build();
+                .verifyAndBuild();
 
         try {
             esLicenseProvider.setLicenses(Collections.singleton(tamperedLicense));
@@ -155,7 +154,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
         }
     }
 
-    public static void verifyLicenseManager(ESLicenseManager esLicenseManager, FileBasedESLicenseProvider licenseProvider, Map<String, TestUtils.FeatureAttributes> featureAttributeMap) throws ParseException {
+    public static void verifyLicenses(FileBasedESLicenseProvider licenseProvider, Map<String, TestUtils.FeatureAttributes> featureAttributeMap) throws ParseException {
 
         for (Map.Entry<String, TestUtils.FeatureAttributes> entry : featureAttributeMap.entrySet()) {
             TestUtils.FeatureAttributes featureAttributes = entry.getValue();
@@ -169,7 +168,6 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
             assertTrue("License should have subscription type of " + featureAttributes.subscriptionType, license.subscriptionType() == ESLicense.SubscriptionType.fromString(featureAttributes.subscriptionType));
 
 
-            assertTrue("License should be valid for " + featureType, esLicenseManager.hasLicenseForFeature(featureType, licenseProvider.getEffectiveLicenses()));
             assertTrue("License should be valid for maxNodes = " + (featureAttributes.maxNodes), license.maxNodes() == featureAttributes.maxNodes);
         }
     }

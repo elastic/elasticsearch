@@ -6,7 +6,6 @@
 package org.elasticsearch.license.manager;
 
 import net.nicholaswilliams.java.licensing.*;
-import net.nicholaswilliams.java.licensing.encryption.FilePublicKeyDataProvider;
 import net.nicholaswilliams.java.licensing.encryption.Hasher;
 import net.nicholaswilliams.java.licensing.encryption.PasswordProvider;
 import net.nicholaswilliams.java.licensing.exception.ExpiredLicenseException;
@@ -29,8 +28,6 @@ import static org.elasticsearch.license.manager.Utils.extractSignedLicence;
  * Class responsible for reading signed licenses, maintaining an effective esLicenses instance, verification of licenses
  * and querying against licenses on a feature basis
  * <p/>
- * TODO:
- *  - make it into a guice singleton
  */
 public class ESLicenseManager {
 
@@ -61,10 +58,26 @@ public class ESLicenseManager {
         this.licenseManager = LicenseManager.getInstance();
     }
 
-    public void verifyLicenses(Map<String, org.elasticsearch.license.core.ESLicense> esLicenses) {
+    public ImmutableSet<String> toSignatures(Collection<ESLicense> esLicenses) {
+        Set<String> signatures = new HashSet<>();
+        for (ESLicense esLicense : esLicenses) {
+            signatures.add(esLicense.signature());
+        }
+        return ImmutableSet.copyOf(signatures);
+    }
+
+    public ImmutableSet<ESLicense> fromSignatures(Set<String> signatures) {
+        Set<ESLicense> esLicenses = new HashSet<>();
+        for (String signature : signatures) {
+            esLicenses.add(fromSignature(signature));
+        }
+        return ImmutableSet.copyOf(esLicenses);
+    }
+
+    public void verifyLicenses(Map<String, ESLicense> esLicenses) {
         try {
             for (String feature : esLicenses.keySet()) {
-                org.elasticsearch.license.core.ESLicense esLicense = esLicenses.get(feature);
+                ESLicense esLicense = esLicenses.get(feature);
                 // verify signature
                 final License license = this.licenseManager.decryptAndVerifyLicense(
                         extractSignedLicence(esLicense.signature()));
@@ -81,30 +94,10 @@ public class ESLicenseManager {
         }
     }
 
-    public ImmutableSet<String> toSignatures(Collection<ESLicense> esLicenses) {
-        Set<String> signatures = new HashSet<>();
-        for (ESLicense esLicense : esLicenses) {
-            signatures.add(esLicense.signature());
-        }
-        return ImmutableSet.copyOf(signatures);
-    }
-
-    public ImmutableSet<ESLicense> fromSignatures(Set<String> signatures) {
-        Set<ESLicense> esLicenses = new HashSet<>();
-
-        for (String signature : signatures) {
-            ESLicense license = fromSignature(signature);
-            esLicenses.add(license);
-        }
-        return ImmutableSet.copyOf(esLicenses);
-    }
-
-    public ESLicense fromSignature(String signature) {
+    private ESLicense fromSignature(String signature) {
         final SignedLicense signedLicense = Utils.extractSignedLicence(signature);
         License license = licenseManager.decryptAndVerifyLicense(signedLicense);
         ESLicense.Builder builder = ESLicense.builder();
-
-
 
         for (License.Feature feature : license.getFeatures()) {
             String featureName = feature.getName();
@@ -155,40 +148,8 @@ public class ESLicenseManager {
             }
         }
         if (!licenseValid || !featureValid || !maxNodesValid || !typeValid || !subscriptionTypeValid) {
-            //only for debugging
-            String msg = "licenseValid: " + licenseValid + "\n" +
-                    "featureValid: " + featureValid + "\n" +
-                    "maxNodeValid: " + maxNodesValid + "\n" +
-                    "typeValid: " + typeValid + "\n" +
-                    "subscriptionTypeValid: " + subscriptionTypeValid + "\n";
             throw new InvalidLicenseException("Invalid License");
         }
-    }
-
-
-    public boolean hasLicenseForFeature(String feature, Map<String, ESLicense> licenseMap) {
-        try {
-            final License license = getInternalLicense(feature, licenseMap);
-            if (license != null) {
-                return license.hasLicenseForFeature("feature:" + feature);
-            }
-            return false;
-        } catch (ExpiredLicenseException e) {
-            return false;
-        } catch (InvalidLicenseException e) {
-            return false;
-        }
-    }
-
-    private License getInternalLicense(String feature,  Map<String, ESLicense> licenseMap) {
-        ESLicense esLicense = licenseMap.get(feature);
-        if (esLicense != null) {
-            String signature = esLicense.signature();
-            License license = this.licenseManager.decryptAndVerifyLicense(extractSignedLicence(signature));
-            this.licenseManager.validateLicense(license);
-            return license;
-        }
-        return null;
     }
 
     // TODO: Need a better password management

@@ -113,6 +113,7 @@ public class ESLicense implements Comparable<ESLicense> {
 
     @Override
     public int compareTo(ESLicense o) {
+        assert o != null;
         return Long.compare(expiryDate, o.expiryDate);
     }
 
@@ -269,44 +270,38 @@ public class ESLicense implements Comparable<ESLicense> {
                     .signature(license.signature());
         }
 
+        public ESLicense verifyAndBuild() {
+            verify();
+            return new ESLicense(uid, issuer, issuedTo, issueDate, type,
+                    subscriptionType, feature, signature, expiryDate, maxNodes);
+        }
+
         public ESLicense build() {
-            verify(false);
             return new ESLicense(uid, issuer, issuedTo, issueDate, type,
                     subscriptionType, feature, signature, expiryDate, maxNodes);
         }
 
-        public ESLicense buildInternal() {
-            verify(true);
-            return new ESLicense(uid, issuer, issuedTo, issueDate, type,
-                    subscriptionType, feature, signature, expiryDate, maxNodes);
-        }
-
-        private void verify(boolean internal) {
-            String msg = null;
+        private void verify() {
             if (issuer == null) {
-                msg = "issuer can not be null";
+               throw new IllegalStateException("issuer can not be null");
             } else if (issuedTo == null) {
-                msg = "issuedTo can not be null";
+               throw new IllegalStateException("issuedTo can not be null");
             } else if (issueDate == -1) {
-                msg = "issueDate has to be set";
+               throw new IllegalStateException("issueDate has to be set");
             } else if (type == null) {
-                msg = "type can not be null";
+               throw new IllegalStateException("type can not be null");
             } else if (subscriptionType == null) {
-                msg = "subscriptionType can not be null";
+               throw new IllegalStateException("subscriptionType can not be null");
             } else if (uid == null) {
-                msg = "uid can not be null";
+               throw new IllegalStateException("uid can not be null");
             } else if (feature == null) {
-                msg = "at least one feature has to be enabled";
-            } else if (internal && signature == null) {
-                msg = "signature can not be null";
+               throw new IllegalStateException("at least one feature has to be enabled");
+            } else if (signature == null) {
+               throw new IllegalStateException("signature can not be null");
             } else if (maxNodes == -1) {
-                msg = "maxNodes has to be set";
+               throw new IllegalStateException("maxNodes has to be set");
             } else if (expiryDate == -1) {
-                msg = "expiryDate has to be set";
-            }
-
-            if (msg != null) {
-                throw new IllegalStateException(msg);
+               throw new IllegalStateException("expiryDate has to be set");
             }
         }
     }
@@ -354,7 +349,7 @@ public class ESLicense implements Comparable<ESLicense> {
                 .issueDate((long) map.get(Fields.ISSUE_DATE))
                 .expiryDate((long) map.get(Fields.EXPIRY_DATE))
                 .issuer((String) map.get(Fields.ISSUER))
-                .build();
+                .verifyAndBuild();
     }
 
     static ESLicense readFrom(StreamInput in) throws IOException {
@@ -370,7 +365,7 @@ public class ESLicense implements Comparable<ESLicense> {
                 .issuedTo((String) licenseMap.get(Fields.ISSUED_TO))
                 .signature((String) licenseMap.get(Fields.SIGNATURE))
                 .issuer((String) licenseMap.get(Fields.ISSUER))
-                .build();
+                .verifyAndBuild();
     }
 
     static void writeTo(ESLicense esLicense, StreamOutput out) throws IOException {

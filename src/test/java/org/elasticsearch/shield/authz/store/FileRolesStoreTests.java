@@ -103,7 +103,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         Path path = Paths.get(getClass().getResource("default_roles.yml").toURI());
         Map<String, Permission.Global> roles = FileRolesStore.parseFile(path, logger, mock(AuthorizationService.class));
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(6));
+        assertThat(roles.size(), is(8));
 
         assertThat(roles, hasKey("admin"));
         assertThat(roles, hasKey("power_user"));
@@ -111,6 +111,8 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         assertThat(roles, hasKey("kibana3"));
         assertThat(roles, hasKey("kibana4"));
         assertThat(roles, hasKey("logstash"));
+        assertThat(roles, hasKey("marvel_user"));
+        assertThat(roles, hasKey("marvel_agent"));
     }
 
     @Test

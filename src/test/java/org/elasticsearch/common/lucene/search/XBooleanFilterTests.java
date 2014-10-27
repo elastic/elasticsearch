@@ -530,7 +530,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
     }
 
 
-    public static final class PrettyPrintFieldCacheTermsFilter extends FieldCacheTermsFilter {
+    public static final class PrettyPrintFieldCacheTermsFilter extends DocValuesTermsFilter {
 
         private final String value;
         private final String field;
@@ -559,6 +559,11 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
             @Override
             public DocIdSetIterator iterator() throws IOException {
                 return null;
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                return 0;
             }
         }
     }

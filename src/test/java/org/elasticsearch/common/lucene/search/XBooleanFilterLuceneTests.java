@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.util.BitDocIdSet;
+
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -99,7 +101,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
         return new Filter() {
             @Override
             public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) {
-                return new FixedBitSet(context.reader().maxDoc());
+                return new BitDocIdSet(new FixedBitSet(context.reader().maxDoc()));
             }
         };
     }
@@ -126,6 +128,11 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
                     @Override
                     public boolean isCacheable() {
                         return true;
+                    }
+
+                    @Override
+                    public long ramBytesUsed() {
+                        return 0;
                     }
                 };
             }

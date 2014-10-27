@@ -104,7 +104,11 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
         if (script == null) {
-            ESLoggerFactory.getLogger("script heuristic").warn("cannot compute score - script has not been initialized yet. If this warning appears within an integration test test you can ignore it. If it appeared while running es or within a bwc test then there is a problem.");
+            //In tests, wehn calling assertSearchResponse(..) the response is streamed one additional time with an arbitrary version, see assertVersionSerializable(..).
+            // Now, for version before 1.5.0 the score is computed after streaming the response but for scripts the script does not exists yet.
+            // assertSearchResponse() might therefore fail although there is no problem.
+            // This should be replaced by an exception in 2.0.
+            ESLoggerFactory.getLogger("script heuristic").warn("cannot compute score - script has not been initialized yet.");
             return 0;
         }
         subsetSizeHolder.value = subsetSize;

@@ -63,18 +63,19 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
         File folder = newFolder();
 
         ImmutableSettings.Builder builder = ImmutableSettings.builder()
-                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.type", "zen")
                 .put("node.mode", "network")
                 .put("plugin.types", ShieldPlugin.class.getName())
-                .put("shield.authc.esusers.files.users", writeFile(folder, "users", CONFIG_STANDARD_USER))
-                .put("shield.authc.esusers.files.users_roles", writeFile(folder, "users_roles", CONFIG_STANDARD_USER_ROLES))
+                .put("shield.authc.esusers.files.users", writeFile(folder, "users", configUsers()))
+                .put("shield.authc.esusers.files.users_roles", writeFile(folder, "users_roles", configUsersRoles()))
                 .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", configRole()))
                 .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", CONFIG_IPFILTER_ALLOW_ALL))
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("shield.audit.enabled", true)
                 .put("plugins.load_classpath_plugins", false);
+
+        setUser(builder);
 
         if (OsUtils.MAC) {
             builder.put("network.host", randomBoolean() ? "127.0.0.1" : "::1");
@@ -87,15 +88,34 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
         return CONFIG_ROLE_ALLOW_ALL;
     }
 
+    protected String configUsers() {
+        return CONFIG_STANDARD_USER;
+    }
+
+    protected String configUsersRoles() {
+        return CONFIG_STANDARD_USER_ROLES;
+    }
+
     @Override
     protected Settings transportClientSettings() {
-        return ImmutableSettings.builder()
+        ImmutableSettings.Builder builder = ImmutableSettings.builder()
                 .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put("node.mode", "network")
-                .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient"))
-                .build();
+                .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient"));
+
+        setUser(builder);
+
+        return builder.build();
+    }
+
+    protected void setUser(ImmutableSettings.Builder settings) {
+        if (randomBoolean()) {
+            settings.put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()));
+        } else {
+            settings.put("shield.user", getClientUsername() + ":" + new String(getClientPassword().internalChars()));
+        }
     }
 
     protected String writeFile(File folder, String name, String content) {

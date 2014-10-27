@@ -6,6 +6,7 @@
 package org.elasticsearch.shield;
 
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.shield.authz.AuthorizationException;
@@ -94,5 +95,20 @@ public class MultipleIndicesPermissionsTests extends ShieldIntegrationTest {
         } catch (AuthorizationException ae) {
             // expected
         }
+
+        MultiSearchResponse msearchResponse = client.prepareMultiSearch()
+                .add(client.prepareSearch("test"))
+                .add(client.prepareSearch("test1"))
+                .get();
+        MultiSearchResponse.Item[] items = msearchResponse.getResponses();
+        assertThat(items.length, is(2));
+        assertThat(items[0].isFailure(), is(false));
+        searchResponse = items[0].getResponse();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 1);
+        assertThat(items[1].isFailure(), is(false));
+        searchResponse = items[1].getResponse();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 1);
     }
 }

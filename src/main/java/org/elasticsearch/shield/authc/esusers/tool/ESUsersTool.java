@@ -11,16 +11,19 @@ import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.commons.CommandLine;
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.collect.ObjectArrays;
-import org.elasticsearch.common.collect.Sets;
+import org.elasticsearch.common.collect.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.esusers.FileUserPasswdStore;
 import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authz.AuthorizationException;
+import org.elasticsearch.shield.authz.AuthorizationService;
+import org.elasticsearch.shield.authz.Permission;
+import org.elasticsearch.shield.authz.store.FileRolesStore;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -118,6 +121,7 @@ public class ESUsersTool extends CliTool {
 
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
+            verifyRoles(terminal, settings, env, roles);
             Path file = FileUserPasswdStore.resolveFile(settings, env);
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
             if (users.containsKey(username)) {
@@ -168,8 +172,6 @@ public class ESUsersTool extends CliTool {
                 char[] passwd = users.remove(username);
                 if (passwd != null) {
                     FileUserPasswdStore.writeFile(users, file);
-                } else {
-                    terminal.println("Warning: users file [%s] did not contain password entry for user [%s]", file.toAbsolutePath(), username);
                 }
             }
 
@@ -179,8 +181,6 @@ public class ESUsersTool extends CliTool {
                 String[] roles = userRoles.remove(username);
                 if (roles != null) {
                     FileUserRolesStore.writeFile(userRoles, file);
-                } else {
-                    terminal.println("Warning: users_roles file [%s] did not contain roles entry for user [%s]", file.toAbsolutePath(), username);
                 }
             }
 
@@ -311,6 +311,7 @@ public class ESUsersTool extends CliTool {
             if (userRoles.get(username) != null) {
                 roles.addAll(Arrays.asList(userRoles.get(username)));
             }
+            verifyRoles(terminal, settings, env, addRoles);
             roles.addAll(Arrays.asList(addRoles));
             roles.removeAll(Arrays.asList(removeRoles));
 
@@ -347,6 +348,7 @@ public class ESUsersTool extends CliTool {
 
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
+            ImmutableMap<String, Permission.Global> knownRoles = loadRoles(terminal, settings, env);
             Path userRolesFilePath = FileUserRolesStore.resolveFile(settings, env);
             Map<String, String[]> userRoles = FileUserRolesStore.parseFile(userRolesFilePath, null);
             Path userFilePath = FileUserPasswdStore.resolveFile(settings, env);
@@ -359,13 +361,27 @@ public class ESUsersTool extends CliTool {
                 }
 
                 if (userRoles.containsKey(username)) {
-                    terminal.println("%-15s: %s", username, Joiner.on(",").useForNull("-").join(userRoles.get(username)));
+                    String[] roles = userRoles.get(username);
+                    Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles.keySet());
+                    String[] markedRoles = markUnknownRoles(roles, unknownRoles);
+                    terminal.println("%-15s: %s", username, Joiner.on(",").useForNull("-").join(markedRoles));
+                    if (!unknownRoles.isEmpty()) {
+                        // at least one role is marked... so printing the legend
+                        Path rolesFile = FileRolesStore.resolveFile(settings, env).toAbsolutePath();
+                        terminal.println();
+                        terminal.println(" [*]   An unknown role. Please check [%s] to see available roles", rolesFile.toAbsolutePath());
+                    }
                 } else {
                     terminal.println("%-15s: -", username);
                 }
             } else {
+                boolean unknownRolesFound = false;
                 for (Map.Entry<String, String[]> entry : userRoles.entrySet()) {
-                    terminal.println("%-15s: %s", entry.getKey(), Joiner.on(",").join(entry.getValue()));
+                    String[] roles = entry.getValue();
+                    Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles.keySet());
+                    String[] markedRoles = markUnknownRoles(roles, unknownRoles);
+                    terminal.println("%-15s: %s", entry.getKey(), Joiner.on(",").join(markedRoles));
+                    unknownRolesFound = unknownRolesFound || !unknownRoles.isEmpty();
                 }
                 // list users without roles
                 Set<String> usersWithoutRoles = Sets.newHashSet(users);
@@ -374,9 +390,67 @@ public class ESUsersTool extends CliTool {
                         terminal.println("%-15s: -", user);
                     }
                 }
+                if (unknownRolesFound) {
+                    // at least one role is marked... so printing the legend
+                    Path rolesFile = FileRolesStore.resolveFile(settings, env).toAbsolutePath();
+                    terminal.println();
+                    terminal.println(" [*]   An unknown role. Please check [%s] to see available roles", rolesFile.toAbsolutePath());
+                }
             }
 
             return ExitStatus.OK;
+        }
+    }
+
+    private static ImmutableMap<String, Permission.Global> loadRoles(Terminal terminal, Settings settings, Environment env) {
+        Path rolesFile = FileRolesStore.resolveFile(settings, env);
+        try {
+            return FileRolesStore.parseFile(rolesFile, null, new DummyAuthzService());
+        } catch (Throwable t) {
+            // if for some reason, parsing fails (malformatted perhaps) we just warn
+            terminal.println("Warning:  Could not parse [%s] for roles verification. Please revise and fix it. Nonetheless, the user will still be associated with all specified roles", rolesFile.toAbsolutePath());
+        }
+        return null;
+    }
+
+    private static String[] markUnknownRoles(String[] roles, Set<String> unknownRoles) {
+        if (unknownRoles.isEmpty()) {
+            return roles;
+        }
+        String[] marked = new String[roles.length];
+        for (int i = 0; i < roles.length; i++) {
+            if (unknownRoles.contains(roles[i])) {
+                marked[i] = roles[i] + "*";
+            } else {
+                marked[i] = roles[i];
+            }
+        }
+        return marked;
+    }
+
+    private static void verifyRoles(Terminal terminal, Settings settings, Environment env, String[] roles) {
+        ImmutableMap<String, Permission.Global> knownRoles = loadRoles(terminal, settings, env);
+        if (knownRoles == null) {
+            return;
+        }
+        Set<String> unknownRoles = Sets.difference(Sets.newHashSet(roles), knownRoles.keySet());
+        if (!unknownRoles.isEmpty()) {
+            Path rolesFile = FileRolesStore.resolveFile(settings, env);
+            terminal.println("Warning: The following roles [%s] are unknown. Make sure to add them to the [%s] file. " +
+                            "Nonetheless the user will still be associated with all specified roles",
+                    Strings.collectionToCommaDelimitedString(unknownRoles), rolesFile.toAbsolutePath());
+        }
+    }
+
+    private static class DummyAuthzService implements AuthorizationService {
+        @Override
+        public ImmutableList<String> authorizedIndicesAndAliases(User user, String action) {
+            return ImmutableList.of();
+        }
+
+        @Override
+        public void authorize(User user, String action, TransportRequest request) throws AuthorizationException {
+
         }
     }
 }

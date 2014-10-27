@@ -478,9 +478,11 @@ public class ESUsersToolTests extends CliToolTestCase {
     public void testRoles_Cmd_testNotAddingOrRemovingRolesShowsListingOfRoles() throws Exception {
         File usersFile = writeFile("admin:hash\nuser:hash");
         File usersRoleFile = writeFile("admin: admin\nuser:user\nfoo:user\nbar:user\n");
+        File rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
         Settings settings = ImmutableSettings.builder()
                 .put("shield.authc.esusers.files.users", usersFile)
                 .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authz.store.files.roles", rolesFile)
                 .build();
 
         CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
@@ -495,9 +497,11 @@ public class ESUsersToolTests extends CliToolTestCase {
     public void testRoles_cmd_testRoleCanBeAddedWhenUserIsNotInRolesFile() throws Exception {
         File usersFile = writeFile("admin:hash\nuser:hash");
         File usersRoleFile = writeFile("admin: admin\n");
+        File rolesFile = writeFile("admin:\n  cluster: all\n\nmyrole:\n  cluster: all");
         Settings settings = ImmutableSettings.builder()
                 .put("shield.authc.esusers.files.users", usersFile)
                 .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authz.store.files.roles", rolesFile)
                 .build();
 
         CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
@@ -523,8 +527,10 @@ public class ESUsersToolTests extends CliToolTestCase {
     @Test
     public void testListUsersAndRoles_Cmd_listAllUsers() throws Exception {
         File usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
+        File rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
         Settings settings = ImmutableSettings.builder()
                 .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authz.store.files.roles", rolesFile)
                 .build();
 
         CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
@@ -538,12 +544,33 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     @Test
+    public void testListUsersAndRoles_Cmd_listAllUsers_WithUnknownRoles() throws Exception {
+        File usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
+        File rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all");
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authz.store.files.roles", rolesFile)
+                .build();
+
+        CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
+        ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, null);
+        CliTool.ExitStatus status = execute(cmd, settings);
+
+        assertThat(status, is(CliTool.ExitStatus.OK));
+        assertThat(catchTerminalOutput.getTerminalOutput(), hasSize(greaterThanOrEqualTo(2)));
+        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(containsString("admin")));
+        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("user"), containsString("user,foo*,bar*"))));
+    }
+
+    @Test
     public void testListUsersAndRoles_Cmd_listSingleUser() throws Exception {
         File usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
         File usersFile = writeFile("admin:{plain}changeme\nuser:{plain}changeme\nno-roles-user:{plain}changeme\n");
+        File rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all");
         Settings settings = ImmutableSettings.builder()
                 .put("shield.authc.esusers.files.users_roles", usersRoleFile)
                 .put("shield.authc.esusers.files.users", usersFile)
+                .put("shield.authz.store.files.roles", rolesFile)
                 .build();
 
         CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
@@ -574,9 +601,11 @@ public class ESUsersToolTests extends CliToolTestCase {
     public void testListUsersAndRoles_Cmd_testThatUsersWithoutRolesAreListed() throws Exception {
         File usersFile = writeFile("admin:{plain}changeme\nuser:{plain}changeme\nno-roles-user:{plain}changeme\n");
         File usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
+        File rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
         Settings settings = ImmutableSettings.builder()
                 .put("shield.authc.esusers.files.users_roles", usersRoleFile)
                 .put("shield.authc.esusers.files.users", usersFile)
+                .put("shield.authz.store.files.roles", rolesFile)
                 .build();
 
         CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();

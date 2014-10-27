@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
-import org.elasticsearch.license.licensor.LicenseSpec;
+import org.elasticsearch.license.licensor.LicenseSpecs;
 
 import java.io.File;
 import java.io.IOException;
@@ -26,11 +26,11 @@ import java.util.Set;
 public class LicenseGeneratorTool {
 
     static class Options {
-        private final Set<LicenseSpec> licenseSpecs;
+        private final Set<ESLicense> licenseSpecs;
         private final String publicKeyFilePath;
         private final String privateKeyFilePath;
 
-        Options(Set<LicenseSpec> licenseSpecs, String publicKeyFilePath, String privateKeyFilePath) {
+        Options(Set<ESLicense> licenseSpecs, String publicKeyFilePath, String privateKeyFilePath) {
             this.licenseSpecs = licenseSpecs;
             this.publicKeyFilePath = publicKeyFilePath;
             this.privateKeyFilePath = privateKeyFilePath;
@@ -38,7 +38,7 @@ public class LicenseGeneratorTool {
     }
 
     private static Options parse(String[] args) throws IOException, ParseException {
-        Set<LicenseSpec> licenseSpecs = new HashSet<>();
+        Set<ESLicense> licenseSpecs = new HashSet<>();
         String privateKeyPath = null;
         String publicKeyPath = null;
 
@@ -47,13 +47,13 @@ public class LicenseGeneratorTool {
             switch (command) {
                 case "--license":
                     String licenseInput = args[++i];
-                    licenseSpecs.addAll(LicenseSpec.fromSource(licenseInput));
+                    licenseSpecs.addAll(LicenseSpecs.fromSource(licenseInput));
                     break;
                 case "--licenseFile":
                     File licenseFile = new File(args[++i]);
                     if (licenseFile.exists()) {
                         final byte[] bytes = Files.readAllBytes(Paths.get(licenseFile.getAbsolutePath()));
-                        licenseSpecs.addAll(LicenseSpec.fromSource(bytes));
+                        licenseSpecs.addAll(LicenseSpecs.fromSource(bytes));
                     } else {
                         throw new IllegalArgumentException(licenseFile.getAbsolutePath() + " does not exist!");
                     }

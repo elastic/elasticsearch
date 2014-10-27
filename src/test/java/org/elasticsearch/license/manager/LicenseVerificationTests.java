@@ -139,10 +139,8 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
         ESLicense esLicense = ESLicenses.reduceAndMap(esLicensesOutput).get(TestUtils.SHIELD);
 
         final ESLicense tamperedLicense = ESLicense.builder()
-                .fromLicense(esLicense)
+                .fromLicenseSpec(esLicense, esLicense.signature())
                 .expiryDate(esLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
-                .feature(TestUtils.SHIELD)
-                .issuer("elasticsqearch")
                 .verifyAndBuild();
 
         try {

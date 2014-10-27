@@ -68,9 +68,9 @@ public class ESLicenseSigner {
     }
 
 
-    public ImmutableSet<ESLicense> sign(Set<LicenseSpec> licenseSpecs) throws IOException {
+    public ImmutableSet<ESLicense> sign(Set<ESLicense> licenseSpecs) throws IOException {
         final ImmutableSet.Builder<ESLicense> builder = ImmutableSet.builder();
-        for (LicenseSpec licenseSpec : licenseSpecs) {
+        for (ESLicense licenseSpec : licenseSpecs) {
             builder.add(sign(licenseSpec));
         }
         return builder.build();
@@ -84,17 +84,17 @@ public class ESLicenseSigner {
      * @return a signed ESLicense (with signature)
      * @throws IOException
      */
-    public ESLicense sign(LicenseSpec licenseSpec) throws IOException {
+    public ESLicense sign(ESLicense licenseSpec) throws IOException {
         License.Builder licenseBuilder = new License.Builder()
-                .withGoodBeforeDate(licenseSpec.expiryDate)
-                .withIssueDate(licenseSpec.issueDate)
-                .withProductKey(licenseSpec.uid)
-                .withHolder(licenseSpec.issuedTo)
-                .withIssuer(licenseSpec.issuer)
-                .addFeature("feature:" + licenseSpec.feature, licenseSpec.expiryDate)
-                .addFeature("maxNodes:" + String.valueOf(licenseSpec.maxNodes))
-                .addFeature("type:" + licenseSpec.type.string())
-                .addFeature("subscription_type:" + licenseSpec.subscriptionType.string());
+                .withGoodBeforeDate(licenseSpec.expiryDate())
+                .withIssueDate(licenseSpec.issueDate())
+                .withProductKey(licenseSpec.uid())
+                .withHolder(licenseSpec.issuedTo())
+                .withIssuer(licenseSpec.issuer())
+                .addFeature("feature:" + licenseSpec.feature(), licenseSpec.expiryDate())
+                .addFeature("maxNodes:" + String.valueOf(licenseSpec.maxNodes()))
+                .addFeature("type:" + licenseSpec.type().string())
+                .addFeature("subscription_type:" + licenseSpec.subscriptionType().string());
 
         final License license = licenseBuilder.build();
 
@@ -117,16 +117,7 @@ public class ESLicenseSigner {
         String signature = Base64.encodeBase64String(bytes);
 
         return ESLicense.builder()
-                .uid(licenseSpec.uid)
-                .issuedTo(licenseSpec.issuedTo)
-                .issueDate(licenseSpec.issueDate)
-                .type(licenseSpec.type)
-                .subscriptionType(licenseSpec.subscriptionType)
-                .feature(licenseSpec.feature)
-                .maxNodes(licenseSpec.maxNodes)
-                .expiryDate(licenseSpec.expiryDate)
-                .issuer(licenseSpec.issuer)
-                .signature(signature)
+                .fromLicenseSpec(licenseSpec, signature)
                 .verifyAndBuild();
     }
 

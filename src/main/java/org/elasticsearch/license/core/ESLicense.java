@@ -257,7 +257,7 @@ public class ESLicense implements Comparable<ESLicense> {
             return this;
         }
 
-        public Builder fromLicense(ESLicense license) {
+        public Builder fromLicenseSpec(ESLicense license, String signature) {
             return uid(license.uid())
                     .issuedTo(license.issuedTo())
                     .issueDate(license.issueDate())
@@ -267,7 +267,7 @@ public class ESLicense implements Comparable<ESLicense> {
                     .maxNodes(license.maxNodes())
                     .expiryDate(license.expiryDate())
                     .issuer(license.issuer())
-                    .signature(license.signature());
+                    .signature(signature);
         }
 
         public ESLicense verifyAndBuild() {

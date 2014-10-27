@@ -294,10 +294,6 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                                 + "]: [alias] may not be empty string", validationException);
                     }
                 }
-                if (CollectionUtils.isEmpty(aliasAction.indices)) {
-                    validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH)
-                            + "]: indices may not be empty", validationException);
-                }
             }
             if (!CollectionUtils.isEmpty(aliasAction.indices)) {
                 for (String index : aliasAction.indices) {
@@ -306,6 +302,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                                 + "]: [index] may not be empty string", validationException);
                     }
                 }
+            } else {
+                validationException = addValidationError("Alias action [" + aliasAction.actionType().name().toLowerCase(Locale.ENGLISH)
+                        + "]: Property [index] was either missing or null", validationException);
             }
         }
         return validationException;

@@ -183,7 +183,7 @@ An alias can also be added with the endpoint
 where
 
 [horizontal]
-`index`::   The index the alias refers to. Can be any of `blank | * | _all | glob pattern | name1, name2, …`
+`index`::   The index the alias refers to. Can be any of `* | _all | glob pattern | name1, name2, …`
 `name`::   The name of the alias. This is a required option.
 `routing`:: An optional routing that can be associated with an alias.
 `filter`::  An optional filter that can be associated with an alias.

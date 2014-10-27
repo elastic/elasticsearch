@@ -19,6 +19,7 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.math.MathUtils;
@@ -148,7 +149,7 @@ public final class DistributorDirectory extends BaseDirectory {
      * Returns true if the primary directory should be used for the given file.
      */
     private boolean usePrimary(String name) {
-        return IndexFileNames.SEGMENTS_GEN.equals(name) || Store.isChecksum(name);
+        return IndexFileNames.SEGMENTS_GEN.equals(name) || Store.isChecksum(name) || IndexWriter.WRITE_LOCK_NAME.equals(name);
     }
 
     /**

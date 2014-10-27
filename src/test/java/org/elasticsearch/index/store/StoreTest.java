@@ -507,7 +507,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
     }
 
-    public void assertDeleteContent(Store store,DirectoryService service) throws IOException {
+    public void assertDeleteContent(Store store, DirectoryService service) throws IOException {
         store.deleteContent();
         assertThat(Arrays.toString(store.directory().listAll()), store.directory().listAll().length, equalTo(0));
         assertThat(store.stats().sizeInBytes(), equalTo(0l));

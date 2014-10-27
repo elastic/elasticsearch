@@ -6,6 +6,9 @@
 package org.elasticsearch.license.manager;
 
 import net.nicholaswilliams.java.licensing.exception.InvalidLicenseException;
+import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.license.AbstractLicensingTestBase;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.DateUtils;
@@ -18,6 +21,7 @@ import org.junit.Test;
 
 import java.text.ParseException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.*;
 
@@ -28,6 +32,12 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
     private static FileBasedESLicenseProvider esLicenseProvider;
 
     private final static Set<ESLicense> EMPTY_LICENSES = new HashSet<>();
+
+    private final FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
+
+    private final org.elasticsearch.common.joda.time.format.DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
+
+    private final DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter, TimeUnit.MILLISECONDS);
 
     @BeforeClass
     public static void setupManager() {
@@ -41,12 +51,15 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
         esLicenseProvider.setLicenses(EMPTY_LICENSES);
     }
 
+    private String dateMathString(String time, long now) {
+        return dateTimeFormatter.print(dateMathParser.parse(time, now));
+    }
 
     @Test
     public void testGeneratedLicenses() throws Exception {
-        Date issueDate = new Date();
-        String issueDateStr = DateUtils.dateStringFromLongDate(issueDate.getTime());
-        String expiryDateStr = DateUtils.dateStringFromLongDate(DateUtils.longExpiryDateFromDate(issueDate.getTime() + 24 * 60 * 60l));
+        long now = System.currentTimeMillis();
+        String issueDateStr = dateMathString("now/d", now);
+        String expiryDateStr = dateMathString("now+2d/d", now);
         Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
         TestUtils.FeatureAttributes featureAttributes =
                 new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, issueDateStr, expiryDateStr);
@@ -64,9 +77,9 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
 
     @Test
     public void testMultipleFeatureLicenses() throws Exception {
-        Date issueDate = new Date();
-        String issueDateStr = DateUtils.dateStringFromLongDate(issueDate.getTime());
-        String expiryDateStr = DateUtils.dateStringFromLongDate(DateUtils.longExpiryDateFromDate(issueDate.getTime() + 24 * 60 * 60 * 1000l));
+        long now = System.currentTimeMillis();
+        String issueDateStr = dateMathString("now/d", now);
+        String expiryDateStr = dateMathString("now+2d/d", now);
 
         Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
         TestUtils.FeatureAttributes shildFeatureAttributes =
@@ -86,42 +99,12 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
 
     }
 
-    private static Date getDateBeforeDays(Date originalDate, int days) {
-        Calendar calendar = Calendar.getInstance();
-        calendar.clear();
-        calendar.setTimeZone(DateUtils.TIME_ZONE);
-        calendar.setTimeInMillis(originalDate.getTime());
-
-        int originalDays = calendar.get(Calendar.DAY_OF_YEAR);
-        calendar.set(Calendar.DAY_OF_YEAR, originalDays - days);
-
-        return calendar.getTime();
-    }
-
-    private static Date getDateAfterDays(Date originalDate, int days) {
-        Calendar calendar = Calendar.getInstance();
-        calendar.clear();
-        calendar.setTimeZone(DateUtils.TIME_ZONE);
-        calendar.setTimeInMillis(originalDate.getTime());
-
-        calendar.add(Calendar.DAY_OF_YEAR, days);
-
-        return calendar.getTime();
-    }
-
-
     @Test
     public void testLicenseExpiry() throws Exception {
-
-        Date issueDate = getDateBeforeDays(new Date(), 60);
-        Date expiryDate = getDateAfterDays(new Date(), 30);
-        Date expiredExpiryDate = getDateBeforeDays(new Date(), 10);
-        String issueDateStr = DateUtils.dateStringFromLongDate(issueDate.getTime());
-        String expiryDateStr = DateUtils.dateStringFromLongDate(DateUtils.longExpiryDateFromDate(expiryDate.getTime()));
-
-        final long longExpiryDateFromDate = DateUtils.longExpiryDateFromDate(expiredExpiryDate.getTime());
-        assert longExpiryDateFromDate < System.currentTimeMillis();
-        String expiredExpiryDateStr = DateUtils.dateStringFromLongDate(longExpiryDateFromDate);
+        long now = System.currentTimeMillis();
+        String issueDateStr = dateMathString("now-60d/d", now);
+        String expiryDateStr = dateMathString("now+30d/d", now);
+        String expiredExpiryDateStr = dateMathString("now-10d/d", now);
 
         Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
         TestUtils.FeatureAttributes shildFeatureAttributes =
@@ -144,10 +127,9 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
 
     @Test
     public void testLicenseTampering() throws Exception {
-
-        Date issueDate = new Date();
-        String issueDateStr = DateUtils.dateStringFromLongDate(issueDate.getTime());
-        String expiryDateStr = DateUtils.dateStringFromLongDate(DateUtils.longExpiryDateFromDate(issueDate.getTime() + 24 * 60 * 60l));
+        long now = System.currentTimeMillis();
+        String issueDateStr = dateMathString("now/d", now);
+        String expiryDateStr = dateMathString("now+2d/d", now);
         Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
         TestUtils.FeatureAttributes featureAttributes =
                 new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, issueDateStr, expiryDateStr);

@@ -14,6 +14,9 @@ import net.nicholaswilliams.java.licensing.licensor.LicenseCreator;
 import net.nicholaswilliams.java.licensing.licensor.LicenseCreatorProperties;
 import org.apache.commons.codec.binary.Base64;
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.LicensesCharset;
 
@@ -90,11 +93,11 @@ public class ESLicenseSigner {
                 .withIssueDate(licenseSpec.issueDate())
                 .withProductKey(licenseSpec.uid())
                 .withHolder(licenseSpec.issuedTo())
-                .withIssuer(licenseSpec.issuer())
-                .addFeature("feature:" + licenseSpec.feature(), licenseSpec.expiryDate())
-                .addFeature("maxNodes:" + String.valueOf(licenseSpec.maxNodes()))
-                .addFeature("type:" + licenseSpec.type().string())
-                .addFeature("subscription_type:" + licenseSpec.subscriptionType().string());
+                .withIssuer(licenseSpec.issuer());
+
+        XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        featureToXContent(licenseSpec, contentBuilder);
+        licenseBuilder.addFeature(contentBuilder.string());
 
         final License license = licenseBuilder.build();
 
@@ -119,6 +122,15 @@ public class ESLicenseSigner {
         return ESLicense.builder()
                 .fromLicenseSpec(licenseSpec, signature)
                 .verifyAndBuild();
+    }
+
+    private void featureToXContent(ESLicense license, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.field("feature", license.feature());
+        builder.field("type", license.type().string());
+        builder.field("subscription_type", license.subscriptionType().string());
+        builder.field("max_nodes", license.maxNodes());
+        builder.endObject();
     }
 
 }

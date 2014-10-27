@@ -10,19 +10,20 @@ import net.nicholaswilliams.java.licensing.encryption.Hasher;
 import net.nicholaswilliams.java.licensing.encryption.PasswordProvider;
 import net.nicholaswilliams.java.licensing.exception.ExpiredLicenseException;
 import net.nicholaswilliams.java.licensing.exception.InvalidLicenseException;
+import org.apache.commons.codec.binary.Base64;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ResourcePublicKeyDataProvider;
 
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.*;
 
 import static org.elasticsearch.license.core.ESLicense.SubscriptionType;
 import static org.elasticsearch.license.core.ESLicense.Type;
-import static org.elasticsearch.license.manager.Utils.extractSignedLicence;
 
 /**
  * Class responsible for reading signed licenses, maintaining an effective esLicenses instance, verification of licenses
@@ -33,11 +34,11 @@ public class ESLicenseManager {
 
     private final LicenseManager licenseManager;
 
-    private static class Prefix {
-        static final String MAX_NODES = "maxNodes:";
-        static final String TYPE = "type:";
-        static final String SUBSCRIPTION_TYPE = "subscription_type:";
-        static final String FEATURE = "feature:";
+    private static class FeatureFields {
+        static final String MAX_NODES = "max_nodes";
+        static final String TYPE = "type";
+        static final String SUBSCRIPTION_TYPE = "subscription_type";
+        static final String FEATURE = "feature";
     }
 
     // Initialize LicenseManager
@@ -89,27 +90,32 @@ public class ESLicenseManager {
             }
         } catch (ExpiredLicenseException e) {
             throw new InvalidLicenseException("Expired License");
-        } catch (InvalidLicenseException e) {
+        } catch (InvalidLicenseException | IOException e) {
             throw new InvalidLicenseException("Invalid License");
         }
     }
 
     private ESLicense fromSignature(String signature) {
-        final SignedLicense signedLicense = Utils.extractSignedLicence(signature);
+        final SignedLicense signedLicense = extractSignedLicence(signature);
         License license = licenseManager.decryptAndVerifyLicense(signedLicense);
         ESLicense.Builder builder = ESLicense.builder();
 
         for (License.Feature feature : license.getFeatures()) {
             String featureName = feature.getName();
-            if (featureName.startsWith(Prefix.MAX_NODES)) {
-                builder.maxNodes(Integer.parseInt(featureName.substring(Prefix.MAX_NODES.length())));
-            } else if (featureName.startsWith(Prefix.TYPE)) {
-                builder.type(Type.fromString(featureName.substring(Prefix.TYPE.length())));
-            } else if (featureName.startsWith(Prefix.SUBSCRIPTION_TYPE)) {
-                builder.subscriptionType(SubscriptionType.fromString(featureName.substring(Prefix.SUBSCRIPTION_TYPE.length())));
-            } else if (featureName.startsWith(Prefix.FEATURE)) {
-                builder.feature(featureName.substring(Prefix.FEATURE.length()));
-            }
+            LicenseFeatures licenseFeatures;
+            try {
+                licenseFeatures = licenseFeaturesFromSource(featureName);
+                if (licenseFeatures.maxNodes != -1
+                        && licenseFeatures.feature != null
+                        && licenseFeatures.type != null
+                        && licenseFeatures.subscriptionType != null) {
+                    builder.maxNodes(licenseFeatures.maxNodes)
+                            .feature(licenseFeatures.feature)
+                            .type(Type.fromString(licenseFeatures.type))
+                            .subscriptionType(SubscriptionType.fromString(licenseFeatures.subscriptionType));
+                    break;
+                }
+            } catch (IOException ignored) {}
         }
 
         return builder
@@ -122,12 +128,11 @@ public class ESLicenseManager {
                 .build();
     }
 
-    private static void verifyLicenseFields(License license, ESLicense eslicense) {
+    private static void verifyLicenseFields(License license, ESLicense eslicense) throws IOException {
         boolean licenseValid = license.getProductKey().equals(eslicense.uid())
                 && license.getHolder().equals(eslicense.issuedTo())
                 && license.getIssueDate() == eslicense.issueDate()
                 && license.getGoodBeforeDate() == eslicense.expiryDate();
-        assert license.getFeatures().size() == 4 : "one license should have only four features";
         boolean maxNodesValid = false;
         boolean featureValid = false;
         boolean typeValid = false;
@@ -135,20 +140,85 @@ public class ESLicenseManager {
 
         for (License.Feature feature : license.getFeatures()) {
             String featureName = feature.getName();
-            if (featureName.startsWith(Prefix.MAX_NODES)) {
-                maxNodesValid = eslicense.maxNodes() == Integer.parseInt(featureName.substring(Prefix.MAX_NODES.length()));
-            } else if (featureName.startsWith(Prefix.TYPE)) {
-                typeValid = eslicense.type() == Type.fromString(featureName.substring(Prefix.TYPE.length()));
-            } else if (featureName.startsWith(Prefix.SUBSCRIPTION_TYPE)) {
-                subscriptionTypeValid = eslicense.subscriptionType() == SubscriptionType.fromString(featureName.substring(Prefix.SUBSCRIPTION_TYPE.length()));
-            } else if (featureName.startsWith(Prefix.FEATURE)) {
-                String featureValue = featureName.substring(Prefix.FEATURE.length());
-                featureValid = featureValue.equals(eslicense.feature())
-                        && feature.getGoodBeforeDate() == eslicense.expiryDate();
+            LicenseFeatures licenseFeatures = licenseFeaturesFromSource(featureName);
+            maxNodesValid = eslicense.maxNodes() == licenseFeatures.maxNodes;
+            typeValid = eslicense.type().string().equals(licenseFeatures.type);
+            subscriptionTypeValid = eslicense.subscriptionType().string().equals(licenseFeatures.subscriptionType);
+            featureValid = eslicense.feature().equals(licenseFeatures.feature);
+
+            if (maxNodesValid && typeValid && subscriptionTypeValid && featureValid) {
+                break;
             }
         }
         if (!licenseValid || !featureValid || !maxNodesValid || !typeValid || !subscriptionTypeValid) {
             throw new InvalidLicenseException("Invalid License");
+        }
+    }
+
+    /**
+     * Extract a signedLicense (SIGNED_LICENSE_CONTENT) from the signature.
+     * Validates the public key used to decrypt the license by comparing their hashes
+     * <p/>
+     * Signature structure:
+     * | MAGIC | HEADER_LENGTH | VERSION | PUB_KEY_DIGEST | SIGNED_LICENSE_CONTENT |
+     *
+     * @param signature of a single license
+     * @return signed license content for the license
+     */
+    private static SignedLicense extractSignedLicence(String signature) {
+        byte[] signatureBytes = Base64.decodeBase64(signature);
+        ByteBuffer byteBuffer = ByteBuffer.wrap(signatureBytes);
+        byteBuffer = (ByteBuffer) byteBuffer.position(13);
+        int start = byteBuffer.getInt();
+        int version = byteBuffer.getInt();
+        return new ObjectSerializer().readObject(SignedLicense.class, Arrays.copyOfRange(signatureBytes, start, signatureBytes.length));
+    }
+
+    private static LicenseFeatures licenseFeaturesFromSource(String source) throws IOException {
+        XContentParser parser = XContentFactory.xContent(source).createParser(source);
+        XContentParser.Token token;
+
+        String feature = null;
+        String type = null;
+        String subscriptionType = null;
+        int maxNodes = -1;
+
+        String currentName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                switch (currentName) {
+                    case FeatureFields.FEATURE:
+                        feature = parser.text();
+                        break;
+                    case FeatureFields.TYPE:
+                        type = parser.text();
+                        break;
+                    case FeatureFields.SUBSCRIPTION_TYPE:
+                        subscriptionType = parser.text();
+                        break;
+                }
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if (FeatureFields.MAX_NODES.equals(currentName)) {
+                    maxNodes = parser.intValue();
+                }
+            }
+        }
+        return new LicenseFeatures(feature, type, subscriptionType, maxNodes);
+    }
+
+    private static class LicenseFeatures {
+        private final String feature;
+        private final String type;
+        private final String subscriptionType;
+        private final int maxNodes;
+
+        private LicenseFeatures(String feature, String type, String subscriptionType, int maxNodes) {
+            this.feature = feature;
+            this.type = type;
+            this.subscriptionType = subscriptionType;
+            this.maxNodes = maxNodes;
         }
     }
 

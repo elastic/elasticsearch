@@ -152,6 +152,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
         }
     }
 
+    // TODO: move to TestUtils
     public static void verifyLicenses(FileBasedESLicenseProvider licenseProvider, Map<String, TestUtils.FeatureAttributes> featureAttributeMap) throws ParseException {
 
         for (Map.Entry<String, TestUtils.FeatureAttributes> entry : featureAttributeMap.entrySet()) {

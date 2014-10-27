@@ -78,6 +78,11 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
                     }
                     @Override
                     public boolean isCacheable() { return false; }
+
+                    @Override
+                    public long ramBytesUsed() {
+                        return 0;
+                    }
                 });
                 docIdSets.put(leaf.reader(), set);
             }

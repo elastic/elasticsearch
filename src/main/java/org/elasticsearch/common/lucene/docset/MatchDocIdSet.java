@@ -58,6 +58,11 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
     }
 
     @Override
+    public long ramBytesUsed() {
+        return 0;
+    }
+
+    @Override
     public Bits bits() throws IOException {
         return this;
     }

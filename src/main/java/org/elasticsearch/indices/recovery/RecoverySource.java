@@ -148,7 +148,7 @@ public class RecoverySource extends AbstractComponent {
                         final StoreFileMetaData md = recoverySourceMetadata.get(name);
                         if (md == null) {
                             logger.info("Snapshot differs from actual index for file: {} meta: {}", name, recoverySourceMetadata.asMap());
-                            throw new CorruptIndexException("Snapshot differs from actual index - maybe index was removed metadata has " + recoverySourceMetadata.asMap().size() + " files");
+                            throw new CorruptIndexException("Snapshot differs from actual index - maybe index was removed metadata has " + recoverySourceMetadata.asMap().size() + " files", name);
                         }
                     }
                     final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(new Store.MetadataSnapshot(request.existingFiles()));

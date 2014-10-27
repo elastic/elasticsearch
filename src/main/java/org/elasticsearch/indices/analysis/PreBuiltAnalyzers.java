@@ -163,6 +163,7 @@ public enum PreBuiltAnalyzers {
                 analyzer = new StandardHtmlStripAnalyzer();
             }
             analyzer.setVersion(version.luceneVersion);
+            return analyzer;
         }
     },
 

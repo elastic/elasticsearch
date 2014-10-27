@@ -198,6 +198,11 @@ public class ScriptFilterParser implements FilterParser {
                 }
                 throw new ElasticsearchIllegalArgumentException("Can't handle type [" + val + "] in script filter");
             }
+
+            @Override
+            public long ramBytesUsed() {
+                return 0;
+            }
         }
     }
 }

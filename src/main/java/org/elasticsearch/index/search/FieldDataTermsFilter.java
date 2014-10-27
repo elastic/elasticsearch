@@ -147,6 +147,11 @@ public abstract class FieldDataTermsFilter extends Filter {
 
                     return false;
                 }
+
+                @Override
+                public long ramBytesUsed() {
+                    return 0;
+                }
             };
         }
     }

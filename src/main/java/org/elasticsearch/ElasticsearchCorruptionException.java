@@ -48,5 +48,11 @@ public class ElasticsearchCorruptionException extends IOException {
         if (ex != null) {
             this.setStackTrace(ex.getStackTrace());
         }
+        Throwable[] suppressed = ex.getSuppressed();
+        if (suppressed != null) {
+            for (Throwable supressedExc : suppressed) {
+                addSuppressed(supressedExc);
+            }
+        }
     }
 }

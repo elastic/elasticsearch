@@ -750,7 +750,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
             assertAcked(admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, "alias1")));
             fail("create alias should have failed due to null index");
         } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Validation Failed: 1: Alias action [add]: [index] may not be null;"));
+            assertThat(e.getMessage(), equalTo("Validation Failed: 1: Alias action [add]: Property [index] was either missing or null;"));
         }
 
     }
@@ -767,7 +767,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
             assertAcked(admin().indices().prepareAliases().addAlias((String) null, "empty-alias"));
             fail("create alias should have failed due to null index");
         } catch (ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Validation Failed: 1: Alias action [add]: [index] may not be null;"));
+            assertThat(e.getMessage(), equalTo("Validation Failed: 1: Alias action [add]: Property [index] was either missing or null;"));
         }
     }
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.util.BitSet;
+
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -29,15 +31,11 @@ import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
@@ -62,12 +60,11 @@ public class TermsFilterTests extends ElasticsearchTestCase {
         w.close();
 
         TermFilter tf = new TermFilter(new Term(fieldName, "19"));
-        FixedBitSet bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
-        assertThat(bits, nullValue());
+        assertNull(tf.getDocIdSet(reader.getContext(), reader.getLiveDocs()));
 
         tf = new TermFilter(new Term(fieldName, "20"));
         DocIdSet result = tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
-        bits = DocIdSets.toFixedBitSet(result.iterator(), reader.maxDoc());
+        BitSet bits = DocIdSets.toFixedBitSet(result.iterator(), reader.maxDoc());
         assertThat(bits.cardinality(), equalTo(1));
 
         tf = new TermFilter(new Term("all", "xxx"));
@@ -98,19 +95,21 @@ public class TermsFilterTests extends ElasticsearchTestCase {
         w.close();
 
         TermsFilter tf = new TermsFilter(new Term[]{new Term(fieldName, "19")});
-        FixedBitSet bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
-        assertThat(bits, nullValue());
+        assertNull(tf.getDocIdSet(reader.getContext(), reader.getLiveDocs()));
 
         tf = new TermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20")});
-        bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
+        DocIdSet result = tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
+        BitSet bits = DocIdSets.toFixedBitSet(result.iterator(), reader.maxDoc());
         assertThat(bits.cardinality(), equalTo(1));
 
         tf = new TermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10")});
-        bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
+        result = tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
+        bits = DocIdSets.toFixedBitSet(result.iterator(), reader.maxDoc());
         assertThat(bits.cardinality(), equalTo(2));
 
         tf = new TermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10"), new Term(fieldName, "00")});
-        bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
+        result = tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
+        bits = DocIdSets.toFixedBitSet(result.iterator(), reader.maxDoc());
         assertThat(bits.cardinality(), equalTo(2));
 
         reader.close();

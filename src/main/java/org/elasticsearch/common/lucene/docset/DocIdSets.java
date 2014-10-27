@@ -111,10 +111,7 @@ public class DocIdSets {
      */
     public static FixedBitSet toFixedBitSet(DocIdSetIterator iterator, int numBits) throws IOException {
         FixedBitSet set = new FixedBitSet(numBits);
-        int doc;
-        while ((doc = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-            set.set(doc);
-        }
+        set.or(iterator);
         return set;
     }
 }

@@ -700,7 +700,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             RecoveryDiff recoveryDiff = new RecoveryDiff(identical.build(), different.build(), missing.build());
             assert recoveryDiff.size() == this.metadata.size() - (metadata.containsKey(IndexFileNames.OLD_SEGMENTS_GEN) ? 1: 0)
-                    : "some files are missing recoveryDiff size: [" + recoveryDiff.size() + "] metadata size: [" + this.metadata.size()  + "] contains  segments.gen: [" + metadata.containsKey(SEGMENTS_GEN) + "]"   ;
+                    : "some files are missing recoveryDiff size: [" + recoveryDiff.size() + "] metadata size: [" + this.metadata.size()  + "] contains  segments.gen: [" + metadata.containsKey(IndexFileNames.OLD_SEGMENTS_GEN) + "]"   ;
             return recoveryDiff;
         }
 

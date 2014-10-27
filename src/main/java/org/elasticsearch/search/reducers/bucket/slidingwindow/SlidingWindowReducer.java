@@ -65,7 +65,6 @@ public class SlidingWindowReducer extends BucketReducer {
             for (int j = 0; j < windowSize; j++) {
                 selectionBuckets.add(aggBuckets.get(i + j));
             }
-            // NOCOMMIT populate aggregations (sub reducers outputs)
             String selectionKey = null;
             if (selectionBuckets.size() == 1) {
                 selectionKey = selectionBuckets.get(0).getKey();

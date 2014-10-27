@@ -25,9 +25,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.reducers.*;
 
 import java.io.IOException;
+import java.util.List;
 
 public class DeltaReducer extends Reducer {
 
@@ -39,36 +41,44 @@ public class DeltaReducer extends Reducer {
             return factory;
         }
     };
+    private String fieldName;
 
     public static void registerStreams() {
         ReducerFactoryStreams.registerStream(STREAM, InternalDelta.TYPE.stream());
     }
 
-    public DeltaReducer(String name, String bucketsPath, ReducerFactories factories, ReducerContext context, Reducer parent) {
+    public DeltaReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context, Reducer parent) {
         super(name, bucketsPath, factories, context, parent);
+        this.fieldName = fieldName;
     }
 
     @Override
     public InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType,
             BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
+        List<? extends Bucket> buckets = aggregation.getBuckets();
+        Bucket firstBucket = buckets.get(0);
+        Bucket lastBucket = buckets.get(buckets.size() - 1);
+        
         return null;
     }
 
     public static class Factory extends ReducerFactory {
 
         private String bucketsPath;
+        private String fieldName;
 
         public Factory() {
             super(InternalDelta.TYPE);
         }
 
-        public Factory(String name, String bucketsPath) {
+        public Factory(String name, String bucketsPath, String fieldName) {
             super(name, InternalDelta.TYPE);
+            this.fieldName = fieldName;
         }
 
         @Override
         public Reducer create(ReducerContext context, Reducer parent) {
-            return new DeltaReducer(name, bucketsPath, factories, context, parent);
+            return new DeltaReducer(name, bucketsPath, fieldName, factories, context, parent);
         }
 
         @Override

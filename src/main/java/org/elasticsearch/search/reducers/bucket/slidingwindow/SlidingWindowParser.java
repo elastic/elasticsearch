@@ -67,8 +67,9 @@ public class SlidingWindowParser implements Reducer.Parser{
         }
 
         if (buckets == null) {
-            throw new SearchParseException(context, "Missing [path] in sliding_window reducer [" + reducerName + "]");
+            throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
         }
+
         return new SlidingWindowReducer.Factory(reducerName, buckets, windowSize);
     }
 

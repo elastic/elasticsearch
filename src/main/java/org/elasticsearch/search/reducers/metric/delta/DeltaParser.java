@@ -31,6 +31,7 @@ import java.io.IOException;
 public class DeltaParser implements Reducer.Parser {
 
     protected static final ParseField BUCKETS_FIELD = new ParseField("buckets");
+    protected static final ParseField FIELD_NAME_FIELD = new ParseField("field");
 
     @Override
     public String type() {
@@ -40,6 +41,7 @@ public class DeltaParser implements Reducer.Parser {
     @Override
     public ReducerFactory parse(String reducerName, XContentParser parser, SearchContext context) throws IOException {
         String buckets = null;
+        String fieldName = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -49,6 +51,8 @@ public class DeltaParser implements Reducer.Parser {
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (BUCKETS_FIELD.match(currentFieldName)) {
                     buckets = parser.text();
+                } else if (FIELD_NAME_FIELD.match(currentFieldName)) {
+                    fieldName = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].");
@@ -60,9 +64,13 @@ public class DeltaParser implements Reducer.Parser {
         }
 
         if (buckets == null) {
-            throw new SearchParseException(context, "Missing [path] in sliding_window reducer [" + reducerName + "]");
+            throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
         }
-        return new DeltaReducer.Factory(reducerName, buckets);
+
+        if (fieldName == null) {
+            throw new SearchParseException(context, "Missing [" + FIELD_NAME_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
+        }
+        return new DeltaReducer.Factory(reducerName, buckets, fieldName);
     }
 
 }

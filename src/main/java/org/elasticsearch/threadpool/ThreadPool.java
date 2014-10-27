@@ -132,7 +132,16 @@ public class ThreadPool extends AbstractComponent {
         for (Map.Entry<String, Settings> executor : defaultExecutorTypeSettings.entrySet()) {
             executors.put(executor.getKey(), build(executor.getKey(), groupSettings.get(executor.getKey()), executor.getValue()));
         }
-        executors.put(Names.SAME, new ExecutorHolder(MoreExecutors.sameThreadExecutor(), new Info(Names.SAME, "same")));
+
+        // Building custom thread pools
+        for (Map.Entry<String, Settings> entry : groupSettings.entrySet()) {
+            if (executors.containsKey(entry.getKey())) {
+                continue;
+            }
+            executors.put(entry.getKey(), build(entry.getKey(), entry.getValue(), ImmutableSettings.EMPTY));
+        }
+
+        executors.put(Names.SAME, new ExecutorHolder(MoreExecutors.directExecutor(), new Info(Names.SAME, "same")));
         if (!executors.get(Names.GENERIC).info.getType().equals("cached")) {
             throw new ElasticsearchIllegalArgumentException("generic thread pool must be of type cached");
         }
@@ -414,6 +423,26 @@ public class ThreadPool extends AbstractComponent {
             ExecutorHolder newExecutorHolder = rebuild(executor.getKey(), oldExecutorHolder, updatedSettings, executor.getValue());
             if (!oldExecutorHolder.equals(newExecutorHolder)) {
                 executors = newMapBuilder(executors).put(executor.getKey(), newExecutorHolder).immutableMap();
+                if (!oldExecutorHolder.executor.equals(newExecutorHolder.executor) && oldExecutorHolder.executor instanceof EsThreadPoolExecutor) {
+                    retiredExecutors.add(oldExecutorHolder);
+                    ((EsThreadPoolExecutor) oldExecutorHolder.executor).shutdown(new ExecutorShutdownListener(oldExecutorHolder));
+                }
+            }
+        }
+
+        // Building custom thread pools
+        for (Map.Entry<String, Settings> entry : groupSettings.entrySet()) {
+            if (defaultExecutorTypeSettings.containsKey(entry.getKey())) {
+                continue;
+            }
+
+            ExecutorHolder oldExecutorHolder = executors.get(entry.getKey());
+            ExecutorHolder newExecutorHolder = rebuild(entry.getKey(), oldExecutorHolder, entry.getValue(), ImmutableSettings.EMPTY);
+            // Can't introduce new thread pools at runtime, because The oldExecutorHolder variable will be null in the
+            // case the settings contains a thread pool not defined in the initial settings in the constructor. The if
+            // statement will then fail and so this prevents the addition of new thread groups at runtime, which is desired.
+            if (!newExecutorHolder.equals(oldExecutorHolder)) {
+                executors = newMapBuilder(executors).put(entry.getKey(), newExecutorHolder).immutableMap();
                 if (!oldExecutorHolder.executor.equals(newExecutorHolder.executor) && oldExecutorHolder.executor instanceof EsThreadPoolExecutor) {
                     retiredExecutors.add(oldExecutorHolder);
                     ((EsThreadPoolExecutor) oldExecutorHolder.executor).shutdown(new ExecutorShutdownListener(oldExecutorHolder));

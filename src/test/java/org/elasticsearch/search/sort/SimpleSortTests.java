@@ -25,6 +25,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -66,6 +67,40 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
+    public void testIssue8226() {
+        int numIndices = between(5, 10);
+        for (int i = 0; i < numIndices; i++) {
+            assertAcked(prepareCreate("test_" + i).addAlias(new Alias("test")));
+            if (i > 0) {
+                client().prepareIndex("test_" + i, "foo", "" + i).setSource("{\"entry\": " + i + "}").get();
+            }
+        }
+        ensureYellow();
+        refresh();
+        // sort DESC
+        SearchResponse searchResponse = client().prepareSearch()
+                .addSort(new FieldSortBuilder("entry").order(SortOrder.DESC).ignoreUnmapped(true))
+                .setSize(10).get();
+        assertSearchResponse(searchResponse);
+
+        for (int j = 1; j < searchResponse.getHits().hits().length; j++) {
+            Number current = (Number) searchResponse.getHits().hits()[j].getSource().get("entry");
+            Number previous = (Number) searchResponse.getHits().hits()[j-1].getSource().get("entry");
+            assertThat(searchResponse.toString(), current.intValue(), lessThan(previous.intValue()));
+        }
+
+        // sort ASC
+        searchResponse = client().prepareSearch()
+                .addSort(new FieldSortBuilder("entry").order(SortOrder.ASC).ignoreUnmapped(true))
+                .setSize(10).get();
+        assertSearchResponse(searchResponse);
+
+        for (int j = 1; j < searchResponse.getHits().hits().length; j++) {
+            Number current = (Number) searchResponse.getHits().hits()[j].getSource().get("entry");
+            Number previous = (Number) searchResponse.getHits().hits()[j-1].getSource().get("entry");
+            assertThat(searchResponse.toString(), current.intValue(), greaterThan(previous.intValue()));
+        }
+    }
 
     @LuceneTestCase.BadApple(bugUrl = "simon is working on this")
     public void testIssue6614() throws ExecutionException, InterruptedException {

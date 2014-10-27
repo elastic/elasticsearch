@@ -77,7 +77,7 @@ omit :
    each term in this field)
 
 [float]
-==== Distributed frequencies coming[1.5.0]
+==== Distributed frequencies coming[2.0]
 
 Setting `dfs` to `true` (default is `false`) will return the term statistics
 or the field statistics of the entire index, and not just at the shard. Use it

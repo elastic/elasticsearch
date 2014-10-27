@@ -110,7 +110,7 @@ The `more_like_this` top level parameters include:
 Defaults to the `_all` field for text and to all possible fields
 for documents.
 
-|`like`|coming[1.5.0]
+|`like`|coming[2.0]
 Can either be some text, some documents or a combination of all, *required*.
 A document request follows the same syntax as the
 <<docs-multi-get,Multi Get API>> or <<docs-multi-termvectors,Multi Term Vectors API>>.
@@ -118,11 +118,11 @@ In this case, the text is fetched from `fields` unless specified otherwise in ea
 The text is analyzed by the default analyzer at the field, unless overridden by the
 `per_field_analyzer` parameter of the <<docs-termvectors-per-field-analyzer,Term Vectors API>>.
 
-|`like_text` |deprecated[1.5.0,Replaced by `like`]
+|`like_text` |deprecated[2.0,Replaced by `like`]
 The text to find documents like it, *required* if `ids` or `docs` are
 not specified.
 
-|`ids` or `docs` |deprecated[1.5.0,Replaced by `like`]
+|`ids` or `docs` |deprecated[2.0,Replaced by `like`]
 A list of documents following the same syntax as the
 <<docs-multi-get,Multi GET API>> or <<docs-multi-termvectors,Multi termvectors API>>.
 The text is fetched from `fields` unless specified otherwise in each `doc`.

@@ -838,10 +838,12 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     // disable refreshing, not dirty
                     dirty = false;
                     try {
-                        // that's ok if the index writer failed and is in inconsistent state
-                        // we will get an exception on a dirty operation, and will cause the shard
-                        // to be allocated to a different node
-                        currentIndexWriter().close(false);
+                        { // commit and close the current writer - we write the current tanslog ID just in case
+                            final long translogId = translog.currentId();
+                            indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                            indexWriter.commit();
+                            indexWriter.rollback();
+                        }
                         indexWriter = createWriter();
                         mergeScheduler.removeListener(this.throttle);
 

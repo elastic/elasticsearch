@@ -96,7 +96,9 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
         Filter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
-        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, NonNestedDocsFilter.INSTANCE);
+        Query query = new ChildrenConstantScoreQuery(
+                parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, SearchContext.current().filterCache().cache(NonNestedDocsFilter.INSTANCE)
+        );
         QueryUtils.check(query);
     }
 
@@ -275,7 +277,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
             String childValue = childValues[random().nextInt(numUniqueChildValues)];
             TermQuery childQuery = new TermQuery(new Term("field1", childValue));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
-            Filter nonNestedDocsFilter = random().nextBoolean() ? NonNestedDocsFilter.INSTANCE : null;
+            Filter nonNestedDocsFilter = random().nextBoolean() ? SearchContext.current().filterCache().cache(NonNestedDocsFilter.INSTANCE) : null;
             Query query;
             if (random().nextBoolean()) {
                 // Usage in HasChildQueryParser

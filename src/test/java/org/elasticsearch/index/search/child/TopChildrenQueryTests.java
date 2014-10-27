@@ -23,8 +23,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -62,7 +60,9 @@ public class TopChildrenQueryTests extends ElasticsearchLuceneTestCase {
         ScoreType scoreType = ScoreType.values()[random().nextInt(ScoreType.values().length)];
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        Query query = new TopChildrenQuery(parentChildIndexFieldData, childQuery, "child", "parent", scoreType, 1, 1, SearchContext.current().cacheRecycler(), NonNestedDocsFilter.INSTANCE);
+        Query query = new TopChildrenQuery(
+                parentChildIndexFieldData, childQuery, "child", "parent", scoreType, 1, 1, SearchContext.current().cacheRecycler(), SearchContext.current().filterCache().cache(NonNestedDocsFilter.INSTANCE)
+        );
         QueryUtils.check(query);
     }
 

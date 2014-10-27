@@ -63,7 +63,6 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
         File folder = newFolder();
 
         ImmutableSettings.Builder builder = ImmutableSettings.builder()
-                .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("discovery.type", "zen")
                 .put("node.mode", "network")
@@ -75,6 +74,8 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("shield.audit.enabled", true)
                 .put("plugins.load_classpath_plugins", false);
+
+        setUser(builder);
 
         if (OsUtils.MAC) {
             builder.put("network.host", randomBoolean() ? "127.0.0.1" : "::1");
@@ -97,13 +98,24 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
 
     @Override
     protected Settings transportClientSettings() {
-        return ImmutableSettings.builder()
+        ImmutableSettings.Builder builder = ImmutableSettings.builder()
                 .put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()))
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettySecuredTransport.class.getName())
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                 .put("node.mode", "network")
-                .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient"))
-                .build();
+                .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient"));
+
+        setUser(builder);
+
+        return builder.build();
+    }
+
+    protected void setUser(ImmutableSettings.Builder settings) {
+        if (randomBoolean()) {
+            settings.put("request.headers.Authorization", basicAuthHeaderValue(getClientUsername(), getClientPassword()));
+        } else {
+            settings.put("shield.user", getClientUsername() + ":" + new String(getClientPassword().internalChars()));
+        }
     }
 
     protected String writeFile(File folder, String name, String content) {

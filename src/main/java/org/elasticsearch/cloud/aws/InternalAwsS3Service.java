@@ -64,11 +64,11 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     }
 
     @Override
-    public synchronized AmazonS3 client(String region, String account, String key) {
-        String endpoint;
-        if (region == null) {
+    public synchronized AmazonS3 client(String endpoint, String region, String account, String key) {
+        if (endpoint == null) {
             endpoint = getDefaultEndpoint();
-        } else {
+        }
+        if (region != null) {
             endpoint = getEndpoint(region);
             logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
         }

@@ -192,6 +192,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
 	Settings settings = internalCluster().getInstance(Settings.class);
 	Settings bucket = settings.getByPrefix("repositories.s3.");
 	AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(
+		bucket.get("endpoint", settings.get("repositories.s3.endpoint")),
 		bucket.get("region", settings.get("repositories.s3.region")),
 		bucket.get("access_key", settings.get("cloud.aws.access_key")),
 		bucket.get("secret_key", settings.get("cloud.aws.secret_key")));
@@ -430,6 +431,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
                 settings.getByPrefix("repositories.s3.remote-bucket.")
             };
         for (Settings bucket : buckets) {
+            String endpoint = bucket.get("endpoint", settings.get("repositories.s3.endpoint"));
             String region = bucket.get("region", settings.get("repositories.s3.region"));
             String accessKey = bucket.get("access_key", settings.get("cloud.aws.access_key"));
             String secretKey = bucket.get("secret_key", settings.get("cloud.aws.secret_key"));
@@ -438,7 +440,7 @@ abstract public class AbstractS3SnapshotRestoreTest extends AbstractAwsTest {
             // We check that settings has been set in elasticsearch.yml integration test file
             // as described in README
             assertThat("Your settings in elasticsearch.yml are incorrects. Check README file.", bucketName, notNullValue());
-            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(region, accessKey, secretKey);
+            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(endpoint, region, accessKey, secretKey);
             try {
                 ObjectListing prevListing = null;
                 //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html

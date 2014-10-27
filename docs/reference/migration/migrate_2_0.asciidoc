@@ -14,3 +14,8 @@ to change this behavior
 === Partial fields
 
 Partial fields were deprecated since 1.0.0beta1 in favor of <<search-request-source-filtering,source filtering>>.
+
+=== More Like This Field
+
+The More Like This Field query has been removed in favor of the <<query-dsl-mlt-query, More Like This Query>>
+restrained set to a specific `field`.

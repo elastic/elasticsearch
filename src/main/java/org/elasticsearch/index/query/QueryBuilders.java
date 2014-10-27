@@ -517,15 +517,6 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A more like this query that runs against a specific field.
-     *
-     * @param name The field name
-     */
-    public static MoreLikeThisFieldQueryBuilder moreLikeThisFieldQuery(String name) {
-        return new MoreLikeThisFieldQueryBuilder(name);
-    }
-
-    /**
      * Constructs a new scoring child query, with the child type and the query to run on the child documents. The
      * results of this query are the parent docs that those child docs matched.
      *

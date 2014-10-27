@@ -29,9 +29,13 @@ The `more_like_this_field` top level parameters include:
 |Parameter |Description
 |`like_text` |The text to find documents like it, *required*.
 
-|`minimum_should_match`| From the generated query, the number of terms that
+|`minimum_should_match`| coming[1.5.0] From the generated query, the number of terms that
 must match following the <<query-dsl-minimum-should-match,minimum should
 syntax>>. (Defaults to `"30%"`).
+
+|`percent_terms_to_match` | deprecated[1.5.0,Replaced by `minimum_should_match`]
+From the generated query, the percentage of terms that must match (float value
+between 0 and 1). Defaults to `0.3` (30 percent).
 
 |`min_term_freq` |The frequency below which terms will be ignored in the
 source doc. The default frequency is `2`.

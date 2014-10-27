@@ -31,9 +31,7 @@
                 (gateway|replica|snapshot|relocating)     \s+   # type
                 (init|index|start|translog|finalize|done) \s+   # stage
                 [-\w./]+    \s+                                 # source_host
-                (\S+\s?)+   \s+                                 # source_node
                 [-\w./]+    \s+                                 # target_host
-                (\S+\s?)+   \s+                                 # target_node
                 [-\w./]+    \s+                                 # repository
                 [-\w./]+    \s+                                 # snapshot
                 \d+         \s+                                 # files

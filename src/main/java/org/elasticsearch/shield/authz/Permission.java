@@ -46,9 +46,6 @@ public interface Permission {
 
     static class Global implements Permission {
 
-        final static Predicate<String> clusterActionMatcher = Privilege.Cluster.ALL.predicate();
-        final static Predicate<String> indicesActionMatcher = Privilege.Index.ALL.predicate();
-
         private final Cluster cluster;
         private final Indices indices;
 
@@ -70,10 +67,10 @@ public interface Permission {
         }
 
         public boolean check(User user, String action, TransportRequest request, MetaData metaData) {
-            if (clusterActionMatcher.apply(action)) {
+            if (Privilege.Cluster.ACTION_MATCHER.apply(action)) {
                 return cluster != null && cluster.check(user, action, request, metaData);
             }
-            if (indicesActionMatcher.apply(action)) {
+            if (Privilege.Index.ACTION_MATCHER.apply(action)) {
                 return indices != null && indices.check(user, action, request, metaData);
             }
             return false;

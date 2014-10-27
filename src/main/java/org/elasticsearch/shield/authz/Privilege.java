@@ -117,6 +117,8 @@ public abstract class Privilege<P extends Privilege<P>> {
             NONE, ALL, MANAGE, CREATE_INDEX, MONITOR, DATA_ACCESS, CRUD, READ, SEARCH, GET, INDEX, DELETE, WRITE, BENCHMARK
         };
 
+        public static final Predicate<String> ACTION_MATCHER = Privilege.Index.ALL.predicate();
+
         static Index[] values() {
             return values;
         }
@@ -180,7 +182,7 @@ public abstract class Privilege<P extends Privilege<P>> {
 
         private static Index resolve(String name) {
             name = name.toLowerCase(Locale.ROOT);
-            if (name.startsWith("indices:")) {
+            if (ACTION_MATCHER.apply(name)) {
                 return action(name);
             }
             for (Index index : values) {
@@ -190,7 +192,7 @@ public abstract class Privilege<P extends Privilege<P>> {
             }
             throw new ElasticsearchIllegalArgumentException("Unknown index privilege [" + name + "]. A privilege must either " +
                     "on of the predefined fixed indices privileges [" + Strings.arrayToCommaDelimitedString(values) +
-                    "] or a pattern over one of the available index actions (the pattern must begin with \"indices:\" prefix)");
+                    "] or a pattern over one of the available index actions");
         }
 
     }
@@ -200,6 +202,8 @@ public abstract class Privilege<P extends Privilege<P>> {
         public static final Cluster NONE    = new Cluster(Name.NONE,    Automata.makeEmpty());
         public static final Cluster ALL     = new Cluster(Name.ALL,     "cluster:*", "indices:admin/template/*");
         public static final Cluster MONITOR = new Cluster("monitor",    "cluster:monitor/*");
+
+        final static Predicate<String> ACTION_MATCHER = Privilege.Cluster.ALL.predicate();
 
         private static final Cluster[] values = new Cluster[] { NONE, ALL, MONITOR };
 
@@ -233,9 +237,7 @@ public abstract class Privilege<P extends Privilege<P>> {
 
         @Override
         protected Cluster create(Name name, Automaton automaton) {
-            if (name == Name.NONE) {
-                return NONE;
-            }
+
             return new Cluster(name, automaton);
         }
 
@@ -259,7 +261,7 @@ public abstract class Privilege<P extends Privilege<P>> {
 
         private static Cluster resolve(String name) {
             name = name.toLowerCase(Locale.ROOT);
-            if (name.startsWith("cluster:")) {
+            if (ACTION_MATCHER.apply(name)) {
                 return action(name);
             }
             for (Cluster cluster : values) {
@@ -269,7 +271,7 @@ public abstract class Privilege<P extends Privilege<P>> {
             }
             throw new ElasticsearchIllegalArgumentException("Unknown cluster privilege [" + name + "]. A privilege must either " +
                     "on of the predefined fixed cluster privileges [" + Strings.arrayToCommaDelimitedString(values) +
-                    "] or a pattern over one of the available cluster actions (the pattern must begin with \"cluster:\" prefix)");
+                    "] or a pattern over one of the available cluster actions");
         }
     }
 

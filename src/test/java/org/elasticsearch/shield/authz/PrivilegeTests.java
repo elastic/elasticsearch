@@ -73,6 +73,25 @@ public class PrivilegeTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testCluster_TemplateActions() throws Exception {
+
+        Privilege.Name name = new Privilege.Name("indices:admin/template/delete");
+        Privilege.Cluster cluster = Privilege.Cluster.get(name);
+        assertThat(cluster, notNullValue());
+        assertThat(cluster.predicate().apply("indices:admin/template/delete"), is(true));
+
+        name = new Privilege.Name("indices:admin/template/get");
+        cluster = Privilege.Cluster.get(name);
+        assertThat(cluster, notNullValue());
+        assertThat(cluster.predicate().apply("indices:admin/template/get"), is(true));
+
+        name = new Privilege.Name("indices:admin/template/put");
+        cluster = Privilege.Cluster.get(name);
+        assertThat(cluster, notNullValue());
+        assertThat(cluster.predicate().apply("indices:admin/template/put"), is(true));
+    }
+
+    @Test
     public void testCluster_InvalidNaem() throws Exception {
         thrown.expect(ElasticsearchIllegalArgumentException.class);
         Privilege.Name actionName = new Privilege.Name("foobar");

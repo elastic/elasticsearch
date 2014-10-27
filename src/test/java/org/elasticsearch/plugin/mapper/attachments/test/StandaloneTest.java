@@ -115,7 +115,7 @@ public class StandaloneTest extends CliTool {
 
             terminal.println("## Extracted text");
             terminal.println("--------------------- BEGIN -----------------------");
-            terminal.println(doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()));
+            terminal.println("%s", doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()));
             terminal.println("---------------------- END ------------------------");
             terminal.println("## Metadata");
             printMetadataContent(doc, AttachmentMapper.FieldNames.AUTHOR);

@@ -41,7 +41,10 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 
 /**
  * Stores numeric data into bit-packed arrays for better memory efficiency.
@@ -126,6 +129,13 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                         return withOrdinals(build, values, reader.maxDoc());
                     }
 
+                    @Override
+                    public Iterable<? extends Accountable> getChildResources() {
+                        List<Accountable> resources = new ArrayList<>();
+                        resources.add(Accountables.namedAccountable("ordinals", build));
+                        resources.add(Accountables.namedAccountable("values", values));
+                        return Collections.unmodifiableList(resources);
+                    }
                 };
             } else {
                 final FixedBitSet docsWithValues = builder.buildDocsWithValuesSet();
@@ -191,6 +201,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                             }
                         }
                         long ramBytesUsed = values.ramBytesUsed() + (docsWithValues == null ? 0 : docsWithValues.ramBytesUsed());
+                        // nocommit: how exactly is this class using 'docsWithValues' ?
                         data = new AtomicLongFieldData(ramBytesUsed) {
 
                             @Override
@@ -200,6 +211,16 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                                 } else {
                                     return sparseSingles(sValues, minValue, missingValue, reader.maxDoc());
                                 }
+                            }
+                            
+                            @Override
+                            public Iterable<? extends Accountable> getChildResources() {
+                                List<Accountable> resources = new ArrayList<>();
+                                resources.add(Accountables.namedAccountable("values", sValues));
+                                if (docsWithValues != null) {
+                                    resources.add(Accountables.namedAccountable("missing bitset", docsWithValues));
+                                }
+                                return Collections.unmodifiableList(resources);
                             }
 
                         };
@@ -218,6 +239,8 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                         }
                         ramBytesUsed = dpValues.ramBytesUsed();
                         final PackedLongValues pagedValues = dpValues.build();
+                        // nocommit: why doesnt ramBytesUsed include docsWithValues?
+                        // why isnt it computed from 'pagedValues' instead of 'dpValues' ?
                         data = new AtomicLongFieldData(ramBytesUsed) {
 
                             @Override
@@ -225,6 +248,16 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                                 return pagedSingles(pagedValues, docsWithValues);
                             }
 
+                            @Override
+                            public Iterable<? extends Accountable> getChildResources() {
+                                List<Accountable> resources = new ArrayList<>();
+                                resources.add(Accountables.namedAccountable("values", pagedValues));
+                                if (docsWithValues != null) {
+                                    resources.add(Accountables.namedAccountable("missing bitset", docsWithValues));
+                                }
+                                return Collections.unmodifiableList(resources);
+                            }
+                            
                         };
                         break;
                     case ORDINALS:
@@ -234,6 +267,14 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                             @Override
                             public SortedNumericDocValues getLongValues() {
                                 return withOrdinals(build, values, reader.maxDoc());
+                            }
+                            
+                            @Override
+                            public Iterable<? extends Accountable> getChildResources() {
+                                List<Accountable> resources = new ArrayList<>();
+                                resources.add(Accountables.namedAccountable("ordinals", build));
+                                resources.add(Accountables.namedAccountable("values", values));
+                                return Collections.unmodifiableList(resources);
                             }
 
                         };

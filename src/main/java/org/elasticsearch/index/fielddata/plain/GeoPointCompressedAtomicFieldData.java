@@ -19,15 +19,14 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-
-import org.apache.lucene.util.Accountables;
-
-import org.apache.lucene.util.Accountable;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PagedMutable;
@@ -72,9 +71,9 @@ public abstract class GeoPointCompressedAtomicFieldData extends AbstractAtomicGe
         public Iterable<? extends Accountable> getChildResources() {
             List<Accountable> resources = new ArrayList<>();
             // nocommit: https://issues.apache.org/jira/browse/LUCENE-6026
-            resources.add(Accountables.namedAccountable("latitude", lat));
-            resources.add(Accountables.namedAccountable("longitude", lon));
-            return resources;
+            resources.add(Accountables.namedAccountable("latitude", lat.ramBytesUsed()));
+            resources.add(Accountables.namedAccountable("longitude", lon.ramBytesUsed()));
+            return Collections.unmodifiableList(resources);
         }
 
         @Override
@@ -141,6 +140,18 @@ public abstract class GeoPointCompressedAtomicFieldData extends AbstractAtomicGe
         @Override
         public long ramBytesUsed() {
             return RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed() + (set == null ? 0 : set.ramBytesUsed());
+        }
+        
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            List<Accountable> resources = new ArrayList<>();
+            // nocommit: https://issues.apache.org/jira/browse/LUCENE-6026
+            resources.add(Accountables.namedAccountable("latitude", lat.ramBytesUsed()));
+            resources.add(Accountables.namedAccountable("longitude", lon.ramBytesUsed()));
+            if (set != null) {
+                resources.add(Accountables.namedAccountable("missing bitset", set));
+            }
+            return Collections.unmodifiableList(resources);
         }
 
         @Override

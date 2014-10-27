@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.*;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.Index;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData {
 
@@ -52,6 +54,11 @@ public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements 
                 } catch (IOException e) {
                     throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
                 }
+            }
+            
+            @Override
+            public Iterable<? extends Accountable> getChildResources() {
+                return Collections.emptyList();
             }
         };
 

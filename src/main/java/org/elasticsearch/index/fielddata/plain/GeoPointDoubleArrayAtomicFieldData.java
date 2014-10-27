@@ -18,9 +18,15 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -55,6 +61,14 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AbstractAtomicG
         @Override
         public long ramBytesUsed() {
             return RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed();
+        }
+        
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            List<Accountable> resources = new ArrayList<>();
+            resources.add(Accountables.namedAccountable("latitude", lat));
+            resources.add(Accountables.namedAccountable("longitude", lon));
+            return Collections.unmodifiableList(resources);
         }
 
         @Override
@@ -116,6 +130,17 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AbstractAtomicG
         @Override
         public long ramBytesUsed() {
             return RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed() + (set == null ? 0 : set.ramBytesUsed());
+        }
+        
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            List<Accountable> resources = new ArrayList<>();
+            resources.add(Accountables.namedAccountable("latitude", lat));
+            resources.add(Accountables.namedAccountable("longitude", lon));
+            if (set != null) {
+                resources.add(Accountables.namedAccountable("missing bitset", set));
+            }
+            return Collections.unmodifiableList(resources);
         }
 
         @Override

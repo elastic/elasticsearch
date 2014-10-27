@@ -21,7 +21,6 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
@@ -105,7 +104,8 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
         if (script == null) {
-            throw new ElasticsearchIllegalStateException("Script in script_heuristic has not been initialized yet!");
+            ESLoggerFactory.getLogger("script heuristic").warn("cannot compute score - script has not been initialized yet. If this warning appears within an integration test test you can ignore it. If it appeared while running es or within a bwc test then there is a problem.");
+            return 0;
         }
         subsetSizeHolder.value = subsetSize;
         supersetSizeHolder.value = supersetSize;

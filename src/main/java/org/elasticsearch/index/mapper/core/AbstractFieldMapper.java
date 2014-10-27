@@ -72,6 +72,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         public static final boolean DOC_VALUES = false;
 
         static {
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.setTokenized(true);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setStoreTermVectors(false);

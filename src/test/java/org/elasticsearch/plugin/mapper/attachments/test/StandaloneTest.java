@@ -106,7 +106,7 @@ public class StandaloneTest extends CliTool {
             }
 
             if (size >= 0) {
-                builder.field("_indexed_chars", 10);
+                builder.field("_indexed_chars", size);
             }
 
             BytesReference json = builder.endObject().endObject().bytes();

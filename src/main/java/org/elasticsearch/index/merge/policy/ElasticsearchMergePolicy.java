@@ -109,13 +109,31 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
             for (FieldInfo fi : fieldInfos) {
                 fieldNumber = Math.max(fieldNumber, fi.number + 1);
             }
-            newVersionInfo = new FieldInfo(VersionFieldMapper.NAME, false, fieldNumber, false, true, false,
-                    IndexOptions.DOCS_ONLY, DocValuesType.NUMERIC, DocValuesType.NUMERIC, -1, Collections.<String, String>emptyMap());
+            // TODO: lots of things can wrong here...
+            newVersionInfo = new FieldInfo(VersionFieldMapper.NAME,               // field name
+                                           fieldNumber,                           // field number
+                                           false,                                 // store term vectors
+                                           false,                                 // omit norms
+                                           false,                                 // store payloads
+                                           null,                                  // index options
+                                           DocValuesType.NUMERIC,                 // docvalues
+                                           -1,                                    // docvalues generation
+                                           Collections.<String, String>emptyMap() // attributes
+                                           );
         } else {
-            newVersionInfo = new FieldInfo(VersionFieldMapper.NAME, versionInfo.isIndexed(), versionInfo.number,
-                    versionInfo.hasVectors(), versionInfo.omitsNorms(), versionInfo.hasPayloads(),
-                    versionInfo.getIndexOptions(), versionInfo.getDocValuesType(), versionInfo.getNormType(), versionInfo.getDocValuesGen(), versionInfo.attributes());
+            // nocommit: don't clone the fieldinfo, this is way too scary to maintain.
+            newVersionInfo = new FieldInfo(VersionFieldMapper.NAME,               // field name
+                                           versionInfo.number,                    // field number
+                                           versionInfo.hasVectors(),              // store term vectors
+                                           versionInfo.omitsNorms(),              // omit norms
+                                           versionInfo.hasPayloads(),             // store payloads
+                                           versionInfo.getIndexOptions(),         // index options
+                                           versionInfo.getDocValuesType(),        // docvalues
+                                           versionInfo.getDocValuesGen(),         // docvalues generation
+                                           versionInfo.attributes()               // attributes
+                                           );
         }
+        newVersionInfo.checkConsistency(); // fail merge immediately if above code is wrong
         final ArrayList<FieldInfo> fieldInfoList = new ArrayList<>();
         for (FieldInfo info : fieldInfos) {
             if (info != versionInfo) {

@@ -54,7 +54,6 @@ import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -353,15 +352,15 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         }
 
         @Override
-        protected NumericIpTokenizer createNumericTokenizer(Reader reader, char[] buffer) throws IOException {
-            return new NumericIpTokenizer(reader, precisionStep, buffer);
+        protected NumericIpTokenizer createNumericTokenizer(char[] buffer) throws IOException {
+            return new NumericIpTokenizer(precisionStep, buffer);
         }
     }
 
     public static class NumericIpTokenizer extends NumericTokenizer {
 
-        public NumericIpTokenizer(Reader reader, int precisionStep, char[] buffer) throws IOException {
-            super(reader, new NumericTokenStream(precisionStep), buffer, null);
+        public NumericIpTokenizer(int precisionStep, char[] buffer) throws IOException {
+            super(new NumericTokenStream(precisionStep), buffer, null);
         }
 
         @Override

@@ -15,6 +15,8 @@ when connecting for better performance and try to get your favorite
 client not to do
 http://en.wikipedia.org/wiki/Chunked_transfer_encoding[HTTP chunking].
 
+IMPORTANT: HTTP pipelining is not supported and should be disabled in your HTTP client.
+
 [float]
 === Settings
 

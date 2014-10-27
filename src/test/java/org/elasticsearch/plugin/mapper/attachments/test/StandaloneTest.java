@@ -48,13 +48,13 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  * This class provides a simple main class which can be used to test what is extracted from a given binary file.
  * You can run it using
  *  -u file://URL/TO/YOUR/DOC
- *  -s set extracted size (default to mapper attachment size)
+ *  --size set extracted size (default to mapper attachment size)
  *  BASE64 encoded binary
  *
  * Example:
  *  StandaloneTest BASE64Text
  *  StandaloneTest -u /tmp/mydoc.pdf
- *  StandaloneTest -u /tmp/mydoc.pdf -s 1000000
+ *  StandaloneTest -u /tmp/mydoc.pdf --size 1000000
  */
 public class StandaloneTest extends CliTool {
 
@@ -71,7 +71,7 @@ public class StandaloneTest extends CliTool {
 
         private static final CliToolConfig.Cmd CMD = cmd(NAME, TikaTest.class)
                 .options(option("u", "url").required(false).hasArg(false))
-                .options(option("s", "size").required(false).hasArg(false))
+                .options(option("t", "size").required(false).hasArg(false))
                 .build();
 
         protected TikaTest(Terminal terminal, String url, Integer size, String base64text) throws IOException {
@@ -137,7 +137,7 @@ public class StandaloneTest extends CliTool {
         public static Command parse(Terminal terminal, CommandLine cli) throws IOException {
             String url = cli.getOptionValue("u");
             String base64text = null;
-            String sSize = cli.getOptionValue("s");
+            String sSize = cli.getOptionValue("size");
             Integer size = sSize != null ? Integer.parseInt(sSize) : -1;
             if (url == null && cli.getArgs().length == 0) {
                     return exitCmd(ExitStatus.USAGE, terminal, "url or BASE64 content should be provided (type -h for help)");

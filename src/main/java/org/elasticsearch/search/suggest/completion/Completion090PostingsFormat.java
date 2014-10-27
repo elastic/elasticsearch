@@ -26,11 +26,13 @@ import org.apache.lucene.index.FilterLeafReader.FilterTerms;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.IOContext.Context;
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.BloomFilter;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ToFiniteStrings;
 
@@ -118,7 +120,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
                  */
                 output.writeString(delegatePostingsFormat.getName());
                 output.writeString(writeProvider.getName());
-                this.suggestFieldsConsumer = writeProvider.consumer(output);
+                this.suggestFieldsConsumer = writeProvider.consumer(state, output);
                 success = true;
             } finally {
                 if (!success) {
@@ -128,35 +130,9 @@ public class Completion090PostingsFormat extends PostingsFormat {
         }
 
         @Override
-        public TermsConsumer addField(final FieldInfo field) throws IOException {
-            final TermsConsumer delegateConsumer = delegatesFieldsConsumer.addField(field);
-            final TermsConsumer suggestTermConsumer = suggestFieldsConsumer.addField(field);
-            final GroupedPostingsConsumer groupedPostingsConsumer = new GroupedPostingsConsumer(delegateConsumer, suggestTermConsumer);
-
-            return new TermsConsumer() {
-                @Override
-                public PostingsConsumer startTerm(BytesRef text) throws IOException {
-                    groupedPostingsConsumer.startTerm(text);
-                    return groupedPostingsConsumer;
-                }
-
-                @Override
-                public Comparator<BytesRef> getComparator() throws IOException {
-                    return delegateConsumer.getComparator();
-                }
-
-                @Override
-                public void finishTerm(BytesRef text, TermStats stats) throws IOException {
-                    suggestTermConsumer.finishTerm(text, stats);
-                    delegateConsumer.finishTerm(text, stats);
-                }
-
-                @Override
-                public void finish(long sumTotalTermFreq, long sumDocFreq, int docCount) throws IOException {
-                    suggestTermConsumer.finish(sumTotalTermFreq, sumDocFreq, docCount);
-                    delegateConsumer.finish(sumTotalTermFreq, sumDocFreq, docCount);
-                }
-            };
+        public void write(Fields fields) throws IOException {
+            delegatesFieldsConsumer.write(fields);
+            suggestFieldsConsumer.write(fields);
         }
 
         @Override
@@ -165,46 +141,9 @@ public class Completion090PostingsFormat extends PostingsFormat {
         }
     }
 
-    private class GroupedPostingsConsumer extends PostingsConsumer {
-
-        private TermsConsumer[] termsConsumers;
-        private PostingsConsumer[] postingsConsumers;
-
-        public GroupedPostingsConsumer(TermsConsumer... termsConsumersArgs) {
-            termsConsumers = termsConsumersArgs;
-            postingsConsumers = new PostingsConsumer[termsConsumersArgs.length];
-        }
-
-        @Override
-        public void startDoc(int docID, int freq) throws IOException {
-            for (PostingsConsumer postingsConsumer : postingsConsumers) {
-                postingsConsumer.startDoc(docID, freq);
-            }
-        }
-
-        @Override
-        public void addPosition(int position, BytesRef payload, int startOffset, int endOffset) throws IOException {
-            for (PostingsConsumer postingsConsumer : postingsConsumers) {
-                postingsConsumer.addPosition(position, payload, startOffset, endOffset);
-            }
-        }
-
-        @Override
-        public void finishDoc() throws IOException {
-            for (PostingsConsumer postingsConsumer : postingsConsumers) {
-                postingsConsumer.finishDoc();
-            }
-        }
-
-        public void startTerm(BytesRef text) throws IOException {
-            for (int i = 0; i < termsConsumers.length; i++) {
-                postingsConsumers[i] = termsConsumers[i].startTerm(text);
-            }
-        }
-    }
-
     private static class CompletionFieldsProducer extends FieldsProducer {
-
+        //nocommit make this class lazyload all the things in order to take advanage of the new merge instance API
+        // today we just load everything up-front
         private final FieldsProducer delegateProducer;
         private final LookupFactory lookupFactory;
         private final int version;
@@ -277,8 +216,19 @@ public class Completion090PostingsFormat extends PostingsFormat {
         }
 
         @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            //NOCOMMIT - implement this
+            return delegateProducer.getChildResources();
+        }
+
+        @Override
         public void checkIntegrity() throws IOException {
             delegateProducer.checkIntegrity();
+        }
+
+        @Override
+        public FieldsProducer getMergeInstance() throws IOException {
+            return delegateProducer.getMergeInstance();
         }
     }
 
@@ -303,7 +253,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
 
         public static final char UNIT_SEPARATOR = '\u001f';
 
-        public abstract FieldsConsumer consumer(IndexOutput output) throws IOException;
+        public abstract FieldsConsumer consumer(SegmentWriteState state, IndexOutput output) throws IOException;
 
         public abstract String getName();
 

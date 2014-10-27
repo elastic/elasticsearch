@@ -49,7 +49,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
@@ -296,7 +295,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         AnalyzingCompletionLookupProvider provider = new AnalyzingCompletionLookupProvider(true, false, true, true);
         RAMDirectory dir = new RAMDirectory();
         IndexOutput output = dir.createOutput("foo.txt", IOContext.DEFAULT);
-        FieldsConsumer consumer = provider.consumer(output);
+        FieldsConsumer consumer = provider.consumer(state, output);
         FieldInfo fieldInfo = new FieldInfo("foo", true, 1, false, true, true, IndexOptions.DOCS_AND_FREQS_AND_POSITIONS,
                 DocValuesType.SORTED, DocValuesType.BINARY, -1, new HashMap<String, String>());
         TermsConsumer addField = consumer.addField(fieldInfo);
@@ -315,7 +314,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
     // TODO ADD more unittests
     private void writeData(Directory dir, Completion090PostingsFormat.CompletionLookupProvider provider) throws IOException {
         IndexOutput output = dir.createOutput("foo.txt", IOContext.DEFAULT);
-        FieldsConsumer consumer = provider.consumer(output);
+        FieldsConsumer consumer = provider.consumer(state, output);
         FieldInfo fieldInfo = new FieldInfo("foo", true, 1, false, true, true, IndexOptions.DOCS_AND_FREQS_AND_POSITIONS,
                 DocValuesType.SORTED, DocValuesType.BINARY, -1, new HashMap<String, String>());
         TermsConsumer addField = consumer.addField(fieldInfo);

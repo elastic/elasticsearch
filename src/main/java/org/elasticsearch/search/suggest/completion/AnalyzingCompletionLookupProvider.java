@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
@@ -84,7 +85,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     }
 
     @Override
-    public FieldsConsumer consumer(final IndexOutput output) throws IOException {
+    public FieldsConsumer consumer(SegmentWriteState state, final IndexOutput output) throws IOException {
         CodecUtil.writeHeader(output, CODEC_NAME, CODEC_VERSION_LATEST);
         return new FieldsConsumer() {
             private Map<FieldInfo, Long> fieldOffsets = new HashMap<>();

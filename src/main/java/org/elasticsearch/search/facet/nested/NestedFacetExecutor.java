@@ -23,6 +23,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.docset.ContextDocIdSet;
@@ -62,7 +63,7 @@ public class NestedFacetExecutor extends FacetExecutor {
         if (!objectMapper.nested().isNested()) {
             throw new SearchParseException(context, "facet nested path [" + nestedPath + "] is not nested");
         }
-        parentFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
+        parentFilter = new FixedBitSetCachingWrapperFilter(context.filterCache().cache(NonNestedDocsFilter.INSTANCE));
         childFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
     }
 

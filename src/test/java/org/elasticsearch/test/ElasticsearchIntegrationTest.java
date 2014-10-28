@@ -19,6 +19,7 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+import com.carrotsearch.randomizedtesting.Randomness;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
@@ -251,65 +252,28 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     private static final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<>();
 
     private static ElasticsearchIntegrationTest INSTANCE = null; // see @SuiteScope
+    private static Long SUITE_SEED = null;
 
     @BeforeClass
     public static void beforeClass() throws Exception {
-        initializeGlobalCluster();
+        SUITE_SEED = randomLong();
         initializeSuiteScope();
     }
 
-    private static void initializeGlobalCluster() {
-        // Initialize lazily. No need for volatiles/ CASs since each JVM runs at most one test
-        // suite at any given moment.
-        if (GLOBAL_CLUSTER == null) {
-            String cluster = System.getProperty(TESTS_CLUSTER);
-            if (Strings.hasLength(cluster)) {
-                String[] stringAddresses = cluster.split(",");
-                TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
-                int i = 0;
-                for (String stringAddress : stringAddresses) {
-                    String[] split = stringAddress.split(":");
-                    if (split.length < 2) {
-                        throw new IllegalArgumentException("address [" + cluster + "] not valid");
-                    }
-                    try {
-                        transportAddresses[i++] = new InetSocketTransportAddress(split[0], Integer.valueOf(split[1]));
-                    } catch (NumberFormatException e) {
-                        throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
-                    }
-                }
-                GLOBAL_CLUSTER = new ExternalTestCluster(transportAddresses);
-            } else {
-                long masterSeed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());
-                int numClientNodes;
-                if (globalCompatibilityVersion().before(Version.V_1_2_0)) {
-                    numClientNodes = 0;
-                } else {
-                    numClientNodes = InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
-                }
-                GLOBAL_CLUSTER = new InternalTestCluster(masterSeed, InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES, InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES,
-                        clusterName("shared", Integer.toString(CHILD_JVM_ID), masterSeed), numClientNodes, InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES,
-                        CHILD_JVM_ID, GLOBAL_CLUSTER_NODE_PREFIX);
-            }
-        }
-    }
-
-    protected final void beforeInternal() throws IOException {
+    protected final void beforeInternal() throws Exception {
         assert Thread.getDefaultUncaughtExceptionHandler() instanceof ElasticsearchUncaughtExceptionHandler;
         try {
             final Scope currentClusterScope = getCurrentClusterScope();
             switch (currentClusterScope) {
                 case GLOBAL:
-                    clearClusters();
-                    assert GLOBAL_CLUSTER != null : "Scope.GLOBAL cluster must be initialied in a static context";
-                    currentCluster = GLOBAL_CLUSTER;
+                    currentCluster = buildAndPutCluster(currentClusterScope, SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString()));
                     break;
                 case SUITE:
-                    assert clusters.containsKey(this.getClass()) : "Scope.SUITE cluster must be initialized in a static context";
-                    currentCluster = buildAndPutCluster(currentClusterScope, false);
+                    assert SUITE_SEED != null : "Suite seed was not initialized";
+                    currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED.longValue());
                     break;
                 case TEST:
-                    currentCluster = buildAndPutCluster(currentClusterScope, true);
+                    currentCluster = buildAndPutCluster(currentClusterScope, randomLong());
                     break;
                 default:
                     fail("Unknown Scope: [" + currentClusterScope + "]");
@@ -578,28 +542,50 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return builder;
     }
 
-    public TestCluster buildAndPutCluster(Scope currentClusterScope, boolean createIfExists) throws IOException {
-        TestCluster testCluster = clusters.get(this.getClass());
-        if (createIfExists || testCluster == null) {
-            testCluster = buildTestCluster(currentClusterScope);
-        } else {
-            // if we carry that cluster over ie. it was already there we remove it and then call clearClusters
-            // and put it back afterwards such that all pending leftover clusters are closed and disposed...
-            clusters.remove(this.getClass());
+    private TestCluster buildWithPrivateContext(final Scope scope, final long seed) throws Exception {
+        return RandomizedContext.current().runWithPrivateRandomness(new Randomness(seed), new Callable<TestCluster>() {
+            @Override
+            public TestCluster call() throws Exception {
+                return buildTestCluster(scope, seed);
+            }
+        });
+    }
+
+    private TestCluster buildAndPutCluster(Scope currentClusterScope, long seed) throws Exception {
+        final Class<?> clazz = this.getClass();
+        TestCluster testCluster = clusters.remove(clazz); // remove this cluster first
+        clearClusters(); // all leftovers are gone by now... this is really just a double safety if we miss something somewhere
+        switch (currentClusterScope) {
+            case GLOBAL:
+                // never put the global cluster into the map otherwise it will be closed
+                if (GLOBAL_CLUSTER == null) {
+                    return GLOBAL_CLUSTER = buildWithPrivateContext(currentClusterScope, seed);
+                }
+                return GLOBAL_CLUSTER;
+            case SUITE:
+                if (testCluster == null) { // only build if it's not there yet
+                    testCluster = buildWithPrivateContext(currentClusterScope, seed);
+                }
+                break;
+            case TEST:
+                // close the previous one and create a new one
+                IOUtils.closeWhileHandlingException(testCluster);
+                testCluster = buildTestCluster(currentClusterScope, seed);
+                break;
         }
-        clearClusters();
-        clusters.put(this.getClass(), testCluster);
+        assert testCluster != GLOBAL_CLUSTER : "Global cluster must be handled via the GLOBAL_CLUSTER static member";
+        clusters.put(clazz, testCluster);
         return testCluster;
     }
 
-    private static void clearClusters() throws IOException {
+   private static void clearClusters() throws IOException {
         if (!clusters.isEmpty()) {
             IOUtils.close(clusters.values());
             clusters.clear();
         }
     }
 
-    protected final void afterInternal() throws IOException {
+    protected final void afterInternal() throws Exception {
         boolean success = false;
         try {
             logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
@@ -636,10 +622,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 clearClusters();
                 if (currentCluster == GLOBAL_CLUSTER) {
                     if (GLOBAL_CLUSTER != null) {
-                        GLOBAL_CLUSTER.close();
+                        IOUtils.closeWhileHandlingException(GLOBAL_CLUSTER);
                     }
                     GLOBAL_CLUSTER = null;
-                    initializeGlobalCluster(); // re-init that cluster
                 }
                 currentCluster = null;
             }
@@ -1606,36 +1591,20 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return ImmutableSettings.EMPTY;
     }
 
-    protected TestCluster buildTestCluster(Scope scope) throws IOException {
-        long currentClusterSeed = randomLong();
-
-        SettingsSource settingsSource = new SettingsSource() {
-            @Override
-            public Settings node(int nodeOrdinal) {
-                return ImmutableSettings.builder().put(InternalNode.HTTP_ENABLED, false).
-                        put(nodeSettings(nodeOrdinal)).build();
-            }
-
-            @Override
-            public Settings transportClient() {
-                return transportClientSettings();
-            }
-        };
-
-        int numDataNodes = getNumDataNodes();
-        int minNumDataNodes, maxNumDataNodes;
-        if (numDataNodes >= 0) {
-            minNumDataNodes = maxNumDataNodes = numDataNodes;
-        } else {
-            minNumDataNodes = getMinNumDataNodes();
-            maxNumDataNodes = getMaxNumDataNodes();
-        }
-
-        int numClientNodes = getNumClientNodes();
-        boolean enableRandomBenchNodes = enableRandomBenchNodes();
-
-        String nodePrefix;
+    protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        int numClientNodes = InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
+        boolean enableRandomBenchNodes = InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES;
+        int minNumDataNodes = InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES;
+        int maxNumDataNodes = InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES;
+        SettingsSource settingsSource = InternalTestCluster.DEFAULT_SETTINGS_SOURCE;
+        final String nodePrefix;
         switch (scope) {
+            case GLOBAL:
+                if (globalCompatibilityVersion().before(Version.V_1_2_0)) {
+                    numClientNodes = 0;
+                }
+                nodePrefix = GLOBAL_CLUSTER_NODE_PREFIX;
+                break;
             case TEST:
                 nodePrefix = TEST_CLUSTER_NODE_PREFIX;
                 break;
@@ -1645,8 +1614,52 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             default:
                 throw new ElasticsearchException("Scope not supported: " + scope);
         }
-        return new InternalTestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes,
-                clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), currentClusterSeed), settingsSource, numClientNodes,
+        if (scope == Scope.GLOBAL) {
+            String cluster = System.getProperty(TESTS_CLUSTER);
+            if (Strings.hasLength(cluster)) {
+                String[] stringAddresses = cluster.split(",");
+                TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
+                int i = 0;
+                for (String stringAddress : stringAddresses) {
+                    String[] split = stringAddress.split(":");
+                    if (split.length < 2) {
+                        throw new IllegalArgumentException("address [" + cluster + "] not valid");
+                    }
+                    try {
+                        transportAddresses[i++] = new InetSocketTransportAddress(split[0], Integer.valueOf(split[1]));
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
+                    }
+                }
+                return new ExternalTestCluster(transportAddresses);
+            }
+        } else {
+            settingsSource = new SettingsSource() {
+                @Override
+                public Settings node(int nodeOrdinal) {
+                    return ImmutableSettings.builder().put(InternalNode.HTTP_ENABLED, false).
+                            put(nodeSettings(nodeOrdinal)).build();
+                }
+
+                @Override
+                public Settings transportClient() {
+                    return transportClientSettings();
+                }
+            };
+
+            int numDataNodes = getNumDataNodes();
+            if (numDataNodes >= 0) {
+                minNumDataNodes = maxNumDataNodes = numDataNodes;
+            } else {
+                minNumDataNodes = getMinNumDataNodes();
+                maxNumDataNodes = getMaxNumDataNodes();
+            }
+
+            numClientNodes = getNumClientNodes();
+            enableRandomBenchNodes = enableRandomBenchNodes();
+        }
+        return new InternalTestCluster(seed, minNumDataNodes, maxNumDataNodes,
+                clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, numClientNodes,
                 enableRandomBenchNodes, CHILD_JVM_ID, nodePrefix);
     }
 
@@ -1760,7 +1773,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
 
     @Before
-    public final void before() throws IOException {
+    public final void before() throws Exception {
         if (runTestScopeLifecycle()) {
             beforeInternal();
         }
@@ -1768,14 +1781,14 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
 
     @After
-    public final void after() throws IOException {
+    public final void after() throws Exception {
         if (runTestScopeLifecycle()) {
             afterInternal();
         }
     }
 
     @AfterClass
-    public static void afterClass() throws IOException {
+    public static void afterClass() throws Exception {
         if (!runTestScopeLifecycle()) {
             try {
                 INSTANCE.afterInternal();
@@ -1785,7 +1798,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         } else {
             clearClusters();
         }
-
+        SUITE_SEED = null;
     }
 
     private static void initializeSuiteScope() throws Exception {
@@ -1797,12 +1810,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
          * must be executed in a static context.
          */
         assert INSTANCE == null;
-        if (getCurrentClusterScope(targetClass) == Scope.SUITE) {
-            final ElasticsearchIntegrationTest instance = (ElasticsearchIntegrationTest) targetClass.newInstance();
-            // if we have suite scoped cluster here we need to initialize the
-            // cluster before the first test starts for reproducibility
-            instance.buildAndPutCluster(Scope.SUITE, false);
-        }
         if (isSuiteScopedTest(targetClass)) {
             // note we need to do this this way to make sure this is reproducible
             INSTANCE = (ElasticsearchIntegrationTest) targetClass.newInstance();

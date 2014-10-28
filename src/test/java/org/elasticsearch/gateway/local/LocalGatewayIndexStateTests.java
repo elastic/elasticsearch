@@ -277,6 +277,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
     public void testDanglingIndicesAutoImportYes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("gateway.type", "local").put("gateway.local.auto_import_dangled", "yes")
+                .put("gateway.local.dangling_timeout", randomIntBetween(0, 120))
                 .build();
         logger.info("--> starting two nodes");
         final String node_1 = internalCluster().startNode(settings);

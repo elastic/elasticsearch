@@ -297,12 +297,12 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         translogIdGenerator.set(Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY)));
                     } else {
                         translogIdGenerator.set(System.currentTimeMillis());
-                        indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())).map());
+                        indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())));
                         indexWriter.commit();
                     }
                 } else {
                     translogIdGenerator.set(System.currentTimeMillis());
-                    indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())).map());
+                    indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())));
                     indexWriter.commit();
                 }
                 translog.newTranslog(translogIdGenerator.get());
@@ -840,7 +840,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     try {
                         { // commit and close the current writer - we write the current tanslog ID just in case
                             final long translogId = translog.currentId();
-                            indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                             indexWriter.commit();
                             indexWriter.rollback();
                         }
@@ -854,7 +854,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         if (flushNeeded || flush.force()) {
                             flushNeeded = false;
                             long translogId = translogIdGenerator.incrementAndGet();
-                            indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                             indexWriter.commit();
                             translog.newTranslog(translogId);
                         }
@@ -887,7 +887,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         try {
                             long translogId = translogIdGenerator.incrementAndGet();
                             translog.newTransientTranslog(translogId);
-                            indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                             indexWriter.commit();
                             // we need to refresh in order to clear older version values
                             refresh(new Refresh("version_table_flush").force(true));
@@ -920,7 +920,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     // other flushes use flushLock
                     try {
                         long translogId = translog.currentId();
-                        indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                        indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                         indexWriter.commit();
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);

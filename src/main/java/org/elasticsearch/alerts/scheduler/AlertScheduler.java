@@ -114,8 +114,7 @@ public class AlertScheduler extends AbstractLifecycleComponent implements Cluste
 
     public boolean deleteAlertFromSchedule(String alertName) {
         try {
-            scheduler.deleteJob(new JobKey(alertName));
-            return true;
+            return scheduler.deleteJob(new JobKey(alertName));
         } catch (SchedulerException se){
             throw new ElasticsearchException("Failed to remove [" + alertName + "] from the scheduler", se);
         }

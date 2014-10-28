@@ -15,7 +15,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-public class Alert implements ToXContent{
+public class Alert implements ToXContent {
+
     private final String alertName;
     private String queryName;
     private AlertTrigger trigger;
@@ -162,18 +163,18 @@ public class Alert implements ToXContent{
 
         //Note we deliberately don't serialize the version here
         builder.startObject();
-        builder.field(AlertManager.QUERY_FIELD.getPreferredName(), queryName);
-        builder.field(AlertManager.SCHEDULE_FIELD.getPreferredName(), schedule);
-        builder.field(AlertManager.TIMEPERIOD_FIELD.getPreferredName(), timePeriod);
-        builder.field(AlertManager.LASTRAN_FIELD.getPreferredName(), lastRan);
-        builder.field(AlertManager.CURRENTLY_RUNNING.getPreferredName(), running);
-        builder.field(AlertManager.ENABLED.getPreferredName(), enabled);
-        builder.field(AlertManager.SIMPLE_QUERY.getPreferredName(), simpleQuery);
-        builder.field(AlertManager.LAST_ACTION_FIRE.getPreferredName(), lastActionFire);
+        builder.field(AlertsStore.QUERY_FIELD.getPreferredName(), queryName);
+        builder.field(AlertsStore.SCHEDULE_FIELD.getPreferredName(), schedule);
+        builder.field(AlertsStore.TIMEPERIOD_FIELD.getPreferredName(), timePeriod);
+        builder.field(AlertsStore.LASTRAN_FIELD.getPreferredName(), lastRan);
+        builder.field(AlertsStore.CURRENTLY_RUNNING.getPreferredName(), running);
+        builder.field(AlertsStore.ENABLED.getPreferredName(), enabled);
+        builder.field(AlertsStore.SIMPLE_QUERY.getPreferredName(), simpleQuery);
+        builder.field(AlertsStore.LAST_ACTION_FIRE.getPreferredName(), lastActionFire);
 
-        builder.field(AlertManager.TRIGGER_FIELD.getPreferredName());
+        builder.field(AlertsStore.TRIGGER_FIELD.getPreferredName());
         trigger.toXContent(builder, params);
-        builder.field(AlertManager.ACTION_FIELD.getPreferredName());
+        builder.field(AlertsStore.ACTION_FIELD.getPreferredName());
 
         builder.startObject();
         for (AlertAction action : actions){
@@ -183,7 +184,7 @@ public class Alert implements ToXContent{
         builder.endObject();
 
         if (indices != null && !indices.isEmpty()) {
-            builder.field(AlertManager.INDICES.getPreferredName());
+            builder.field(AlertsStore.INDICES.getPreferredName());
             builder.startArray();
             for (String index : indices){
                 builder.value(index);

@@ -15,6 +15,7 @@ public class AlertingModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        bind(AlertsStore.class).asEagerSingleton();
         bind(AlertManager.class).asEagerSingleton();
         bind(TriggerManager.class).asEagerSingleton();
         bind(AlertScheduler.class).asEagerSingleton();

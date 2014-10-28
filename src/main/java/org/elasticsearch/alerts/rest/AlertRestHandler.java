@@ -5,21 +5,22 @@
  */
 package org.elasticsearch.alerts.rest;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.*;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.rest.RestStatus.*;
 import static org.elasticsearch.rest.RestRequest.Method.*;
+import static org.elasticsearch.rest.RestStatus.*;
 
 public class AlertRestHandler implements RestHandler {
 
@@ -60,7 +61,7 @@ public class AlertRestHandler implements RestHandler {
     private boolean dispatchRequest(RestRequest request, RestChannel restChannel) throws IOException, InterruptedException, ExecutionException {
         //@TODO : change these direct calls to actions/request/response/listener once we create the java client API
         if (request.path().contains("/_refresh")) {
-            alertManager.refreshAlerts();
+            alertManager.clearAndReload();
             XContentBuilder builder = getListOfAlerts();
             restChannel.sendResponse(new BytesRestResponse(OK,builder));
             return true;
@@ -71,42 +72,22 @@ public class AlertRestHandler implements RestHandler {
         } else if (request.path().contains("/_enable")) {
             logger.warn("Enabling [{}]", request.param("name"));
             String alertName = request.param("name");
-            boolean enabled = alertManager.enableAlert(alertName);
+            boolean enabled = true;//alertManager.enableAlert(alertName);
             XContentBuilder responseBuilder = buildEnabledResponse(alertName, enabled);
             restChannel.sendResponse(new BytesRestResponse(OK,responseBuilder));
             return true;
         } else if (request.path().contains("/_disable")) {
             logger.warn("Disabling [{}]", request.param("name"));
             String alertName = request.param("name");
-            boolean enabled = alertManager.disableAlert(alertName);
+            boolean enabled = true;//alertManager.disableAlert(alertName);
             XContentBuilder responseBuilder = buildEnabledResponse(alertName, enabled);
             restChannel.sendResponse(new BytesRestResponse(OK,responseBuilder));
             return true;
         } else if (request.method() == POST && request.path().contains("/_create")) {
-            //TODO : this should all be moved to an action
-            Alert alert;
-            try {
-                alert = alertManager.parseAlert(request.param("name"), XContentHelper.convertToMap(request.content(), request.contentUnsafe()).v2());
-            } catch (Exception e) {
-                logger.error("Failed to parse alert", e);
-                throw e;
-            }
-            try {
-                boolean added = alertManager.addAlert(alert.alertName(), alert, true);
-                if (added) {
-                    XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-                    alert.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    restChannel.sendResponse(new BytesRestResponse(OK, builder));
-                } else {
-                    restChannel.sendResponse(new BytesRestResponse(BAD_REQUEST));
-                }
-            } catch (ElasticsearchIllegalArgumentException eia) {
-                XContentBuilder failed = XContentFactory.jsonBuilder().prettyPrint();
-                failed.startObject();
-                failed.field("ERROR", eia.getMessage());
-                failed.endObject();
-                restChannel.sendResponse(new BytesRestResponse(BAD_REQUEST,failed));
-            }
+            Alert alert = alertManager.addAlert(request.param("name"), request.content());
+            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            alert.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            restChannel.sendResponse(new BytesRestResponse(OK, builder));
             return true;
         } else if (request.method() == DELETE) {
             String alertName = request.param("name");
@@ -133,12 +114,12 @@ public class AlertRestHandler implements RestHandler {
     }
 
     private XContentBuilder getListOfAlerts() throws IOException {
-        Map<String, Alert> alertMap = alertManager.getSafeAlertMap();
+        List<Alert> alerts = alertManager.getAllAlerts();
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         builder.startObject();
-        for (Map.Entry<String, Alert> alertEntry : alertMap.entrySet()) {
-            builder.field(alertEntry.getKey());
-            alertEntry.getValue().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        for (Alert alert : alerts) {
+            builder.field(alert.alertName());
+            alert.toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
         builder.endObject();
         return builder;

@@ -95,8 +95,8 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
     private EnabledAttributeMapper enabledState;
 
-    public SizeFieldMapper() {
-        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null, null, ImmutableSettings.EMPTY);
+    public SizeFieldMapper(Settings indexSettings) {
+        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null, null, indexSettings);
     }
 
     public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, PostingsFormatProvider postingsProvider,
@@ -161,10 +161,10 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
             return builder;
         }
         builder.startObject(contentType());
-        if (includeDefaults || enabledState.enabled != Defaults.ENABLED_STATE.enabled) {
+        if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (includeDefaults || fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored() && enabledState.enabled) {
+        if (includeDefaults || fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored()) {
             builder.field("store", fieldType().stored());
         }
         builder.endObject();

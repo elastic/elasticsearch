@@ -19,9 +19,11 @@
 
 package org.elasticsearch.common.geo;
 
+import com.spatial4j.core.shape.Circle;
 import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
+import com.spatial4j.core.shape.impl.PointImpl;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.Polygon;
@@ -60,6 +62,34 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
                 .point(45, -30)
                 .point(-45, -30)
                 .point(-45, 30).toPolygon();
+
+        LineString exterior = polygon.getExteriorRing();
+        assertEquals(exterior.getCoordinateN(0), new Coordinate(-45, 30));
+        assertEquals(exterior.getCoordinateN(1), new Coordinate(45, 30));
+        assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
+        assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
+    }
+
+    @Test
+    public void testNewPolygon_coordinate() {
+        Polygon polygon = ShapeBuilder.newPolygon()
+                .point(new Coordinate(-45, 30))
+                .point(new Coordinate(45, 30))
+                .point(new Coordinate(45, -30))
+                .point(new Coordinate(-45, -30))
+                .point(new Coordinate(-45, 30)).toPolygon();
+
+        LineString exterior = polygon.getExteriorRing();
+        assertEquals(exterior.getCoordinateN(0), new Coordinate(-45, 30));
+        assertEquals(exterior.getCoordinateN(1), new Coordinate(45, 30));
+        assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
+        assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
+    }
+
+    @Test
+    public void testNewPolygon_coordinates() {
+        Polygon polygon = ShapeBuilder.newPolygon()
+                .points(new Coordinate(-45, 30), new Coordinate(45, 30), new Coordinate(45, -30), new Coordinate(-45, -30), new Coordinate(-45, 30)).toPolygon();
 
         LineString exterior = polygon.getExteriorRing();
         assertEquals(exterior.getCoordinateN(0), new Coordinate(-45, 30));
@@ -161,11 +191,28 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testGeoCircle() {
-        ShapeBuilder.newCircleBuilder().center(0, 0).radius("100m").build();
-        ShapeBuilder.newCircleBuilder().center(+180, 0).radius("100m").build();
-        ShapeBuilder.newCircleBuilder().center(-180, 0).radius("100m").build();
-        ShapeBuilder.newCircleBuilder().center(0, 90).radius("100m").build();
-        ShapeBuilder.newCircleBuilder().center(0, -90).radius("100m").build();
+        double earthCircumference = 40075016.69;
+        Circle circle = ShapeBuilder.newCircleBuilder().center(0, 0).radius("100m").build();
+        assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
+        assertEquals((Point) new PointImpl(0, 0, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
+        circle = ShapeBuilder.newCircleBuilder().center(+180, 0).radius("100m").build();
+        assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
+        assertEquals((Point) new PointImpl(180, 0, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
+        circle = ShapeBuilder.newCircleBuilder().center(-180, 0).radius("100m").build();
+        assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
+        assertEquals((Point) new PointImpl(-180, 0, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
+        circle = ShapeBuilder.newCircleBuilder().center(0, 90).radius("100m").build();
+        assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
+        assertEquals((Point) new PointImpl(0, 90, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
+        circle = ShapeBuilder.newCircleBuilder().center(0, -90).radius("100m").build();
+        assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
+        assertEquals((Point) new PointImpl(0, -90, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
+        double randomLat = (randomDouble() * 180) - 90;
+        double randomLon = (randomDouble() * 360) - 180;
+        double randomRadius = randomIntBetween(1, (int) earthCircumference / 4);
+        circle = ShapeBuilder.newCircleBuilder().center(randomLon, randomLat).radius(randomRadius + "m").build();
+        assertEquals((360 * randomRadius) / earthCircumference, circle.getRadius(), 0.00000001);
+        assertEquals((Point) new PointImpl(randomLon, randomLat, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
     }
     
     @Test
@@ -303,6 +350,68 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
             .point(-84.9994931,37.1318061)
             .point(-84.9996815,37.1317979)
             .point(-85.0000002,37.1317672);
+
+        Shape shape = builder.close().build();
+
+         assertPolygon(shape);
+     }
+
+    @Test
+    public void testShapeWithHoleAtEdgeEndPoints() {
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(-4, 2)
+                .point(4, 2)
+                .point(6, 0)
+                .point(4, -2)
+                .point(-4, -2)
+                .point(-6, 0)
+                .point(-4, 2);
+
+        builder.hole()
+            .point(4, 1)
+            .point(4, -1)
+            .point(-4, -1)
+            .point(-4, 1)
+            .point(4, 1);
+
+        Shape shape = builder.close().build();
+
+         assertPolygon(shape);
+     }
+
+    @Test
+    public void testShapeWithPointOnDateline() {
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(180, 0)
+                .point(176, 4)
+                .point(176, -4)
+                .point(180, 0);
+
+        Shape shape = builder.close().build();
+
+         assertPolygon(shape);
+     }
+
+    @Test
+    public void testShapeWithEdgeAlongDateline() {
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(180, 0)
+                .point(176, 4)
+                .point(180, -4)
+                .point(180, 0);
+
+        Shape shape = builder.close().build();
+
+         assertPolygon(shape);
+     }
+
+    @Test
+    public void testShapeWithEdgeAcrossDateline() {
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(180, 0)
+                .point(176, 4)
+                .point(-176, 4)
+                .point(180, 0);
 
         Shape shape = builder.close().build();
 

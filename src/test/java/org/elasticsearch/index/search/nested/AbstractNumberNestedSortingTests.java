@@ -210,7 +210,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, false));
         Filter parentFilter = new TermFilter(new Term("__type", "parent"));
         Filter childFilter = new NotFilter(parentFilter);
-        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, null, new Nested(parentFilter, childFilter));
+        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, null, createNested(parentFilter, childFilter));
         ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new FixedBitSetCachingWrapperFilter(parentFilter), ScoreMode.None);
 
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
@@ -244,7 +244,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(9));
 
         childFilter = new TermFilter(new Term("filter_1", "T"));
-        nestedComparatorSource = createFieldComparator("field2", sortMode, null, new Nested(parentFilter, childFilter));
+        nestedComparatorSource = createFieldComparator("field2", sortMode, null, createNested(parentFilter, childFilter));
         query = new ToParentBlockJoinQuery(
                 new XFilteredQuery(new MatchAllDocsQuery(), childFilter),
                 new FixedBitSetCachingWrapperFilter(parentFilter),
@@ -280,7 +280,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         assertThat(topDocs.scoreDocs[4].doc, equalTo(3));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(9));
 
-        nestedComparatorSource = createFieldComparator("field2", sortMode, 127, new Nested(parentFilter, childFilter));
+        nestedComparatorSource = createFieldComparator("field2", sortMode, 127, createNested(parentFilter, childFilter));
         sort = new Sort(new SortField("field2", nestedComparatorSource, true));
         topDocs = searcher.search(new TermQuery(new Term("__type", "parent")), 5, sort);
         assertThat(topDocs.totalHits, equalTo(8));
@@ -296,7 +296,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         assertThat(topDocs.scoreDocs[4].doc, equalTo(7));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(8));
 
-        nestedComparatorSource = createFieldComparator("field2", sortMode, -127, new Nested(parentFilter, childFilter));
+        nestedComparatorSource = createFieldComparator("field2", sortMode, -127, createNested(parentFilter, childFilter));
         sort = new Sort(new SortField("field2", nestedComparatorSource));
         topDocs = searcher.search(new TermQuery(new Term("__type", "parent")), 5, sort);
         assertThat(topDocs.totalHits, equalTo(8));
@@ -321,7 +321,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
     protected void assertAvgScoreMode(Filter parentFilter, IndexSearcher searcher) throws IOException {
         MultiValueMode sortMode = MultiValueMode.AVG;
         Filter childFilter = new NotFilter(parentFilter);
-        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127, new Nested(parentFilter, childFilter));
+        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127, createNested(parentFilter, childFilter));
         Query query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new FixedBitSetCachingWrapperFilter(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopDocs topDocs = searcher.search(query, 5, sort);

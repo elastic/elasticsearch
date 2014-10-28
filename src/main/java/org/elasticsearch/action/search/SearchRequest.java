@@ -51,7 +51,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * {@link org.elasticsearch.client.Requests#searchRequest(String...)}.
  * <p/>
  * <p>Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
- * is required. The search source is the different search options, including facets and such.
+ * is required. The search source is the different search options, including aggregations and such.
  * <p/>
  * <p>There is an option to specify an addition search source using the {@link #extraSource(org.elasticsearch.search.builder.SearchSourceBuilder)}.
  *
@@ -59,7 +59,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest {
+public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest.Replaceable {
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -81,6 +81,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     private BytesReference extraSource;
     private boolean extraSourceUnsafe;
+    private Boolean queryCache;
 
     private Scroll scroll;
 
@@ -91,6 +92,39 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     public SearchRequest() {
+    }
+
+    /**
+     * Copy constructor that creates a new search request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    public SearchRequest(SearchRequest searchRequest, ActionRequest originalRequest) {
+        super(originalRequest);
+        this.searchType = searchRequest.searchType;
+        this.indices = searchRequest.indices;
+        this.routing = searchRequest.routing;
+        this.preference = searchRequest.preference;
+        this.templateSource = searchRequest.templateSource;
+        this.templateSourceUnsafe = searchRequest.templateSourceUnsafe;
+        this.templateName = searchRequest.templateName;
+        this.templateType = searchRequest.templateType;
+        this.templateParams = searchRequest.templateParams;
+        this.source = searchRequest.source;
+        this.sourceUnsafe = searchRequest.sourceUnsafe;
+        this.extraSource = searchRequest.extraSource;
+        this.extraSourceUnsafe = searchRequest.extraSourceUnsafe;
+        this.queryCache = searchRequest.queryCache;
+        this.scroll = searchRequest.scroll;
+        this.types = searchRequest.types;
+        this.indicesOptions = searchRequest.indicesOptions;
+    }
+
+    /**
+     * Constructs a new search request starting from the provided request, meaning that it will
+     * inherit its headers and context
+     */
+    public SearchRequest(ActionRequest request) {
+        super(request);
     }
 
     /**
@@ -139,6 +173,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * Sets the indices the search will be executed on.
      */
+    @Override
     public SearchRequest indices(String... indices) {
         if (indices == null) {
             throw new ElasticsearchIllegalArgumentException("indices must not be null");
@@ -336,7 +371,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             builder.map(extraSource);
             return extraSource(builder);
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + extraSource + "]", e);
         }
     }
 
@@ -493,6 +528,20 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
     }
 
+    /**
+     * Sets if this request should use the query cache or not, assuming that it can (for
+     * example, if "now" is used, it will never be cached). By default (not set, or null,
+     * will default to the index level setting if query cache is enabled or not).
+     */
+    public SearchRequest queryCache(Boolean queryCache) {
+        this.queryCache = queryCache;
+        return this;
+    }
+
+    public Boolean queryCache() {
+        return this.queryCache;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -532,6 +581,10 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             if (in.readBoolean()) {
                 templateParams = (Map<String, String>) in.readGenericValue();
             }
+        }
+
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            queryCache = in.readOptionalBoolean();
         }
     }
 
@@ -573,6 +626,10 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             if (existTemplateParams) {
                 out.writeGenericValue(templateParams);
             }
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            out.writeOptionalBoolean(queryCache);
         }
     }
 }

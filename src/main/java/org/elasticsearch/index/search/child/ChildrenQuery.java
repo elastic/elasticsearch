@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.search.internal.SearchContext;
@@ -58,18 +59,18 @@ public class ChildrenQuery extends Query {
     protected final ParentChildIndexFieldData ifd;
     protected final String parentType;
     protected final String childType;
-    protected final Filter parentFilter;
+    protected final FixedBitSetFilter parentFilter;
     protected final ScoreType scoreType;
     protected Query originalChildQuery;
     protected final int minChildren;
     protected final int maxChildren;
     protected final int shortCircuitParentDocSet;
-    protected final Filter nonNestedDocsFilter;
+    protected final FixedBitSetFilter nonNestedDocsFilter;
 
     protected Query rewrittenChildQuery;
     protected IndexReader rewriteIndexReader;
 
-    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
+    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, FixedBitSetFilter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, FixedBitSetFilter nonNestedDocsFilter) {
         this.ifd = ifd;
         this.parentType = parentType;
         this.childType = childType;
@@ -175,6 +176,9 @@ public class ChildrenQuery extends Query {
         try {
             if (minChildren == 0 && maxChildren == 0 && scoreType != ScoreType.NONE) {
                 switch (scoreType) {
+                case MIN:
+                    collector = new MinCollector(globalIfd, sc, parentType);
+                    break;
                 case MAX:
                     collector = new MaxCollector(globalIfd, sc, parentType);
                     break;
@@ -185,6 +189,9 @@ public class ChildrenQuery extends Query {
             }
             if (collector == null) {
                 switch (scoreType) {
+                case MIN:
+                    collector = new MinCountCollector(globalIfd, sc, parentType);
+                    break;
                 case MAX:
                     collector = new MaxCountCollector(globalIfd, sc, parentType);
                     break;
@@ -467,6 +474,21 @@ public class ChildrenQuery extends Query {
         }
     }
 
+    private final static class MinCollector extends ParentScoreCollector {
+
+        private MinCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
+            super(globalIfd, searchContext, parentType);
+        }
+
+        @Override
+        protected void existingParent(long parentIdx) throws IOException {
+            float currentScore = scorer.score();
+            if (currentScore < scores.get(parentIdx)) {
+                scores.set(parentIdx, currentScore);
+            }
+        }
+    }
+
     private final static class MaxCountCollector extends ParentScoreCountCollector {
 
         private MaxCountCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
@@ -477,6 +499,22 @@ public class ChildrenQuery extends Query {
         protected void existingParent(long parentIdx) throws IOException {
             float currentScore = scorer.score();
             if (currentScore > scores.get(parentIdx)) {
+                scores.set(parentIdx, currentScore);
+            }
+            occurrences.increment(parentIdx, 1);
+        }
+    }
+
+    private final static class MinCountCollector extends ParentScoreCountCollector {
+
+        private MinCountCollector(IndexParentChildFieldData globalIfd, SearchContext searchContext, String parentType) {
+            super(globalIfd, searchContext, parentType);
+        }
+
+        @Override
+        protected void existingParent(long parentIdx) throws IOException {
+            float currentScore = scorer.score();
+            if (currentScore < scores.get(parentIdx)) {
                 scores.set(parentIdx, currentScore);
             }
             occurrences.increment(parentIdx, 1);

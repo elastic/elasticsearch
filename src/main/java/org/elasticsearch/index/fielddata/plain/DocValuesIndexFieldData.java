@@ -108,7 +108,7 @@ public abstract class DocValuesIndexFieldData {
                 assert !numericType.isFloatingPoint();
                 return new NumericDVIndexFieldData(index, fieldNames, mapper.fieldDataType());
             } else if (numericType != null) {
-                if (Version.indexCreated(indexSettings).onOrAfter(Version.V_1_4_0)) {
+                if (Version.indexCreated(indexSettings).onOrAfter(Version.V_1_4_0_Beta1)) {
                     return new SortedNumericDVIndexFieldData(index, fieldNames, numericType, mapper.fieldDataType());
                 } else {
                     // prior to ES 1.4: multi-valued numerics were boxed inside a byte[] as BINARY

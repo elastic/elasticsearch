@@ -117,9 +117,9 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             fieldName = parser.currentName();
                         } else if (token.isValue()) {
                             if ("pre_tag".equals(fieldName) || "preTag".equals(fieldName)) {
-                                suggestion.setPreTag(parser.bytes());
+                                suggestion.setPreTag(parser.utf8Bytes());
                             } else if ("post_tag".equals(fieldName) || "postTag".equals(fieldName)) {
-                                suggestion.setPostTag(parser.bytes());
+                                suggestion.setPostTag(parser.utf8Bytes());
                             } else {
                                 throw new ElasticsearchIllegalArgumentException(
                                     "suggester[phrase][highlight] doesn't support field [" + fieldName + "]");
@@ -132,7 +132,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             fieldName = parser.currentName();
                         } else if ("query".equals(fieldName) || "filter".equals(fieldName)) {
                             String templateNameOrTemplateContent;
-                            if (token == XContentParser.Token.START_OBJECT && !parser.hasTextCharacters()) {
+                            if (token == XContentParser.Token.START_OBJECT) {
                                 XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
                                 builder.copyCurrentStructure(parser);
                                 templateNameOrTemplateContent = builder.string();

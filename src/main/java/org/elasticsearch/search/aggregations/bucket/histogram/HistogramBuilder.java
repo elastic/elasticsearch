@@ -26,7 +26,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import java.io.IOException;
 
 /**
- * A builder for a histogram aggregation.
+ * Builder for the {@link Histogram} aggregation.
  */
 public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBuilder> {
 
@@ -80,17 +80,28 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
         return this;
     }
 
+    /**
+     * Set extended bounds for the histogram. In case the lower value in the
+     * histogram would be greater than <code>min</code> or the upper value would
+     * be less than <code>max</code>, empty buckets will be generated.
+     */
     public HistogramBuilder extendedBounds(Long min, Long max) {
         extendedBoundsMin = min;
         extendedBoundsMax = max;
         return this;
     }
-    
+
+    /**
+     * Set the offset to apply prior to computing buckets.
+     */
     public HistogramBuilder preOffset(long preOffset) {
         this.preOffset = preOffset;
         return this;
     }
-    
+
+    /**
+     * Set the offset to apply after having computed buckets.
+     */
     public HistogramBuilder postOffset(long postOffset) {
         this.postOffset = postOffset;
         return this;
@@ -99,7 +110,7 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (interval == null) {
-            throw new SearchSourceBuilderException("[interval] must be defined for histogram aggregation [" + name + "]");
+            throw new SearchSourceBuilderException("[interval] must be defined for histogram aggregation [" + getName() + "]");
         }
         builder.field("interval", interval);
 

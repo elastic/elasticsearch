@@ -144,6 +144,7 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
         final int parentLimit = (BYTES_PER_THREAD * NUM_THREADS) - 2;
+        final int childLimit = parentLimit + 10;
         final Thread[] threads = new Thread[NUM_THREADS];
         final AtomicInteger tripped = new AtomicInteger(0);
         final AtomicReference<Throwable> lastException = new AtomicReference<>(null);
@@ -162,11 +163,12 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
                 // Parent will trip right before regular breaker would trip
                 if (getBreaker(CircuitBreaker.Name.REQUEST).getUsed() > parentLimit) {
                     parentTripped.incrementAndGet();
+                    logger.info("--> parent tripped");
                     throw new CircuitBreakingException("parent tripped");
                 }
             }
         };
-        final BreakerSettings settings = new BreakerSettings(CircuitBreaker.Name.REQUEST, (BYTES_PER_THREAD * NUM_THREADS) - 1, 1.0);
+        final BreakerSettings settings = new BreakerSettings(CircuitBreaker.Name.REQUEST, childLimit, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(settings, logger,
                 (HierarchyCircuitBreakerService)service, CircuitBreaker.Name.REQUEST);
         breakerRef.set(breaker);
@@ -189,19 +191,29 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
                     }
                 }
             });
+        }
 
-            threads[i].start();
+        logger.info("--> NUM_THREADS: [{}], BYTES_PER_THREAD: [{}], TOTAL_BYTES: [{}], PARENT_LIMIT: [{}], CHILD_LIMIT: [{}]",
+                NUM_THREADS, BYTES_PER_THREAD, (BYTES_PER_THREAD * NUM_THREADS), parentLimit, childLimit);
+
+        logger.info("--> starting threads...");
+        for (Thread t : threads) {
+            t.start();
         }
 
         for (Thread t : threads) {
             t.join();
         }
 
+        logger.info("--> child breaker: used: {}, limit: {}", breaker.getUsed(), breaker.getLimit());
+        logger.info("--> parent tripped: {}, total trip count: {} (expecting 2 for each)", parentTripped.get(), tripped.get());
         assertThat("no other exceptions were thrown", lastException.get(), equalTo(null));
         assertThat("breaker should be reset back to the parent limit after parent breaker trips",
                 breaker.getUsed(), equalTo((long)parentLimit));
         assertThat("parent breaker was tripped exactly twice", parentTripped.get(), equalTo(2));
         assertThat("total breaker was tripped exactly twice", tripped.get(), equalTo(2));
+        assertThat("breaker total is expected value: " + parentLimit, breaker.getUsed(), equalTo((long)
+                parentLimit));
     }
 
     @Test

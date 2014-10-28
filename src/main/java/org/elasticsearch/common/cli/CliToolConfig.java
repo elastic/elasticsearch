@@ -148,7 +148,16 @@ public class CliToolConfig {
         }
 
         public Options options() {
-            return options;
+            // TODO Remove this when commons-cli 1.3 will be released
+            // and replace by return options;
+            // See https://issues.apache.org/jira/browse/CLI-183
+            Options copy = new Options();
+            for (Object oOption : options.getOptions()) {
+                Option option = (Option) oOption;
+                copy.addOption(option);
+            }
+            OptionsSource.VERBOSITY.populate(copy);
+            return copy;
         }
 
         public void printUsage(Terminal terminal) {

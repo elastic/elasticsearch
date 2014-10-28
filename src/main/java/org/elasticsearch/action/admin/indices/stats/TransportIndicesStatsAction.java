@@ -37,7 +37,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.service.InternalIndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -122,7 +124,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
     @Override
     protected IndexShardStatsRequest newShardRequest(int numShards, ShardRouting shard, IndicesStatsRequest request) {
-        return new IndexShardStatsRequest(shard.index(), shard.id(), request);
+        return new IndexShardStatsRequest(shard.shardId(), request);
     }
 
     @Override
@@ -132,8 +134,12 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
     @Override
     protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticsearchException {
-        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.shardId().getIndex());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
+        // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
+        if (indexShard.routingEntry() == null) {
+            throw new IndexShardMissingException(indexShard.shardId());
+        }
 
         CommonStatsFlags flags = new CommonStatsFlags().clear();
 
@@ -192,11 +198,14 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         if (request.request.suggest()) {
             flags.set(CommonStatsFlags.Flag.Suggest);
         }
+        if (request.request.queryCache()) {
+            flags.set(CommonStatsFlags.Flag.QueryCache);
+        }
 
-        return new ShardStats(indexShard, flags);
+        return new ShardStats(indexShard, indexShard.routingEntry(), flags);
     }
 
-    public static class IndexShardStatsRequest extends BroadcastShardOperationRequest {
+    static class IndexShardStatsRequest extends BroadcastShardOperationRequest {
 
         // TODO if there are many indices, the request might hold a large indices array..., we don't really need to serialize it
         IndicesStatsRequest request;
@@ -204,8 +213,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         IndexShardStatsRequest() {
         }
 
-        IndexShardStatsRequest(String index, int shardId, IndicesStatsRequest request) {
-            super(index, shardId, request);
+        IndexShardStatsRequest(ShardId shardId, IndicesStatsRequest request) {
+            super(shardId, request);
             this.request = request;
         }
 

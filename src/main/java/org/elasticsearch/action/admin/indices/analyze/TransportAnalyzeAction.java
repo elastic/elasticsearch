@@ -27,12 +27,14 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -41,16 +43,19 @@ import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
 
 /**
- *
+ * Transport action used to execute analyze requests
  */
 public class TransportAnalyzeAction extends TransportSingleCustomOperationAction<AnalyzeRequest, AnalyzeResponse> {
 
@@ -58,12 +63,15 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
 
     private final IndicesAnalysisService indicesAnalysisService;
 
+    private static final Settings DEFAULT_SETTINGS = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+
     @Inject
     public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                   IndicesService indicesService, IndicesAnalysisService indicesAnalysisService, ActionFilters actionFilters) {
         super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.indicesAnalysisService = indicesAnalysisService;
+        transportService.registerHandler(AnalyzeAction.NAME, new TransportHandler());
     }
 
     @Override
@@ -82,33 +90,32 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, AnalyzeRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    protected boolean resolveIndex(AnalyzeRequest request) {
+        return request.index() != null;
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, AnalyzeRequest request) {
-        if (request.index() != null) {
-            request.index(state.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
-            return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
+    protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
+        if (request.concreteIndex() != null) {
+            return super.checkRequestBlock(state, request);
         }
         return null;
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState state, AnalyzeRequest request) {
-        if (request.index() == null) {
+    protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        if (request.concreteIndex() == null) {
             // just execute locally....
             return null;
         }
-        return state.routingTable().index(request.index()).randomAllActiveShardsIt();
+        return state.routingTable().index(request.concreteIndex()).randomAllActiveShardsIt();
     }
 
     @Override
-    protected AnalyzeResponse shardOperation(AnalyzeRequest request, int shardId) throws ElasticsearchException {
+    protected AnalyzeResponse shardOperation(AnalyzeRequest request, ShardId shardId) throws ElasticsearchException {
         IndexService indexService = null;
-        if (request.index() != null) {
-            indexService = indicesService.indexServiceSafe(request.index());
+        if (shardId != null) {
+            indexService = indicesService.indexServiceSafe(shardId.getIndex());
         }
         Analyzer analyzer = null;
         boolean closeAnalyzer = false;
@@ -150,7 +157,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                 if (tokenizerFactoryFactory == null) {
                     throw new ElasticsearchIllegalArgumentException("failed to find global tokenizer under [" + request.tokenizer() + "]");
                 }
-                tokenizerFactory = tokenizerFactoryFactory.create(request.tokenizer(), ImmutableSettings.Builder.EMPTY_SETTINGS);
+                tokenizerFactory = tokenizerFactoryFactory.create(request.tokenizer(), DEFAULT_SETTINGS);
             } else {
                 tokenizerFactory = indexService.analysisService().tokenizer(request.tokenizer());
                 if (tokenizerFactory == null) {
@@ -168,7 +175,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                         if (tokenFilterFactoryFactory == null) {
                             throw new ElasticsearchIllegalArgumentException("failed to find global token filter under [" + tokenFilterName + "]");
                         }
-                        tokenFilterFactories[i] = tokenFilterFactoryFactory.create(tokenFilterName, ImmutableSettings.Builder.EMPTY_SETTINGS);
+                        tokenFilterFactories[i] = tokenFilterFactoryFactory.create(tokenFilterName, DEFAULT_SETTINGS);
                     } else {
                         tokenFilterFactories[i] = indexService.analysisService().tokenFilter(tokenFilterName);
                         if (tokenFilterFactories[i] == null) {
@@ -191,7 +198,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                         if (charFilterFactoryFactory == null) {
                             throw new ElasticsearchIllegalArgumentException("failed to find global char filter under [" + charFilterName + "]");
                         }
-                        charFilterFactories[i] = charFilterFactoryFactory.create(charFilterName, ImmutableSettings.Builder.EMPTY_SETTINGS);
+                        charFilterFactories[i] = charFilterFactoryFactory.create(charFilterName, DEFAULT_SETTINGS);
                     } else {
                         charFilterFactories[i] = indexService.analysisService().charFilter(charFilterName);
                         if (charFilterFactories[i] == null) {
@@ -252,5 +259,45 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
         }
 
         return new AnalyzeResponse(tokens);
+    }
+
+    private class TransportHandler extends BaseTransportRequestHandler<AnalyzeRequest> {
+
+        @Override
+        public AnalyzeRequest newInstance() {
+            return newRequest();
+        }
+
+        @Override
+        public void messageReceived(AnalyzeRequest request, final TransportChannel channel) throws Exception {
+            // no need to have a threaded listener since we just send back a response
+            request.listenerThreaded(false);
+            // if we have a local operation, execute it on a thread since we don't spawn
+            request.operationThreaded(true);
+            execute(request, new ActionListener<AnalyzeResponse>() {
+                @Override
+                public void onResponse(AnalyzeResponse result) {
+                    try {
+                        channel.sendResponse(result);
+                    } catch (Throwable e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(e);
+                    } catch (Exception e1) {
+                        logger.warn("Failed to send response for get", e1);
+                    }
+                }
+            });
+        }
+
+        @Override
+        public String executor() {
+            return ThreadPool.Names.SAME;
+        }
     }
 }

@@ -353,6 +353,15 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         request.detectNoop(detectNoop);
         return this;
     }
+    
+
+    /**
+     * Sets whether the script should be run in the case of an insert
+     */
+    public UpdateRequestBuilder setScriptedUpsert(boolean scriptedUpsert) {
+        request.scriptedUpsert(scriptedUpsert);
+        return this;
+    }    
 
     @Override
     protected void doExecute(ActionListener<UpdateResponse> listener) {

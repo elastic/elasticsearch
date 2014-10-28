@@ -21,9 +21,12 @@ package org.elasticsearch.search.aggregations.metrics.sum;
 import org.elasticsearch.search.aggregations.Aggregation;
 
 /**
- *
+ * An aggregation that computes the sum of the values in the current bucket.
  */
 public interface Sum extends Aggregation {
 
+    /**
+     * The sum.
+     */
     double getValue();
 }

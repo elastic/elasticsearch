@@ -246,14 +246,24 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         }
     }
 
-    private boolean listenerThreaded = false;
-
     String preference;
     Boolean realtime;
     boolean refresh;
     public boolean ignoreErrorsOnGeneratedFields = false;
 
     List<Item> items = new ArrayList<>();
+
+    public MultiGetRequest() {
+
+    }
+
+    /**
+     * Creates a multi get request caused by some other request, which is provided as an
+     * argument so that its headers and context can be copied to the new request
+     */
+    public MultiGetRequest(ActionRequest request) {
+        super(request);
+    }
 
     public List<Item> getItems() {
         return this.items;
@@ -503,7 +513,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         } else if (realtime == 1) {
             this.realtime = true;
         }
-        if(in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if(in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             ignoreErrorsOnGeneratedFields = in.readBoolean();
         }
 
@@ -526,7 +536,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         } else {
             out.writeByte((byte) 1);
         }
-        if(out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if(out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeBoolean(ignoreErrorsOnGeneratedFields);
         }
 

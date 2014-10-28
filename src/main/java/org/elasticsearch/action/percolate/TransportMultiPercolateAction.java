@@ -26,7 +26,6 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,8 +40,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.*;
@@ -96,7 +93,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
         }
 
         if (!existingDocsRequests.isEmpty()) {
-            final MultiGetRequest multiGetRequest = new MultiGetRequest();
+            final MultiGetRequest multiGetRequest = new MultiGetRequest(request);
             for (GetRequest getRequest : existingDocsRequests) {
                 multiGetRequest.add(
                         new MultiGetRequest.Item(getRequest.index(), getRequest.type(), getRequest.id())
@@ -125,7 +122,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                             percolateRequests.set(slot, itemResponse.getFailure());
                         }
                     }
-                    new ASyncAction(percolateRequests, listener, clusterState).run();
+                    new ASyncAction(request, percolateRequests, listener, clusterState).run();
                 }
 
                 @Override
@@ -134,7 +131,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                 }
             });
         } else {
-            new ASyncAction(percolateRequests, listener, clusterState).run();
+            new ASyncAction(request, percolateRequests, listener, clusterState).run();
         }
 
     }
@@ -143,6 +140,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
 
         final ActionListener<MultiPercolateResponse> finalListener;
         final Map<ShardId, TransportShardMultiPercolateAction.Request> requestsByShard;
+        final MultiPercolateRequest multiPercolateRequest;
         final List<Object> percolateRequests;
 
         final Map<ShardId, IntArrayList> shardToSlots;
@@ -151,8 +149,9 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
         final AtomicReferenceArray<AtomicInteger> expectedOperationsPerItem;
         final AtomicReferenceArray<AtomicReferenceArray> responsesByItemAndShard;
 
-        ASyncAction(List<Object> percolateRequests, ActionListener<MultiPercolateResponse> finalListener, ClusterState clusterState) {
+        ASyncAction(MultiPercolateRequest multiPercolateRequest, List<Object> percolateRequests, ActionListener<MultiPercolateResponse> finalListener, ClusterState clusterState) {
             this.finalListener = finalListener;
+            this.multiPercolateRequest = multiPercolateRequest;
             this.percolateRequests = percolateRequests;
             responsesByItemAndShard = new AtomicReferenceArray<>(percolateRequests.size());
             expectedOperationsPerItem = new AtomicReferenceArray<>(percolateRequests.size());
@@ -195,7 +194,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
                         ShardId shardId = shard.shardId();
                         TransportShardMultiPercolateAction.Request requests = requestsByShard.get(shardId);
                         if (requests == null) {
-                            requestsByShard.put(shardId, requests = new TransportShardMultiPercolateAction.Request(shard.shardId().getIndex(), shardId.id(), percolateRequest.preference()));
+                            requestsByShard.put(shardId, requests = new TransportShardMultiPercolateAction.Request(multiPercolateRequest, shardId.getIndex(), shardId.getId(), percolateRequest.preference()));
                         }
                         logger.trace("Adding shard[{}] percolate request for item[{}]", shardId, slot);
                         requests.add(new TransportShardMultiPercolateAction.Request.Item(slot, new PercolateShardRequest(shardId, percolateRequest)));

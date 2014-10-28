@@ -23,7 +23,8 @@ import org.apache.lucene.codecs.blocktree.Stats;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
-import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
+import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -71,7 +72,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         final PagedBytes bytes = new PagedBytes(15);
 
-        final MonotonicAppendingLongBuffer termOrdToBytesOffset = new MonotonicAppendingLongBuffer();
+        final PackedLongValues.Builder termOrdToBytesOffset = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final long numTerms;
         if (regex == null && frequency == null) {
             numTerms = terms.size();
@@ -102,7 +103,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             PagedBytes.Reader bytesReader = bytes.freeze(true);
             final Ordinals ordinals = builder.build(fieldDataType.getSettings());
 
-            data = new PagedBytesAtomicFieldData(bytesReader, termOrdToBytesOffset, ordinals);
+            data = new PagedBytesAtomicFieldData(bytesReader, termOrdToBytesOffset.build(), ordinals);
             success = true;
             return data;
         } finally {

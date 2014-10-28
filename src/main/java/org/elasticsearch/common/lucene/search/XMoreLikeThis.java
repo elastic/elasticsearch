@@ -46,18 +46,13 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 
 /**
@@ -619,10 +614,59 @@ public final class XMoreLikeThis {
     }
 
     /**
+     * Return a query that will return docs like the passed Terms.
+     *
+     * @return a query that will return docs like the passed Terms.
+     */
+    public Query like(Terms... likeTerms) throws IOException {
+        Map<String, Int> termFreqMap = new HashMap<>();
+        for (Terms vector : likeTerms) {
+            addTermFrequencies(termFreqMap, vector);
+        }
+        return createQuery(createQueue(termFreqMap));
+    }
+
+    /**
+     * Return a query that will return docs like the passed Fields.
+     *
+     * @return a query that will return docs like the passed Fields.
+     */
+    public Query like(Fields... likeFields) throws IOException {
+        // get all field names
+        Set<String> fieldNames = new HashSet<>();
+        for (Fields fields : likeFields) {
+            for (String fieldName : fields) {
+                fieldNames.add(fieldName);
+            }
+        }
+        // term selection is per field, then appended to a single boolean query
+        BooleanQuery bq = new BooleanQuery();
+        for (String fieldName : fieldNames) {
+            Map<String, Int> termFreqMap = new HashMap<>();
+            for (Fields fields : likeFields) {
+                Terms vector = fields.terms(fieldName);
+                if (vector != null) {
+                    addTermFrequencies(termFreqMap, vector);
+                }
+            }
+            addToQuery(createQueue(termFreqMap, fieldName), bq);
+        }
+        return bq;
+    }
+
+    /**
      * Create the More like query from a PriorityQueue
      */
     private Query createQuery(PriorityQueue<ScoreTerm> q) {
         BooleanQuery query = new BooleanQuery();
+        addToQuery(q, query);
+        return query;
+    }
+
+    /**
+     * Add to an existing boolean query the More Like This query from this PriorityQueue
+     */
+    private void addToQuery(PriorityQueue<ScoreTerm> q, BooleanQuery query) {
         ScoreTerm scoreTerm;
         float bestScore = -1;
 
@@ -644,7 +688,6 @@ public final class XMoreLikeThis {
                 break;
             }
         }
-        return query;
     }
 
     /**
@@ -653,6 +696,16 @@ public final class XMoreLikeThis {
      * @param words a map of words keyed on the word(String) with Int objects as the values.
      */
     private PriorityQueue<ScoreTerm> createQueue(Map<String, Int> words) throws IOException {
+        return createQueue(words, this.fieldNames);
+    }
+
+    /**
+     * Create a PriorityQueue from a word->tf map.
+     *
+     * @param words a map of words keyed on the word(String) with Int objects as the values.
+     * @param fieldNames an array of field names to override defaults.
+     */
+    private PriorityQueue<ScoreTerm> createQueue(Map<String, Int> words, String... fieldNames) throws IOException {
         // have collected all words in doc and their freqs
         int numDocs = ir.numDocs();
         final int limit = Math.min(maxQueryTerms, words.size());
@@ -765,15 +818,17 @@ public final class XMoreLikeThis {
      */
     private void addTermFrequencies(Map<String, Int> termFreqMap, Terms vector) throws IOException {
         final TermsEnum termsEnum = vector.iterator(null);
-        final CharsRef spare = new CharsRef();
+        final CharsRefBuilder spare = new CharsRefBuilder();
         BytesRef text;
         while((text = termsEnum.next()) != null) {
-            UnicodeUtil.UTF8toUTF16(text, spare);
+            spare.copyUTF8Bytes(text);
             final String term = spare.toString();
             if (isNoiseWord(term)) {
                 continue;
             }
-            final int freq = (int) termsEnum.totalTermFreq();
+
+            DocsEnum docs = termsEnum.docs(null, null);
+            final int freq = docs.freq();
 
             // increment frequency
             Int cnt = termFreqMap.get(term);

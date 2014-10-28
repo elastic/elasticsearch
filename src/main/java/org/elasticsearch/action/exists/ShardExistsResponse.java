@@ -22,18 +22,19 @@ package org.elasticsearch.action.exists;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class ShardExistsResponse extends BroadcastShardOperationResponse {
+class ShardExistsResponse extends BroadcastShardOperationResponse {
 
     private boolean exists;
 
     ShardExistsResponse() {
     }
 
-    public ShardExistsResponse(String index, int shardId, boolean exists) {
-        super(index, shardId);
+    ShardExistsResponse(ShardId shardId, boolean exists) {
+        super(shardId);
         this.exists = exists;
     }
 

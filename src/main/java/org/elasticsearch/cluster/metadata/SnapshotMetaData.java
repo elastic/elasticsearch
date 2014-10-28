@@ -312,7 +312,7 @@ public class SnapshotMetaData implements MetaData.Custom {
     }
 
 
-    public static class Factory implements MetaData.Custom.Factory<SnapshotMetaData> {
+    public static class Factory extends MetaData.Custom.Factory<SnapshotMetaData> {
 
         @Override
         public String type() {
@@ -410,11 +410,6 @@ public class SnapshotMetaData implements MetaData.Custom {
             builder.endArray();
             builder.endObject();
         }
-
-        public boolean isPersistent() {
-            return false;
-        }
-
     }
 
 

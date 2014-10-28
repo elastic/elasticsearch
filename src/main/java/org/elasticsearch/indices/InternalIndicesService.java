@@ -74,14 +74,12 @@ import org.elasticsearch.plugins.PluginsService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
@@ -208,7 +206,10 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         for (IndexService indexService : indices.values()) {
             for (IndexShard indexShard : indexService) {
                 try {
-                    IndexShardStats indexShardStats = new IndexShardStats(indexShard.shardId(), new ShardStats[] { new ShardStats(indexShard, flags) });
+                    if (indexShard.routingEntry() == null) {
+                        continue;
+                    }
+                    IndexShardStats indexShardStats = new IndexShardStats(indexShard.shardId(), new ShardStats[] { new ShardStats(indexShard, indexShard.routingEntry(), flags) });
                     if (!statsByShard.containsKey(indexService.index())) {
                         statsByShard.put(indexService.index(), Lists.<IndexShardStats>newArrayList(indexShardStats));
                     } else {
@@ -239,8 +240,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         return indices.containsKey(index);
     }
 
-    public Set<String> indices() {
-        return newHashSet(indices.keySet());
+    public ImmutableMap<String, IndexService> indices() {
+        return indices;
     }
 
     public IndexService indexService(String index) {
@@ -325,6 +326,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             return;
         }
 
+        logger.debug("[{}] closing ... (reason [{}])", index, reason);
         Map<String, IndexService> tmpMap = newHashMap(indices);
         indexService = tmpMap.remove(index);
         indices = ImmutableMap.copyOf(tmpMap);
@@ -335,21 +337,31 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             indexInjector.getInstance(closeable).close();
         }
 
+        logger.debug("[{}] closing index service", index, reason);
         ((InternalIndexService) indexService).close(reason, executor);
 
+        logger.debug("[{}] closing index cache", index, reason);
         indexInjector.getInstance(IndexCache.class).close();
+        logger.debug("[{}] clearing index field data", index, reason);
         indexInjector.getInstance(IndexFieldDataService.class).clear();
+        logger.debug("[{}] closing analysis service", index, reason);
         indexInjector.getInstance(AnalysisService.class).close();
+        logger.debug("[{}] closing index engine", index, reason);
         indexInjector.getInstance(IndexEngine.class).close();
 
+        logger.debug("[{}] closing index gateway", index, reason);
         indexInjector.getInstance(IndexGateway.class).close();
+        logger.debug("[{}] closing mapper service", index, reason);
         indexInjector.getInstance(MapperService.class).close();
+        logger.debug("[{}] closing index query parser service", index, reason);
         indexInjector.getInstance(IndexQueryParserService.class).close();
 
+        logger.debug("[{}] closing index service", index, reason);
         indexInjector.getInstance(IndexStore.class).close();
 
         Injectors.close(injector);
 
+        logger.debug("[{}] closed... (reason [{}])", index, reason);
         indicesLifecycle.afterIndexClosed(indexService.index());
     }
 

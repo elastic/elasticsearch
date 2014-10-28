@@ -155,6 +155,9 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
+                    if (propNode == null) {
+                        throw new MapperParsingException("Property [null_value] cannot be null.");
+                    }
                     builder.nullValue(propNode.toString());
                 } else if (propName.equals("search_quote_analyzer")) {
                     NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
@@ -178,7 +181,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                 } else {
-                    parseMultiField(builder, name, node, parserContext, propName, propNode);
+                    parseMultiField(builder, name, parserContext, propName, propNode);
                 }
             }
             return builder;

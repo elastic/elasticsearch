@@ -78,7 +78,7 @@ once or more times. For string `"aaabbb"`:
     a+b+        # match
     aa+bb+      # match
     a+.+        # match
-    aa+bbb+     # no match
+    aa+bbb+     # match
 
 --
 

@@ -42,7 +42,8 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchAllocationTestCas
 
     @Test
     public void testAlways() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
@@ -128,7 +129,8 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchAllocationTestCas
 
     @Test
     public void testClusterPrimariesActive1() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
@@ -232,7 +234,8 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchAllocationTestCas
 
     @Test
     public void testClusterPrimariesActive2() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
@@ -316,7 +319,8 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchAllocationTestCas
 
     @Test
     public void testClusterAllActive1() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
@@ -439,7 +443,8 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchAllocationTestCas
 
     @Test
     public void testClusterAllActive2() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
@@ -523,7 +528,8 @@ public class ClusterRebalanceRoutingTests extends ElasticsearchAllocationTestCas
 
     @Test
     public void testClusterAllActive3() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
+        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))

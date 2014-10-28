@@ -200,6 +200,10 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             Set<DiscoveryNode> noNodes = Sets.newHashSet();
             for (DiscoveryNode discoNode : nodesWithHighestVersion) {
                 RoutingNode node = routingNodes.node(discoNode.id());
+                if (node == null) {
+                    continue;
+                }
+
                 Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
                 if (decision.type() == Decision.Type.THROTTLE) {
                     throttledNodes.add(discoNode);

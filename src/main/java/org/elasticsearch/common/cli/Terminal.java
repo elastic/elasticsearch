@@ -29,6 +29,8 @@ import java.util.Locale;
 */
 public abstract class Terminal {
 
+    public static final String DEBUG_SYSTEM_PROPERTY = "es.cli.debug";
+
     public static final Terminal DEFAULT = ConsoleTerminal.supported() ? new ConsoleTerminal() : new SystemTerminal();
 
     public static enum Verbosity {
@@ -56,7 +58,7 @@ public abstract class Terminal {
     }
 
     private Verbosity verbosity = Verbosity.NORMAL;
-
+    private final boolean isDebugEnabled;
 
     public Terminal() {
         this(Verbosity.NORMAL);
@@ -64,6 +66,7 @@ public abstract class Terminal {
 
     public Terminal(Verbosity verbosity) {
         this.verbosity = verbosity;
+        this.isDebugEnabled = "true".equals(System.getProperty(DEBUG_SYSTEM_PROPERTY, "false"));
     }
 
     public void verbosity(Verbosity verbosity) {
@@ -77,6 +80,8 @@ public abstract class Terminal {
     public abstract String readText(String text, Object... args);
 
     public abstract char[] readSecret(String text, Object... args);
+
+    protected abstract void printStackTrace(Throwable t);
 
     public void println() {
         println(Verbosity.NORMAL);
@@ -106,6 +111,13 @@ public abstract class Terminal {
 
     public void printError(String msg, Object... args) {
         println(Verbosity.SILENT, "ERROR: " + msg, args);
+    }
+
+    public void printError(Throwable t) {
+        printError("%s", t.getMessage());
+        if (isDebugEnabled) {
+            printStackTrace(t);
+        }
     }
 
     protected abstract void doPrint(String msg, Object... args);
@@ -141,6 +153,10 @@ public abstract class Terminal {
             return console.writer();
         }
 
+        @Override
+        public void printStackTrace(Throwable t) {
+            t.printStackTrace(console.writer());
+        }
     }
 
     private static class SystemTerminal extends Terminal {
@@ -166,6 +182,11 @@ public abstract class Terminal {
         @Override
         public char[] readSecret(String text, Object... args) {
             return readText(text, args).toCharArray();
+        }
+
+        @Override
+        public void printStackTrace(Throwable t) {
+            t.printStackTrace(printWriter);
         }
 
         @Override

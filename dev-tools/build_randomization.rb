@@ -50,13 +50,15 @@ RANDOM_CHOICES = {
   'tests.jvm.argline' => [
                 {:choices => ['-server'], :method => 'get_random_one'},
                 {:choices => ['-XX:+UseConcMarkSweepGC', '-XX:+UseParallelGC', '-XX:+UseSerialGC', '-XX:+UseG1GC'], :method => 'get_random_one'},
-                {:choices => ['-XX:+UseCompressedOops', '-XX:-UseCompressedOops'], :method => 'get_random_one'}
+                {:choices => ['-XX:+UseCompressedOops', '-XX:-UseCompressedOops'], :method => 'get_random_one'},
+                {:choices => ['-XX:+AggressiveOpts'], :method => 'get_50_percent'}
                ],
 
   'es.node.mode' => {:choices => ['local', 'network'], :method => 'get_random_one'},
 
   # bug forced to be false for now :test_nightly => { :method => :true_or_false},
   'tests.nightly' => {:selections => false},
+  'tests.heap.size' => {:choices => [512, 1024], :method => :random_heap},
   'tests.assertion.disabled'=> {:choices => 'org.elasticsearch', :method => 'get_10_percent'},
   'tests.security.manager' => {:choices => [true, false], :method => 'get_90_percent'},
 }
@@ -92,6 +94,11 @@ class Randomizer
 
   def true_or_false
     [true, false][rand(2)]
+  end
+
+  def random_heap
+    inner_data_array = [data_array[0], data_array[1], data_array[0] + rand(data_array[1] - data_array[0])]
+    "%sm" % inner_data_array[rand(inner_data_array.size)]
   end
 
   def get_random_with_distribution(mdata_array, distribution)
@@ -277,7 +284,7 @@ class RandomizedRunner
     s = {}
     selections.each do |k, v|
       if(v.size > 1)
-        s[k] = v.join(' ') #this should be dependent on class of v[0] and perform reduce operation instead... good enough for now
+        s[k] = v.compact.join(' ') #this should be dependent on class of v[0] and perform reduce operation instead... good enough for now
       else
         s[k] = v.first
       end
@@ -288,9 +295,10 @@ class RandomizedRunner
     desc = {}
 
     # TODO: better error handling
-    desc[:BUILD_DESC] = "%s,%s,%s%s%s%s" % [
+    desc[:BUILD_DESC] = "%s,%s,heap[%s],%s%s%s%s" % [
                                             File.basename(j[:JAVA_HOME]),
                                             s['es.node.mode'],
+                                            s['tests.heap.size'],
                                             s['tests.nightly'] ? 'nightly,':'',
                                             s['tests.jvm.argline'].gsub(/-XX:/,''),
                                             s.has_key?('tests.assertion.disabled')? ',assert off' : '',

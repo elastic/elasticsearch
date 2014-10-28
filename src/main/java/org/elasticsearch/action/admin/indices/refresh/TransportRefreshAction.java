@@ -97,7 +97,7 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
 
     @Override
     protected ShardRefreshRequest newShardRequest(int numShards, ShardRouting shard, RefreshRequest request) {
-        return new ShardRefreshRequest(shard.index(), shard.id(), request);
+        return new ShardRefreshRequest(shard.shardId(), request);
     }
 
     @Override
@@ -107,10 +107,10 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
 
     @Override
     protected ShardRefreshResponse shardOperation(ShardRefreshRequest request) throws ElasticsearchException {
-        IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
+        IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
         indexShard.refresh(new Engine.Refresh("api").force(request.force()));
         logger.trace("{} refresh request executed, force: [{}]", indexShard.shardId(), request.force());
-        return new ShardRefreshResponse(request.index(), request.shardId());
+        return new ShardRefreshResponse(request.shardId());
     }
 
     /**

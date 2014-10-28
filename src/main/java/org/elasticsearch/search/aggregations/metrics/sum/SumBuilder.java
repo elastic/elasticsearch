@@ -22,10 +22,13 @@ package org.elasticsearch.search.aggregations.metrics.sum;
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregationBuilder;
 
 /**
- *
+ * Builder for the {@link Sum} aggregation.
  */
 public class SumBuilder extends ValuesSourceMetricsAggregationBuilder<SumBuilder> {
 
+    /**
+     * Sole constructor.
+     */
     public SumBuilder(String name) {
         super(name, InternalSum.TYPE.name());
     }

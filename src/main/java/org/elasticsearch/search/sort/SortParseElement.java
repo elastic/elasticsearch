@@ -28,6 +28,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.List;
@@ -232,7 +234,7 @@ public class SortParseElement implements SearchParseElement {
             }
 
 
-            ObjectMapper objectMapper;
+            ObjectMapper objectMapper = null;
             if (nestedPath != null) {
                 ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
                 if (objectMappers == null) {
@@ -242,17 +244,18 @@ public class SortParseElement implements SearchParseElement {
                 if (!objectMapper.nested().isNested()) {
                     throw new ElasticsearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
                 }
-            } else {
+            } else if (!(context instanceof TopHitsContext)) {
+                // Only automatically resolve nested path when sort isn't defined for top_hits
                 objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
             }
             final Nested nested;
             if (objectMapper != null && objectMapper.nested().isNested()) {
-                Filter rootDocumentsFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
-                Filter innerDocumentsFilter;
+                FixedBitSetFilter rootDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
+                FixedBitSetFilter innerDocumentsFilter;
                 if (nestedFilter != null) {
-                    innerDocumentsFilter = context.filterCache().cache(nestedFilter);
+                    innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedFilter);
                 } else {
-                    innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
+                    innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
                 }
                 nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
             } else {

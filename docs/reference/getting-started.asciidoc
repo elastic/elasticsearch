@@ -101,7 +101,7 @@ java -version
 echo $JAVA_HOME
 --------------------------------------------------
 
-Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elasticsearch.org/download[`www.elasticsearch.org/download`] along with all the releases that have been made in the past. For each release, you have a choice among a zip, tar, DEB, or RPM package. For simplicity, let's use the tar package.
+Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elasticsearch.org/download[`www.elasticsearch.org/download`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, or a `DEB` or `RPM` package. For simplicity, let's use the tar file.
 
 Let's download the Elasticsearch {version} tar as follows (Windows users should download the zip package):
 
@@ -170,7 +170,7 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 * Check your cluster, node, and index health, status, and statistics
 * Administer your cluster, node, and index data and metadata
 * Perform CRUD (Create, Read, Update, and Delete) and search operations against your indexes
-* Execute advanced search operations such as paging, sorting, filtering, scripting, faceting, aggregations, and many others
+* Execute advanced search operations such as paging, sorting, filtering, scripting, aggregations, and many others
 
 === Cluster Health
 
@@ -195,7 +195,7 @@ We can see that our cluster named "elasticsearch" is up with a green status.
 
 Whenever we ask for the cluster health, we either get green, yellow, or red. Green means everything is good (cluster is fully functional), yellow means all data is available but some replicas are not yet allocated (cluster is fully functional), and red means some data is not available for whatever reason. Note that even if a cluster is red, it still is partially functional (i.e. it will continue to serve search requests from the available shards) but you will likely need to fix it ASAP since you have missing data.
 
-Also from the above response, we can see and total of 1 node and that we have 0 shards since we have no data in it yet. Note that since we we are using the default cluster name (elasticsearch) and since Elasticsearch uses multicast network discovery by default to find other nodes, it is possible that you could accidentally start up more than one node in your network and have them all join a single cluster. In this scenario, you may see more than 1 node in the above response.
+Also from the above response, we can see and total of 1 node and that we have 0 shards since we have no data in it yet. Note that since we are using the default cluster name (elasticsearch) and since Elasticsearch uses multicast network discovery by default to find other nodes, it is possible that you could accidentally start up more than one node in your network and have them all join a single cluster. In this scenario, you may see more than 1 node in the above response.
 
 We can also get a list of nodes in our cluster as follows:
 
@@ -459,7 +459,7 @@ curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
 
 In the above example, `ctx._source` refers to the current source document that is about to be updated.
 
-Note that as if this writing, updates can only be performed on a single document at a time. In the future, Elasticsearch will provide the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement).
+Note that as of this writing, updates can only be performed on a single document at a time. In the future, Elasticsearch will provide the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement).
 
 === Deleting Documents
 
@@ -839,7 +839,7 @@ In the above example, the `bool must_not` clause specifies a list of queries non
 
 We can combine `must`, `should`, and `must_not` clauses simultaneously inside a `bool` query. Furthermore, we can compose `bool` queries inside any of these `bool` clauses to mimic any complex multi-level boolean logic.
 
-This example returns all accounts of anybody who is 40 years old but don't live in ID(daho):
+This example returns all accounts of anybody who is 40 years old but don't live in ID(aho):
 
 [source,sh]
 --------------------------------------------------
@@ -972,7 +972,7 @@ And the response (partially shown):
 }
 --------------------------------------------------
 
-We can see that there are 21 accounts in AL(abama), followed by 17 accounts in TX, followed by 15 accounts in ID(daho), and so forth.
+We can see that there are 21 accounts in AL(abama), followed by 17 accounts in TX, followed by 15 accounts in ID(aho), and so forth.
 
 Note that we set `size=0` to not show search hits because we only want to see the aggregation results in the response.
 

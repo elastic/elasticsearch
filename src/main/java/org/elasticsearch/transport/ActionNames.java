@@ -127,7 +127,7 @@ final class ActionNames {
     }
 
     static String incomingAction(String action, Version version) {
-        if (version.before(Version.V_1_4_0)) {
+        if (version.before(Version.V_1_4_0_Beta1)) {
             String post_1_4_action = post_1_4_action(action);
             //custom action e.g. registered through plugin are not mapped, fallback to the original one
             if (post_1_4_action != null) {
@@ -138,7 +138,7 @@ final class ActionNames {
     }
 
     static String outgoingAction(String action, Version version) {
-        if (version.before(Version.V_1_4_0)) {
+        if (version.before(Version.V_1_4_0_Beta1)) {
             String pre_1_4_Action = pre_1_4_Action(action);
             //custom actions e.g. registered through plugins are not mapped, fallback to the original one
             if (pre_1_4_Action != null) {
@@ -205,7 +205,6 @@ final class ActionNames {
         builder.put(DeleteMappingAction.NAME, "indices/mapping/delete");
         builder.put(PutMappingAction.NAME, "indices/mapping/put");
         builder.put(GetFieldMappingsAction.NAME, "mappings/fields/get");
-        builder.put(GetFieldMappingsAction.NAME + "[index]", "mappings/fields/get/index");
         builder.put(GetFieldMappingsAction.NAME + "[index][s]", "mappings/fields/get/index/s");
         builder.put(GetMappingsAction.NAME, "mappings/get");
 
@@ -231,7 +230,7 @@ final class ActionNames {
         addShardAction(ExplainAction.NAME, "explain", builder);
         addShardAction(GetAction.NAME, "get", builder);
         builder.put(MultiGetAction.NAME, "mget");
-        addShardAction(MultiGetAction.NAME + "[shard]", "mget/shard", builder);
+        builder.put(MultiGetAction.NAME + "[shard][s]", "mget/shard/s");
 
         builder.put(GetIndexedScriptAction.NAME, "getIndexedScript");
         builder.put(PutIndexedScriptAction.NAME, "putIndexedScript");
@@ -240,12 +239,12 @@ final class ActionNames {
         builder.put(MoreLikeThisAction.NAME, "mlt");
 
         builder.put(MultiPercolateAction.NAME, "mpercolate");
-        addShardAction(MultiPercolateAction.NAME + "[shard]", "mpercolate/shard", builder);
+        builder.put(MultiPercolateAction.NAME + "[shard][s]", "mpercolate/shard/s");
 
         builder.put(MultiSearchAction.NAME, "msearch");
 
         builder.put(MultiTermVectorsAction.NAME, "mtv");
-        addShardAction(MultiTermVectorsAction.NAME + "[shard]", "mtv/shard", builder);
+        builder.put(MultiTermVectorsAction.NAME + "[shard][s]", "mtv/shard/s");
 
         addShardAction(PercolateAction.NAME, "percolate", builder);
 
@@ -275,12 +274,10 @@ final class ActionNames {
 
         builder.put(DeleteAction.NAME, "delete");
         builder.put(DeleteAction.NAME + "[r]", "delete/replica");
-        builder.put(DeleteAction.NAME + "[index]", "indices/index/delete");
         builder.put(DeleteAction.NAME + "[s]", "indices/index/b_shard/delete");
         builder.put(DeleteAction.NAME + "[s][r]", "indices/index/b_shard/delete/replica");
 
         builder.put(DeleteByQueryAction.NAME, "deleteByQuery");
-        builder.put(DeleteByQueryAction.NAME + "[index]", "deleteByQuery/index");
         builder.put(DeleteByQueryAction.NAME + "[s]", "deleteByQuery/shard");
         builder.put(DeleteByQueryAction.NAME + "[s][r]", "deleteByQuery/shard/replica");
 

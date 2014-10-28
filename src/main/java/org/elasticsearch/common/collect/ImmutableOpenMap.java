@@ -189,6 +189,15 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         return EMPTY;
     }
 
+    /**
+     * @return  An immutable copy of the given map
+     */
+    public static <KType, VType> ImmutableOpenMap<KType, VType> copyOf(ObjectObjectMap<KType, VType> map) {
+        Builder<KType, VType> builder = builder();
+        builder.putAll(map);
+        return builder.build();
+    }
+
     public static <KType, VType> Builder<KType, VType> builder() {
         return new Builder<>();
     }

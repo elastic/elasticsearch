@@ -20,13 +20,13 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.SimpleAnalyzerWrapper;
+import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 
 /**
  * Named analyzer is an analyzer wrapper around an actual analyzer ({@link #analyzer} that is associated
  * with a name ({@link #name()}.
  */
-public class NamedAnalyzer extends SimpleAnalyzerWrapper {
+public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
 
     private final String name;
     private final AnalyzerScope scope;
@@ -46,6 +46,7 @@ public class NamedAnalyzer extends SimpleAnalyzerWrapper {
     }
 
     public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionOffsetGap) {
+        super(ERROR_STRATEGY);
         this.name = name;
         this.scope = scope;
         this.analyzer = analyzer;
@@ -90,4 +91,17 @@ public class NamedAnalyzer extends SimpleAnalyzerWrapper {
     public String toString() {
         return "analyzer name[" + name + "], analyzer [" + analyzer + "]";
     }
+    
+    /** It is an error if this is ever used, it means we screwed up! */
+    static final ReuseStrategy ERROR_STRATEGY = new Analyzer.ReuseStrategy() {
+        @Override
+        public TokenStreamComponents getReusableComponents(Analyzer a, String f) {
+            throw new IllegalStateException("NamedAnalyzer cannot be wrapped with a wrapper, only a delegator");
+        }
+
+        @Override
+        public void setReusableComponents(Analyzer a, String f, TokenStreamComponents c) {
+            throw new IllegalStateException("NamedAnalyzer cannot be wrapped with a wrapper, only a delegator");
+        }
+    };
 }

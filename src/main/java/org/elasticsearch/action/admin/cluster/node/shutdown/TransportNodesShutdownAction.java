@@ -29,6 +29,8 @@ import org.elasticsearch.action.support.master.TransportMasterNodeOperationActio
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -69,6 +71,11 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
     @Override
     protected String executor() {
         return ThreadPool.Names.GENERIC;
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(NodesShutdownRequest request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
     }
 
     @Override

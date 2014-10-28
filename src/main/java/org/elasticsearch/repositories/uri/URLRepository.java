@@ -63,7 +63,7 @@ public class URLRepository extends BlobStoreRepository {
      * @throws IOException
      */
     @Inject
-    public URLRepository(RepositoryName name, RepositorySettings repositorySettings, ThreadPool threadPool, IndexShardRepository indexShardRepository) throws IOException {
+    public URLRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
         URL url;
         String path = repositorySettings.settings().get("url", componentSettings.get("url"));
@@ -73,7 +73,7 @@ public class URLRepository extends BlobStoreRepository {
             url = new URL(path);
         }
         listDirectories = repositorySettings.settings().getAsBoolean("list_directories", componentSettings.getAsBoolean("list_directories", true));
-        blobStore = new URLBlobStore(componentSettings, threadPool, url);
+        blobStore = new URLBlobStore(componentSettings, url);
         basePath = BlobPath.cleanPath();
     }
 
@@ -102,4 +102,16 @@ public class URLRepository extends BlobStoreRepository {
             }
         }
     }
+
+    @Override
+    public String startVerification() {
+        //TODO: #7831 Add check that URL exists and accessible
+        return null;
+    }
+
+    @Override
+    public void endVerification(String seed) {
+        throw new UnsupportedOperationException("shouldn't be called");
+    }
+
 }

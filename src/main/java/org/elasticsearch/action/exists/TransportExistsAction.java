@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -49,7 +48,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -69,20 +68,17 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
 
     private final ScriptService scriptService;
 
-    private final CacheRecycler cacheRecycler;
-
     private final PageCacheRecycler pageCacheRecycler;
 
     private final BigArrays bigArrays;
 
     @Inject
     public TransportExistsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler,
+                                IndicesService indicesService, ScriptService scriptService,
                                 PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
         super(settings, ExistsAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
     }
@@ -111,7 +107,7 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
     @Override
     protected ShardExistsRequest newShardRequest(int numShards, ShardRouting shard, ExistsRequest request) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
-        return new ShardExistsRequest(shard.index(), shard.id(), filteringAliases, request);
+        return new ShardExistsRequest(shard.shardId(), filteringAliases, request);
     }
 
     @Override
@@ -166,16 +162,14 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
 
     @Override
     protected ShardExistsResponse shardOperation(ShardExistsRequest request) throws ElasticsearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = indexService.shardSafe(request.shardId());
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
 
-        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
+        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         SearchContext context = new DefaultSearchContext(0,
-                new ShardSearchRequest().types(request.types())
-                        .filteringAliases(request.filteringAliases())
-                        .nowInMillis(request.nowInMillis()),
+                new ShardSearchLocalRequest(request.types(), request.nowInMillis(), request.filteringAliases()),
                 shardTarget, indexShard.acquireSearcher("exists"), indexService, indexShard,
-                scriptService, cacheRecycler, pageCacheRecycler, bigArrays);
+                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter());
         SearchContext.setCurrent(context);
 
         try {
@@ -195,7 +189,7 @@ public class TransportExistsAction extends TransportBroadcastOperationAction<Exi
             try {
                 Lucene.EarlyTerminatingCollector existsCollector = Lucene.createExistsCollector();
                 Lucene.exists(context.searcher(), context.query(), existsCollector);
-                return new ShardExistsResponse(request.index(), request.shardId(), existsCollector.exists());
+                return new ShardExistsResponse(request.shardId(), existsCollector.exists());
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "failed to execute exists", e);
             }

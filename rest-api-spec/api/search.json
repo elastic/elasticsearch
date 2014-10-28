@@ -146,6 +146,10 @@
         "version": {
           "type" : "boolean",
           "description" : "Specify whether to return document version as part of a hit"
+        },
+        "query_cache": {
+          "type" : "boolean",
+          "description" : "Specify if query cache should be used for this request or not, defaults to index level setting"
         }
       }
     },

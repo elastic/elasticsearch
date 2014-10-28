@@ -35,6 +35,12 @@
            "default" : true,
            "required" : false
         },
+        "dfs" : {
+           "type" : "boolean",
+           "description" : "Specifies if distributed frequencies should be returned instead shard frequencies.",
+           "default" : false,
+           "required" : false
+        },
         "fields" : {
           "type" : "list",
           "description" : "A comma-separated list of fields to return.",
@@ -71,6 +77,11 @@
         "parent": {
           "type" : "string",
           "description" : "Parent id of documents.",
+          "required" : false
+        },
+        "realtime": {
+          "type" : "boolean",
+          "description" : "Specifies if request is real-time as opposed to near-real-time (default: true).",
           "required" : false
         }
       }

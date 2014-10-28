@@ -76,7 +76,7 @@ public final class CompletionTokenStream extends TokenStream {
              * produced. Multi Fields have the same surface form and therefore sum up
              */
             posInc = 0;
-            Util.toBytesRef(finiteStrings.next(), bytesAtt.getBytesRef()); // now we have UTF-8
+            Util.toBytesRef(finiteStrings.next(), bytesAtt.builder()); // now we have UTF-8
             if (charTermAttribute != null) {
                 charTermAttribute.setLength(0);
                 charTermAttribute.append(bytesAtt.toUTF16());
@@ -123,12 +123,17 @@ public final class CompletionTokenStream extends TokenStream {
     public interface ByteTermAttribute extends TermToBytesRefAttribute {
         // marker interface
 
+        /**
+         * Return the builder from which the term is derived.
+         */
+        public BytesRefBuilder builder();
+
         public CharSequence toUTF16();
     }
 
     public static final class ByteTermAttributeImpl extends AttributeImpl implements ByteTermAttribute, TermToBytesRefAttribute {
-        private final BytesRef bytes = new BytesRef();
-        private CharsRef charsRef;
+        private final BytesRefBuilder bytes = new BytesRefBuilder();
+        private CharsRefBuilder charsRef;
 
         @Override
         public void fillBytesRef() {
@@ -136,13 +141,18 @@ public final class CompletionTokenStream extends TokenStream {
         }
 
         @Override
-        public BytesRef getBytesRef() {
+        public BytesRefBuilder builder() {
             return bytes;
         }
 
         @Override
+        public BytesRef getBytesRef() {
+            return bytes.get();
+        }
+
+        @Override
         public void clear() {
-            bytes.length = 0;
+            bytes.clear();
         }
 
         @Override
@@ -154,10 +164,10 @@ public final class CompletionTokenStream extends TokenStream {
         @Override
         public CharSequence toUTF16() {
             if (charsRef == null) {
-                charsRef = new CharsRef();
+                charsRef = new CharsRefBuilder();
             }
-            UnicodeUtil.UTF8toUTF16(bytes, charsRef);
-            return charsRef;
+            charsRef.copyUTF8Bytes(getBytesRef());
+            return charsRef.get();
         }
     }
 }

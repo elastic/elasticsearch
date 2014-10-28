@@ -298,8 +298,8 @@
 # and master node is elected. Multicast discovery is the default.
 
 # Set to ensure a node sees N other master eligible nodes to be considered
-# operational within the cluster. Its recommended to set it to a higher value
-# than 1 when running more than 2 nodes in the cluster.
+# operational within the cluster. This should be set to a quorum/majority of 
+# the master-eligible nodes in the cluster.
 #
 #discovery.zen.minimum_master_nodes: 1
 

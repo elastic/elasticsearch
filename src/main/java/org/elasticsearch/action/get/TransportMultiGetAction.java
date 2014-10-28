@@ -70,27 +70,21 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(item.index(), item.type(), item.id(), "[" + item.index() + "] missing")));
                 continue;
             }
-
             item.routing(clusterState.metaData().resolveIndexRouting(item.routing(), item.index()));
-            item.index(clusterState.metaData().concreteSingleIndex(item.index(), item.indicesOptions()));
-            if (item.routing() == null && clusterState.getMetaData().routingRequired(item.index(), item.type())) {
-                responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(item.index(), item.type(), item.id(),
-                        "routing is required for [" + item.index() + "]/[" + item.type() + "]/[" + item.id() + "]")));
+            String concreteSingleIndex = clusterState.metaData().concreteSingleIndex(item.index(), item.indicesOptions());
+            if (item.routing() == null && clusterState.getMetaData().routingRequired(concreteSingleIndex, item.type())) {
+                responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(concreteSingleIndex, item.type(), item.id(),
+                        "routing is required for [" + concreteSingleIndex + "]/[" + item.type() + "]/[" + item.id() + "]")));
                 continue;
             }
             ShardId shardId = clusterService.operationRouting()
-                    .getShards(clusterState, item.index(), item.type(), item.id(), item.routing(), null).shardId();
+                    .getShards(clusterState, concreteSingleIndex, item.type(), item.id(), item.routing(), null).shardId();
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
-                shardRequest = new MultiGetShardRequest(shardId.index().name(), shardId.id());
-                shardRequest.preference(request.preference);
-                shardRequest.realtime(request.realtime);
-                shardRequest.refresh(request.refresh);
-                shardRequest.ignoreErrorsOnGeneratedFields(request.ignoreErrorsOnGeneratedFields);
-
+                shardRequest = new MultiGetShardRequest(request, shardId.index().name(), shardId.id());
                 shardRequests.put(shardId, shardRequest);
             }
-            shardRequest.add(i, item.type(), item.id(), item.fields(), item.version(), item.versionType(), item.fetchSourceContext());
+            shardRequest.add(i, item);
         }
 
         if (shardRequests.size() == 0) {
@@ -117,8 +111,9 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                     // create failures for all relevant requests
                     String message = ExceptionsHelper.detailedMessage(e);
                     for (int i = 0; i < shardRequest.locations.size(); i++) {
+                        MultiGetRequest.Item item = shardRequest.items.get(i);
                         responses.set(shardRequest.locations.get(i), new MultiGetItemResponse(null,
-                                new MultiGetResponse.Failure(shardRequest.index(), shardRequest.types.get(i), shardRequest.ids.get(i), message)));
+                                new MultiGetResponse.Failure(shardRequest.index(), item.type(), item.id(), message)));
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

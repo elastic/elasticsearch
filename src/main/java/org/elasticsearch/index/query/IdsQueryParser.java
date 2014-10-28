@@ -70,11 +70,17 @@ public class IdsQueryParser implements QueryParser {
                 if ("values".equals(currentFieldName)) {
                     idsProvided = true;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        BytesRef value = parser.bytesOrNull();
-                        if (value == null) {
-                            throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
+                        if ((token == XContentParser.Token.VALUE_STRING) ||
+                                (token == XContentParser.Token.VALUE_NUMBER)) {
+                            BytesRef value = parser.utf8BytesOrNull();
+                            if (value == null) {
+                                throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
+                            }
+                            ids.add(value);
+                        } else {
+                            throw new QueryParsingException(parseContext.index(),
+                                    "Illegal value for id, expecting a string or number, got: " + token);
                         }
-                        ids.add(value);
                     }
                 } else if ("types".equals(currentFieldName) || "type".equals(currentFieldName)) {
                     types = new ArrayList<>();
@@ -125,4 +131,3 @@ public class IdsQueryParser implements QueryParser {
         return query;
     }
 }
-

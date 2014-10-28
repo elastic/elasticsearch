@@ -40,6 +40,7 @@ import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.store.MockDirectoryHelper;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.*;
 
 import java.io.Closeable;
@@ -54,6 +55,7 @@ import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -64,7 +66,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
  * Base testcase for randomized unit testing with Elasticsearch
  */
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
-@ThreadLeakScope(Scope.NONE)
+@ThreadLeakScope(Scope.SUITE)
+@ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // timeout the suite after 20min and fail the test.
 @Listeners(LoggingListener.class)
 public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
@@ -72,8 +75,6 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     private static Thread.UncaughtExceptionHandler defaultHandler;
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
-
-    public static final String CHILD_VM_ID = System.getProperty("junit4.childvm.id", "" + System.currentTimeMillis());
 
     public static final String TESTS_SECURITY_MANAGER = System.getProperty("tests.security.manager");
 
@@ -293,18 +294,89 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         SORTED_VERSIONS = version.build();
     }
 
+    /**
+     * @return the {@link Version} before the {@link Version#CURRENT}
+     */
     public static Version getPreviousVersion() {
         Version version = SORTED_VERSIONS.get(1);
         assert version.before(Version.CURRENT);
         return version;
     }
-
+    
+    /**
+     * A random {@link Version}.
+     *
+     * @return a random {@link Version} from all available versions
+     */
     public static Version randomVersion() {
         return randomVersion(getRandom());
     }
-
+    
+    /**
+     * A random {@link Version}.
+     * 
+     * @param random
+     *            the {@link Random} to use to generate the random version
+     *
+     * @return a random {@link Version} from all available versions
+     */
     public static Version randomVersion(Random random) {
         return SORTED_VERSIONS.get(random.nextInt(SORTED_VERSIONS.size()));
+    }
+    
+    /**
+     * Returns immutable list of all known versions.
+     */
+    public static List<Version> allVersions() {
+        return Collections.unmodifiableList(SORTED_VERSIONS);
+    }
+
+    /**
+     * A random {@link Version} from <code>minVersion</code> to
+     * <code>maxVersion</code> (inclusive).
+     * 
+     * @param minVersion
+     *            the minimum version (inclusive)
+     * @param maxVersion
+     *            the maximum version (inclusive)
+     * @return a random {@link Version} from <code>minVersion</code> to
+     *         <code>maxVersion</code> (inclusive)
+     */
+    public static Version randomVersionBetween(Version minVersion, Version maxVersion) {
+        return randomVersionBetween(getRandom(), minVersion, maxVersion);
+    }
+
+    /**
+     * A random {@link Version} from <code>minVersion</code> to
+     * <code>maxVersion</code> (inclusive).
+     * 
+     * @param random
+     *            the {@link Random} to use to generate the random version
+     * @param minVersion
+     *            the minimum version (inclusive)
+     * @param maxVersion
+     *            the maximum version (inclusive)
+     * @return a random {@link Version} from <code>minVersion</code> to
+     *         <code>maxVersion</code> (inclusive)
+     */
+    public static Version randomVersionBetween(Random random, Version minVersion, Version maxVersion) {
+        int minVersionIndex = SORTED_VERSIONS.size();
+        if (minVersion != null) {
+            minVersionIndex = SORTED_VERSIONS.indexOf(minVersion);
+        }
+        int maxVersionIndex = 0;
+        if (maxVersion != null) {
+            maxVersionIndex = SORTED_VERSIONS.indexOf(maxVersion);
+        }
+        if (minVersionIndex == -1) {
+            throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
+        } else if (maxVersionIndex == -1) {
+            throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
+        } else {
+            // minVersionIndex is inclusive so need to add 1 to this index
+            int range = minVersionIndex + 1 - maxVersionIndex;
+            return SORTED_VERSIONS.get(maxVersionIndex + random.nextInt(range));
+        }
     }
 
     static final class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
@@ -454,4 +526,18 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         return System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
     }
 
+
+    public static boolean terminate(ExecutorService... services) throws InterruptedException {
+        boolean terminated = true;
+        for (ExecutorService service : services) {
+            if (service != null) {
+                terminated &= ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
+            }
+        }
+        return terminated;
+    }
+
+    public static boolean terminate(ThreadPool service) throws InterruptedException {
+        return ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
+    }
 }

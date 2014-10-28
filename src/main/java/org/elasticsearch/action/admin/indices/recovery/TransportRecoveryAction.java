@@ -33,20 +33,17 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.service.InternalIndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -133,7 +130,7 @@ public class TransportRecoveryAction extends
 
     @Override
     protected ShardRecoveryRequest newShardRequest(int numShards, ShardRouting shard, RecoveryRequest request) {
-        return new ShardRecoveryRequest(shard.index(), shard.id(), request);
+        return new ShardRecoveryRequest(shard.shardId(), request);
     }
 
     @Override
@@ -144,23 +141,19 @@ public class TransportRecoveryAction extends
     @Override
     protected ShardRecoveryResponse shardOperation(ShardRecoveryRequest request) throws ElasticsearchException {
 
-        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
-        ShardRouting shardRouting = indexShard.routingEntry();
-        ShardRecoveryResponse shardRecoveryResponse = new ShardRecoveryResponse(shardRouting.index(), shardRouting.id());
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.shardId().getIndex());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
+        ShardRecoveryResponse shardRecoveryResponse = new ShardRecoveryResponse(request.shardId());
 
-        RecoveryState state;
-        RecoveryStatus recoveryStatus = indexShard.recoveryStatus();
+        RecoveryState state = indexShard.recoveryState();
 
-        if (recoveryStatus == null) {
-            recoveryStatus = recoveryTarget.recoveryStatus(indexShard);
+        if (state == null) {
+            state = recoveryTarget.recoveryState(indexShard);
         }
 
-        if (recoveryStatus != null) {
-            state = recoveryStatus.recoveryState();
-        } else {
+        if (state == null) {
             IndexShardGatewayService gatewayService =
-                    indexService.shardInjector(request.shardId()).getInstance(IndexShardGatewayService.class);
+                    indexService.shardInjector(request.shardId().id()).getInstance(IndexShardGatewayService.class);
             state = gatewayService.recoveryState();
         }
 
@@ -175,30 +168,21 @@ public class TransportRecoveryAction extends
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, RecoveryRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, RecoveryRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, concreteIndices);
     }
 
-    public static class ShardRecoveryRequest extends BroadcastShardOperationRequest {
+    static class ShardRecoveryRequest extends BroadcastShardOperationRequest {
 
-        ShardRecoveryRequest() { }
-
-        ShardRecoveryRequest(String index, int shardId, RecoveryRequest request) {
-            super(index, shardId, request);
+        ShardRecoveryRequest() {
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+        ShardRecoveryRequest(ShardId shardId, RecoveryRequest request) {
+            super(shardId, request);
         }
     }
 }

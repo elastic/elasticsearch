@@ -44,8 +44,11 @@ enable. Defaults to `ALL`.
 be automatically lower-cased or not (since they are not analyzed). Defaults to
 true.
 
-|`locale` | added[1.1.0] Locale that should be used for string conversions.
+|`locale` | Locale that should be used for string conversions.
 Defaults to `ROOT`.
+
+|`lenient` | If set to `true` will cause format based failures
+(like providing text to a numeric field) to be ignored.
 |=======================================================================
 
 [float]
@@ -105,5 +108,5 @@ should be enabled. It is specified as a `|`-delimited string with the
 }
 --------------------------------------------------
 
-The available flags are: `ALL`, `NONE`, `AND`, `OR`, `PREFIX`, `PHRASE`,
+The available flags are: `ALL`, `NONE`, `AND`, `OR`, `NOT`, `PREFIX`, `PHRASE`,
 `PRECEDENCE`, `ESCAPE`, `WHITESPACE`, `FUZZY`, `NEAR`, and `SLOP`.

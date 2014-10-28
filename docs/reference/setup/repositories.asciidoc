@@ -27,7 +27,7 @@ Run apt-get update and the repository is ready for use. You can install it with 
 
 [source,sh]
 --------------------------------------------------
-apt-get install elasticsearch
+apt-get update && apt-get install elasticsearch
 --------------------------------------------------
 
 

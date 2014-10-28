@@ -60,10 +60,7 @@ import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 /**
  *
@@ -939,7 +936,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
             AbstractFieldMapper mergeWithMultiField = (AbstractFieldMapper) mergeWith;
 
-            List<FieldMapper> newFieldMappers = null;
+            List<FieldMapper<?>> newFieldMappers = null;
             ImmutableOpenMap.Builder<String, Mapper> newMappersBuilder = null;
 
             for (ObjectCursor<Mapper> cursor : mergeWithMultiField.multiFields.mappers.values()) {
@@ -995,9 +992,17 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
             }
             if (!mappers.isEmpty()) {
+                // sort the mappers so we get consistent serialization format
+                Mapper[] sortedMappers = mappers.values().toArray(Mapper.class);
+                Arrays.sort(sortedMappers, new Comparator<Mapper>() {
+                    @Override
+                    public int compare(Mapper o1, Mapper o2) {
+                        return o1.name().compareTo(o2.name());
+                    }
+                });
                 builder.startObject("fields");
-                for (ObjectCursor<Mapper> cursor : mappers.values()) {
-                    cursor.value.toXContent(builder, params);
+                for (Mapper mapper : sortedMappers) {
+                    mapper.toXContent(builder, params);
                 }
                 builder.endObject();
             }

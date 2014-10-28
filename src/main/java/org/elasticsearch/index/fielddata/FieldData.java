@@ -23,9 +23,8 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.Version;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.lucene.Lucene;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,22 +35,11 @@ import java.util.List;
 public enum FieldData {
     ;
 
-    static {
-        assert Lucene.VERSION == Version.LUCENE_4_9 : "Remove emptySortedNumeric in 4.10 and use the method with the same name from Lucene's DocValues class. See LUCENE-5834.";
-    }
-
     /**
      * Return a {@link SortedBinaryDocValues} that doesn't contain any value.
      */
     public static SortedBinaryDocValues emptySortedBinary(int maxDoc) {
         return singleton(DocValues.emptyBinary(), new Bits.MatchNoBits(maxDoc));
-    }
-
-    /**
-     * Return a {@link SortedNumericDocValues} that doesn't contain any value.
-     */
-    public static SortedNumericDocValues emptySortedNumeric(int maxDoc) {
-        return DocValues.singleton(DocValues.emptyNumeric(), new Bits.MatchNoBits(maxDoc));
     }
 
     /**
@@ -143,6 +131,56 @@ public enum FieldData {
           return maxDoc;
         }
       };
+    }
+
+    /**
+     * Given a {@link SortedNumericDoubleValues}, return a {@link SortedNumericDocValues}
+     * instance that will translate double values to sortable long bits using
+     * {@link NumericUtils#doubleToSortableLong(double)}.
+     */
+    public static SortedNumericDocValues toSortableLongBits(SortedNumericDoubleValues values) {
+        final NumericDoubleValues singleton = unwrapSingleton(values);
+        if (singleton != null) {
+            final NumericDocValues longBits;
+            if (singleton instanceof SortableLongBitsToNumericDoubleValues) {
+                longBits = ((SortableLongBitsToNumericDoubleValues) singleton).getLongValues();
+            } else {
+                longBits = new SortableLongBitsNumericDocValues(singleton);
+            }
+            final Bits docsWithField = unwrapSingletonBits(values);
+            return DocValues.singleton(longBits, docsWithField);
+        } else {
+            if (values instanceof SortableLongBitsToSortedNumericDoubleValues) {
+                return ((SortableLongBitsToSortedNumericDoubleValues) values).getLongValues();
+            } else {
+                return new SortableLongBitsSortedNumericDocValues(values);
+            }
+        }
+    }
+
+    /**
+     * Given a {@link SortedNumericDocValues}, return a {@link SortedNumericDoubleValues}
+     * instance that will translate long values to doubles using
+     * {@link NumericUtils#sortableLongToDouble(long)}.
+     */
+    public static SortedNumericDoubleValues sortableLongBitsToDoubles(SortedNumericDocValues values) {
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        if (singleton != null) {
+            final NumericDoubleValues doubles;
+            if (singleton instanceof SortableLongBitsNumericDocValues) {
+                doubles = ((SortableLongBitsNumericDocValues) singleton).getDoubleValues();
+            } else {
+                doubles = new SortableLongBitsToNumericDoubleValues(singleton);
+            }
+            final Bits docsWithField = DocValues.unwrapSingletonBits(values);
+            return singleton(doubles, docsWithField);
+        } else {
+            if (values instanceof SortableLongBitsSortedNumericDocValues) {
+                return ((SortableLongBitsSortedNumericDocValues) values).getDoubleValues();
+            } else {
+                return new SortableLongBitsToSortedNumericDoubleValues(values);
+            }
+        }
     }
 
     /**

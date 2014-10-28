@@ -22,13 +22,12 @@ package org.elasticsearch.common.compress.lzf;
 import com.ning.compress.BufferRecycler;
 import com.ning.compress.lzf.ChunkEncoder;
 import com.ning.compress.lzf.LZFChunk;
+import com.ning.compress.lzf.util.ChunkEncoderFactory;
 import org.elasticsearch.common.compress.CompressedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- */
 public class LZFCompressedStreamOutput extends CompressedStreamOutput<LZFCompressorContext> {
 
     private final BufferRecycler recycler;
@@ -39,7 +38,7 @@ public class LZFCompressedStreamOutput extends CompressedStreamOutput<LZFCompres
         this.recycler = BufferRecycler.instance();
         this.uncompressed = this.recycler.allocOutputBuffer(LZFChunk.MAX_CHUNK_LEN);
         this.uncompressedLength = LZFChunk.MAX_CHUNK_LEN;
-        this.encoder = new ChunkEncoder(LZFChunk.MAX_CHUNK_LEN);
+        this.encoder = ChunkEncoderFactory.safeInstance(recycler);
     }
 
     @Override

@@ -28,6 +28,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
@@ -66,8 +68,6 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         String lang = null;
         Map<String, Object> params = null;
         ValueType valueType = null;
-        boolean assumeUnique = false;
-        boolean assumeSorted = false;
         String format = null;
     }
 
@@ -81,6 +81,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     private ValueType targetValueType = null;
     private boolean requiresSortedValues = false;
     private boolean requiresUniqueValues = false;
+    private ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
 
     private Input input = new Input();
 
@@ -98,38 +99,17 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             } else if (formattable && "format".equals(currentFieldName)) {
                 input.format = parser.text();
             } else if (scriptable) {
-                if ("script".equals(currentFieldName)) {
-                    input.script = parser.text();
-                    input.scriptType = ScriptService.ScriptType.INLINE;
-                } else if ("script_id".equals(currentFieldName)) {
-                    input.script = parser.text();
-                    input.scriptType = ScriptService.ScriptType.INDEXED;
-                } else if ("script_file".equals(currentFieldName)) {
-                    input.script = parser.text();
-                    input.scriptType = ScriptService.ScriptType.FILE;
-                } else if ("lang".equals(currentFieldName)) {
-                    input.lang = parser.text();
-                } else if ("value_type".equals(currentFieldName) || "valueType".equals(currentFieldName)) {
+                if ("value_type".equals(currentFieldName) || "valueType".equals(currentFieldName)) {
                     input.valueType = ValueType.resolveForScript(parser.text());
                     if (targetValueType != null && input.valueType.isNotA(targetValueType)) {
                         throw new SearchParseException(context, aggType.name() + " aggregation [" + aggName +
                                 "] was configured with an incompatible value type [" + input.valueType + "]. [" + aggType +
                                 "] aggregation can only work on value of type [" + targetValueType + "]");
                     }
-                } else {
+                } else if (!scriptParameterParser.token(currentFieldName, token, parser)) {
                     return false;
                 }
                 return true;
-            } else {
-                return false;
-            }
-            return true;
-        }
-        if (scriptable && token == XContentParser.Token.VALUE_BOOLEAN) {
-            if ("script_values_unique".equals(currentFieldName) || "scriptValuesUnique".equals(currentFieldName)) {
-                input.assumeUnique = parser.booleanValue();
-            } else if ("script_values_sorted".equals(currentFieldName) || "scriptValuesSorted".equals(currentFieldName)) {
-                input.assumeSorted = parser.booleanValue();
             } else {
                 return false;
             }
@@ -147,7 +127,14 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     }
 
     public ValuesSourceConfig<VS> config() {
-
+        
+        ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+        if (scriptValue != null) {
+            input.script = scriptValue.script();
+            input.scriptType = scriptValue.scriptType();
+        }
+        input.lang = scriptParameterParser.lang();
+        
         ValueType valueType = input.valueType != null ? input.valueType : targetValueType;
 
         if (input.field == null) {
@@ -249,16 +236,6 @@ public class ValuesSourceParser<VS extends ValuesSource> {
 
         public Builder<VS> targetValueType(ValueType valueType) {
             parser.targetValueType = valueType;
-            return this;
-        }
-
-        public Builder<VS> requiresSortedValues(boolean requiresSortedValues) {
-            parser.requiresSortedValues = requiresSortedValues;
-            return this;
-        }
-
-        public Builder<VS> requiresUniqueValues(boolean requiresUniqueValues) {
-            parser.requiresUniqueValues = requiresUniqueValues;
             return this;
         }
 

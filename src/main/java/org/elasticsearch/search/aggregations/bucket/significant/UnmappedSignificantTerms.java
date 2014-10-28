@@ -38,7 +38,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
 
     public static final Type TYPE = new Type("significant_terms", "umsigterms");
 
-    private static final Collection<Bucket> BUCKETS = Collections.emptyList();
+    private static final List<Bucket> BUCKETS = Collections.emptyList();
     private static final Map<String, Bucket> BUCKETS_MAP = Collections.emptyMap();
 
     public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {

@@ -27,16 +27,14 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.zen.ZenDiscoveryModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.netty.NettyTransportModule;
-import org.hamcrest.CoreMatchers;
+import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.Before;
 import org.junit.Ignore;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
@@ -84,18 +82,51 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
     private static File backwardsCompatibilityPath() {
         String path = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_PATH);
+        if (path == null || path.isEmpty()) {
+            throw new IllegalArgumentException("Invalid Backwards tests location path:" + path);
+        }
         String version = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
-        if (path == null || path.isEmpty() || version == null || version.isEmpty()) {
-            throw new IllegalArgumentException("Invalid Backwards tests location path:" + path + " version: " + version);
+        if (version == null || version.isEmpty()) {
+            throw new IllegalArgumentException("Invalid Backwards tests version:" + version);
         }
-        File file = new File(path, "elasticsearch-" + version);
-        if (!file.exists()) {
-            throw new IllegalArgumentException("Backwards tests location is missing: " + file.getAbsolutePath());
+        if (Version.fromString(version).before(Version.CURRENT.minimumCompatibilityVersion())) {
+            throw new IllegalArgumentException("Backcompat elasticsearch version must be same major version as current. " +
+                "backcompat: " + version + ", current: " + Version.CURRENT.toString());
         }
-        if (!file.isDirectory()) {
-            throw new IllegalArgumentException("Backwards tests location is not a directory: " + file.getAbsolutePath());
+        File dir;
+        if (version == null || version.isEmpty()) {
+            // choose a random version
+            // TODO: how can we put the version selected in the repeat test output?
+            File[] subdirs = new File(path).listFiles(new FileFilter() {
+                @Override
+                public boolean accept(File file) {
+                    return file.getName().startsWith("elasticsearch-") && file.isDirectory();
+                }
+            });
+            if (subdirs == null || subdirs.length == 0) {
+                throw new IllegalArgumentException("Backwards dir " + path + " must be a directory, and contain elasticsearch releases");
+            }
+            dir = subdirs[randomInt(subdirs.length - 1)];
+            version = dir.getName().substring("elasticsearch-".length());
+        } else {
+            dir = new File(path, "elasticsearch-" + version);
+            if (!dir.exists()) {
+                throw new IllegalArgumentException("Backwards tests location is missing: " + dir.getAbsolutePath());
+            }
+            if (!dir.isDirectory()) {
+                throw new IllegalArgumentException("Backwards tests location is not a directory: " + dir.getAbsolutePath());
+            }
         }
-        return file;
+        
+        Version v = Version.fromString(version);
+        if (v == null) {
+            throw new IllegalArgumentException("Backcompat elasticsearch version could not be parsed: " + version);
+        }
+        if (v.major != Version.CURRENT.major) {
+            throw new IllegalArgumentException("Backcompat elasticsearch version must be same major version as current. " +
+                                               "backcompat: " + version + ", current: " + Version.CURRENT.toString());
+        }
+        return dir;
     }
 
     public CompositeTestCluster backwardsCluster() {
@@ -104,10 +135,15 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
     protected TestCluster buildTestCluster(Scope scope) throws IOException {
         TestCluster cluster = super.buildTestCluster(scope);
-        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new NodeSettingsSource() {
+        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new SettingsSource() {
             @Override
-            public Settings settings(int nodeOrdinal) {
+            public Settings node(int nodeOrdinal) {
                 return externalNodeSettings(nodeOrdinal);
+            }
+
+            @Override
+            public Settings transportClient() {
+                return transportClientSettings();
             }
         });
         return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode);
@@ -132,15 +168,14 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         assumeTrue("BWC tests are disabled currently for version [< 1.1.0]", compatibilityVersion().onOrAfter(Version.V_1_1_0));
     }
 
+    protected Settings requiredSettings() {
+        return ExternalNode.REQUIRED_SETTINGS;
+    }
+
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransportModule.class) // run same transport  / disco as external
-                .put(DiscoveryModule.DISCOVERY_TYPE_KEY, ZenDiscoveryModule.class)
-                .put("node.mode", "network") // we need network mode for this
-                .put("gateway.type", "local") // we require local gateway to mimic upgrades of nodes
-                .put("discovery.type", "zen") // zen is needed since we start external nodes
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName())
-                .build();
+        return ImmutableSettings.builder().put(requiredSettings())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName()) // run same transport  / disco as external
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName()).build();
     }
 
     public void assertAllShardsOnNodes(String index, String pattern) {
@@ -158,6 +193,6 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     }
 
     protected Settings externalNodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.EMPTY;
+        return nodeSettings(nodeOrdinal);
     }
 }

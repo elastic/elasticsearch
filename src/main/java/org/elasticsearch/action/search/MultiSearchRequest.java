@@ -137,6 +137,8 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
                                     searchRequest.types(Strings.splitStringByCommaToArray(parser.text()));
                                 } else if ("search_type".equals(currentFieldName) || "searchType".equals(currentFieldName)) {
                                     searchRequest.searchType(parser.text());
+                                } else if ("query_cache".equals(currentFieldName) || "queryCache".equals(currentFieldName)) {
+                                    searchRequest.queryCache(parser.booleanValue());
                                 } else if ("preference".equals(currentFieldName)) {
                                     searchRequest.preference(parser.text());
                                 } else if ("routing".equals(currentFieldName)) {

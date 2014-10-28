@@ -13,6 +13,7 @@ and warmers.
 
 * <<indices-create-index>>
 * <<indices-delete-index>>
+* <<indices-get-index>>
 * <<indices-exists>>
 * <<indices-open-close>>
 
@@ -54,12 +55,15 @@ and warmers.
 * <<indices-refresh>>
 * <<indices-flush>>
 * <<indices-optimize>>
+* <<indices-upgrade>>
 
 --
 
 include::indices/create-index.asciidoc[]
 
 include::indices/delete-index.asciidoc[]
+
+include::indices/get-index.asciidoc[]
 
 include::indices/indices-exists.asciidoc[]
 
@@ -100,4 +104,6 @@ include::indices/flush.asciidoc[]
 include::indices/refresh.asciidoc[]
 
 include::indices/optimize.asciidoc[]
+
+include::indices/upgrade.asciidoc[]
 

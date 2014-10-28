@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper.Dynamic;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -313,5 +314,38 @@ public class NestedMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.docs().get(6).get("field"), equalTo("value"));
         assertThat(doc.docs().get(6).get("nested1.field1"), nullValue());
         assertThat(doc.docs().get(6).getFields("nested1.nested2.field2").length, equalTo(4));
+    }
+
+    @Test
+    public void nestedArray_strict() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("nested1").field("type", "nested").field("dynamic", "strict").startObject("properties")
+                .startObject("field1").field("type", "string")
+                .endObject().endObject()
+                .endObject().endObject().endObject().string();
+
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        assertThat(docMapper.hasNestedObjects(), equalTo(true));
+        ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
+        assertThat(nested1Mapper.nested().isNested(), equalTo(true));
+        assertThat(nested1Mapper.dynamic(), equalTo(Dynamic.STRICT));
+
+        ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "value")
+                .startArray("nested1")
+                .startObject().field("field1", "1").endObject()
+                .startObject().field("field1", "4").endObject()
+                .endArray()
+                .endObject()
+                .bytes());
+
+        assertThat(doc.docs().size(), equalTo(3));
+        assertThat(doc.docs().get(0).get("nested1.field1"), equalTo("4"));
+        assertThat(doc.docs().get(0).get("field"), nullValue());
+        assertThat(doc.docs().get(1).get("nested1.field1"), equalTo("1"));
+        assertThat(doc.docs().get(1).get("field"), nullValue());
+        assertThat(doc.docs().get(2).get("field"), equalTo("value"));
     }
 }

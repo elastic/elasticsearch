@@ -46,8 +46,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteByQueryAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteByQueryAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestDeleteByQueryAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(DELETE, "/{index}/_query", this);
         controller.registerHandler(DELETE, "/{index}/{type}/_query", this);
     }

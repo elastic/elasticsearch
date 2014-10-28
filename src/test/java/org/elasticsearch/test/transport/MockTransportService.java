@@ -24,14 +24,21 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
@@ -46,6 +53,7 @@ public class MockTransportService extends TransportService {
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
         super(settings, new LookupTestTransport(transport), threadPool);
         this.original = transport;
+
     }
 
     /**
@@ -95,9 +103,16 @@ public class MockTransportService extends TransportService {
     /**
      * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
      */
+    public void addFailToSendNoConnectRule(DiscoveryNode node, final String... blockedActions) {
+        addFailToSendNoConnectRule(node, new HashSet<>(Arrays.asList(blockedActions)));
+    }
+
+    /**
+     * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
+     */
     public void addFailToSendNoConnectRule(DiscoveryNode node, final Set<String> blockedActions) {
 
-        ((LookupTestTransport) transport).transports.put(node.getAddress(), new DelegateTransport(original) {
+        addDelegate(node, new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 original.connectToNode(node);
@@ -124,7 +139,6 @@ public class MockTransportService extends TransportService {
      * and failing to connect once the rule was added.
      */
     public void addUnresponsiveRule(DiscoveryNode node) {
-        // TODO add a parameter to delay the connect timeout?
         addDelegate(node, new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
@@ -144,7 +158,101 @@ public class MockTransportService extends TransportService {
     }
 
     /**
+     * Adds a rule that will cause ignores each send request, simulating an unresponsive node
+     * and failing to connect once the rule was added.
+     *
+     * @param duration the amount of time to delay sending and connecting.
+     */
+    public void addUnresponsiveRule(DiscoveryNode node, final TimeValue duration) {
+        final long startTime = System.currentTimeMillis();
+
+        addDelegate(node, new DelegateTransport(original) {
+
+            TimeValue getDelay() {
+                return new TimeValue(duration.millis() - (System.currentTimeMillis() - startTime));
+            }
+
+            @Override
+            public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
+                TimeValue delay = getDelay();
+                if (delay.millis() <= 0) {
+                    original.connectToNode(node);
+                    return;
+                }
+
+                // TODO: Replace with proper setting
+                TimeValue connectingTimeout = NetworkService.TcpSettings.TCP_DEFAULT_CONNECT_TIMEOUT;
+                try {
+                    if (delay.millis() < connectingTimeout.millis()) {
+                        Thread.sleep(delay.millis());
+                        original.connectToNode(node);
+                    } else {
+                        Thread.sleep(connectingTimeout.millis());
+                        throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
+                    }
+                } catch (InterruptedException e) {
+                    throw new ConnectTransportException(node, "UNRESPONSIVE: interrupted while sleeping", e);
+                }
+            }
+
+            @Override
+            public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+                TimeValue delay = getDelay();
+                if (delay.millis() <= 0) {
+                    original.connectToNodeLight(node);
+                    return;
+                }
+
+                // TODO: Replace with proper setting
+                TimeValue connectingTimeout = NetworkService.TcpSettings.TCP_DEFAULT_CONNECT_TIMEOUT;
+                try {
+                    if (delay.millis() < connectingTimeout.millis()) {
+                        Thread.sleep(delay.millis());
+                        original.connectToNodeLight(node);
+                    } else {
+                        Thread.sleep(connectingTimeout.millis());
+                        throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
+                    }
+                } catch (InterruptedException e) {
+                    throw new ConnectTransportException(node, "UNRESPONSIVE: interrupted while sleeping", e);
+                }
+            }
+
+            @Override
+            public void sendRequest(final DiscoveryNode node, final long requestId, final String action, TransportRequest request, final TransportRequestOptions options) throws IOException, TransportException {
+                // delayed sending - even if larger then the request timeout to simulated a potential late response from target node
+
+                TimeValue delay = getDelay();
+                if (delay.millis() <= 0) {
+                    original.sendRequest(node, requestId, action, request, options);
+                    return;
+                }
+
+                // poor mans request cloning...
+                TransportRequestHandler handler = MockTransportService.this.getHandler(action);
+                BytesStreamOutput bStream = new BytesStreamOutput();
+                request.writeTo(bStream);
+                final TransportRequest clonedRequest = handler.newInstance();
+                clonedRequest.readFrom(new BytesStreamInput(bStream.bytes()));
+
+                threadPool.schedule(delay, ThreadPool.Names.GENERIC, new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Throwable e) {
+                        logger.debug("failed to send delayed request", e);
+                    }
+
+                    @Override
+                    protected void doRun() throws IOException {
+                        original.sendRequest(node, requestId, action, clonedRequest, options);
+                    }
+                });
+            }
+        });
+    }
+
+    /**
      * Adds a new delegate transport that is used for communication with the given node.
+     *
      * @return <tt>true</tt> iff no other delegate was registered for this node before, otherwise <tt>false</tt>
      */
     public boolean addDelegate(DiscoveryNode node, DelegateTransport transport) {
@@ -209,11 +317,10 @@ public class MockTransportService extends TransportService {
 
         protected final Transport transport;
 
+
         public DelegateTransport(Transport transport) {
             this.transport = transport;
         }
-
-
 
         @Override
         public void transportServiceAdapter(TransportServiceAdapter service) {

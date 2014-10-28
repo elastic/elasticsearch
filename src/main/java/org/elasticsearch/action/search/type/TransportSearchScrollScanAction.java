@@ -68,7 +68,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
         new AsyncAction(request, scrollId, listener).start();
     }
 
-    private class AsyncAction {
+    private class AsyncAction extends AbstractAsyncAction {
 
         private final SearchScrollRequest request;
 
@@ -83,7 +83,6 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
 
         private final AtomicInteger successfulOps;
         private final AtomicInteger counter;
-        private final long startTime = System.currentTimeMillis();
 
         private AsyncAction(SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
             this.request = request;
@@ -119,7 +118,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
 
         public void start() {
             if (scrollId.getContext().length == 0) {
-                final InternalSearchResponse internalResponse = new InternalSearchResponse(new InternalSearchHits(InternalSearchHits.EMPTY, Long.parseLong(this.scrollId.getAttributes().get("total_hits")), 0.0f), null, null, null, false, null);
+                final InternalSearchResponse internalResponse = new InternalSearchResponse(new InternalSearchHits(InternalSearchHits.EMPTY, Long.parseLong(this.scrollId.getAttributes().get("total_hits")), 0.0f), null, null, false, null);
                 listener.onResponse(new SearchResponse(internalResponse, request.scrollId(), 0, 0, 0l, buildShardFailures()));
                 return;
             }
@@ -227,7 +226,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                 scrollId = TransportSearchHelper.buildScrollId(this.scrollId.getType(), queryFetchResults, this.scrollId.getAttributes()); // continue moving the total_hits
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
-                    System.currentTimeMillis() - startTime, buildShardFailures()));
+                    buildTookInMillis(), buildShardFailures()));
         }
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +40,14 @@ public class RefreshRequest extends BroadcastOperationRequest<RefreshRequest> {
     private boolean force = true;
 
     RefreshRequest() {
+    }
+
+    /**
+     * Copy constructor that creates a new refresh request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    public RefreshRequest(ActionRequest originalRequest) {
+        super(originalRequest);
     }
 
     public RefreshRequest(String... indices) {

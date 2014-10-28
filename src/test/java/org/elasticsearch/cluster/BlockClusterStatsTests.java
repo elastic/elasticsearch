@@ -43,13 +43,13 @@ public class BlockClusterStatsTests extends ElasticsearchIntegrationTest {
     public void testBlocks() throws Exception {
         assertAcked(prepareCreate("foo").addAlias(new Alias("foo-alias")));
         try {
+            assertAcked(client().admin().indices().prepareUpdateSettings("foo").setSettings(
+                    ImmutableSettings.settingsBuilder().put("index.blocks.read_only", true)));
             ClusterUpdateSettingsResponse updateSettingsResponse = client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                     ImmutableSettings.settingsBuilder().put("cluster.blocks.read_only", true).build()).get();
             assertThat(updateSettingsResponse.isAcknowledged(), is(true));
-            assertAcked(client().admin().indices().prepareUpdateSettings("foo").setSettings(
-                    ImmutableSettings.settingsBuilder().put("index.blocks.read_only", true)));
 
-            ClusterStateResponse clusterStateResponseUnfiltered = client().admin().cluster().prepareState().clear().setBlocks(true).get();
+            ClusterStateResponse clusterStateResponseUnfiltered = client().admin().cluster().prepareState().setLocal(true).clear().setBlocks(true).get();
             assertThat(clusterStateResponseUnfiltered.getState().blocks().global(), hasSize(1));
             assertThat(clusterStateResponseUnfiltered.getState().blocks().indices().size(), is(1));
             ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().get();

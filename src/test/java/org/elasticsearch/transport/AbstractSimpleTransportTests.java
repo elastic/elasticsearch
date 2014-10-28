@@ -101,7 +101,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         super.tearDown();
         serviceA.close();
         serviceB.close();
-        threadPool.shutdown();
+        terminate(threadPool);
     }
 
     @Test

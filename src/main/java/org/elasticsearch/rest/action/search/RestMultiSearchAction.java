@@ -40,8 +40,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
 
     @Inject
-    public RestMultiSearchAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestMultiSearchAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         controller.registerHandler(GET, "/_msearch", this);
         controller.registerHandler(POST, "/_msearch", this);

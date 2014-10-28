@@ -45,7 +45,7 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScriptV
 
     private void set(int i, Object o) {
         if (o == null) {
-            values[i].length = 0;
+            values[i].clear();
         } else {
             values[i].copyChars(o.toString());
         }

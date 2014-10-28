@@ -72,8 +72,11 @@ both>>.
 |`lenient` |If set to `true` will cause format based failures (like
 providing text to a numeric field) to be ignored.
 
-|`locale` | added[1.1.0] Locale that should be used for string conversions.
+|`locale` | Locale that should be used for string conversions.
 Defaults to `ROOT`.
+
+|`time_zone` | Time Zone to be applied to any range query related to dates. See also
+http://joda-time.sourceforge.net/api-release/org/joda/time/DateTimeZone.html[JODA timezone].
 |=======================================================================
 
 When a multi term query is being generated, one can control how it gets
@@ -94,13 +97,42 @@ a different default field.
 [float]
 ==== Multi Field
 
-The `query_string` query can also run against multiple fields. The idea
-of running the `query_string` query against multiple fields is by
-internally creating several queries for the same query string, each with
-`default_field` that match the fields provided. Since several queries
-are generated, combining them can be automatically done either using a
-`dis_max` query or a simple `bool` query. For example (the `name` is
-boosted by 5 using `^5` notation):
+The `query_string` query can also run against multiple fields. Fields can be
+provided via the `"fields"` parameter (example below).
+
+The idea of running the `query_string` query against multiple fields is to
+expand each query term to an OR clause like this:
+
+    field1:query_term OR field2:query_term | ...
+
+For example, the following query
+
+[source,js]
+--------------------------------------------------
+{
+    "query_string" : {
+        "fields" : ["content", "name"],
+        "query" : "this AND that"
+    }
+}
+--------------------------------------------------
+
+matches the same words as
+
+
+[source,js]
+--------------------------------------------------
+{
+    "query_string": {
+      "query": "(content:this OR content:that) AND (name:this OR name:that)"
+    }
+}
+--------------------------------------------------
+
+Since several queries are generated from the individual search terms,
+combining them can be automatically done using either a `dis_max` query or a
+simple `bool` query. For example (the `name` is boosted by 5 using `^5`
+notation):
 
 [source,js]
 --------------------------------------------------

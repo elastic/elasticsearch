@@ -20,7 +20,7 @@
         },
         "index_metric" : {
           "type" : "list",
-          "options" : ["_all", "completion", "docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merge", "percolate", "refresh", "search", "segments", "store", "warmer", "suggest"],
+          "options" : ["_all", "completion", "docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merge", "percolate", "query_cache", "refresh", "search", "segments", "store", "warmer", "suggest"],
           "description" : "Limit the information returned for `indices` metric to the specific index metrics. Isn't used if `indices` (or `all`) metric isn't specified."
         },
         "node_id": {

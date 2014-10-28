@@ -30,20 +30,20 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportRequestHandler;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- *
+ * Internal transport action that executes on multiple shards, doesn't register any transport handler as it is always executed locally.
+ * It relies on a shard sub-action that gets sent over the transport and executed on each of the shard.
+ * The index provided with the request is expected to be a concrete index, properly resolved by the callers (parent actions).
  */
 public abstract class TransportIndexReplicationOperationAction<Request extends IndexReplicationOperationRequest, Response extends ActionResponse, ShardRequest extends ShardReplicationOperationRequest, ShardReplicaRequest extends ShardReplicationOperationRequest, ShardResponse extends ActionResponse>
         extends TransportAction<Request, Response> {
@@ -52,13 +52,11 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
 
     protected final TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction;
 
-    protected TransportIndexReplicationOperationAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
+    protected TransportIndexReplicationOperationAction(Settings settings, String actionName, ClusterService clusterService,
                                                        ThreadPool threadPool, TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction, ActionFilters actionFilters) {
         super(settings, actionName, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
-
-        transportService.registerHandler(actionName, new TransportHandler());
     }
 
     @Override
@@ -68,8 +66,6 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
         if (blockException != null) {
             throw blockException;
         }
-        // update to concrete index
-        request.index(clusterState.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
         blockException = checkRequestBlock(clusterState, request);
         if (blockException != null) {
             throw blockException;
@@ -109,7 +105,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                     int index = indexCounter.getAndIncrement();
                     if (accumulateExceptions()) {
                         shardsResponses.set(index, new ShardActionResult(
-                                new DefaultShardOperationFailedException(request.index, shardIt.shardId().id(), e)));
+                                new DefaultShardOperationFailedException(request.index(), shardIt.shardId().id(), e)));
                     }
                     returnIfNeeded();
                 }
@@ -140,8 +136,6 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
         }
     }
 
-    protected abstract Request newRequestInstance();
-
     protected abstract Response newResponseInstance(Request request, List<ShardResponse> shardResponses, int failuresCount, List<ShardOperationFailedException> shardFailures);
 
     protected abstract GroupShardsIterator shards(Request request) throws ElasticsearchException;
@@ -150,9 +144,13 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
 
     protected abstract boolean accumulateExceptions();
 
-    protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, Request request) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
+    }
 
-    protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request);
+    protected ClusterBlockException checkRequestBlock(ClusterState state, Request request) {
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
+    }
 
     private class ShardActionResult {
 
@@ -173,44 +171,6 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
 
         boolean isFailure() {
             return shardFailure != null;
-        }
-    }
-
-    private class TransportHandler extends BaseTransportRequestHandler<Request> {
-
-        @Override
-        public Request newInstance() {
-            return newRequestInstance();
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
-            // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
-            execute(request, new ActionListener<Response>() {
-                @Override
-                public void onResponse(Response result) {
-                    try {
-                        channel.sendResponse(result);
-                    } catch (Throwable e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn("Failed to send error response for action [" + actionName + "] and request [" + request + "]", e1);
-                    }
-                }
-            });
         }
     }
 }

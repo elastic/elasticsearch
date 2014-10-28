@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
+import org.elasticsearch.index.translog.TranslogStream;
 
 import java.io.IOException;
 
@@ -77,4 +78,6 @@ public interface FsTranslogFile {
     void sync() throws IOException;
 
     boolean syncNeeded();
+
+    TranslogStream getStream();
 }

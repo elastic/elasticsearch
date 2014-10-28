@@ -34,7 +34,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -234,7 +233,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
-     * (not aggregations or facets). This filter is always executed as last filtering mechanism.
+     * (not aggregations). This filter is always executed as last filtering mechanism.
      */
     public SearchRequestBuilder setPostFilter(FilterBuilder postFilter) {
         sourceBuilder().postFilter(postFilter);
@@ -243,7 +242,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchRequestBuilder setPostFilter(String postFilter) {
         sourceBuilder().postFilter(postFilter);
@@ -252,7 +251,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchRequestBuilder setPostFilter(BytesReference postFilter) {
         sourceBuilder().postFilter(postFilter);
@@ -261,7 +260,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchRequestBuilder setPostFilter(byte[] postFilter) {
         sourceBuilder().postFilter(postFilter);
@@ -270,7 +269,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchRequestBuilder setPostFilter(byte[] postFilter, int postFilterOffset, int postFilterLength) {
         sourceBuilder().postFilter(postFilter, postFilterOffset, postFilterLength);
@@ -279,7 +278,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchRequestBuilder setPostFilter(XContentBuilder postFilter) {
         sourceBuilder().postFilter(postFilter);
@@ -288,7 +287,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a filter on the query executed that only applies to the search query
-     * (and not facets for example).
+     * (and not aggs for example).
      */
     public SearchRequestBuilder setPostFilter(Map postFilter) {
         sourceBuilder().postFilter(postFilter);
@@ -446,40 +445,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Adds a partial field based on _source, with an "include" and/or "exclude" set which can include simple wildcard
-     * elements.
-     *
-     * @deprecated since 1.0.0
-     * use {@link org.elasticsearch.action.search.SearchRequestBuilder#setFetchSource(String, String)} instead
-     *
-     * @param name    The name of the field
-     * @param include An optional include (optionally wildcarded) pattern from _source
-     * @param exclude An optional exclude (optionally wildcarded) pattern from _source
-     */
-    @Deprecated
-    public SearchRequestBuilder addPartialField(String name, @Nullable String include, @Nullable String exclude) {
-        sourceBuilder().partialField(name, include, exclude);
-        return this;
-    }
-
-    /**
-     * Adds a partial field based on _source, with an "includes" and/or "excludes set which can include simple wildcard
-     * elements.
-     *
-     * @deprecated since 1.0.0
-     * use {@link org.elasticsearch.action.search.SearchRequestBuilder#setFetchSource(String[], String[])} instead
-     *
-     * @param name     The name of the field
-     * @param includes An optional list of includes (optionally wildcarded) patterns from _source
-     * @param excludes An optional list of excludes (optionally wildcarded) patterns from _source
-     */
-    @Deprecated
-    public SearchRequestBuilder addPartialField(String name, @Nullable String[] includes, @Nullable String[] excludes) {
-        sourceBuilder().partialField(name, includes, excludes);
-        return this;
-    }
-
-    /**
      * Adds a script based field to load and return. The field does not have to be stored,
      * but its recommended to use non analyzed or numeric fields.
      *
@@ -533,66 +498,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Adds a facet to the search operation.
-     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder addFacet(FacetBuilder facet) {
-        sourceBuilder().facet(facet);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent) binary representation of facets to use.
-     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder setFacets(BytesReference facets) {
-        sourceBuilder().facets(facets);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent) binary representation of facets to use.
-     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder setFacets(byte[] facets) {
-        sourceBuilder().facets(facets);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent) binary representation of facets to use.
-     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder setFacets(byte[] facets, int facetsOffset, int facetsLength) {
-        sourceBuilder().facets(facets, facetsOffset, facetsLength);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent) binary representation of facets to use.
-     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder setFacets(XContentBuilder facets) {
-        sourceBuilder().facets(facets);
-        return this;
-    }
-
-    /**
-     * Sets a raw (xcontent) binary representation of facets to use.
-     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
-     */
-    @Deprecated
-    public SearchRequestBuilder setFacets(Map facets) {
-        sourceBuilder().facets(facets);
-        return this;
-    }
-
-    /**
      * Adds an get to the search operation.
      */
     public SearchRequestBuilder addAggregation(AbstractAggregationBuilder aggregation) {
@@ -620,7 +525,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets a raw (xcontent) binary representation of addAggregation to use.
      */
     public SearchRequestBuilder setAggregations(byte[] aggregations, int aggregationsOffset, int aggregationsLength) {
-        sourceBuilder().facets(aggregations, aggregationsOffset, aggregationsLength);
+        sourceBuilder().aggregations(aggregations, aggregationsOffset, aggregationsLength);
         return this;
     }
 
@@ -1065,6 +970,16 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     public SearchRequestBuilder setTemplateSource(BytesReference source) {
         request.templateSource(source, true);
+        return this;
+    }
+
+    /**
+     * Sets if this request should use the query cache or not, assuming that it can (for
+     * example, if "now" is used, it will never be cached). By default (not set, or null,
+     * will default to the index level setting if query cache is enabled or not).
+     */
+    public SearchRequestBuilder setQueryCache(Boolean queryCache) {
+        request.queryCache(queryCache);
         return this;
     }
 

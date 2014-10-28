@@ -23,12 +23,13 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -114,9 +115,10 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
          *  since {@link Character#MAX_CODE_POINT} is a noncharacter and thus shouldn't appear in an index term. */
         public static final BytesRef MAX_TERM;
         static {
-            MAX_TERM = new BytesRef();
+            BytesRefBuilder builder = new BytesRefBuilder();
             final char[] chars = Character.toChars(Character.MAX_CODE_POINT);
-            UnicodeUtil.UTF16toUTF8(chars, 0, chars.length, MAX_TERM);
+            builder.copyChars(chars, 0, chars.length);
+            MAX_TERM = builder.toBytesRef();
         }
 
         /**
@@ -127,41 +129,25 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
          * parent + 1, or 0 if there is no previous parent, and R (excluded).
          */
         public static class Nested {
-            private final Filter rootFilter, innerFilter;
+            private final FixedBitSetFilter rootFilter, innerFilter;
 
-            public Nested(Filter rootFilter, Filter innerFilter) {
+            public Nested(FixedBitSetFilter rootFilter, FixedBitSetFilter innerFilter) {
                 this.rootFilter = rootFilter;
                 this.innerFilter = innerFilter;
-            }
-
-            // TODO: nested docs should not be random filters but specialized
-            // ones that guarantee that you always get a FixedBitSet
-            @Deprecated
-            private static FixedBitSet toFixedBitSet(DocIdSet set, int maxDoc) throws IOException {
-                if (set == null || set instanceof FixedBitSet) {
-                    return (FixedBitSet) set;
-                } else {
-                    final FixedBitSet fixedBitSet = new FixedBitSet(maxDoc);
-                    final DocIdSetIterator it = set.iterator();
-                    if (it != null) {
-                        fixedBitSet.or(it);
-                    }
-                    return fixedBitSet;
-                }
             }
 
             /**
              * Get a {@link FixedBitSet} that matches the root documents.
              */
             public FixedBitSet rootDocs(AtomicReaderContext ctx) throws IOException {
-                return toFixedBitSet(rootFilter.getDocIdSet(ctx, null), ctx.reader().maxDoc());
+                return rootFilter.getDocIdSet(ctx, null);
             }
 
             /**
              * Get a {@link FixedBitSet} that matches the inner documents.
              */
             public FixedBitSet innerDocs(AtomicReaderContext ctx) throws IOException {
-                return toFixedBitSet(innerFilter.getDocIdSet(ctx, null), ctx.reader().maxDoc());
+                return innerFilter.getDocIdSet(ctx, null);
             }
         }
 

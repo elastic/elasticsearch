@@ -21,6 +21,8 @@ package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.bench.AbortBenchmarkAction;
 import org.elasticsearch.action.bench.BenchmarkAction;
 import org.elasticsearch.action.bench.BenchmarkService;
@@ -32,6 +34,8 @@ import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -117,15 +121,17 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
     private static final Map<String, Version> actionsVersions = new HashMap<>();
 
     static {
-        actionsVersions.put(BenchmarkService.STATUS_ACTION_NAME, Version.V_1_4_0);
-        actionsVersions.put(BenchmarkService.START_ACTION_NAME, Version.V_1_4_0);
-        actionsVersions.put(BenchmarkService.ABORT_ACTION_NAME, Version.V_1_4_0);
-        actionsVersions.put(BenchmarkAction.NAME, Version.V_1_4_0);
-        actionsVersions.put(BenchmarkStatusAction.NAME, Version.V_1_4_0);
-        actionsVersions.put(AbortBenchmarkAction.NAME, Version.V_1_4_0);
+        actionsVersions.put(BenchmarkService.STATUS_ACTION_NAME, Version.V_2_0_0);
+        actionsVersions.put(BenchmarkService.START_ACTION_NAME, Version.V_2_0_0);
+        actionsVersions.put(BenchmarkService.ABORT_ACTION_NAME, Version.V_2_0_0);
+        actionsVersions.put(BenchmarkAction.NAME, Version.V_2_0_0);
+        actionsVersions.put(BenchmarkStatusAction.NAME, Version.V_2_0_0);
+        actionsVersions.put(AbortBenchmarkAction.NAME, Version.V_2_0_0);
 
-        actionsVersions.put(ExistsAction.NAME, Version.V_1_4_0);
-        actionsVersions.put(ExistsAction.NAME + "[s]", Version.V_1_4_0);
+        actionsVersions.put(GetIndexAction.NAME, Version.V_1_4_0_Beta1);
+
+        actionsVersions.put(ExistsAction.NAME, Version.V_1_4_0_Beta1);
+        actionsVersions.put(ExistsAction.NAME + "[s]", Version.V_1_4_0_Beta1);
 
         actionsVersions.put(IndicesStore.ACTION_SHARD_EXISTS, Version.V_1_3_0);
 
@@ -133,5 +139,9 @@ public class ActionNamesBackwardsCompatibilityTest extends ElasticsearchBackward
         actionsVersions.put(DeleteIndexedScriptAction.NAME, Version.V_1_3_0);
         actionsVersions.put(PutIndexedScriptAction.NAME, Version.V_1_3_0);
 
+        actionsVersions.put(SearchServiceTransportAction.FREE_CONTEXT_SCROLL_ACTION_NAME, Version.V_1_4_0_Beta1);
+        actionsVersions.put(SearchServiceTransportAction.FETCH_ID_SCROLL_ACTION_NAME, Version.V_1_4_0_Beta1);
+        actionsVersions.put(VerifyRepositoryAction.NAME, Version.V_1_4_0);
+        actionsVersions.put(VerifyNodeRepositoryAction.ACTION_NAME, Version.V_1_4_0);
     }
 }

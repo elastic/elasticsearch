@@ -46,19 +46,19 @@ import static org.elasticsearch.rest.RestStatus.*;
 public class RestIndexAction extends BaseRestHandler {
 
     @Inject
-    public RestIndexAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestIndexAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
         controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}", this);
-        CreateHandler createHandler = new CreateHandler(settings, client);
+        CreateHandler createHandler = new CreateHandler(settings, controller, client);
         controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
 
     final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings, final Client client) {
-            super(settings, client);
+        protected CreateHandler(Settings settings, RestController controller, Client client) {
+            super(settings, controller, client);
         }
 
         @Override

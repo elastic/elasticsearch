@@ -89,6 +89,16 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
+    public void scriptRemoved(@Nullable CompiledScript script) {
+        // script could be null, meaning the script has already been garbage collected
+        if (script == null || "groovy".equals(script.lang())) {
+            // Clear the cache, this removes old script versions from the
+            // cache to prevent running out of PermGen space
+            loader.clearCache();
+        }
+    }
+
+    @Override
     public String[] types() {
         return new String[]{"groovy"};
     }
@@ -186,6 +196,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         private final SearchLookup lookup;
         private final Map<String, Object> variables;
         private final ESLogger logger;
+        private Scorer scorer;
 
         public GroovyScript(Script script, ESLogger logger) {
             this(script, null, logger);
@@ -196,17 +207,12 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             this.lookup = lookup;
             this.logger = logger;
             this.variables = script.getBinding().getVariables();
-            if (lookup != null) {
-                // Add the _score variable, which will access score from lookup.doc()
-                this.variables.put("_score", new ScoreAccessor(lookup.doc()));
-            }
         }
 
         @Override
         public void setScorer(Scorer scorer) {
-            if (lookup != null) {
-                lookup.setScorer(scorer);
-            }
+            this.scorer = scorer;
+            this.variables.put("_score", new ScoreAccessor(scorer));
         }
 
         @Override

@@ -28,8 +28,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
@@ -39,10 +37,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,9 +49,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
+import java.util.Iterator;
+import java.util.LinkedList;
 
 /**
+ * Transport action used to retrieve the mappings related to fields that belong to a specific index
  */
 public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomOperationAction<GetFieldMappingsIndexRequest, GetFieldMappingsResponse> {
 
@@ -77,14 +78,21 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState state, GetFieldMappingsIndexRequest request) {
-        // Will balance requests between shards
-        return state.routingTable().index(request.index()).randomAllActiveShardsIt();
+    protected boolean resolveIndex(GetFieldMappingsIndexRequest request) {
+        //internal action, index already resolved
+        return false;
     }
 
     @Override
-    protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, int shardId) throws ElasticsearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
+    protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        // Will balance requests between shards
+        return state.routingTable().index(request.concreteIndex()).randomAllActiveShardsIt();
+    }
+
+    @Override
+    protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, ShardId shardId) throws ElasticsearchException {
+        assert shardId != null;
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         Collection<String> typeIntersection;
         if (request.types().length == 0) {
             typeIntersection = indexService.mapperService().types();
@@ -99,7 +107,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
 
             });
             if (typeIntersection.isEmpty()) {
-                throw new TypeMissingException(new Index(request.index()), request.types());
+                throw new TypeMissingException(shardId.index(), request.types());
             }
         }
 
@@ -112,7 +120,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
             }
         }
 
-        return new GetFieldMappingsResponse(ImmutableMap.of(request.index(), typeMappings.immutableMap()));
+        return new GetFieldMappingsResponse(ImmutableMap.of(shardId.getIndex(), typeMappings.immutableMap()));
     }
 
     @Override
@@ -123,16 +131,6 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
     @Override
     protected GetFieldMappingsResponse newResponse() {
         return new GetFieldMappingsResponse();
-    }
-
-    @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, GetFieldMappingsIndexRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
-    }
-
-    @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, GetFieldMappingsIndexRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
     }
 
     private static final ToXContent.Params includeDefaultsParams = new ToXContent.Params() {
@@ -179,47 +177,41 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
 
     private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) throws ElasticsearchException {
         MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<>();
-        final List<FieldMapper> allFieldMappers = documentMapper.mappers().mappers();
+        final DocumentFieldMappers allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
-                for (FieldMapper fieldMapper : allFieldMappers) {
+                for (FieldMapper<?> fieldMapper : allFieldMappers) {
                     addFieldMapper(fieldMapper.names().fullName(), fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
                 // go through the field mappers 3 times, to make sure we give preference to the resolve order: full name, index name, name.
                 // also make sure we only store each mapper once.
-                boolean[] resolved = new boolean[allFieldMappers.size()];
-                for (int i = 0; i < allFieldMappers.size(); i++) {
-                    FieldMapper fieldMapper = allFieldMappers.get(i);
+                Collection<FieldMapper<?>> remainingFieldMappers = new LinkedList<>(allFieldMappers);
+                for (Iterator<FieldMapper<?>> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
+                    final FieldMapper<?> fieldMapper = it.next();
                     if (Regex.simpleMatch(field, fieldMapper.names().fullName())) {
                         addFieldMapper(fieldMapper.names().fullName(), fieldMapper, fieldMappings, request.includeDefaults());
-                        resolved[i] = true;
+                        it.remove();
                     }
                 }
-                for (int i = 0; i < allFieldMappers.size(); i++) {
-                    if (resolved[i]) {
-                        continue;
-                    }
-                    FieldMapper fieldMapper = allFieldMappers.get(i);
+                for (Iterator<FieldMapper<?>> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
+                    final FieldMapper<?> fieldMapper = it.next();
                     if (Regex.simpleMatch(field, fieldMapper.names().indexName())) {
                         addFieldMapper(fieldMapper.names().indexName(), fieldMapper, fieldMappings, request.includeDefaults());
-                        resolved[i] = true;
+                        it.remove();
                     }
                 }
-                for (int i = 0; i < allFieldMappers.size(); i++) {
-                    if (resolved[i]) {
-                        continue;
-                    }
-                    FieldMapper fieldMapper = allFieldMappers.get(i);
+                for (Iterator<FieldMapper<?>> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
+                    final FieldMapper<?> fieldMapper = it.next();
                     if (Regex.simpleMatch(field, fieldMapper.names().name())) {
                         addFieldMapper(fieldMapper.names().name(), fieldMapper, fieldMappings, request.includeDefaults());
-                        resolved[i] = true;
+                        it.remove();
                     }
                 }
 
             } else {
                 // not a pattern
-                FieldMapper fieldMapper = documentMapper.mappers().smartNameFieldMapper(field);
+                FieldMapper<?> fieldMapper = allFieldMappers.smartNameFieldMapper(field);
                 if (fieldMapper != null) {
                     addFieldMapper(field, fieldMapper, fieldMappings, request.includeDefaults());
                 } else if (request.probablySingleFieldRequest()) {
@@ -230,7 +222,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
         return fieldMappings.immutableMap();
     }
 
-    private void addFieldMapper(String field, FieldMapper fieldMapper, MapBuilder<String, FieldMappingMetaData> fieldMappings, boolean includeDefaults) {
+    private void addFieldMapper(String field, FieldMapper<?> fieldMapper, MapBuilder<String, FieldMappingMetaData> fieldMappings, boolean includeDefaults) {
         if (fieldMappings.containsKey(field)) {
             return;
         }

@@ -26,6 +26,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -113,13 +114,13 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     private final Float nullValue;
 
-    public BoostFieldMapper() {
-        this(Defaults.NAME, Defaults.NAME);
+    public BoostFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, Defaults.NAME, indexSettings);
     }
 
-    protected BoostFieldMapper(String name, String indexName) {
+    protected BoostFieldMapper(String name, String indexName, Settings indexSettings) {
         this(name, indexName, Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
-                Defaults.NULL_VALUE, null, null, null, ImmutableSettings.EMPTY);
+                Defaults.NULL_VALUE, null, null, null, indexSettings);
     }
 
     protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType, Boolean docValues, Float nullValue,
@@ -167,9 +168,9 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     @Override
     public BytesRef indexedValueForSearch(Object value) {
         int intValue = NumericUtils.floatToSortableInt(parseValue(value));
-        BytesRef bytesRef = new BytesRef();
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
         NumericUtils.intToPrefixCoded(intValue, precisionStep(), bytesRef);
-        return bytesRef;
+        return bytesRef.get();
     }
 
     private float parseValue(Object value) {
@@ -297,7 +298,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
             builder.field("null_value", nullValue);
         }
         if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", fieldType.indexed());
+            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
         }
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());

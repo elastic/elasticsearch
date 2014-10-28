@@ -23,6 +23,7 @@ import com.google.common.collect.Maps;
 import org.apache.http.client.methods.*;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -89,6 +90,13 @@ public class HttpRequestBuilder {
 
     public HttpRequestBuilder addParam(String name, String value) {
         this.params.put(name, value);
+        return this;
+    }
+
+    public HttpRequestBuilder addHeaders(Headers headers) {
+        for (String header : headers.headers().names()) {
+            this.headers.put(header, headers.headers().get(header));
+        }
         return this;
     }
 

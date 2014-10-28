@@ -22,12 +22,15 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
+
+import java.util.HashSet;
 
 import static com.google.common.collect.Sets.newHashSet;
 import static org.hamcrest.Matchers.*;
@@ -505,6 +508,22 @@ public class MetaDataTests extends ElasticsearchTestCase {
         assertThat(newHashSet(md.convertFromWildcards(new String[]{"+testYYY", "+testX*"}, IndicesOptions.lenientExpandOpen())), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
     }
 
+    @Test
+    public void convertWildcardsOpenClosedIndicesTests() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder("testXXX").state(State.OPEN))
+                .put(indexBuilder("testXXY").state(State.OPEN))
+                .put(indexBuilder("testXYY").state(State.CLOSE))
+                .put(indexBuilder("testYYY").state(State.OPEN))
+                .put(indexBuilder("testYYX").state(State.CLOSE))
+                .put(indexBuilder("kuku").state(State.OPEN));
+        MetaData md = mdBuilder.build();
+        // Can't test when wildcard expansion is turned off here as convertFromWildcards shouldn't be called in this case.  Tests for this are covered in the concreteIndices() tests
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testX*"}, IndicesOptions.fromOptions(true, true, true, true))), equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testX*"}, IndicesOptions.fromOptions(true, true, false, true))), equalTo(newHashSet("testXYY")));
+        assertThat(newHashSet(md.convertFromWildcards(new String[]{"testX*"}, IndicesOptions.fromOptions(true, true, true, false))), equalTo(newHashSet("testXXX", "testXXY")));
+    }
+
     private IndexMetaData.Builder indexBuilder(String index) {
         return IndexMetaData.builder(index).settings(ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
     }
@@ -543,6 +562,21 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 .put(indexBuilder("kuku"));
         MetaData md = mdBuilder.build();
         assertThat(newHashSet(md.concreteIndices(IndicesOptions.lenientExpandOpen(), new String[]{})), equalTo(Sets.newHashSet("kuku", "testXXX")));
+    }
+
+    @Test
+    public void concreteIndicesWildcardExpansion() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder("testXXX").state(State.OPEN))
+                .put(indexBuilder("testXXY").state(State.OPEN))
+                .put(indexBuilder("testXYY").state(State.CLOSE))
+                .put(indexBuilder("testYYY").state(State.OPEN))
+                .put(indexBuilder("testYYX").state(State.OPEN));
+        MetaData md = mdBuilder.build();
+        assertThat(newHashSet(md.concreteIndices(IndicesOptions.fromOptions(true, true, false, false), "testX*")), equalTo(new HashSet<String>()));
+        assertThat(newHashSet(md.concreteIndices(IndicesOptions.fromOptions(true, true, true, false), "testX*")), equalTo(newHashSet("testXXX", "testXXY")));
+        assertThat(newHashSet(md.concreteIndices(IndicesOptions.fromOptions(true, true, false, true), "testX*")), equalTo(newHashSet("testXYY")));
+        assertThat(newHashSet(md.concreteIndices(IndicesOptions.fromOptions(true, true, true, true), "testX*")), equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
     }
 
     @Test

@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
@@ -160,6 +161,7 @@ public class IndexMetaData {
     public static final String SETTING_BLOCKS_WRITE = "index.blocks.write";
     public static final String SETTING_BLOCKS_METADATA = "index.blocks.metadata";
     public static final String SETTING_VERSION_CREATED = "index.version.created";
+    public static final String SETTING_CREATION_DATE = "index.creation_date";
     public static final String SETTING_UUID = "index.uuid";
     public static final String INDEX_UUID_NA_VALUE = "_na_";
 
@@ -183,8 +185,8 @@ public class IndexMetaData {
     private final DiscoveryNodeFilters excludeFilters;
 
     private IndexMetaData(String index, long version, State state, Settings settings, ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, Custom> customs) {
-        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1) != -1, "must specify numberOfShards for index [" + index + "]");
-        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1) != -1, "must specify numberOfReplicas for index [" + index + "]");
+        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null) != null, "must specify numberOfShards for index [" + index + "]");
+        Preconditions.checkArgument(settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, null) != null, "must specify numberOfReplicas for index [" + index + "]");
         this.index = index;
         this.version = version;
         this.state = state;
@@ -192,7 +194,6 @@ public class IndexMetaData {
         this.mappings = mappings;
         this.customs = customs;
         this.totalNumberOfShards = numberOfShards() * (numberOfReplicas() + 1);
-
         this.aliases = aliases;
 
         ImmutableMap<String, String> requireMap = settings.getByPrefix("index.routing.allocation.require.").getAsMap();
@@ -214,6 +215,8 @@ public class IndexMetaData {
             excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
         }
     }
+
+
 
     public String index() {
         return index;
@@ -249,6 +252,14 @@ public class IndexMetaData {
 
     public long getVersion() {
         return this.version;
+    }
+
+    public long creationDate() {
+        return settings.getAsLong(SETTING_CREATION_DATE, -1l);
+    }
+
+    public long getCreationDate() {
+        return creationDate();
     }
 
     public State state() {
@@ -457,6 +468,15 @@ public class IndexMetaData {
         public int numberOfReplicas() {
             return settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1);
         }
+        
+        public Builder creationDate(long creationDate) {
+            settings = settingsBuilder().put(settings).put(SETTING_CREATION_DATE, creationDate).build();
+            return this;
+        }
+
+        public long creationDate() {
+            return settings.getAsLong(SETTING_CREATION_DATE, -1l);
+        }
 
         public Builder settings(Settings.Builder settings) {
             this.settings = settings.build();
@@ -597,7 +617,10 @@ public class IndexMetaData {
         }
 
         public static IndexMetaData fromXContent(XContentParser parser) throws IOException {
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            if (parser.currentToken() == null) { // fresh parser? move to the first token
+                parser.nextToken();
+            }
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {  // on a start object move to next token
                 parser.nextToken();
             }
             Builder builder = new Builder(parser.currentName());
@@ -621,7 +644,7 @@ public class IndexMetaData {
                             }
                         }
                     } else if ("aliases".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                             builder.putAlias(AliasMetaData.Builder.fromXContent(parser));
                         }
                     } else {

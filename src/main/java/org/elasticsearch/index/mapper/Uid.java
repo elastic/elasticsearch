@@ -20,8 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.action.get.MultiGetRequest;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.common.lucene.BytesRefs;
 
 import java.util.Collection;
@@ -84,10 +85,10 @@ public final class Uid {
     }
 
     public static BytesRef typePrefixAsBytes(BytesRef type) {
-        BytesRef bytesRef = new BytesRef(type.length + 1);
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
         bytesRef.append(type);
         bytesRef.append(DELIMITER_BYTES);
-        return bytesRef;
+        return bytesRef.toBytesRef();
     }
 
     public static Uid createUid(String uid) {
@@ -95,11 +96,11 @@ public final class Uid {
         return new Uid(uid.substring(0, delimiterIndex), uid.substring(delimiterIndex + 1));
     }
 
-    public static BytesRef[] createUids(List<MultiGetRequest.Item> items) {
-        BytesRef[] uids = new BytesRef[items.size()];
+    public static BytesRef[] createUids(List<? extends DocumentRequest> requests) {
+        BytesRef[] uids = new BytesRef[requests.size()];
         int idx = 0;
-        for (MultiGetRequest.Item item : items) {
-            uids[idx++] = createUidAsBytes(item);
+        for (DocumentRequest item : requests) {
+            uids[idx++] = createUidAsBytes(item.type(), item.id());
         }
         return uids;
     }
@@ -110,10 +111,6 @@ public final class Uid {
 
     public static BytesRef createUidAsBytes(String type, BytesRef id) {
         return createUidAsBytes(new BytesRef(type), id);
-    }
-
-    public static BytesRef createUidAsBytes(MultiGetRequest.Item item) {
-        return createUidAsBytes(item.type(), item.id());
     }
 
     public static BytesRef createUidAsBytes(BytesRef type, BytesRef id) {
@@ -127,10 +124,11 @@ public final class Uid {
         return ref;
     }
 
-    public static void createUidAsBytes(BytesRef type, BytesRef id, BytesRef spare) {
+    public static BytesRef createUidAsBytes(BytesRef type, BytesRef id, BytesRefBuilder spare) {
         spare.copyBytes(type);
         spare.append(DELIMITER_BYTES);
         spare.append(id);
+        return spare.get();
     }
 
     public static BytesRef[] createTypeUids(Collection<String> types, Object ids) {
@@ -140,13 +138,13 @@ public final class Uid {
     public static BytesRef[] createTypeUids(Collection<String> types, List<? extends Object> ids) {
         final int numIds = ids.size();
         BytesRef[] uids = new BytesRef[types.size() * ids.size()];
-        BytesRef typeBytes = new BytesRef();
-        BytesRef idBytes = new BytesRef();
+        BytesRefBuilder typeBytes = new BytesRefBuilder();
+        BytesRefBuilder idBytes = new BytesRefBuilder();
         int index = 0;
         for (String type : types) {
-            UnicodeUtil.UTF16toUTF8(type, 0, type.length(), typeBytes);
+            typeBytes.copyChars(type);
             for (int i = 0; i < numIds; i++, index++) {
-                uids[index] = Uid.createUidAsBytes(typeBytes, BytesRefs.toBytesRef(ids.get(i), idBytes));
+                uids[index] = Uid.createUidAsBytes(typeBytes.get(), BytesRefs.toBytesRef(ids.get(i), idBytes));
             }
         }
         return uids;

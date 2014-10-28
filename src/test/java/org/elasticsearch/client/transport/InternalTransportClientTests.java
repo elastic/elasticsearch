@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.support.InternalTransportAdminClient;
 import org.elasticsearch.client.transport.support.InternalTransportClient;
 import org.elasticsearch.client.transport.support.InternalTransportClusterAdminClient;
@@ -71,17 +72,17 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
             };
             transportService = new TransportService(ImmutableSettings.EMPTY, transport, threadPool);
             transportService.start();
-            transportClientNodesService = new TransportClientNodesService(ImmutableSettings.EMPTY, ClusterName.DEFAULT, transportService, threadPool, Version.CURRENT);
+            transportClientNodesService = new TransportClientNodesService(ImmutableSettings.EMPTY, ClusterName.DEFAULT, transportService, threadPool, Headers.EMPTY, Version.CURRENT);
             Map<String, GenericAction> actions = new HashMap<>();
             actions.put(NodesInfoAction.NAME, NodesInfoAction.INSTANCE);
             actions.put(TestAction.NAME, TestAction.INSTANCE);
             actions.put(IndicesAdminTestAction.NAME, IndicesAdminTestAction.INSTANCE);
             actions.put(ClusterAdminTestAction.NAME, ClusterAdminTestAction.INSTANCE);
 
-            InternalTransportIndicesAdminClient indicesAdminClient = new InternalTransportIndicesAdminClient(ImmutableSettings.EMPTY, transportClientNodesService, transportService, threadPool, actions);
-            InternalTransportClusterAdminClient clusterAdminClient = new InternalTransportClusterAdminClient(ImmutableSettings.EMPTY, transportClientNodesService, threadPool, transportService, actions);
+            InternalTransportIndicesAdminClient indicesAdminClient = new InternalTransportIndicesAdminClient(ImmutableSettings.EMPTY, transportClientNodesService, transportService, threadPool, actions, Headers.EMPTY);
+            InternalTransportClusterAdminClient clusterAdminClient = new InternalTransportClusterAdminClient(ImmutableSettings.EMPTY, transportClientNodesService, threadPool, transportService, actions, Headers.EMPTY);
             InternalTransportAdminClient adminClient = new InternalTransportAdminClient(ImmutableSettings.EMPTY, indicesAdminClient, clusterAdminClient);
-            internalTransportClient = new InternalTransportClient(ImmutableSettings.EMPTY, threadPool, transportService, transportClientNodesService, adminClient, actions);
+            internalTransportClient = new InternalTransportClient(ImmutableSettings.EMPTY, threadPool, transportService, transportClientNodesService, adminClient, actions, Headers.EMPTY);
 
             nodesCount = randomIntBetween(1, 10);
             for (int i = 0; i < nodesCount; i++) {

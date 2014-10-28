@@ -33,6 +33,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -155,12 +156,12 @@ public class GeoDistanceSortParser implements SortParser {
         }
         final Nested nested;
         if (objectMapper != null && objectMapper.nested().isNested()) {
-            Filter rootDocumentsFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
-            Filter innerDocumentsFilter;
+            FixedBitSetFilter rootDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
+            FixedBitSetFilter innerDocumentsFilter;
             if (nestedFilter != null) {
-                innerDocumentsFilter = context.filterCache().cache(nestedFilter);
+                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedFilter);
             } else {
-                innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
+                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
             }
             nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {

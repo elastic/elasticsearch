@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.*;
 
@@ -59,7 +60,7 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
 
             @Override
             public SortedNumericDocValues getLongValues() {
-                return FieldData.emptySortedNumeric(maxDoc);
+                return DocValues.emptySortedNumeric(maxDoc);
             }
 
         };

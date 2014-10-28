@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -47,7 +46,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -69,20 +68,17 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     private final ScriptService scriptService;
 
-    private final CacheRecycler cacheRecycler;
-
     private final PageCacheRecycler pageCacheRecycler;
 
     private final BigArrays bigArrays;
 
     @Inject
     public TransportCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler,
-                                PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ActionFilters actionFilters) {
+                                IndicesService indicesService, ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
+                                BigArrays bigArrays, ActionFilters actionFilters) {
         super(settings, CountAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays;
     }
@@ -111,7 +107,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     @Override
     protected ShardCountRequest newShardRequest(int numShards, ShardRouting shard, CountRequest request) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
-        return new ShardCountRequest(shard.index(), shard.id(), filteringAliases, request);
+        return new ShardCountRequest(shard.shardId(), filteringAliases, request);
     }
 
     @Override
@@ -165,16 +161,14 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     @Override
     protected ShardCountResponse shardOperation(ShardCountRequest request) throws ElasticsearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = indexService.shardSafe(request.shardId());
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
 
-        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
+        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         SearchContext context = new DefaultSearchContext(0,
-                new ShardSearchRequest().types(request.types())
-                        .filteringAliases(request.filteringAliases())
-                        .nowInMillis(request.nowInMillis()),
+                new ShardSearchLocalRequest(request.types(), request.nowInMillis(), request.filteringAliases()),
                 shardTarget, indexShard.acquireSearcher("count"), indexService, indexShard,
-                scriptService, cacheRecycler, pageCacheRecycler, bigArrays);
+                scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter());
         SearchContext.setCurrent(context);
 
         try {
@@ -204,7 +198,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
                 } else {
                     count = Lucene.count(context.searcher(), context.query());
                 }
-                return new ShardCountResponse(request.index(), request.shardId(), count, terminatedEarly);
+                return new ShardCountResponse(request.shardId(), count, terminatedEarly);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "failed to execute count", e);
             }

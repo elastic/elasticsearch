@@ -39,23 +39,35 @@ class MockScorer extends Scorer {
             return 1.0f;
         }
         float aggregateScore = 0;
-        for (int i = 0; i < scores.elementsCount; i++) {
-            float score = scores.buffer[i];
-            switch (scoreType) {
-                case MAX:
-                    if (aggregateScore < score) {
-                        aggregateScore = score;
-                    }
-                    break;
-                case SUM:
-                case AVG:
-                    aggregateScore += score;
-                    break;
-            }
-        }
 
-        if (scoreType == ScoreType.AVG) {
-            aggregateScore /= scores.elementsCount;
+        // in the case of a min value, it can't start at 0 (the lowest score); in all cases, it doesn't hurt to use the
+        //  first score, so we can safely use the first value by skipping it in the loop
+        if (scores.elementsCount != 0) {
+            aggregateScore = scores.buffer[0];
+
+            for (int i = 1; i < scores.elementsCount; i++) {
+                float score = scores.buffer[i];
+                switch (scoreType) {
+                    case MIN:
+                        if (aggregateScore > score) {
+                            aggregateScore = score;
+                        }
+                        break;
+                    case MAX:
+                        if (aggregateScore < score) {
+                            aggregateScore = score;
+                        }
+                        break;
+                    case SUM:
+                    case AVG:
+                        aggregateScore += score;
+                        break;
+                }
+            }
+
+            if (scoreType == ScoreType.AVG) {
+                aggregateScore /= scores.elementsCount;
+            }
         }
 
         return aggregateScore;

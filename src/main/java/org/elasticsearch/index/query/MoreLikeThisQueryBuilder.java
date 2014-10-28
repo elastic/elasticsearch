@@ -19,12 +19,15 @@
 
 package org.elasticsearch.index.query;
 
+import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
@@ -44,6 +47,9 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
      * A single get item. Pure delegate to multi get.
      */
     public static final class Item extends MultiGetRequest.Item implements ToXContent {
+        private BytesReference doc;
+        private String likeText;
+
         public Item() {
             super();
         }
@@ -52,17 +58,44 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             super(index, type, id);
         }
 
+        public Item(String likeText) {
+            this.likeText = likeText;
+        }
+
+        public BytesReference doc() {
+            return doc;
+        }
+
+        public Item doc(XContentBuilder doc) {
+            this.doc = doc.bytes();
+            return this;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (this.likeText != null) {
+                return builder.value(this.likeText);
+            }
             builder.startObject();
             if (this.index() != null) {
                 builder.field("_index", this.index());
             }
+            if (this.type() != null) {
+                builder.field("_type", this.type());
+            }
             if (this.id() != null) {
                 builder.field("_id", this.id());
             }
-            if (this.type() != null) {
-                builder.field("_type", this.type());
+            if (this.doc() != null) {
+                XContentType contentType = XContentFactory.xContentType(doc);
+                if (contentType == builder.contentType()) {
+                    builder.rawField("doc", doc);
+                } else {
+                    XContentParser parser = XContentFactory.xContent(contentType).createParser(doc);
+                    parser.nextToken();
+                    builder.field("doc");
+                    builder.copyCurrentStructure(parser);
+                }
             }
             if (this.fields() != null) {
                 builder.array("fields", this.fields());
@@ -98,12 +131,9 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     }
 
     private final String[] fields;
-
-    private String likeText;
-    private List<String> ids = new ArrayList<>();
     private List<Item> docs = new ArrayList<>();
     private Boolean include = null;
-    private float percentTermsToMatch = -1;
+    private String minimumShouldMatch = null;
     private int minTermFreq = -1;
     private int maxQueryTerms = -1;
     private String[] stopWords = null;
@@ -133,21 +163,16 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         this.fields = fields;
     }
 
-    /**
-     * The text to use in order to find documents that are "like" this.
-     */
-    public MoreLikeThisQueryBuilder likeText(String likeText) {
-        this.likeText = likeText;
-        return this;
-    }
-
-    public MoreLikeThisQueryBuilder ids(String... ids) {
-        this.ids = Arrays.asList(ids);
-        return this;
-    }
-
-    public MoreLikeThisQueryBuilder docs(Item... docs) {
+    public MoreLikeThisQueryBuilder like(Item... docs) {
         this.docs = Arrays.asList(docs);
+        return this;
+    }
+
+    public MoreLikeThisQueryBuilder like(String... likeText) {
+        this.docs = new ArrayList<>();
+        for (String text : likeText) {
+            this.docs.add(new Item(text));
+        }
         return this;
     }
 
@@ -156,17 +181,55 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         return this;
     }
 
+    public MoreLikeThisQueryBuilder addLikeText(String likeText) {
+        this.docs.add(new Item(likeText));
+        return this;
+    }
+
+    /**
+     * The text to use in order to find documents that are "like" this.
+     */
+    @Deprecated
+    public MoreLikeThisQueryBuilder likeText(String likeText) {
+        return like(likeText);
+    }
+
+    @Deprecated
+    public MoreLikeThisQueryBuilder ids(String... ids) {
+        Item[] items = new Item[ids.length];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = new Item(null, null, ids[i]);
+        }
+        return like(items);
+    }
+
+    @Deprecated
+    public MoreLikeThisQueryBuilder docs(Item... docs) {
+        return like(docs);
+    }
+
     public MoreLikeThisQueryBuilder include(boolean include) {
         this.include = include;
         return this;
     }
 
     /**
+     * Number of terms that must match the generated query expressed in the
+     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     *
+     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
+     */
+    public MoreLikeThisQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
+    /**
      * The percentage of terms to match. Defaults to <tt>0.3</tt>.
      */
+    @Deprecated
     public MoreLikeThisQueryBuilder percentTermsToMatch(float percentTermsToMatch) {
-        this.percentTermsToMatch = percentTermsToMatch;
-        return this;
+        return minimumShouldMatch(Math.round(percentTermsToMatch * 100) + "%");
     }
 
     /**
@@ -274,6 +337,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        String likeFieldName = MoreLikeThisQueryParser.Fields.LIKE.getPreferredName();
         builder.startObject(MoreLikeThisQueryParser.NAME);
         if (fields != null) {
             builder.startArray("fields");
@@ -282,13 +346,17 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             }
             builder.endArray();
         }
-        if (likeText == null && this.docs.isEmpty() && this.ids.isEmpty()) {
-                throw new ElasticsearchIllegalArgumentException("more_like_this requires either '"+
-                    MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName() +"' or 'docs/ids' to be provided");
+        if (this.docs.isEmpty()) {
+            throw new ElasticsearchIllegalArgumentException("more_like_this requires '" + likeFieldName + "' to be provided");
+        } else {
+            if (docs.size() == 1) {
+                builder.field(likeFieldName, docs);
+            } else {
+                builder.array(likeFieldName, docs);
+            }
         }
-        builder.field(MoreLikeThisQueryParser.Fields.LIKE_TEXT.getPreferredName(), likeText);
-        if (percentTermsToMatch != -1) {
-            builder.field(MoreLikeThisQueryParser.Fields.PERCENT_TERMS_TO_MATCH.getPreferredName(), percentTermsToMatch);
+        if (minimumShouldMatch != null) {
+            builder.field(MoreLikeThisQueryParser.Fields.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
         }
         if (minTermFreq != -1) {
             builder.field(MoreLikeThisQueryParser.Fields.MIN_TERM_FREQ.getPreferredName(), minTermFreq);
@@ -329,12 +397,6 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         }
         if (queryName != null) {
             builder.field("_name", queryName);
-        }
-        if (!ids.isEmpty()) {
-            builder.array("ids", ids.toArray());
-        }
-        if (!docs.isEmpty()) {
-            builder.array("docs", docs.toArray());
         }
         if (include != null) {
             builder.field("include", include);

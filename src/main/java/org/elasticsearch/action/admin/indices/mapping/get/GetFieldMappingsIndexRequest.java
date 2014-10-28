@@ -19,8 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -29,40 +28,28 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetFieldMappingsIndexRequest> implements IndicesRequest {
-
-    private String index;
+class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetFieldMappingsIndexRequest> {
 
     private boolean probablySingleFieldRequest;
     private boolean includeDefaults;
     private String[] fields = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
 
+    private OriginalIndices originalIndices;
+
     GetFieldMappingsIndexRequest() {
     }
 
     GetFieldMappingsIndexRequest(GetFieldMappingsRequest other, String index, boolean probablySingleFieldRequest) {
+        super(other);
         this.preferLocal(other.local);
         this.probablySingleFieldRequest = probablySingleFieldRequest;
         this.includeDefaults = other.includeDefaults();
         this.types = other.types();
         this.fields = other.fields();
         assert index != null;
-        this.index = index;
-    }
-
-    public String index() {
-        return index;
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
-    }
-
-    @Override
-    public String[] indices() {
-        return new String[]{index};
+        this.index(index);
+        this.originalIndices = new OriginalIndices(other);
     }
 
     public String[] types() {
@@ -81,34 +68,43 @@ class GetFieldMappingsIndexRequest extends SingleCustomOperationRequest<GetField
         return includeDefaults;
     }
 
-    /** Indicates whether default mapping settings should be returned */
-    public GetFieldMappingsIndexRequest includeDefaults(boolean includeDefaults) {
-        this.includeDefaults = includeDefaults;
-        return this;
+    @Override
+    public String[] indices() {
+        return originalIndices.indices();
     }
 
     @Override
-    public ActionRequestValidationException validate() {
-        return null;
+    public IndicesOptions indicesOptions() {
+        return originalIndices.indicesOptions();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
         out.writeStringArray(types);
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
         out.writeBoolean(probablySingleFieldRequest);
+        OriginalIndices.writeOriginalIndices(originalIndices, out);
+    }
+
+    @Override
+    protected void writeIndex(StreamOutput out) throws IOException {
+        out.writeString(index());
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
         types = in.readStringArray();
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();
         probablySingleFieldRequest = in.readBoolean();
+        originalIndices = OriginalIndices.readOriginalIndices(in);
+    }
+
+    @Override
+    protected void readIndex(StreamInput in) throws IOException {
+        index(in.readString());
     }
 }

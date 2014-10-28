@@ -251,7 +251,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         source = in.readBytesReference();
         types = in.readStringArray();
 
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             terminateAfter = in.readVInt();
         }
     }
@@ -265,7 +265,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         out.writeBytesReference(source);
         out.writeStringArray(types);
 
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeVInt(terminateAfter);
         }
     }

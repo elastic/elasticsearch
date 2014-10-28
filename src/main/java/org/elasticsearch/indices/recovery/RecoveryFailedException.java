@@ -21,6 +21,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
@@ -29,10 +30,22 @@ import org.elasticsearch.index.shard.ShardId;
 public class RecoveryFailedException extends ElasticsearchException {
 
     public RecoveryFailedException(StartRecoveryRequest request, Throwable cause) {
-        this(request.shardId(), request.sourceNode(), request.targetNode(), cause);
+        this(request, null, cause);
+    }
+
+    public RecoveryFailedException(StartRecoveryRequest request, @Nullable String extraInfo, Throwable cause) {
+        this(request.shardId(), request.sourceNode(), request.targetNode(), extraInfo, cause);
+    }
+
+    public RecoveryFailedException(RecoveryState state, @Nullable String extraInfo, Throwable cause) {
+        this(state.getShardId(), state.getSourceNode(), state.getTargetNode(), extraInfo, cause);
     }
 
     public RecoveryFailedException(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, Throwable cause) {
-        super(shardId + ": Recovery failed from " + sourceNode + " into " + targetNode, cause);
+        this(shardId, sourceNode, targetNode, null, cause);
+    }
+
+    public RecoveryFailedException(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, @Nullable String extraInfo, Throwable cause) {
+        super(shardId + ": Recovery failed from " + sourceNode + " into " + targetNode + (extraInfo == null ? "" : " (" + extraInfo + ")"), cause);
     }
 }

@@ -26,7 +26,6 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -37,8 +36,6 @@ import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.facet.SearchContextFacets;
-import org.elasticsearch.search.facet.nested.NestedFacetExecutor;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.highlight.HighlightPhase;
 
@@ -63,7 +60,7 @@ abstract class QueryCollector extends Collector {
 
     SortedBinaryDocValues values;
 
-    final List<Collector> facetAndAggregatorCollector;
+    final List<Collector> aggregatorCollector;
 
     QueryCollector(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
         this.logger = logger;
@@ -73,23 +70,7 @@ abstract class QueryCollector extends Collector {
         this.idFieldData = context.fieldData().getForField(idMapper);
         this.isNestedDoc = isNestedDoc;
 
-        ImmutableList.Builder<Collector> facetAggCollectorBuilder = ImmutableList.builder();
-        if (context.facets() != null) {
-            for (SearchContextFacets.Entry entry : context.facets().entries()) {
-                if (entry.isGlobal()) {
-                    continue; // not supported for now
-                }
-                Collector collector = entry.getFacetExecutor().collector();
-                if (entry.getFilter() != null) {
-                    if (collector instanceof NestedFacetExecutor.Collector) {
-                        collector = new NestedFacetExecutor.Collector((NestedFacetExecutor.Collector) collector, entry.getFilter());
-                    } else {
-                        collector = new FilteredCollector(collector, entry.getFilter());
-                    }
-                }
-                facetAggCollectorBuilder.add(collector);
-            }
-        }
+        ImmutableList.Builder<Collector> aggCollectorBuilder = ImmutableList.builder();
 
         if (context.aggregations() != null) {
             AggregationContext aggregationContext = new AggregationContext(context);
@@ -107,22 +88,22 @@ abstract class QueryCollector extends Collector {
             }
             context.aggregations().aggregators(aggregators);
             if (!aggregatorCollectors.isEmpty()) {
-                facetAggCollectorBuilder.add(new AggregationPhase.AggregationsCollector(aggregatorCollectors, aggregationContext));
+                aggCollectorBuilder.add(new AggregationPhase.AggregationsCollector(aggregatorCollectors, aggregationContext));
             }
             aggregationContext.setNextReader(context.searcher().getIndexReader().getContext());
         }
-        facetAndAggregatorCollector = facetAggCollectorBuilder.build();
+        aggregatorCollector = aggCollectorBuilder.build();
     }
 
     public void postMatch(int doc) throws IOException {
-        for (Collector collector : facetAndAggregatorCollector) {
+        for (Collector collector : aggregatorCollector) {
             collector.collect(doc);
         }
     }
 
     @Override
     public void setScorer(Scorer scorer) throws IOException {
-        for (Collector collector : facetAndAggregatorCollector) {
+        for (Collector collector : aggregatorCollector) {
             collector.setScorer(scorer);
         }
     }
@@ -131,7 +112,7 @@ abstract class QueryCollector extends Collector {
     public void setNextReader(AtomicReaderContext context) throws IOException {
         // we use the UID because id might not be indexed
         values = idFieldData.load(context).getBytesValues();
-        for (Collector collector : facetAndAggregatorCollector) {
+        for (Collector collector : aggregatorCollector) {
             collector.setNextReader(context);
         }
     }

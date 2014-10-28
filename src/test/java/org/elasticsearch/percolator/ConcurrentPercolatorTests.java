@@ -146,7 +146,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testConcurrentAddingAndPercolating() throws Exception {
-        createIndex("index");
+        assertAcked(prepareCreate("index").addMapping("type", "field1", "type=string", "field2", "type=string"));
         ensureGreen();
         final int numIndexThreads = scaledRandomIntBetween(1, 3);
         final int numPercolateThreads = scaledRandomIntBetween(2, 6);
@@ -293,7 +293,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testConcurrentAddingAndRemovingWhilePercolating() throws Exception {
-        createIndex("index");
+        assertAcked(prepareCreate("index").addMapping("type", "field1", "type=string"));
         ensureGreen();
         final int numIndexThreads = scaledRandomIntBetween(1, 3);
         final int numberPercolateOperation = scaledRandomIntBetween(10, 100);

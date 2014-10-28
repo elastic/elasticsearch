@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.ClusterAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.support.AbstractClusterAdminClient;
+import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -47,11 +48,14 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
 
     private final ImmutableMap<ClusterAction, TransportActionNodeProxy> actions;
 
+    private final Headers headers;
+
     @Inject
     public InternalTransportClusterAdminClient(Settings settings, TransportClientNodesService nodesService, ThreadPool threadPool, TransportService transportService,
-                                               Map<String, GenericAction> actions) {
+                                               Map<String, GenericAction> actions, Headers headers) {
         this.nodesService = nodesService;
         this.threadPool = threadPool;
+        this.headers = headers;
         MapBuilder<ClusterAction, TransportActionNodeProxy> actionsBuilder = new MapBuilder<>();
         for (GenericAction action : actions.values()) {
             if (action instanceof ClusterAction) {
@@ -77,6 +81,7 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
     @SuppressWarnings("unchecked")
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> void execute(final Action<Request, Response, RequestBuilder, ClusterAdminClient> action, final Request request, final ActionListener<Response> listener) {
+        headers.applyTo(request);
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
             @Override

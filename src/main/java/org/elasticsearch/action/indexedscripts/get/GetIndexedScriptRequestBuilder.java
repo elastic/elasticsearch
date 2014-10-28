@@ -53,31 +53,6 @@ public class GetIndexedScriptRequestBuilder extends ActionRequestBuilder<GetInde
     }
 
     /**
-     * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
-     * a custom value, which guarantees that the same order will be used across different requests.
-     */
-    public GetIndexedScriptRequestBuilder setPreference(String preference) {
-        request.preference(preference);
-        return this;
-    }
-
-    /**
-     * Should a refresh be executed before this get operation causing the operation to
-     * return the latest value. Note, heavy get should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public GetIndexedScriptRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
-        return this;
-    }
-
-    public GetIndexedScriptRequestBuilder setRealtime(Boolean realtime) {
-        request.realtime(realtime);
-        return this;
-    }
-
-    /**
      * Sets the version, which will cause the get operation to only be performed if a matching
      * version exists and no changes happened on the doc since then.
      */

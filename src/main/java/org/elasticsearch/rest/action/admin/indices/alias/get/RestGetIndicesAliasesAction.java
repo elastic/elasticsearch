@@ -45,10 +45,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetIndicesAliasesAction extends BaseRestHandler {
 
     @Inject
-    public RestGetIndicesAliasesAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
-        controller.registerHandler(GET, "/_aliases", this);
-        controller.registerHandler(GET, "/{index}/_aliases", this);
+    public RestGetIndicesAliasesAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/{index}/_aliases/{name}", this);
         controller.registerHandler(GET, "/_aliases/{name}", this);
     }

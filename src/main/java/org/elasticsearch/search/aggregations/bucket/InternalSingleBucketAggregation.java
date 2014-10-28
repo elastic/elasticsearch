@@ -76,7 +76,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
             docCount += ((InternalSingleBucketAggregation) aggregation).docCount;
             subAggregationsList.add(((InternalSingleBucketAggregation) aggregation).aggregations);
         }
-        final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext.bigArrays());
+        final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
         return newAggregation(getName(), docCount, aggs);
     }
 

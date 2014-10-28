@@ -12,6 +12,9 @@ See the {client}/perl-api/current/index.html[official Elasticsearch Perl client]
 
 See the {client}/python-api/current/index.html[official Elasticsearch Python client].
 
+* http://github.com/elasticsearch/elasticsearch-dsl-py[elasticsearch-dsl-py]
+  chainable query and filter construction built on top of offical client.
+
 * http://github.com/rhec/pyelasticsearch[pyelasticsearch]:
   Python client.
 
@@ -99,6 +102,12 @@ See the {client}/net-api/current/index.html[official Elasticsearch .NET client].
 
 * https://github.com/medcl/ElasticSearch.Net[ElasticSearch.NET]:
   .NET client.
+
+
+[[community-haskell]]
+=== Haskell
+* https://github.com/bitemyapp/bloodhound[bloodhound]:
+  Haskell client and DSL.
 
 
 [[community-scala]]

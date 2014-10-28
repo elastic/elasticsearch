@@ -24,6 +24,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
@@ -40,9 +41,9 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
     public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format,
               long estimatedBucketCount, BucketCountThresholds bucketCountThresholds,
-              AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
+              AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory, IncludeExclude.LongFilter includeExclude) {
 
-        super(name, factories, valuesSource, format, estimatedBucketCount, null, bucketCountThresholds, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false);
+        super(name, factories, valuesSource, format, estimatedBucketCount, null, bucketCountThresholds, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false, includeExclude);
         this.termsAggFactory = termsAggFactory;
     }
 
@@ -68,7 +69,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         SignificantLongTerms.Bucket spare = null;
         for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
-                spare = new SignificantLongTerms.Bucket(0, 0, 0, 0, 0, null);
+                spare = new SignificantLongTerms.Bucket(0, 0, 0, 0, 0, null, formatter);
             }
             spare.term = bucketOrds.get(i);
             spare.subsetDf = bucketDocCount(i);

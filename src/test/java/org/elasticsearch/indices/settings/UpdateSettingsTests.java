@@ -162,6 +162,8 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
             assertThat(stats.getIndices().getStore().getThrottleTime().getMillis(), equalTo(0l));
         }
 
+        logger.info("test: set low merge throttling");
+
         // Now updates settings to turn on merge throttling lowish rate
         client()
             .admin()
@@ -200,6 +202,8 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
             }
         }
 
+        logger.info("test: disable merge throttling");
+        
         // Now updates settings to disable merge throttling
         client()
             .admin()
@@ -210,7 +214,9 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
             .get();
 
         // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
+        logger.info("test: optimize");
         client().admin().indices().prepareOptimize("test").get();
+        logger.info("test: optimize done");
 
         // Record current throttling so far
         long sumThrottleTime = 0;
@@ -232,6 +238,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                 refresh();
             }
         }
+        logger.info("test: done indexing after disabling throttling");
 
         long newSumThrottleTime = 0;
         nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
@@ -241,6 +248,8 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
 
         // No additional merge IO throttling should have happened:
         assertEquals(sumThrottleTime, newSumThrottleTime);
+
+        logger.info("test: test done");
     }
 
     private static class MockAppender extends AppenderSkeleton {

@@ -99,7 +99,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         ArrayList<InternalSignificantTerms.Bucket> buckets = new ArrayList<>();
         if (randomBoolean()) {
             BytesRef term = new BytesRef("123.0");
-            buckets.add(new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY));
+            buckets.add(new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY, null));
             sTerms[0] = new SignificantLongTerms(10, 20, "some_name", null, 1, 1, heuristic, buckets);
             sTerms[1] = new SignificantLongTerms();
         } else {

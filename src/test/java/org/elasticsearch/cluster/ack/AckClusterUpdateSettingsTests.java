@@ -45,10 +45,8 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        //to test that the acknowledgement mechanism is working we better disable the wait for publish
-        //otherwise the operation is most likely acknowledged even if it doesn't support ack
         return ImmutableSettings.builder()
-                .put(DiscoverySettings.PUBLISH_TIMEOUT, 0)
+                .put(super.nodeSettings(nodeOrdinal))
                 //make sure that enough concurrent reroutes can happen at the same time
                 //we have a minimum of 2 nodes, and a maximum of 10 shards, thus 5 should be enough
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 5)
@@ -65,10 +63,20 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
         return 0;
     }
 
+
+    private void removePublishTimeout() {
+        //to test that the acknowledgement mechanism is working we better disable the wait for publish
+        //otherwise the operation is most likely acknowledged even if it doesn't support ack
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "0")));
+    }
+
     @Test
     public void testClusterUpdateSettingsAcknowledgement() {
         createIndex("test");
         ensureGreen();
+
+        // now that the cluster is stable, remove timeout
+        removePublishTimeout();
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
         String excludedNodeId = null;
@@ -109,6 +117,9 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
                         .put("number_of_shards", between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
+
+        // now that the cluster is stable, remove timeout
+        removePublishTimeout();
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
         String excludedNodeId = null;

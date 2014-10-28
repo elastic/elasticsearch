@@ -27,6 +27,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
@@ -107,6 +108,9 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
+                    if (propNode == null) {
+                        throw new MapperParsingException("Property [null_value] cannot be null.");
+                    }
                     builder.nullValue(nodeByteValue(propNode));
                 }
             }
@@ -162,9 +166,9 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
 
     @Override
     public BytesRef indexedValueForSearch(Object value) {
-        BytesRef bytesRef = new BytesRef();
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
         NumericUtils.intToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
-        return bytesRef;
+        return bytesRef.get();
     }
 
     private byte parseValue(Object value) {

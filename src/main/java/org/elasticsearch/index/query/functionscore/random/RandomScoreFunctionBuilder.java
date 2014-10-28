@@ -26,9 +26,9 @@ import java.io.IOException;
 /**
  * A function that computes a random score for the matched documents
  */
-public class RandomScoreFunctionBuilder implements ScoreFunctionBuilder {
+public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder {
 
-    private Long seed = null;
+    private Integer seed = null;
 
     public RandomScoreFunctionBuilder() {
     }
@@ -44,18 +44,18 @@ public class RandomScoreFunctionBuilder implements ScoreFunctionBuilder {
      *
      * @param seed The seed.
      */
-    public RandomScoreFunctionBuilder seed(long seed) {
+    public RandomScoreFunctionBuilder seed(int seed) {
         this.seed = seed;
         return this;
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         if (seed != null) {
-            builder.field("seed", seed.longValue());
+            builder.field("seed", seed.intValue());
         }
-        return builder.endObject();
+        builder.endObject();
     }
 
 }

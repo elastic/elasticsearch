@@ -36,27 +36,23 @@ public class PreBuiltTokenFilterFactoryFactoryTests extends ElasticsearchTestCas
     public void testThatCachingWorksForCachingStrategyOne() {
         PreBuiltTokenFilterFactoryFactory factory = new PreBuiltTokenFilterFactoryFactory(PreBuiltTokenFilters.WORD_DELIMITER.getTokenFilterFactory(Version.CURRENT));
 
-        TokenFilterFactory emptySettingsTokenizerFactory = factory.create("word_delimiter", ImmutableSettings.EMPTY);
         TokenFilterFactory former090TokenizerFactory = factory.create("word_delimiter", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
         TokenFilterFactory former090TokenizerFactoryCopy = factory.create("word_delimiter", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
         TokenFilterFactory currentTokenizerFactory = factory.create("word_delimiter", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
-        assertThat(emptySettingsTokenizerFactory, is(currentTokenizerFactory));
-        assertThat(emptySettingsTokenizerFactory, is(former090TokenizerFactory));
-        assertThat(emptySettingsTokenizerFactory, is(former090TokenizerFactoryCopy));
+        assertThat(currentTokenizerFactory, is(former090TokenizerFactory));
+        assertThat(currentTokenizerFactory, is(former090TokenizerFactoryCopy));
     }
 
     @Test
     public void testThatDifferentVersionsCanBeLoaded() {
         PreBuiltTokenFilterFactoryFactory factory = new PreBuiltTokenFilterFactoryFactory(PreBuiltTokenFilters.STOP.getTokenFilterFactory(Version.CURRENT));
 
-        TokenFilterFactory emptySettingsTokenizerFactory = factory.create("stop", ImmutableSettings.EMPTY);
         TokenFilterFactory former090TokenizerFactory = factory.create("stop", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
         TokenFilterFactory former090TokenizerFactoryCopy = factory.create("stop", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
         TokenFilterFactory currentTokenizerFactory = factory.create("stop", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
-        assertThat(emptySettingsTokenizerFactory, is(currentTokenizerFactory));
-        assertThat(emptySettingsTokenizerFactory, is(not(former090TokenizerFactory)));
+        assertThat(currentTokenizerFactory, is(not(former090TokenizerFactory)));
         assertThat(former090TokenizerFactory, is(former090TokenizerFactoryCopy));
     }
 

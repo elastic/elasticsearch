@@ -115,18 +115,13 @@ public class TransportClusterStatsAction extends TransportNodesOperationAction<C
         NodeInfo nodeInfo = nodeService.info(false, true, false, true, false, false, true, false, true);
         NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE, false, true, true, false, false, true, false, false, false);
         List<ShardStats> shardsStats = new ArrayList<>();
-        for (String index : indicesService.indices()) {
-            IndexService indexService = indicesService.indexService(index);
-            if (indexService == null) {
-                continue;
-            }
+        for (IndexService indexService : indicesService.indices().values()) {
             for (IndexShard indexShard : indexService) {
-                if (indexShard.routingEntry().active()) {
+                if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards
-                    shardsStats.add(new ShardStats(indexShard, SHARD_STATS_FLAGS));
+                    shardsStats.add(new ShardStats(indexShard, indexShard.routingEntry(), SHARD_STATS_FLAGS));
                 }
             }
-
         }
 
         ClusterHealthStatus clusterStatus = null;

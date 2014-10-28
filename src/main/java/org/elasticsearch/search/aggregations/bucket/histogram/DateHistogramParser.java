@@ -77,7 +77,6 @@ public class DateHistogramParser implements Aggregator.Parser {
 
         ValuesSourceParser vsParser = ValuesSourceParser.numeric(aggregationName, InternalDateHistogram.TYPE, context)
                 .targetValueType(ValueType.DATE)
-                .requiresSortedValues(true)
                 .formattable(true)
                 .build();
 

@@ -18,63 +18,25 @@
  */
 package org.elasticsearch.rest.action.template;
 
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.script.RestDeleteIndexedScriptAction;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 
-public class RestDeleteSearchTemplateAction extends BaseRestHandler {
-
-    private ScriptService scriptService;
+public class RestDeleteSearchTemplateAction extends RestDeleteIndexedScriptAction {
 
     @Inject
-    public RestDeleteSearchTemplateAction(Settings settings, Client client, RestController controller, ScriptService scriptService) {
-        super(settings, client);
+    public RestDeleteSearchTemplateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, false, client);
         controller.registerHandler(DELETE, "/_search/template/{id}", this);
-        this.scriptService = scriptService;
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
-        final String id = request.param("id");
-        final long version = request.paramAsLong("version", Versions.MATCH_ANY);
-        scriptService.deleteScriptFromIndex(client,"mustache", id, version, new RestBuilderListener<DeleteResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(DeleteResponse result, XContentBuilder builder) throws Exception {
-                builder.startObject()
-                        .field(Fields.FOUND, result.isFound())
-                        .field(Fields._INDEX, result.getIndex())
-                        .field(Fields._TYPE, result.getType())
-                        .field(Fields._ID, result.getId())
-                        .field(Fields._VERSION, result.getVersion())
-                        .endObject();
-                RestStatus status = OK;
-                if (!result.isFound()) {
-                    status = NOT_FOUND;
-                }
-                return new BytesRestResponse(status, builder);
-            }
-        });
+    protected String getScriptLang(RestRequest request) {
+        return "mustache";
     }
-
-    static final class Fields {
-        static final XContentBuilderString FOUND = new XContentBuilderString("found");
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-    }
-
-
 }

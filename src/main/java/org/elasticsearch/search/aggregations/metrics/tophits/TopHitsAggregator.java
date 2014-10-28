@@ -90,13 +90,13 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
                     searchHitFields.sortValues(fieldDoc.fields);
                 }
             }
-            return new InternalTopHits(name, topHitsContext.from(), topHitsContext.size(), topHitsContext.sort(), topDocs, fetchResult.hits());
+            return new InternalTopHits(name, topHitsContext.from(), topHitsContext.size(), topDocs, fetchResult.hits());
         }
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalTopHits(name, topHitsContext.from(), topHitsContext.size(), topHitsContext.sort(), Lucene.EMPTY_TOP_DOCS, InternalSearchHits.empty());
+        return new InternalTopHits(name, topHitsContext.from(), topHitsContext.size(), Lucene.EMPTY_TOP_DOCS, InternalSearchHits.empty());
     }
 
     @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  *
@@ -59,6 +61,11 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
     }
 
     @Override
+    protected ClusterBlockException checkBlock(ClusterHealthRequest request, ClusterState state) {
+        return null; // we want users to be able to call this even when there are global blocks, just to check the health (are there blocks?)
+    }
+
+    @Override
     protected ClusterHealthRequest newRequest() {
         return new ClusterHealthRequest();
     }
@@ -74,6 +81,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
 
         if (request.waitForEvents() != null) {
             final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<ElasticsearchException> failure = new AtomicReference<>();
             clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", request.waitForEvents(), new ProcessedClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -88,6 +96,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
                 @Override
                 public void onFailure(String source, Throwable t) {
                     logger.error("unexpected failure during [{}]", t, source);
+                    failure.set(new ElasticsearchException("Error while waiting for events", t));
+                    latch.countDown();
+                }
+
+                @Override
+                public boolean runOnlyOnMaster() {
+                    return !request.local();
                 }
             });
 
@@ -95,6 +110,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
                 latch.await(request.timeout().millis(), TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 // ignore
+            }
+            if (failure.get() != null) {
+                throw failure.get();
             }
         }
 

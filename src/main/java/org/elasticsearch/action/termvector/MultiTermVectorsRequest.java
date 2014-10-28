@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.termvector;
 
+import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.*;
@@ -30,12 +31,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
-public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> implements CompositeIndicesRequest {
+public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> implements Iterable<TermVectorRequest>, CompositeIndicesRequest {
 
     String preference;
     List<TermVectorRequest> requests = new ArrayList<>();
@@ -75,6 +73,19 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
         return requests;
     }
 
+    @Override
+    public Iterator<TermVectorRequest> iterator() {
+        return Iterators.unmodifiableIterator(requests.iterator());
+    }
+
+    public boolean isEmpty() {
+        return requests.isEmpty() && ids.isEmpty();
+    }
+
+    public List<TermVectorRequest> getRequests() {
+        return requests;
+    }
+
     public void add(TermVectorRequest template, BytesReference data) throws Exception {
         XContentParser.Token token;
         String currentFieldName = null;
@@ -84,7 +95,6 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_ARRAY) {
-
                         if ("docs".equals(currentFieldName)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 if (token != XContentParser.Token.START_OBJECT) {

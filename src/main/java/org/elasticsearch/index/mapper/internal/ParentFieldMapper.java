@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper.internal;
 
+import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
@@ -33,20 +34,24 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.builder;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.parent;
 
 /**
@@ -57,6 +62,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     public static final String NAME = "_parent";
 
     public static final String CONTENT_TYPE = "_parent";
+
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = ParentFieldMapper.NAME;
@@ -75,14 +81,11 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     public static class Builder extends Mapper.Builder<Builder, ParentFieldMapper> {
 
-        private static final Settings FIELD_DATA_SETTINGS = ImmutableSettings.settingsBuilder()
-                .put(Loading.KEY, Loading.EAGER_VALUE)
-                .build();
-
         protected String indexName;
 
         private String type;
         protected PostingsFormatProvider postingsFormat;
+        protected Settings fieldDataSettings;
 
         public Builder() {
             super(Defaults.NAME);
@@ -100,12 +103,17 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             return builder;
         }
 
+        public Builder fieldDataSettings(Settings settings) {
+            this.fieldDataSettings = settings;
+            return builder;
+        }
+
         @Override
         public ParentFieldMapper build(BuilderContext context) {
             if (type == null) {
                 throw new MapperParsingException("Parent mapping must contain the parent type");
             }
-            return new ParentFieldMapper(name, indexName, type, postingsFormat, FIELD_DATA_SETTINGS, context.indexSettings());
+            return new ParentFieldMapper(name, indexName, type, postingsFormat, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -121,6 +129,13 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                 } else if (fieldName.equals("postings_format")) {
                     String postingFormatName = fieldNode.toString();
                     builder.postingsFormat(parserContext.postingFormatService().get(postingFormatName));
+                } else if (fieldName.equals("fielddata")) {
+                    // Only take over `loading`, since that is the only option now that is configurable:
+                    Map<String, String> fieldDataSettings = SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(fieldNode, "fielddata"));
+                    if (fieldDataSettings.containsKey(Loading.KEY)) {
+                        Settings settings = settingsBuilder().put(Loading.KEY, fieldDataSettings.get(Loading.KEY)).build();
+                        builder.fieldDataSettings(settings);
+                    }
                 }
             }
             return builder;
@@ -137,8 +152,9 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         this.typeAsBytes = type == null ? null : new BytesRef(type);
     }
 
-    public ParentFieldMapper() {
-        this(Defaults.NAME, Defaults.NAME, null, null, null, null);
+    public ParentFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, Defaults.NAME, null, null, null, indexSettings);
+        this.fieldDataType = new FieldDataType("_parent", settingsBuilder().put(Loading.KEY, Loading.LAZY_VALUE));
     }
 
     public String type() {
@@ -152,7 +168,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     @Override
     public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("_parent");
+        return new FieldDataType("_parent", settingsBuilder().put(Loading.KEY, Loading.EAGER_VALUE));
     }
 
     @Override
@@ -333,9 +349,15 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         if (!active()) {
             return builder;
         }
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         builder.startObject(CONTENT_TYPE);
         builder.field("type", type);
+        if (customFieldDataSettings != null) {
+            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+        } else if (includeDefaults) {
+            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+        }
         builder.endObject();
         return builder;
     }
@@ -343,12 +365,20 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         ParentFieldMapper other = (ParentFieldMapper) mergeWith;
-        if (active() == other.active()) {
-            return;
+        if (!Objects.equal(type, other.type)) {
+            mergeContext.addConflict("The _parent field's type option can't be changed");
         }
 
-        if (active() != other.active() || !type.equals(other.type)) {
-            mergeContext.addConflict("The _parent field can't be added or updated");
+        if (!mergeContext.mergeFlags().simulate()) {
+            ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
+            if (fieldMergeWith.customFieldDataSettings != null) {
+                if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {
+                    this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
+                    this.fieldDataType = new FieldDataType(defaultFieldDataType().getType(),
+                            builder().put(defaultFieldDataType().getSettings()).put(this.customFieldDataSettings)
+                    );
+                }
+            }
         }
     }
 

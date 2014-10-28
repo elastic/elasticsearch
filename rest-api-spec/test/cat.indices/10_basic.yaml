@@ -1,0 +1,36 @@
+---
+"Test cat indices output":
+
+  - do:
+      cat.indices: {}
+
+  - match:
+      $body: |
+               /^$/
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+       cluster.health:
+         wait_for_status: yellow
+  - do:
+      cat.indices: {}
+
+  - match:
+      $body: |
+               /^(green  \s+
+                  (open|close) \s+
+                  index1 \s+
+                  1      \s+
+                  0      \s+
+                  0      \s+
+                  0      \s+
+                  (\d+|\d+[.]\d+)(kb|b) \s+
+                  (\d+|\d+[.]\d+)(kb|b) \s*
+                )
+                $/

@@ -20,6 +20,7 @@
 package org.elasticsearch.mlt;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -29,8 +30,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -40,6 +43,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -407,7 +411,8 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
             logger.info("Running MoreLikeThis DSL with IDs");
             String id = String.valueOf(getRandom().nextInt(texts.length));
             Client client = client();
-            MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery("text").ids(id).minTermFreq(1).minDocFreq(1);
+            MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery("text").ids(id).minTermFreq(1).minDocFreq(1)
+                    .minimumShouldMatch("0%");
             SearchResponse mltResponseDSL = client.prepareSearch()
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setTypes("type1")
@@ -417,7 +422,8 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
             assertSearchResponse(mltResponseDSL);
 
             logger.info("Running MoreLikeThis API");
-            MoreLikeThisRequest mltRequest = moreLikeThisRequest("test").type("type1").searchSize(texts.length).id(id).minTermFreq(1).minDocFreq(1);
+            MoreLikeThisRequest mltRequest = moreLikeThisRequest("test").type("type1").searchSize(texts.length).id(id).minTermFreq(1).minDocFreq(1)
+                    .minimumShouldMatch("0%");
             SearchResponse mltResponseAPI = client.moreLikeThis(mltRequest).actionGet();
             assertSearchResponse(mltResponseAPI);
 
@@ -522,5 +528,152 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
             assertSearchResponse(response);
             assertHitCount(response, values.length);
         }
+    }
+
+    @Test
+    public void testMinimumShouldMatch() throws ExecutionException, InterruptedException {
+        logger.info("Creating the index ...");
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", "text", "type=string,analyzer=whitespace")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        ensureGreen();
+
+        logger.info("Indexing with each doc having one less term ...");
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            String text = "";
+            for (int j = 1; j <= 10 - i; j++) {
+                text += j + " ";
+            }
+            builders.add(client().prepareIndex("test", "type1", i + "").setSource("text", text));
+        }
+        indexRandom(true, builders);
+
+        logger.info("Testing each minimum_should_match from 0% - 100% with 10% increment ...");
+        for (int i = 0; i <= 10; i++) {
+            String minimumShouldMatch = (10 * i) + "%";
+            MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery("text")
+                    .likeText("1 2 3 4 5 6 7 8 9 10")
+                    .minTermFreq(1)
+                    .minDocFreq(1)
+                    .minimumShouldMatch(minimumShouldMatch);
+            logger.info("Testing with minimum_should_match = " + minimumShouldMatch);
+            SearchResponse response = client().prepareSearch("test").setTypes("type1")
+                    .setQuery(mltQuery).get();
+            assertSearchResponse(response);
+            if (minimumShouldMatch.equals("0%")) {
+                assertHitCount(response, 10);
+            } else {
+                assertHitCount(response, 11 - i);
+            }
+        }
+    }
+
+    @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "alex k working on it")
+    public void testMoreLikeThisArtificialDocs() throws Exception {
+        int numFields = randomIntBetween(5, 10);
+
+        logger.info("Creating an index with multiple fields ...");
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("type1").startObject("properties");
+        for (int i = 0; i < numFields; i++) {
+            mapping.startObject("field"+i).field("type", "string").endObject();
+        }
+        mapping.endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", mapping).get());
+        ensureGreen();
+
+        logger.info("Indexing a single document ...");
+        XContentBuilder doc = jsonBuilder().startObject();
+        for (int i = 0; i < numFields; i++) {
+            doc.field("field"+i, generateRandomStringArray(5, 10));
+        }
+        doc.endObject();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("test", "type1", "1").setSource(doc));
+        indexRandom(true, builders);
+
+        logger.info("Checking the document matches ...");
+        MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery()
+                .docs((Item) new Item().doc(doc).index("test").type("type1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .maxQueryTerms(100)
+                .percentTermsToMatch(1); // strict all terms must match!
+        SearchResponse response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
+    }
+
+    @Test
+    public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
+        logger.info("Creating the index ...");
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", "text", "type=string,analyzer=whitespace", "date", "type=date"));
+        ensureGreen("test");
+
+        logger.info("Creating an index with a single document ...");
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
+                .startObject()
+                    .field("text", "Hello World!")
+                    .field("date", "2009-01-01")
+                .endObject()));
+
+        logger.info("Checking with a malformed field value ...");
+        XContentBuilder malformedFieldDoc = jsonBuilder()
+                .startObject()
+                    .field("text", "Hello World!")
+                    .field("date", "this is not a date!")
+                .endObject();
+        MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery()
+                .docs((Item) new Item().doc(malformedFieldDoc).index("test").type("type1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .percentTermsToMatch(0);
+        SearchResponse response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 0);
+
+        logger.info("Checking with an empty document ...");
+        XContentBuilder emptyDoc = jsonBuilder().startObject().endObject();
+        mltQuery = moreLikeThisQuery()
+                .docs((Item) new Item().doc(emptyDoc).index("test").type("type1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .percentTermsToMatch(0);
+        response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 0);
+
+        logger.info("Checking when document is malformed ...");
+        XContentBuilder malformedDoc = jsonBuilder().startObject();
+        mltQuery = moreLikeThisQuery()
+                .docs((Item) new Item().doc(malformedDoc).index("test").type("type1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .percentTermsToMatch(0);
+        response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 0);
+
+        logger.info("Checking the document matches otherwise ...");
+        XContentBuilder normalDoc = jsonBuilder()
+                .startObject()
+                    .field("text", "Hello World!")
+                    .field("date", "1000-01-01") // should be properly parsed but ignored ...
+                .endObject();
+        mltQuery = moreLikeThisQuery()
+                .docs((Item) new Item().doc(normalDoc).index("test").type("type1"))
+                .minTermFreq(0)
+                .minDocFreq(0)
+                .percentTermsToMatch(1);  // strict all terms must match but date is ignored
+        response = client().prepareSearch("test").setTypes("type1")
+                .setQuery(mltQuery).get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
     }
 }

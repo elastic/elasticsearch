@@ -1,10 +1,11 @@
 [[indices-warmers]]
 == Warmers
 
-Index warming allows to run registered search requests to warm up the
-index before it is available for search. With the near real time aspect
-of search, cold data (segments) will be warmed up before they become
-available for search. 
+Index warming allows to run registered search requests to warm up the index
+before it is available for search. With the near real time aspect of search,
+cold data (segments) will be warmed up before they become available for search.
+This includes things such as the filter cache, filesystem cache, and loading
+field data for fields.
 
 Warmup searches typically include requests that require heavy loading of
 data, such as aggregations or sorting on specific fields. The warmup APIs
@@ -64,6 +65,10 @@ curl -XPUT localhost:9200/_template/template_1 -d '
     }
 }'
 --------------------------------------------------
+
+On the same level as `types` and `source`, the `query_cache` flag is supported
+to enable query caching for the warmed search request. If not specified, it will
+use the index level configuration of query caching.
 
 [float]
 [[warmer-adding]]
@@ -135,6 +140,9 @@ where
 
 Instead of `_warmer` you can also use the plural `_warmers`.
 
+The `query_cache` parameter can be used to enable query caching for
+the search request. If not specified, it will use the index level configuration
+of query caching.
 
 
 [float]
@@ -168,7 +176,9 @@ Instead of `_warmer` you can also use the plural `_warmers`.
 
 Getting a warmer for specific index (or alias, or several indices) based
 on its name. The provided name can be a simple wildcard expression or
-omitted to get all warmers. Some examples:
+omitted to get all warmers. 
+
+Some examples:
 
 [source,js]
 --------------------------------------------------
@@ -181,3 +191,4 @@ curl -XGET localhost:9200/test/_warmer/warm*
 # get all warmers for test index
 curl -XGET localhost:9200/test/_warmer/
 --------------------------------------------------
+

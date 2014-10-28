@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.index.CorruptIndexException;
@@ -28,11 +29,14 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProcessedClusterStateNonMasterUpdateTask;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -42,6 +46,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -59,10 +64,7 @@ import org.elasticsearch.transport.*;
 
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -141,35 +143,32 @@ public class RecoverySource extends AbstractComponent {
                 store.incRef();
                 try {
                     StopWatch stopWatch = new StopWatch().start();
-                    final Store.MetadataSnapshot metadata;
-                    metadata = store.getMetadata();
+                    final Store.MetadataSnapshot recoverySourceMetadata = store.getMetadata(snapshot);
                     for (String name : snapshot.getFiles()) {
-                        final StoreFileMetaData md = metadata.get(name);
+                        final StoreFileMetaData md = recoverySourceMetadata.get(name);
                         if (md == null) {
-                            logger.info("Snapshot differs from actual index for file: {} meta: {}", name, metadata.asMap());
-                            throw new CorruptIndexException("Snapshot differs from actual index - maybe index was removed metadata has " + metadata.asMap().size() + " files");
+                            logger.info("Snapshot differs from actual index for file: {} meta: {}", name, recoverySourceMetadata.asMap());
+                            throw new CorruptIndexException("Snapshot differs from actual index - maybe index was removed metadata has " + recoverySourceMetadata.asMap().size() + " files");
                         }
-                        boolean useExisting = false;
-                        if (request.existingFiles().containsKey(name)) {
-                            if (md.isSame(request.existingFiles().get(name))) {
-                                response.phase1ExistingFileNames.add(name);
-                                response.phase1ExistingFileSizes.add(md.length());
-                                existingTotalSize += md.length();
-                                useExisting = true;
-                                if (logger.isTraceEnabled()) {
-                                    logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has checksum [{}], size [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, md.checksum(), md.length());
-                                }
-                            }
+                    }
+                    final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(new Store.MetadataSnapshot(request.existingFiles()));
+                    for (StoreFileMetaData md : diff.identical) {
+                        response.phase1ExistingFileNames.add(md.name());
+                        response.phase1ExistingFileSizes.add(md.length());
+                        existingTotalSize += md.length();
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("[{}][{}] recovery [phase1] to {}: not recovering [{}], exists in local store and has checksum [{}], size [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), md.name(), md.checksum(), md.length());
                         }
-                        if (!useExisting) {
-                            if (request.existingFiles().containsKey(name)) {
-                                logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but is different: remote [{}], local [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name, request.existingFiles().get(name), md);
-                            } else {
-                                logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exists in remote", request.shardId().index().name(), request.shardId().id(), request.targetNode(), name);
-                            }
-                            response.phase1FileNames.add(name);
-                            response.phase1FileSizes.add(md.length());
+                        totalSize += md.length();
+                    }
+                    for (StoreFileMetaData md : Iterables.concat(diff.different, diff.missing)) {
+                        if (request.existingFiles().containsKey(md.name())) {
+                            logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], exists in local store, but is different: remote [{}], local [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), md.name(), request.existingFiles().get(md.name()), md);
+                        } else {
+                            logger.trace("[{}][{}] recovery [phase1] to {}: recovering [{}], does not exists in remote", request.shardId().index().name(), request.shardId().id(), request.targetNode(), md.name());
                         }
+                        response.phase1FileNames.add(md.name());
+                        response.phase1FileSizes.add(md.length());
                         totalSize += md.length();
                     }
                     response.phase1TotalSize = totalSize;
@@ -197,13 +196,11 @@ public class RecoverySource extends AbstractComponent {
                         pool.execute(new Runnable() {
                             @Override
                             public void run() {
-                                IndexInput indexInput = null;
                                 store.incRef();
-                                final StoreFileMetaData md = metadata.get(name);
-                                try {
+                                final StoreFileMetaData md = recoverySourceMetadata.get(name);
+                                try (final IndexInput indexInput = store.directory().openInput(name, IOContext.READONCE)) {
                                     final int BUFFER_SIZE = (int) recoverySettings.fileChunkSize().bytes();
-                                    byte[] buf = new byte[BUFFER_SIZE];
-                                    indexInput = store.directory().openInput(name, IOContext.READONCE);
+                                    final byte[] buf = new byte[BUFFER_SIZE];
                                     boolean shouldCompressRequest = recoverySettings.compress();
                                     if (CompressorFactory.isCompressed(indexInput)) {
                                         shouldCompressRequest = false;
@@ -224,9 +221,9 @@ public class RecoverySource extends AbstractComponent {
 
                                         indexInput.readBytes(buf, 0, toRead, false);
                                         BytesArray content = new BytesArray(buf, 0, toRead);
-                                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position, content),
-                                                TransportRequestOptions.options().withCompress(shouldCompressRequest).withType(TransportRequestOptions.Type.RECOVERY).withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                                         readCount += toRead;
+                                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position, content, readCount == len),
+                                                TransportRequestOptions.options().withCompress(shouldCompressRequest).withType(TransportRequestOptions.Type.RECOVERY).withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                                     }
                                 } catch (Throwable e) {
                                     final CorruptIndexException corruptIndexException;
@@ -250,7 +247,6 @@ public class RecoverySource extends AbstractComponent {
                                         exceptions.add(0, e); // last exceptions first
                                     }
                                 } finally {
-                                    IOUtils.closeWhileHandlingException(indexInput);
                                     try {
                                         store.decRef();
                                     } finally {
@@ -309,43 +305,69 @@ public class RecoverySource extends AbstractComponent {
             }
 
             private void updateMappingOnMaster() {
-                IndexMetaData indexMetaData = clusterService.state().metaData().getIndices().get(indexService.index().getName());
-                ImmutableOpenMap<String, MappingMetaData> metaDataMappings = null;
-                if (indexMetaData != null) {
-                    metaDataMappings = indexMetaData.getMappings();
-                }
-                List<DocumentMapper> documentMappersToUpdate = Lists.newArrayList();
-                // default mapping should not be sent back, it can only be updated by put mapping API, and its
-                // a full in place replace, we don't want to override a potential update coming it
-                for (DocumentMapper documentMapper : indexService.mapperService().docMappers(false)) {
-
-                    MappingMetaData mappingMetaData = metaDataMappings == null ? null : metaDataMappings.get(documentMapper.type());
-                    if (mappingMetaData == null || !documentMapper.refreshSource().equals(mappingMetaData.source())) {
-                        // not on master yet in the right form
-                        documentMappersToUpdate.add(documentMapper);
+                // we test that the cluster state is in sync with our in memory mapping stored by the mapperService
+                // we have to do it under the "cluster state update" thread to make sure that one doesn't modify it
+                // while we're checking
+                final BlockingQueue<DocumentMapper> documentMappersToUpdate = ConcurrentCollections.newBlockingQueue();
+                final CountDownLatch latch = new CountDownLatch(1);
+                clusterService.submitStateUpdateTask("recovery_mapping_check", new ProcessedClusterStateNonMasterUpdateTask() {
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        latch.countDown();
                     }
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        IndexMetaData indexMetaData = clusterService.state().metaData().getIndices().get(indexService.index().getName());
+                        ImmutableOpenMap<String, MappingMetaData> metaDataMappings = null;
+                        if (indexMetaData != null) {
+                            metaDataMappings = indexMetaData.getMappings();
+                        }
+                        // default mapping should not be sent back, it can only be updated by put mapping API, and its
+                        // a full in place replace, we don't want to override a potential update coming it
+                        for (DocumentMapper documentMapper : indexService.mapperService().docMappers(false)) {
+
+                            MappingMetaData mappingMetaData = metaDataMappings == null ? null : metaDataMappings.get(documentMapper.type());
+                            if (mappingMetaData == null || !documentMapper.refreshSource().equals(mappingMetaData.source())) {
+                                // not on master yet in the right form
+                                documentMappersToUpdate.add(documentMapper);
+                            }
+                        }
+                        return currentState;
+                    }
+
+                    @Override
+                    public void onFailure(String source, @Nullable Throwable t) {
+                        logger.error("unexpected error while checking for pending mapping changes", t);
+                        latch.countDown();
+                    }
+                });
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                 }
                 if (documentMappersToUpdate.isEmpty()) {
                     return;
                 }
-                final CountDownLatch countDownLatch = new CountDownLatch(documentMappersToUpdate.size());
+                final CountDownLatch updatedOnMaster = new CountDownLatch(documentMappersToUpdate.size());
                 MappingUpdatedAction.MappingUpdateListener listener = new MappingUpdatedAction.MappingUpdateListener() {
                     @Override
                     public void onMappingUpdate() {
-                        countDownLatch.countDown();
+                        updatedOnMaster.countDown();
                     }
 
                     @Override
                     public void onFailure(Throwable t) {
                         logger.debug("{} recovery to {}: failed to update mapping on master", request.shardId(), request.targetNode(), t);
-                        countDownLatch.countDown();
+                        updatedOnMaster.countDown();
                     }
                 };
                 for (DocumentMapper documentMapper : documentMappersToUpdate) {
                     mappingUpdatedAction.updateMappingOnMaster(indexService.index().getName(), documentMapper, indexService.indexUUID(), listener);
                 }
                 try {
-                    if (!countDownLatch.await(internalActionTimeout.millis(), TimeUnit.MILLISECONDS)) {
+                    if (!updatedOnMaster.await(internalActionTimeout.millis(), TimeUnit.MILLISECONDS)) {
                         logger.debug("{} recovery [phase2] to {}: waiting on pending mapping update timed out. waited [{}]", request.shardId(), request.targetNode(), internalActionTimeout);
                     }
                 } catch (InterruptedException e) {
@@ -386,11 +408,12 @@ public class RecoverySource extends AbstractComponent {
                 long size = 0;
                 int totalOperations = 0;
                 List<Translog.Operation> operations = Lists.newArrayList();
-                while (snapshot.hasNext()) {
+                Translog.Operation operation = snapshot.next();
+                while (operation != null) {
                     if (shard.state() == IndexShardState.CLOSED) {
                         throw new IndexShardClosedException(request.shardId());
                     }
-                    Translog.Operation operation = snapshot.next();
+
                     operations.add(operation);
                     ops += 1;
                     size += operation.estimateSize();
@@ -411,6 +434,7 @@ public class RecoverySource extends AbstractComponent {
                         size = 0;
                         operations.clear();
                     }
+                    operation = snapshot.next();
                 }
                 // send the leftover
                 if (!operations.isEmpty()) {

@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.search.internal.SearchContext;
@@ -47,14 +48,14 @@ public class ChildrenConstantScoreQuery extends Query {
     private Query originalChildQuery;
     private final String parentType;
     private final String childType;
-    private final Filter parentFilter;
+    private final FixedBitSetFilter parentFilter;
     private final int shortCircuitParentDocSet;
-    private final Filter nonNestedDocsFilter;
+    private final FixedBitSetFilter nonNestedDocsFilter;
 
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
-    public ChildrenConstantScoreQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
+    public ChildrenConstantScoreQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, FixedBitSetFilter parentFilter, int shortCircuitParentDocSet, FixedBitSetFilter nonNestedDocsFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.parentFilter = parentFilter;
         this.parentType = parentType;

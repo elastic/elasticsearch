@@ -152,14 +152,23 @@ public class IndicesOptions {
             return defaultSettings;
         }
 
-        boolean expandWildcardsOpen = defaultSettings.expandWildcardsOpen();
-        boolean expandWildcardsClosed = defaultSettings.expandWildcardsClosed();
-        if (sWildcards != null) {
+        boolean expandWildcardsOpen = false;
+        boolean expandWildcardsClosed = false;
+        if (sWildcards == null) {
+            expandWildcardsOpen = defaultSettings.expandWildcardsOpen();
+            expandWildcardsClosed = defaultSettings.expandWildcardsClosed();
+        } else {
             String[] wildcards = Strings.splitStringByCommaToArray(sWildcards);
             for (String wildcard : wildcards) {
                 if ("open".equals(wildcard)) {
                     expandWildcardsOpen = true;
                 } else if ("closed".equals(wildcard)) {
+                    expandWildcardsClosed = true;
+                } else if ("none".equals(wildcard)) {
+                    expandWildcardsOpen = false;
+                    expandWildcardsClosed = false;
+                } else if ("all".equals(wildcard)) {
+                    expandWildcardsOpen = true;
                     expandWildcardsClosed = true;
                 } else {
                     throw new ElasticsearchIllegalArgumentException("No valid expand wildcard value [" + wildcard + "]");

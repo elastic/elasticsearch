@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -42,8 +43,8 @@ class ShardValidateQueryResponse extends BroadcastShardOperationResponse {
 
     }
 
-    public ShardValidateQueryResponse(String index, int shardId, boolean valid, String explanation, String error) {
-        super(index, shardId);
+    ShardValidateQueryResponse(ShardId shardId, boolean valid, String explanation, String error) {
+        super(shardId);
         this.valid = valid;
         this.explanation = explanation;
         this.error = error;

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -35,14 +37,16 @@ import java.io.IOException;
 public class BulkItemRequest implements Streamable {
 
     private int id;
-
     private ActionRequest request;
+    private volatile BulkItemResponse primaryResponse;
+    private volatile boolean ignoreOnReplica;
 
     BulkItemRequest() {
 
     }
 
     public BulkItemRequest(int id, ActionRequest request) {
+        assert request instanceof IndicesRequest;
         this.id = id;
         this.request = request;
     }
@@ -53,6 +57,31 @@ public class BulkItemRequest implements Streamable {
 
     public ActionRequest request() {
         return request;
+    }
+
+    public String index() {
+        IndicesRequest indicesRequest = (IndicesRequest) request;
+        assert indicesRequest.indices().length == 1;
+        return indicesRequest.indices()[0];
+    }
+
+    BulkItemResponse getPrimaryResponse() {
+        return primaryResponse;
+    }
+
+    void setPrimaryResponse(BulkItemResponse primaryResponse) {
+        this.primaryResponse = primaryResponse;
+    }
+
+    /**
+     * Marks this request to be ignored and *not* execute on a replica.
+     */
+    void setIgnoreOnReplica() {
+        this.ignoreOnReplica = true;
+    }
+
+    boolean isIgnoreOnReplica() {
+        return ignoreOnReplica;
     }
 
     public static BulkItemRequest readBulkItem(StreamInput in) throws IOException {
@@ -73,6 +102,12 @@ public class BulkItemRequest implements Streamable {
             request = new UpdateRequest();
         }
         request.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_1_3_3)) {
+            if (in.readBoolean()) {
+                primaryResponse = BulkItemResponse.readBulkItem(in);
+            }
+            ignoreOnReplica = in.readBoolean();
+        }
     }
 
     @Override
@@ -86,5 +121,9 @@ public class BulkItemRequest implements Streamable {
             out.writeByte((byte) 2);
         }
         request.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_1_3_3)) {
+            out.writeOptionalStreamable(primaryResponse);
+            out.writeBoolean(ignoreOnReplica);
+        }
     }
 }

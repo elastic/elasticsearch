@@ -25,8 +25,6 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.facet.FacetBuilders;
-import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -37,6 +35,7 @@ import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuild
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -50,7 +49,7 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
     @Test
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
     public void testFacetsAndAggregations() throws Exception {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string", "field2", "type=string"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);
@@ -78,15 +77,9 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
                     .setIndices("test").setDocumentType("type")
                     .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()));
 
-            boolean useAggs = randomBoolean();
-            if (useAggs) {
-                SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
-                percolateRequestBuilder.addAggregation(AggregationBuilders.terms("a").field("field2")
-                        .collectMode(aggCollectionMode ));
-            } else {
-                percolateRequestBuilder.addFacet(FacetBuilders.termsFacet("a").field("field2"));
-
-            }
+            SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
+            percolateRequestBuilder.addAggregation(AggregationBuilders.terms("a").field("field2")
+                    .collectMode(aggCollectionMode ));
 
             if (randomBoolean()) {
                 percolateRequestBuilder.setPercolateQuery(matchAllQuery());
@@ -108,21 +101,13 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
                 assertThat(response.getMatches(), arrayWithSize(expectedCount[i % numUniqueQueries]));
             }
 
-            if (useAggs) {
-                List<Aggregation> aggregations = response.getAggregations().asList();
-                assertThat(aggregations.size(), equalTo(1));
-                assertThat(aggregations.get(0).getName(), equalTo("a"));
-                List<Terms.Bucket> buckets = new ArrayList<>(((Terms) aggregations.get(0)).getBuckets());
-                assertThat(buckets.size(), equalTo(1));
-                assertThat(buckets.get(0).getKeyAsText().string(), equalTo("b"));
-                assertThat(buckets.get(0).getDocCount(), equalTo((long) expectedCount[i % values.length]));
-            } else {
-                assertThat(response.getFacets().facets().size(), equalTo(1));
-                assertThat(response.getFacets().facets().get(0).getName(), equalTo("a"));
-                assertThat(((TermsFacet) response.getFacets().facets().get(0)).getEntries().size(), equalTo(1));
-                assertThat(((TermsFacet) response.getFacets().facets().get(0)).getEntries().get(0).getCount(), equalTo(expectedCount[i % values.length]));
-                assertThat(((TermsFacet) response.getFacets().facets().get(0)).getEntries().get(0).getTerm().string(), equalTo("b"));
-            }
+            List<Aggregation> aggregations = response.getAggregations().asList();
+            assertThat(aggregations.size(), equalTo(1));
+            assertThat(aggregations.get(0).getName(), equalTo("a"));
+            List<Terms.Bucket> buckets = new ArrayList<>(((Terms) aggregations.get(0)).getBuckets());
+            assertThat(buckets.size(), equalTo(1));
+            assertThat(buckets.get(0).getKeyAsText().string(), equalTo("b"));
+            assertThat(buckets.get(0).getDocCount(), equalTo((long) expectedCount[i % values.length]));
         }
     }
 

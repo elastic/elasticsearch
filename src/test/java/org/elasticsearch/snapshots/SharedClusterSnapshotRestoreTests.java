@@ -22,22 +22,25 @@ package org.elasticsearch.snapshots;
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.*;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -52,8 +55,13 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -86,6 +94,20 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
         assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(100L));
 
+        ListenableActionFuture<FlushResponse> flushResponseFuture = null;
+        if (randomBoolean()) {
+            ArrayList<String> indicesToFlush = newArrayList();
+            for (int i = 1; i < 4; i++) {
+                if (randomBoolean()) {
+                    indicesToFlush.add("test-idx-" + i);
+                }
+            }
+            if (!indicesToFlush.isEmpty()) {
+                String[] indices = indicesToFlush.toArray(new String[indicesToFlush.size()]);
+                logger.info("--> starting asynchronous flush for indices {}", Arrays.toString(indices));
+                flushResponseFuture = client.admin().indices().prepareFlush(indices).execute();
+            }
+        }
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
@@ -131,6 +153,11 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
+
+        if (flushResponseFuture != null) {
+            // Finish flush
+            flushResponseFuture.actionGet();
+        }
     }
 
     @Test
@@ -380,7 +407,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                         ImmutableSettings.settingsBuilder()
                                 .put("location", newTempDir(LifecycleScope.TEST))
                                 .put("random", randomAsciiOfLength(10))
-                                .put("random_control_io_exception_rate", 0.2)));
+                                .put("random_control_io_exception_rate", 0.2))
+                .setVerify(false));
 
         createIndex("test-idx");
         ensureGreen();
@@ -715,6 +743,41 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
+    public void deleteSnapshotWithMissingMetadataTest() throws Exception {
+        Client client = client();
+
+        File repo = newTempDir(LifecycleScope.SUITE);
+        logger.info("-->  creating repository at " + repo.getAbsolutePath());
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", repo)
+                        .put("compress", false)
+                        .put("chunk_size", randomIntBetween(100, 1000))));
+
+        createIndex("test-idx-1", "test-idx-2");
+        ensureYellow();
+        logger.info("--> indexing some data");
+        indexRandom(true,
+                client().prepareIndex("test-idx-1", "doc").setSource("foo", "bar"),
+                client().prepareIndex("test-idx-2", "doc").setSource("foo", "bar"));
+
+        logger.info("--> creating snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("test-idx-*").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+        logger.info("--> delete index metadata and shard metadata");
+        File metadata = new File(repo, "metadata-test-snap-1");
+        assertThat(metadata.delete(), equalTo(true));
+
+        logger.info("--> delete snapshot");
+        client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
+
+        logger.info("--> make sure snapshot doesn't exist");
+        assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"), SnapshotMissingException.class);
+    }
+
+    @Test
     @TestLogging("snapshots:TRACE")
     public void snapshotClosedIndexTest() throws Exception {
         Client client = client();
@@ -742,6 +805,27 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     }
 
     @Test
+    public void snapshotSingleClosedIndexTest() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", newTempDir(LifecycleScope.SUITE))));
+
+        createIndex("test-idx");
+        ensureGreen();
+        logger.info("-->  closing index test-idx");
+        assertAcked(client.admin().indices().prepareClose("test-idx"));
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
+                .setWaitForCompletion(true).setIndices("test-idx").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().indices().size(), equalTo(1));
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.FAILED));
+    }
+
+    @Test
     public void renameOnRestoreTest() throws Exception {
         Client client = client();
 
@@ -750,8 +834,14 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", newTempDir(LifecycleScope.SUITE))));
 
-        createIndex("test-idx-1", "test-idx-2");
+        createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
+
+        assertAcked(client.admin().indices().prepareAliases()
+                        .addAlias("test-idx-1", "alias-1")
+                        .addAlias("test-idx-2", "alias-2")
+                        .addAlias("test-idx-3", "alias-3")
+        );
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
@@ -797,6 +887,9 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setRenamePattern("(.+-2)").setRenameReplacement("$1-copy").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
+        logger.info("--> delete indices");
+        cluster().wipeIndices("test-idx-1", "test-idx-1-copy", "test-idx-2", "test-idx-2-copy");
+
         logger.info("--> try renaming indices using the same name");
         try {
             client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setRenamePattern("(.+)").setRenameReplacement("same-name").setWaitForCompletion(true).execute().actionGet();
@@ -820,6 +913,38 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         } catch (InvalidIndexNameException ex) {
             // Expected
         }
+
+        logger.info("--> try renaming indices into existing alias name");
+        try {
+            client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setIndices("test-idx-1").setRenamePattern(".+").setRenameReplacement("alias-3").setWaitForCompletion(true).execute().actionGet();
+            fail("Shouldn't be here");
+        } catch (InvalidIndexNameException ex) {
+            // Expected
+        }
+
+        logger.info("--> try renaming indices into existing alias of itself");
+        try {
+            client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setIndices("test-idx-1").setRenamePattern("test-idx").setRenameReplacement("alias").setWaitForCompletion(true).execute().actionGet();
+            fail("Shouldn't be here");
+        } catch (SnapshotRestoreException ex) {
+            // Expected
+        }
+
+        logger.info("--> try renaming indices into existing alias of another restored index");
+        try {
+            client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setIndices("test-idx-1", "test-idx-2").setRenamePattern("test-idx-1").setRenameReplacement("alias-2").setWaitForCompletion(true).execute().actionGet();
+            fail("Shouldn't be here");
+        } catch (SnapshotRestoreException ex) {
+            // Expected
+        }
+
+        logger.info("--> try renaming indices into existing alias of itself, but don't restore aliases ");
+        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+                .setIndices("test-idx-1").setRenamePattern("test-idx").setRenameReplacement("alias")
+                .setWaitForCompletion(true).setIncludeAliases(false).execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+
     }
 
     @Test
@@ -1041,9 +1166,9 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))
-                        .put("max_restore_bytes_per_sec", throttleRestore ? "2.5k" : "0")
-                        .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "2.5k" : "0")));
+                        .put("chunk_size", randomIntBetween(1000, 10000))
+                        .put("max_restore_bytes_per_sec", throttleRestore ? "0.5k" : "0")
+                        .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "0.5k" : "0")));
 
         createIndex("test-idx");
         ensureGreen();
@@ -1206,8 +1331,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         // Update settings to make sure that relocation is slow so we can start snapshot before relocation is finished
         assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(ImmutableSettings.builder()
-                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
-                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, 100)
+                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
+                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, 100)
         ));
 
         logger.info("--> start relocations");
@@ -1222,7 +1347,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         // Update settings to back to normal
         assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(ImmutableSettings.builder()
-                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
+                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
         ));
 
         logger.info("--> wait for snapshot to complete");
@@ -1230,6 +1355,68 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.shardFailures().size(), equalTo(0));
         logger.info("--> done");
+    }
+
+    public void testSnapshotMoreThanOnce() throws ExecutionException, InterruptedException {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", newTempDir(LifecycleScope.SUITE))
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000))));
+
+        // only one shard
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
+        ensureGreen();
+        logger.info("-->  indexing");
+
+        final int numdocs = randomIntBetween(10, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test", "doc", Integer.toString(i)).setSource("foo", "bar" + i);
+        }
+        indexRandom(true, builders);
+        flushAndRefresh();
+        assertNoFailures(client().admin().indices().prepareOptimize("test").setFlush(true).setWaitForMerge(true).setMaxNumSegments(1).get());
+
+        CreateSnapshotResponse createSnapshotResponseFirst = client.admin().cluster().prepareCreateSnapshot("test-repo", "test").setWaitForCompletion(true).setIndices("test").get();
+        assertThat(createSnapshotResponseFirst.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponseFirst.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponseFirst.getSnapshotInfo().totalShards()));
+        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        {
+            SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test").get().getSnapshots().get(0);
+            List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
+            for (SnapshotIndexShardStatus status : shards) {
+                assertThat(status.getStats().getProcessedFiles(), greaterThan(1));
+            }
+        }
+
+        CreateSnapshotResponse createSnapshotResponseSecond = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-1").setWaitForCompletion(true).setIndices("test").get();
+        assertThat(createSnapshotResponseSecond.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponseSecond.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponseSecond.getSnapshotInfo().totalShards()));
+        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-1").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        {
+            SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-1").get().getSnapshots().get(0);
+            List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
+            for (SnapshotIndexShardStatus status : shards) {
+                assertThat(status.getStats().getProcessedFiles(), equalTo(1)); // we flush before the snapshot such that we have to process the segments_N files
+            }
+        }
+
+        client().prepareDelete("test", "doc", "1").get();
+        CreateSnapshotResponse createSnapshotResponseThird = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-2").setWaitForCompletion(true).setIndices("test").get();
+        assertThat(createSnapshotResponseThird.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponseThird.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponseThird.getSnapshotInfo().totalShards()));
+        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-2").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        {
+            SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-2").get().getSnapshots().get(0);
+            List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
+            for (SnapshotIndexShardStatus status : shards) {
+                assertThat(status.getStats().getProcessedFiles(), equalTo(2)); // we flush before the snapshot such that we have to process the segments_N files plus the .del file
+            }
+        }
     }
 
     private boolean waitForIndex(final String index, TimeValue timeout) throws InterruptedException {

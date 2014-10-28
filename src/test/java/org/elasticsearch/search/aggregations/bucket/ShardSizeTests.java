@@ -51,6 +51,7 @@ public abstract class ShardSizeTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
                 .put("cluster.routing.operation.hash.type", "djb")
                 .put("cluster.routing.operation.use_type", "false")
                 .build();

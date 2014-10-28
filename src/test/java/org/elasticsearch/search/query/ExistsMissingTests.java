@@ -20,19 +20,21 @@
 package org.elasticsearch.search.query;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.FilteredQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.util.*;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 
 public class ExistsMissingTests extends ElasticsearchIntegrationTest {
@@ -75,20 +77,20 @@ public class ExistsMissingTests extends ElasticsearchIntegrationTest {
             .endObject();
 
         assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", mapping));
-            @SuppressWarnings("unchecked")
-            Map<String, Object>[] sources = new Map[] {
-                    // simple property
-                    ImmutableMap.of("foo", "bar"),
-                    // object fields
-                    ImmutableMap.of("bar", ImmutableMap.of("foo", "bar", "bar", ImmutableMap.of("bar", "foo"))),
-                    ImmutableMap.of("bar", ImmutableMap.of("baz", 42)),
-                    // empty doc
-                    ImmutableMap.of()
-            };
-            List<IndexRequestBuilder> reqs = new ArrayList<IndexRequestBuilder>();
-            for (Map<String, Object> source : sources) {
-                reqs.add(client().prepareIndex("idx", "type").setSource(source));
-            }
+        @SuppressWarnings("unchecked")
+        final Map<String, Object>[] sources = new Map[] {
+                // simple property
+                ImmutableMap.of("foo", "bar"),
+                // object fields
+                ImmutableMap.of("bar", ImmutableMap.of("foo", "bar", "bar", ImmutableMap.of("bar", "foo"))),
+                ImmutableMap.of("bar", ImmutableMap.of("baz", 42)),
+                // empty doc
+                ImmutableMap.of()
+        };
+        List<IndexRequestBuilder> reqs = new ArrayList<IndexRequestBuilder>();
+        for (Map<String, Object> source : sources) {
+            reqs.add(client().prepareIndex("idx", "type").setSource(source));
+        }
         indexRandom(true, reqs);
 
         final Map<String, Integer> expected = new LinkedHashMap<String, Integer>();
@@ -102,20 +104,35 @@ public class ExistsMissingTests extends ElasticsearchIntegrationTest {
         expected.put("baz", 1);
         expected.put("foobar", 0);
 
-        final long numDocs = client().prepareSearch("idx").execute().actionGet().getHits().totalHits();
         ensureYellow("idx");
+        final long numDocs = sources.length;
+        SearchResponse allDocs = client().prepareSearch("idx").setSize(sources.length).get();
+        assertSearchResponse(allDocs);
+        assertHitCount(allDocs, numDocs);
         for (Map.Entry<String, Integer> entry : expected.entrySet()) {
             final String fieldName = entry.getKey();
             final int count = entry.getValue();
             // exists
-            SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.existsFilter(fieldName))).execute().actionGet();
+            FilteredQueryBuilder query = QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.existsFilter(fieldName));
+            SearchResponse resp = client().prepareSearch("idx").setQuery(query).execute().actionGet();
             assertSearchResponse(resp);
-            assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s", fieldName, count, mapping.string()), count, resp.getHits().totalHits());
+            try {
+                assertEquals(String.format(Locale.ROOT, "exists(%s, %d) mapping: %s response: %s", fieldName, count, mapping.string(), resp), count, resp.getHits().totalHits());
+            } catch (AssertionError e) {
+                for (SearchHit searchHit : allDocs.getHits()) {
+                    final String index = searchHit.getIndex();
+                    final String type = searchHit.getType();
+                    final String id = searchHit.getId();
+                    final ExplainResponse explanation = client().prepareExplain(index, type, id).setQuery(query).get();
+                    logger.info("Explanation for [{}] / [{}] / [{}]: [{}]", fieldName, id, searchHit.getSourceAsString(), explanation.getExplanation());
+                }
+                throw e;
+            }
 
             // missing
             resp = client().prepareSearch("idx").setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.missingFilter(fieldName))).execute().actionGet();
             assertSearchResponse(resp);
-            assertEquals(String.format(Locale.ROOT, "missing(%s, %d) mapping: %s", fieldName, count, mapping.string()), numDocs - count, resp.getHits().totalHits());
+            assertEquals(String.format(Locale.ROOT, "missing(%s, %d) mapping: %s response: %s", fieldName, count, mapping.string(), resp), numDocs - count, resp.getHits().totalHits());
         }
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search.type;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -33,7 +34,7 @@ import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -68,32 +69,34 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
         }
 
         @Override
-        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<QueryFetchSearchResult> listener) {
+        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request, SearchServiceListener<QueryFetchSearchResult> listener) {
             searchService.sendExecuteFetch(node, request, listener);
         }
 
         @Override
         protected void moveToSecondPhase() throws Exception {
-            try {
-                innerFinishHim();
-            } catch (Throwable e) {
-                ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", e, buildShardFailures());
-                if (logger.isDebugEnabled()) {
-                    logger.debug("failed to reduce search", failure);
+            threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable<SearchResponse>(listener) {
+                @Override
+                public void doRun() throws IOException {
+                    boolean useScroll = !useSlowScroll && request.scroll() != null;
+                    sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
+                    final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, firstResults);
+                    String scrollId = null;
+                    if (request.scroll() != null) {
+                        scrollId = buildScrollId(request.searchType(), firstResults, null);
+                    }
+                    listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
                 }
-                listener.onFailure(failure);
-            }
-        }
 
-        private void innerFinishHim() throws IOException {
-            boolean useScroll = !useSlowScroll && request.scroll() != null;
-            sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, firstResults);
-            String scrollId = null;
-            if (request.scroll() != null) {
-                scrollId = buildScrollId(request.searchType(), firstResults, null);
-            }
-            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
+                @Override
+                public void onFailure(Throwable t) {
+                    ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", t, buildShardFailures());
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("failed to reduce search", failure);
+                    }
+                    super.onFailure(failure);
+                }
+            });
         }
     }
 }

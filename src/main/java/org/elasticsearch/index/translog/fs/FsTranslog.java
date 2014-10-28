@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
@@ -34,10 +35,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogException;
-import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.index.translog.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -315,25 +313,40 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
-    public byte[] read(Location location) {
+    /**
+     * Returns the translog that should be read for the specified location. If
+     * the transient or current translog does not match, returns null
+     */
+    private FsTranslogFile translogForLocation(Location location) {
+        if (trans != null && trans.id() == location.translogId) {
+            return this.trans;
+        }
+        if (current.id() == location.translogId) {
+            return this.current;
+        }
+        return null;
+    }
+
+    /**
+     * Read the Operation object from the given location, returns null if the
+     * Operation could not be read.
+     */
+    @Override
+    public Translog.Operation read(Location location) {
         rwl.readLock().lock();
         try {
-            FsTranslogFile trans = this.trans;
-            if (trans != null && trans.id() == location.translogId) {
-                try {
-                    return trans.read(location);
-                } catch (Exception e) {
-                    // ignore
-                }
-            }
-            if (current.id() == location.translogId) {
-                try {
-                    return current.read(location);
-                } catch (Exception e) {
-                    // ignore
+            FsTranslogFile translog = translogForLocation(location);
+            if (translog != null) {
+                byte[] data = translog.read(location);
+                try (BytesStreamInput in = new BytesStreamInput(data, false)) {
+                    // Return the Operation using the current version of the
+                    // stream based on which translog is being read
+                    return translog.getStream().read(in);
                 }
             }
             return null;
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to read source from traslog location " + location, e);
         } finally {
             rwl.readLock().unlock();
         }
@@ -342,21 +355,11 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     @Override
     public Location add(Operation operation) throws TranslogException {
         rwl.readLock().lock();
-        ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
         boolean released = false;
+        ReleasableBytesStreamOutput out = null;
         try {
-            out.writeInt(0); // marker for the size...
+            out = new ReleasableBytesStreamOutput(bigArrays);
             TranslogStreams.writeTranslogOperation(out, operation);
-            out.flush();
-
-            // write size to beginning of stream
-            int size = out.size();
-            out.seek(0);
-            out.writeInt(size - 4);
-
-            // seek back to end
-            out.seek(size);
-
             ReleasableBytesReference bytes = out.bytes();
             Location location = current.add(bytes);
             if (syncOnEachOperation) {
@@ -380,7 +383,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
             rwl.readLock().unlock();
-            if (!released) {
+            if (!released && out != null) {
                 Releasables.close(out.bytes());
             }
         }
@@ -401,7 +404,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     public Snapshot snapshot(Snapshot snapshot) {
         FsChannelSnapshot snap = snapshot();
         if (snap.translogId() == snapshot.translogId()) {
-            snap.seekForward(snapshot.position());
+            snap.seekTo(snapshot.position());
         }
         return snap;
     }

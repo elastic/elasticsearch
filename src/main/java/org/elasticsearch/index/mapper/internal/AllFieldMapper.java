@@ -41,6 +41,7 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -150,6 +151,9 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, name, name, name), 1.0f, fieldType, null, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
                 similarity, normsLoading, fieldDataSettings, indexSettings);
+        if (hasDocValues()) {
+            throw new MapperParsingException("Field [" + names.fullName() + "] is always tokenized and cannot have doc values");
+        }
         this.enabled = enabled;
         this.autoBoost = autoBoost;
 
@@ -341,15 +345,12 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         }
     }
 
-
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        // do nothing here, no merging, but also no exception
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return false;
+        if (((AllFieldMapper)mergeWith).enabled() != this.enabled()) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] enabled is " + this.enabled() + " now encountering "+ ((AllFieldMapper)mergeWith).enabled());
+        }
+        super.merge(mergeWith, mergeContext);
     }
 
     @Override

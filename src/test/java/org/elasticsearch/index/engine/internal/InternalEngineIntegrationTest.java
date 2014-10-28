@@ -26,15 +26,22 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.BloomFilter;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class InternalEngineIntegrationTest extends ElasticsearchIntegrationTest {
 
@@ -150,7 +157,15 @@ public class InternalEngineIntegrationTest extends ElasticsearchIntegrationTest 
         }
         assertThat(compounds, Matchers.equalTo(i));
         assertThat(total, Matchers.equalTo(t));
-
     }
 
+    private Set<Segment> segments(IndexSegments segments) {
+        Set<Segment> segmentSet = new HashSet<>();
+        for (IndexShardSegments s : segments) {
+            for (ShardSegments shardSegments : s) {
+                segmentSet.addAll(shardSegments.getSegments());
+            }
+        }
+        return segmentSet;
+    }
 }

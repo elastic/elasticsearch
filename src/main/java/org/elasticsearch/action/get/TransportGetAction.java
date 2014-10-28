@@ -25,14 +25,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,40 +62,33 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, GetRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    protected boolean resolveIndex() {
+        return true;
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, GetRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
-    }
-
-    @Override
-    protected ShardIterator shards(ClusterState state, GetRequest request) {
+    protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
-                .getShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing(), request.preference());
+                .getShards(clusterService.state(), request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing(), request.request().preference());
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, GetRequest request) {
-        if (request.realtime == null) {
-            request.realtime = this.realtime;
+    protected void resolveRequest(ClusterState state, InternalRequest request) {
+        if (request.request().realtime == null) {
+            request.request().realtime = this.realtime;
         }
         // update the routing (request#index here is possibly an alias)
-        request.routing(state.metaData().resolveIndexRouting(request.routing(), request.index()));
-        request.index(state.metaData().concreteSingleIndex(request.index(), request.indicesOptions()));
-
+        request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
-        if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {
-            throw new RoutingMissingException(request.index(), request.type(), request.id());
+        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
+            throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
         }
     }
 
     @Override
-    protected GetResponse shardOperation(GetRequest request, int shardId) throws ElasticsearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = indexService.shardSafe(shardId);
+    protected GetResponse shardOperation(GetRequest request, ShardId shardId) throws ElasticsearchException {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.shardSafe(shardId.id());
 
         if (request.refresh() && !request.realtime()) {
             indexShard.refresh(new Engine.Refresh("refresh_flag_get").force(REFRESH_FORCE));

@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -44,17 +45,17 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     protected final BytesRefHash bucketOrds;
     private final IncludeExclude includeExclude;
     private SortedBinaryDocValues values;
-    private final BytesRef previous;
+    private final BytesRefBuilder previous;
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                                 InternalOrder order, BucketCountThresholds bucketCountThresholds,
+            Terms.Order order, BucketCountThresholds bucketCountThresholds,
                                  IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError) {
 
         super(name, factories, estimatedBucketCount, aggregationContext, parent, order, bucketCountThresholds, collectionMode, showTermDocCountError);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         bucketOrds = new BytesRefHash(estimatedBucketCount, aggregationContext.bigArrays());
-        previous = new BytesRef();
+        previous = new BytesRefBuilder();
     }
 
     @Override
@@ -74,13 +75,13 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         final int valuesCount = values.count();
 
         // SortedBinaryDocValues don't guarantee uniqueness so we need to take care of dups
-        previous.length = 0;
+        previous.clear();
         for (int i = 0; i < valuesCount; ++i) {
             final BytesRef bytes = values.valueAt(i);
             if (includeExclude != null && !includeExclude.accept(bytes)) {
                 continue;
             }
-            if (previous.equals(bytes)) {
+            if (previous.get().equals(bytes)) {
                 continue;
             }
             long bucketOrdinal = bucketOrds.add(bytes);
@@ -119,6 +120,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
+        long otherDocCount = 0;
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         StringTerms.Bucket spare = null;
         for (int i = 0; i < bucketOrds.size(); i++) {
@@ -127,6 +129,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             }
             bucketOrds.get(i, spare.termBytes);
             spare.docCount = bucketDocCount(i);
+            otherDocCount += spare.docCount;
             spare.bucketOrd = i;
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
                 spare = (StringTerms.Bucket) ordered.insertWithOverflow(spare);
@@ -140,6 +143,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             final StringTerms.Bucket bucket = (StringTerms.Bucket) ordered.pop();
             survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
+            otherDocCount -= bucket.docCount;
         }
         // replay any deferred collections
         runDeferredCollections(survivingBucketOrds);
@@ -152,12 +156,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
           bucket.docCountError = 0;
         }
         
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0);
-    }
-
-    @Override
-    public InternalAggregation buildEmptyAggregation() {
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), showTermDocCountError, 0);
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), showTermDocCountError, 0, otherDocCount);
     }
 
     @Override

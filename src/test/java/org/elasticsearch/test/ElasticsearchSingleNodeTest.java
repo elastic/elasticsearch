@@ -21,8 +21,8 @@ package org.elasticsearch.test;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -34,7 +34,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.engine.internal.InternalEngine;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -56,12 +58,21 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     private static class Holder {
         // lazy init on first access
-        private static final Node NODE = newNode();
+        private static Node NODE = newNode();
+
+        private static void reset() {
+            assert NODE != null;
+            node().stop();
+            Holder.NODE = newNode();
+        }
     }
 
-    static void cleanup() {
-        assertAcked(Holder.NODE.client().admin().indices().prepareDelete("*").get());
-        MetaData metaData = Holder.NODE.client().admin().cluster().prepareState().get().getState().getMetaData();
+    static void cleanup(boolean resetNode) {
+        assertAcked(client().admin().indices().prepareDelete("*").get());
+        if (resetNode) {
+            Holder.reset();
+        }
+        MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
                 metaData.persistentSettings().getAsMap().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(),
@@ -70,7 +81,16 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     @After
     public void after() {
-        cleanup();
+        cleanup(resetNodeAfterTest());
+    }
+
+    /**
+     * This method returns <code>true</code> if the node that is used in the background should be reset
+     * after each test. This is useful if the test changes the cluster state metadata etc. The default is
+     * <code>false</code>.
+     */
+    protected boolean resetNodeAfterTest() {
+        return false;
     }
 
     private static Node newNode() {
@@ -87,6 +107,13 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));
         return build;
+    }
+
+    /**
+     * Returns a client to the single-node cluster.
+     */
+    public static Client client() {
+        return Holder.NODE.client();
     }
 
     /**
@@ -128,26 +155,45 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      * Create a new index on the singleton node with the provided index settings.
      */
     protected static IndexService createIndex(String index, Settings settings) {
-        return createIndex(index, settings, null, null);
+        return createIndex(index, settings, null, (XContentBuilder) null);
     }
 
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
     protected static IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
-        CreateIndexRequestBuilder createIndexRequestBuilder = Holder.NODE.client().admin().indices().prepareCreate(index).setSettings(settings);
+        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (type != null && mappings != null) {
             createIndexRequestBuilder.addMapping(type, mappings);
         }
+        return createIndex(index, createIndexRequestBuilder);
+    }
+
+    /**
+     * Create a new index on the singleton node with the provided index settings.
+     */
+    protected static IndexService createIndex(String index, Settings settings, String type, Object... mappings) {
+        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
+        if (type != null && mappings != null) {
+            createIndexRequestBuilder.addMapping(type, mappings);
+        }
+        return createIndex(index, createIndexRequestBuilder);
+    }
+
+    protected static IndexService createIndex(String index, CreateIndexRequestBuilder createIndexRequestBuilder) {
         assertAcked(createIndexRequestBuilder.get());
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
-        ClusterHealthResponse health = Holder.NODE.client().admin().cluster()
+        ClusterHealthResponse health = client().admin().cluster()
                 .health(Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
         IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class);
         return instanceFromNode.indexServiceSafe(index);
+    }
+
+    protected static InternalEngine engine(IndexService service) {
+       return ((InternalEngine)((InternalIndexShard)service.shard(0)).engine());
     }
 
     /**
@@ -156,9 +202,8 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     protected static SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.injector().getInstance(BigArrays.class);
         ThreadPool threadPool = indexService.injector().getInstance(ThreadPool.class);
-        CacheRecycler cacheRecycler = indexService.injector().getInstance(CacheRecycler.class);
         PageCacheRecycler pageCacheRecycler = indexService.injector().getInstance(PageCacheRecycler.class);
-        return new TestSearchContext(threadPool, cacheRecycler, pageCacheRecycler, bigArrays, indexService, indexService.cache().filter(), indexService.fieldData());
+        return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, indexService, indexService.cache().filter(), indexService.fieldData());
     }
 
 }

@@ -57,10 +57,15 @@ public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestC
     }
 
     public static AllocationService createAllocationService(Settings settings, Random random) {
+        return createAllocationService(settings,  new NodeSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS), random);
+    }
+
+    public static AllocationService createAllocationService(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
         return new AllocationService(settings,
-                randomAllocationDeciders(settings, new NodeSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS), random),
+                randomAllocationDeciders(settings, nodeSettingsService, random),
                 new ShardsAllocators(settings), ClusterInfoService.EMPTY);
     }
+
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
         final ImmutableSet<Class<? extends AllocationDecider>> defaultAllocationDeciders = AllocationDecidersModule.DEFAULT_ALLOCATION_DECIDERS;

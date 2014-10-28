@@ -51,6 +51,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -72,7 +73,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -98,6 +98,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private volatile ByteSizeValue indexingBufferSize;
     private volatile int indexConcurrency;
     private volatile boolean compoundOnFlush = true;
+    private volatile boolean checksumOnMerge = true;
 
     private long gcDeletesInMillis;
 
@@ -201,6 +202,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         this.similarityService = similarityService;
         this.codecService = codecService;
         this.compoundOnFlush = indexSettings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, this.compoundOnFlush);
+        this.checksumOnMerge = indexSettings.getAsBoolean(INDEX_CHECKSUM_ON_MERGE, this.checksumOnMerge);
         this.indexConcurrency = indexSettings.getAsInt(INDEX_INDEX_CONCURRENCY, Math.max(IndexWriterConfig.DEFAULT_MAX_THREAD_STATES, (int) (EsExecutors.boundedNumberOfProcessors(indexSettings) * 0.65)));
         this.versionMap = new LiveVersionMap();
         this.dirtyLocks = new Object[indexConcurrency * 50]; // we multiply it to have enough...
@@ -270,10 +272,19 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             try {
                 this.indexWriter = createWriter();
                 mergeScheduler.removeListener(this.throttle);
-                this.throttle = new IndexThrottle(mergeScheduler.getMaxMerges(), logger);
+                this.throttle = new IndexThrottle(mergeScheduler, logger, indexingService);
                 mergeScheduler.addListener(throttle);
             } catch (IOException e) {
                 maybeFailEngine(e, "start");
+                if (this.indexWriter != null) {
+                    try {
+                        IndexWriter pending = indexWriter;
+                        indexWriter = null;
+                        pending.rollback();
+                    } catch (IOException e1) {
+                       e.addSuppressed(e1);
+                    }
+                }
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             }
 
@@ -348,20 +359,15 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     if (!get.loadSource()) {
                         return new GetResult(true, versionValue.version(), null);
                     }
-                    byte[] data = translog.read(versionValue.translogLocation());
-                    if (data != null) {
-                        try {
-                            Translog.Source source = TranslogStreams.readSource(data);
-                            return new GetResult(true, versionValue.version(), source);
-                        } catch (IOException e) {
-                            // switched on us, read it from the reader
-                        }
+                    Translog.Operation op = translog.read(versionValue.translogLocation());
+                    if (op != null) {
+                        return new GetResult(true, versionValue.version(), op.getSource());
                     }
                 }
             }
 
             // no version, get the version from the index, we know that we refresh on flush
-            Searcher searcher = acquireSearcher("get");
+            final Searcher searcher = acquireSearcher("get");
             final Versions.DocIdAndVersion docIdAndVersion;
             try {
                 docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
@@ -689,12 +695,23 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     @Override
     public final Searcher acquireSearcher(String source) throws EngineException {
         boolean success = false;
+         /* Acquire order here is store -> manager since we need
+          * to make sure that the store is not closed before
+          * the searcher is acquired. */
+        store.incRef();
         try {
-            /* Acquire order here is store -> manager since we need
-            * to make sure that the store is not closed before
-            * the searcher is acquired. */
-            store.incRef();
-            final SearcherManager manager = this.searcherManager;
+            SearcherManager manager = this.searcherManager;
+            if (manager == null) {
+                ensureOpen();
+                try (InternalLock _ = this.readLock.acquire()) {
+                    // we might start up right now and the searcherManager is not initialized
+                    // we take the read lock and retry again since write lock is taken
+                    // while start() is called and otherwise the ensureOpen() call will
+                    // barf.
+                    manager = this.searcherManager;
+                    assert manager != null : "SearcherManager is null but shouldn't";
+                }
+            }
             /* This might throw NPE but that's fine we will run ensureOpen()
             *  in the catch block and throw the right exception */
             final IndexSearcher searcher = manager.acquire();
@@ -707,6 +724,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     manager.release(searcher);
                 }
             }
+        } catch (EngineClosedException ex) {
+            throw ex;
         } catch (Throwable ex) {
             ensureOpen(); // throw EngineCloseException here if we are already closed
             logger.error("failed to acquire searcher, source {}", ex, source);
@@ -724,15 +743,26 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public boolean refreshNeeded() {
-        try {
-            // we are either dirty due to a document added or due to a
-            // finished merge - either way we should refresh
-            return dirty || !searcherManager.isSearcherCurrent();
-        } catch (IOException e) {
-            logger.error("failed to access searcher manager", e);
-            failEngine("failed to access searcher manager", e);
-            throw new EngineException(shardId, "failed to access searcher manager", e);
+        if (store.tryIncRef()) {
+            /*
+              we need to inc the store here since searcherManager.isSearcherCurrent()
+              acquires a searcher internally and that might keep a file open on the
+              store. this violates the assumption that all files are closed when
+              the store is closed so we need to make sure we increment it here
+             */
+            try {
+                // we are either dirty due to a document added or due to a
+                // finished merge - either way we should refresh
+                return dirty || !searcherManager.isSearcherCurrent();
+            } catch (IOException e) {
+                logger.error("failed to access searcher manager", e);
+                failEngine("failed to access searcher manager", e);
+                throw new EngineException(shardId, "failed to access searcher manager", e);
+            } finally {
+                store.decRef();
+            }
         }
+        return false;
     }
 
     @Override
@@ -814,7 +844,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         currentIndexWriter().close(false);
                         indexWriter = createWriter();
                         mergeScheduler.removeListener(this.throttle);
-                        this.throttle = new IndexThrottle(mergeScheduler.getMaxMerges(), this.logger);
+
+                        this.throttle = new IndexThrottle(mergeScheduler, this.logger, indexingService);
                         mergeScheduler.addListener(throttle);
                         // commit on a just opened writer will commit even if there are no changes done to it
                         // we rely on that for the commit data translog id key
@@ -980,34 +1011,37 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             throw new OptimizeFailedEngineException(shardId, t);
         }
     }
+    
+    private void waitForMerges(boolean flushAfter) {
+        try {
+            currentIndexWriter().waitForMerges();
+        } catch (IOException e) {
+            throw new OptimizeFailedEngineException(shardId, e);
+        }
+        if (flushAfter) {
+            flush(new Flush().force(true).waitIfOngoing(true));
+        }
+    }
 
     @Override
     public void optimize(Optimize optimize) throws EngineException {
-        if (optimize.flush()) {
-            flush(new Flush().force(true).waitIfOngoing(true));
-        }
         if (optimizeMutex.compareAndSet(false, true)) {
-            ElasticsearchMergePolicy elasticsearchMergePolicy = null;
             try (InternalLock _ = readLock.acquire()) {
                 final IndexWriter writer = currentIndexWriter();
 
-                if (writer.getConfig().getMergePolicy() instanceof ElasticsearchMergePolicy) {
-                    elasticsearchMergePolicy = (ElasticsearchMergePolicy) writer.getConfig().getMergePolicy();
-                }
-                if (optimize.force() && elasticsearchMergePolicy == null) {
-                    throw new ElasticsearchIllegalStateException("The `force` flag can only be used if the merge policy is an instance of "
-                            + ElasticsearchMergePolicy.class.getSimpleName() + ", got [" + writer.getConfig().getMergePolicy().getClass().getName() + "]");
-                }
-
                 /*
-                 * The way we implement "forced forced merges" is a bit hackish in the sense that we set an instance variable and that this
-                 * setting will thus apply to all forced merges that will be run until `force` is set back to false. However, since
-                 * InternalEngine.optimize is the only place in code where we call forceMerge and since calls are protected with
-                 * `optimizeMutex`, this has the expected behavior.
+                 * The way we implement upgrades is a bit hackish in the sense that we set an instance
+                 * variable and that this setting will thus apply to the next forced merge that will be run.
+                 * This is ok because (1) this is the only place we call forceMerge, (2) we have a single
+                 * thread for optimize, and the 'optimizeMutex' guarding this code, and (3) ConcurrentMergeScheduler
+                 * syncs calls to findForcedMerges.
                  */
-                if (optimize.force()) {
-                    elasticsearchMergePolicy.setForce(true);
+                MergePolicy mp = writer.getConfig().getMergePolicy();
+                assert mp instanceof ElasticsearchMergePolicy : "MergePolicy is " + mp.getClass().getName();
+                if (optimize.upgrade()) {
+                    ((ElasticsearchMergePolicy)mp).setUpgradeInProgress(true);
                 }
+                
                 if (optimize.onlyExpungeDeletes()) {
                     writer.forceMergeDeletes(false);
                 } else if (optimize.maxNumSegments() <= 0) {
@@ -1020,19 +1054,25 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 maybeFailEngine(t, "optimize");
                 throw new OptimizeFailedEngineException(shardId, t);
             } finally {
-                if (elasticsearchMergePolicy != null) {
-                    elasticsearchMergePolicy.setForce(false);
-                }
                 optimizeMutex.set(false);
             }
-
         }
+        
         // wait for the merges outside of the read lock
         if (optimize.waitForMerge()) {
-            currentIndexWriter().waitForMerges();
-        }
-        if (optimize.flush()) {
-            flush(new Flush().force(true).waitIfOngoing(true));
+            waitForMerges(optimize.flush());
+        } else if (optimize.flush()) {
+            // we only need to monitor merges for async calls if we are going to flush
+            threadPool.executor(ThreadPool.Names.OPTIMIZE).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.error("Exception while waiting for merges asynchronously after optimize", t);
+                }
+                @Override
+                protected void doRun() throws Exception {
+                    waitForMerges(true);
+                }
+            });
         }
     }
 
@@ -1141,17 +1181,15 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     public SegmentsStats segmentsStats() {
         try (InternalLock _ = readLock.acquire()) {
             ensureOpen();
-            Searcher searcher = acquireSearcher("segments_stats");
-            try {
+            try (final Searcher searcher = acquireSearcher("segments_stats")) {
                 SegmentsStats stats = new SegmentsStats();
                 for (AtomicReaderContext reader : searcher.reader().leaves()) {
                     stats.add(1, getReaderRamBytesUsed(reader));
                 }
                 stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
                 stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
+                stats.addIndexWriterMaxMemoryInBytes((long) (indexWriter.getConfig().getRAMBufferSizeMB()*1024*1024));
                 return stats;
-            } finally {
-                searcher.close();
             }
         }
     }
@@ -1269,6 +1307,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
+    LiveIndexWriterConfig currentIndexWriterConfig() {
+        ensureOpen();
+        return this.indexWriter.getConfig();
+    }
+
     class FailEngineOnMergeFailure implements MergeSchedulerProvider.FailureListener {
         @Override
         public void onFailedMerge(MergePolicy.MergeException e) {
@@ -1307,7 +1350,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     return;
                 }
                 try {
-                    logger.warn("failed engine [{}]", reason, failure);
+                    logger.warn("failed engine [{}]", failure, reason);
                     // we must set a failure exception, generate one if not supplied
                     failedEngine = failure;
                     for (FailedEngineListener listener : failedEngineListeners) {
@@ -1332,11 +1375,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
     private long loadCurrentVersionFromIndex(Term uid) throws IOException {
-        Searcher searcher = acquireSearcher("load_version");
-        try {
+        try (final Searcher searcher = acquireSearcher("load_version")) {
             return Versions.loadVersion(searcher.reader(), uid);
-        } finally {
-            searcher.close();
         }
     }
 
@@ -1364,7 +1404,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             config.setIndexDeletionPolicy(deletionPolicy);
             config.setInfoStream(new LoggerInfoStream(indexSettings, shardId));
             config.setMergeScheduler(mergeScheduler.newMergeScheduler());
-            MergePolicy mergePolicy = mergePolicyProvider.newMergePolicy();
+            MergePolicy mergePolicy = mergePolicyProvider.getMergePolicy();
             // Give us the opportunity to upgrade old segments while performing
             // background merges
             mergePolicy = new ElasticsearchMergePolicy(mergePolicy);
@@ -1380,6 +1420,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
              * in combination with the default writelock timeout*/
             config.setWriteLockTimeout(5000);
             config.setUseCompoundFile(this.compoundOnFlush);
+            config.setCheckIntegrityAtMerge(checksumOnMerge);
             // Warm-up hook for newly-merged segments. Warming up segments here is better since it will be performed at the end
             // of the merge operation and won't slow down _refresh
             config.setMergedSegmentWarmer(new IndexReaderWarmer() {
@@ -1387,10 +1428,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 public void warm(AtomicReader reader) throws IOException {
                     try {
                         assert isMergedSegment(reader);
-                        final Engine.Searcher searcher = new SimpleSearcher("warmer", new IndexSearcher(reader));
-                        final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
                         if (warmer != null) {
-                            warmer.warm(context);
+                            final Engine.Searcher searcher = new SimpleSearcher("warmer", new IndexSearcher(reader));
+                            final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
+                            warmer.warmNewReaders(context);
                         }
                     } catch (Throwable t) {
                         // Don't fail a merge if the warm-up failed
@@ -1414,6 +1455,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     public static final String INDEX_INDEX_CONCURRENCY = "index.index_concurrency";
     public static final String INDEX_COMPOUND_ON_FLUSH = "index.compound_on_flush";
+    public static final String INDEX_CHECKSUM_ON_MERGE = "index.checksum_on_merge";
     public static final String INDEX_GC_DELETES = "index.gc_deletes";
     public static final String INDEX_FAIL_ON_MERGE_FAILURE = "index.fail_on_merge_failure";
     public static final String INDEX_FAIL_ON_CORRUPTION = "index.fail_on_corruption";
@@ -1434,6 +1476,13 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 logger.info("updating {} from [{}] to [{}]", InternalEngine.INDEX_COMPOUND_ON_FLUSH, InternalEngine.this.compoundOnFlush, compoundOnFlush);
                 InternalEngine.this.compoundOnFlush = compoundOnFlush;
                 indexWriter.getConfig().setUseCompoundFile(compoundOnFlush);
+            }
+            
+            final boolean checksumOnMerge = settings.getAsBoolean(INDEX_CHECKSUM_ON_MERGE, InternalEngine.this.checksumOnMerge);
+            if (checksumOnMerge != InternalEngine.this.checksumOnMerge) {
+                logger.info("updating {} from [{}] to [{}]", InternalEngine.INDEX_CHECKSUM_ON_MERGE, InternalEngine.this.checksumOnMerge, checksumOnMerge);
+                InternalEngine.this.checksumOnMerge = checksumOnMerge;
+                indexWriter.getConfig().setCheckIntegrityAtMerge(checksumOnMerge);
             }
 
             InternalEngine.this.failEngineOnCorruption = settings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION, InternalEngine.this.failEngineOnCorruption);
@@ -1541,7 +1590,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (warmer != null) {
                 // we need to pass a custom searcher that does not release anything on Engine.Search Release,
                 // we will release explicitly
-                Searcher currentSearcher = null;
                 IndexSearcher newSearcher = null;
                 boolean closeNewSearcher = false;
                 try {
@@ -1549,45 +1597,44 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         // fresh index writer, just do on all of it
                         newSearcher = searcher;
                     } else {
-                        currentSearcher = acquireSearcher("search_factory");
-                        // figure out the newSearcher, with only the new readers that are relevant for us
-                        List<IndexReader> readers = Lists.newArrayList();
-                        for (AtomicReaderContext newReaderContext : searcher.getIndexReader().leaves()) {
-                            if (isMergedSegment(newReaderContext.reader())) {
-                                // merged segments are already handled by IndexWriterConfig.setMergedSegmentWarmer
-                                continue;
-                            }
-                            boolean found = false;
-                            for (AtomicReaderContext currentReaderContext : currentSearcher.reader().leaves()) {
-                                if (currentReaderContext.reader().getCoreCacheKey().equals(newReaderContext.reader().getCoreCacheKey())) {
-                                    found = true;
-                                    break;
+                        try (final Searcher currentSearcher = acquireSearcher("search_factory")) {
+                            // figure out the newSearcher, with only the new readers that are relevant for us
+                            List<IndexReader> readers = Lists.newArrayList();
+                            for (AtomicReaderContext newReaderContext : searcher.getIndexReader().leaves()) {
+                                if (isMergedSegment(newReaderContext.reader())) {
+                                    // merged segments are already handled by IndexWriterConfig.setMergedSegmentWarmer
+                                    continue;
+                                }
+                                boolean found = false;
+                                for (AtomicReaderContext currentReaderContext : currentSearcher.reader().leaves()) {
+                                    if (currentReaderContext.reader().getCoreCacheKey().equals(newReaderContext.reader().getCoreCacheKey())) {
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                                if (!found) {
+                                    readers.add(newReaderContext.reader());
                                 }
                             }
-                            if (!found) {
-                                readers.add(newReaderContext.reader());
+                            if (!readers.isEmpty()) {
+                                // we don't want to close the inner readers, just increase ref on them
+                                newSearcher = new IndexSearcher(new MultiReader(readers.toArray(new IndexReader[readers.size()]), false));
+                                closeNewSearcher = true;
                             }
-                        }
-                        if (!readers.isEmpty()) {
-                            // we don't want to close the inner readers, just increase ref on them
-                            newSearcher = new IndexSearcher(new MultiReader(readers.toArray(new IndexReader[readers.size()]), false));
-                            closeNewSearcher = true;
                         }
                     }
 
                     if (newSearcher != null) {
-                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId,
-                                new SimpleSearcher("warmer", newSearcher));
-                        warmer.warm(context);
+                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, new SimpleSearcher("warmer", newSearcher));
+                        warmer.warmNewReaders(context);
                     }
-                    warmer.warmTop(new IndicesWarmer.WarmerContext(shardId, searcher.getIndexReader()));
+                    warmer.warmTopReader(new IndicesWarmer.WarmerContext(shardId, new SimpleSearcher("warmer", searcher)));
                 } catch (Throwable e) {
                     if (!closed) {
                         logger.warn("failed to prepare/warm", e);
                     }
                 } finally {
                     // no need to release the fullSearcher, nothing really is done...
-                    Releasables.close(currentSearcher);
                     if (newSearcher != null && closeNewSearcher) {
                         IOUtils.closeWhileHandlingException(newSearcher.getIndexReader()); // ignore
                     }
@@ -1670,20 +1717,23 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
 
-    private static final class IndexThrottle implements MergeSchedulerProvider.Listener {
+
+    static final class IndexThrottle implements MergeSchedulerProvider.Listener {
 
         private static final InternalLock NOOP_LOCK = new InternalLock(new NoOpLock());
         private final InternalLock lockReference = new InternalLock(new ReentrantLock());
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
-        private final int maxNumMerges;
+        private final MergeSchedulerProvider mergeScheduler;
         private final ESLogger logger;
+        private final ShardIndexingService indexingService;
 
         private volatile InternalLock lock = NOOP_LOCK;
 
-        public IndexThrottle(int maxNumMerges, ESLogger logger) {
-            this.maxNumMerges = maxNumMerges;
+        public IndexThrottle(MergeSchedulerProvider mergeScheduler, ESLogger logger, ShardIndexingService indexingService) {
+            this.mergeScheduler = mergeScheduler;
             this.logger = logger;
+            this.indexingService = indexingService;
         }
 
         public Releasable acquireThrottle() {
@@ -1691,24 +1741,29 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
 
         @Override
-        public void beforeMerge(OnGoingMerge merge) {
+        public synchronized void beforeMerge(OnGoingMerge merge) {
+            int maxNumMerges = mergeScheduler.getMaxMerges();
             if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
                 if (isThrottling.getAndSet(true) == false) {
                     logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                    indexingService.throttlingActivated();
                 }
                 lock = lockReference;
             }
         }
 
         @Override
-        public void afterMerge(OnGoingMerge merge) {
+        public synchronized void afterMerge(OnGoingMerge merge) {
+            int maxNumMerges = mergeScheduler.getMaxMerges();
             if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
                 if (isThrottling.getAndSet(false)) {
                     logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                    indexingService.throttlingDeactivated();
                 }
                 lock = NOOP_LOCK;
             }
         }
+
     }
 
     private static final class NoOpLock implements Lock {

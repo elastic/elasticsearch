@@ -148,7 +148,7 @@ public class HttpDownloadHelper {
          * @param writer the output stream.
          */
         public VerboseProgress(PrintWriter writer) {
-            this.writer = this.writer;
+            this.writer = writer;
         }
 
         /**

@@ -28,6 +28,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -42,7 +43,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
-import java.util.Locale;
+import java.text.ParseException;
 
 import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
 
@@ -51,14 +52,13 @@ import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTO
  */
 public class Lucene {
 
-    public static final Version VERSION = Version.LUCENE_4_9;
+    // TODO: remove VERSION, and have users use Version.LATEST.
+    public static final Version VERSION = Version.LATEST;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer(ANALYZER_VERSION));
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
-
-    public static final int NO_DOC = -1;
 
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
@@ -69,27 +69,11 @@ public class Lucene {
         if (version == null) {
             return defaultVersion;
         }
-        switch(version) {
-            case "4.9": return VERSION.LUCENE_4_9;
-            case "4.8": return VERSION.LUCENE_4_8;
-            case "4.7": return VERSION.LUCENE_4_7;
-            case "4.6": return VERSION.LUCENE_4_6;
-            case "4.5": return VERSION.LUCENE_4_5;
-            case "4.4": return VERSION.LUCENE_4_4;
-            case "4.3": return VERSION.LUCENE_4_3;
-            case "4.2": return VERSION.LUCENE_4_2;
-            case "4.1": return VERSION.LUCENE_4_1;
-            case "4.0": return VERSION.LUCENE_4_0;
-            case "3.6": return VERSION.LUCENE_3_6;
-            case "3.5": return VERSION.LUCENE_3_5;
-            case "3.4": return VERSION.LUCENE_3_4;
-            case "3.3": return VERSION.LUCENE_3_3;
-            case "3.2": return VERSION.LUCENE_3_2;
-            case "3.1": return VERSION.LUCENE_3_1;
-            case "3.0": return VERSION.LUCENE_3_0;
-            default:
-                logger.warn("no version match {}, default to {}", version, defaultVersion);
-                return defaultVersion;
+        try {
+            return Version.parse(version);
+        } catch (ParseException e) {
+            logger.warn("no version match {}, default to {}", version, defaultVersion, e);
+            return defaultVersion;
         }
     }
 
@@ -99,6 +83,15 @@ public class Lucene {
     public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
         final SegmentInfos sis = new SegmentInfos();
         sis.read(directory);
+        return sis;
+    }
+
+    /**
+     * Reads the segments infos from the given commit, failing if it fails to load
+     */
+    public static SegmentInfos readSegmentInfos(IndexCommit commit, Directory directory) throws IOException {
+        final SegmentInfos sis = new SegmentInfos();
+        sis.read(directory, commit.getSegmentsFileName());
         return sis;
     }
 
@@ -158,8 +151,8 @@ public class Lucene {
     /**
      * Wraps <code>delegate</code> with a time limited collector with a timeout of <code>timeoutInMillis</code>
      */
-    public final static TimeLimitingCollector wrapTimeLimitingCollector(final Collector delegate, long timeoutInMillis) {
-        return new TimeLimitingCollector(delegate, TimeLimitingCollector.getGlobalCounter(), timeoutInMillis);
+    public final static TimeLimitingCollector wrapTimeLimitingCollector(final Collector delegate, final Counter counter, long timeoutInMillis) {
+        return new TimeLimitingCollector(delegate, counter, timeoutInMillis);
     }
 
     /**
@@ -431,9 +424,17 @@ public class Lucene {
     }
 
     public static Explanation readExplanation(StreamInput in) throws IOException {
-        float value = in.readFloat();
-        String description = in.readString();
-        Explanation explanation = new Explanation(value, description);
+        Explanation explanation;
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0_Beta1) && in.readBoolean()) {
+            Boolean match = in.readOptionalBoolean();
+            explanation = new ComplexExplanation();
+            ((ComplexExplanation) explanation).setMatch(match);
+
+        } else {
+            explanation = new Explanation();
+        }
+        explanation.setValue(in.readFloat());
+        explanation.setDescription(in.readString());
         if (in.readBoolean()) {
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
@@ -444,6 +445,15 @@ public class Lucene {
     }
 
     public static void writeExplanation(StreamOutput out, Explanation explanation) throws IOException {
+
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0_Beta1)) {
+            if (explanation instanceof ComplexExplanation) {
+                out.writeBoolean(true);
+                out.writeOptionalBoolean(((ComplexExplanation) explanation).getMatch());
+            } else {
+                out.writeBoolean(false);
+            }
+        }
         out.writeFloat(explanation.getValue());
         out.writeString(explanation.getDescription());
         Explanation[] subExplanations = explanation.getDetails();
@@ -553,11 +563,8 @@ public class Lucene {
             if (Strings.hasLength(toParse)) {
                 try {
                     return Version.parseLeniently(toParse);
-                } catch (IllegalArgumentException e) {
-                    final String parsedMatchVersion = toParse
-                            .toUpperCase(Locale.ROOT)
-                            .replaceFirst("^(\\d+)\\.(\\d+)(.(\\d+))+$", "LUCENE_$1_$2");
-                    return Version.valueOf(parsedMatchVersion);
+                } catch (ParseException e) {
+                    // pass to default
                 }
             }
             return defaultValue;

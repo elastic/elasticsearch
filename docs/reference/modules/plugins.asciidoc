@@ -143,9 +143,27 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 -----------------------------------
 
 [float]
-==== Lucene version dependent plugins
+==== Proxy settings
 
-added[1.2.0]
+To install a plugin via a proxy, you can pass the proxy details using the environment variables `proxyHost` and `proxyPort`.
+
+On Linux and Mac, here is an example of setting it:
+
+[source,shell]
+-----------------------------------
+bin/plugin -DproxyHost=host_name -DproxyPort=port_number --install mobz/elasticsearch-head
+-----------------------------------
+
+On Windows, here is an example of setting it:
+
+[source,shell]
+-----------------------------------
+set JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
+bin/plugin --install mobz/elasticsearch-head
+-----------------------------------
+
+[float]
+==== Lucene version dependent plugins
 
 For some plugins, such as analysis plugins, a specific major Lucene version is
 required to run. In that case, the plugin provides in its `es-plugin.properties`
@@ -181,6 +199,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/synhershko/elasticsearch-analysis-hebrew[Hebrew Analysis Plugin] (by Itamar Syn-Hershko)
 * https://github.com/medcl/elasticsearch-analysis-pinyin[Pinyin Analysis Plugin] (by Medcl)
 * https://github.com/medcl/elasticsearch-analysis-string2int[String2Integer Analysis Plugin] (by Medcl)
+* https://github.com/duydo/elasticsearch-analysis-vietnamese[Vietnamese Analysis Plugin] (by Duy Do)
 
 [float]
 [[discovery-plugins]]
@@ -221,6 +240,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/sksamuel/elasticsearch-river-neo4j[Neo4j River Plugin] (by Steve Samuel)
 * https://github.com/jprante/elasticsearch-river-oai/[Open Archives Initiative (OAI) River Plugin] (by Jörg Prante)
 * https://github.com/sksamuel/elasticsearch-river-redis[Redis River Plugin] (by Steve Samuel)
+* https://github.com/rethinkdb/elasticsearch-river-rethinkdb[RethinkDB River Plugin] (by RethinkDB)
 * http://dadoonet.github.com/rssriver/[RSS River Plugin] (by David Pilato)
 * https://github.com/adamlofts/elasticsearch-river-sofa[Sofa River Plugin] (by adamlofts)
 * https://github.com/javanna/elasticsearch-river-solr/[Solr River Plugin] (by Luca Cavanna)
@@ -254,6 +274,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/elasticsearch/elasticsearch-lang-groovy[Groovy lang Plugin]
 * https://github.com/elasticsearch/elasticsearch-lang-javascript[JavaScript language Plugin]
 * https://github.com/elasticsearch/elasticsearch-lang-python[Python language Plugin]
+* https://github.com/NLPchina/elasticsearch-sql/[SQL language Plugin] (by nlpcn)
 
 [float]
 [[site]]
@@ -302,6 +323,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/sonian/elasticsearch-zookeeper[ZooKeeper Discovery Plugin] (by Sonian Inc.)
 * https://github.com/kzwang/elasticsearch-image[Elasticsearch Image Plugin] (by Kevin Wang)
 * https://github.com/wikimedia/search-highlighter[Elasticsearch Experimental Highlighter] (by Wikimedia Foundation/Nik Everett)
+* https://github.com/wikimedia/search-extra[Elasticsearch Trigram Accelerated Regular Expression Filter] (by Wikimedia Foundation/Nik Everett)
 * https://github.com/salyh/elasticsearch-security-plugin[Elasticsearch Security Plugin] (by Hendrik Saly)
 * https://github.com/codelibs/elasticsearch-taste[Elasticsearch Taste Plugin] (by CodeLibs Project)
 * http://siren.solutions/siren/downloads/[Elasticsearch SIREn Plugin]: Nested data search (by SIREn Solutions)

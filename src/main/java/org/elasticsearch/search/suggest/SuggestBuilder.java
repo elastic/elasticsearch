@@ -23,8 +23,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
 import org.elasticsearch.search.suggest.context.CategoryContextMapping;
 import org.elasticsearch.search.suggest.context.GeolocationContextMapping;
@@ -100,21 +104,27 @@ public class SuggestBuilder implements ToXContent {
     }
 
     /**
-     * Convenience factory method.
-     *
-     * @param name The name of this suggestion. This is a required parameter.
+     * Returns a {@link org.elasticsearch.common.bytes.BytesReference}
+     * representing the suggest lookup request.
+     * Builds the request as {@link org.elasticsearch.client.Requests#CONTENT_TYPE}
      */
-    public static TermSuggestionBuilder termSuggestion(String name) {
-        return new TermSuggestionBuilder(name);
+    public BytesReference buildAsBytes() {
+        return this.buildAsBytes(Requests.CONTENT_TYPE);
     }
-    
+
     /**
-     * Convenience factory method.
-     *
-     * @param name The name of this suggestion. This is a required parameter.
+     * Returns a {@link org.elasticsearch.common.bytes.BytesReference}
+     * representing the suggest lookup request.
+     * Builds the request as the provided <code>contentType</code>
      */
-    public static PhraseSuggestionBuilder phraseSuggestion(String name) {
-        return new PhraseSuggestionBuilder(name);
+    public BytesReference buildAsBytes(XContentType contentType) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return builder.bytes();
+        } catch (Exception e) {
+            throw new SuggestBuilderException("Failed to build suggest query", e);
+        }
     }
 
     public static abstract class SuggestionBuilder<T> implements ToXContent {
@@ -300,6 +310,20 @@ public class SuggestBuilder implements ToXContent {
         public T shardSize(Integer shardSize) {
             this.shardSize = shardSize;
             return (T)this;
+        }
+
+        public BytesReference buildAsBytes() {
+            return this.buildAsBytes(Requests.CONTENT_TYPE);
+        }
+
+        public BytesReference buildAsBytes(XContentType contentType) {
+            try {
+                XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+                toXContent(builder, ToXContent.EMPTY_PARAMS);
+                return builder.bytes();
+            } catch (Exception e) {
+                throw new SuggestBuilderException("Failed to build suggest", e);
+            }
         }
     }
 }

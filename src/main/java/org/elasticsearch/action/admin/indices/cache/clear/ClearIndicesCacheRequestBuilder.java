@@ -38,6 +38,11 @@ public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBu
         return this;
     }
 
+    public ClearIndicesCacheRequestBuilder setQueryCache(boolean queryCache) {
+        request.queryCache(queryCache);
+        return this;
+    }
+
     public ClearIndicesCacheRequestBuilder setFieldDataCache(boolean fieldDataCache) {
         request.fieldDataCache(fieldDataCache);
         return this;

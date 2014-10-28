@@ -32,18 +32,21 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 
 /**
  * A request to get suggestions for corrections of phrases. Best created with
  * {@link org.elasticsearch.client.Requests#suggestRequest(String...)}.
  * <p/>
- * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
- * or {@link #query(byte[])}.
+ * <p>The request requires the suggest query source to be set either using
+ * {@link #suggest(org.elasticsearch.common.bytes.BytesReference)} / {@link #suggest(org.elasticsearch.common.bytes.BytesReference, boolean)}
+ * or by using {@link #suggest(org.elasticsearch.search.suggest.SuggestBuilder)}
+ * (Best created using the {link @org.elasticsearch.search.suggest.SuggestBuilders)}).
  *
  * @see SuggestResponse
  * @see org.elasticsearch.client.Client#suggest(SuggestRequest)
  * @see org.elasticsearch.client.Requests#suggestRequest(String...)
+ * @see org.elasticsearch.search.suggest.SuggestBuilders
  */
 public final class SuggestRequest extends BroadcastOperationRequest<SuggestRequest> {
 
@@ -92,6 +95,22 @@ public final class SuggestRequest extends BroadcastOperationRequest<SuggestReque
      */
     public SuggestRequest suggest(BytesReference suggestSource) {
         return suggest(suggestSource, false);
+    }
+
+    /**
+     * set a new source using a {@link org.elasticsearch.search.suggest.SuggestBuilder}
+     * for phrase and term suggestion lookup
+     */
+    public SuggestRequest suggest(SuggestBuilder suggestBuilder) {
+        return suggest(suggestBuilder.buildAsBytes(Requests.CONTENT_TYPE));
+    }
+
+    /**
+     * set a new source using a {@link org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder}
+     * for completion suggestion lookup
+     */
+    public SuggestRequest suggest(SuggestBuilder.SuggestionBuilder suggestionBuilder) {
+        return suggest(suggestionBuilder.buildAsBytes(Requests.CONTENT_TYPE));
     }
     
     /**

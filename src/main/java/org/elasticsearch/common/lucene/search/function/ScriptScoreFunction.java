@@ -22,7 +22,6 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -101,18 +100,14 @@ public class ScriptScoreFunction extends ScoreFunction {
     }
 
     @Override
-    public Explanation explainScore(int docId, Explanation subQueryExpl) {
+    public Explanation explainScore(int docId, float subQueryScore) {
         Explanation exp;
-        if (script instanceof ExplainableSearchScript) {
-            script.setNextDocId(docId);
-            scorer.docid = docId;
-            scorer.score = subQueryExpl.getValue();
-            exp = ((ExplainableSearchScript) script).explain(subQueryExpl);
-        } else {
-            double score = score(docId, subQueryExpl.getValue());
-            exp = new Explanation(CombineFunction.toFloat(score), "script score function: composed of:");
-            exp.addDetail(subQueryExpl);
+        double score = score(docId, subQueryScore);
+        String explanation = "script score function, computed with script:\"" + sScript;
+        if (params != null) {
+            explanation += "\" and parameters: \n" + params.toString();
         }
+        exp = new Explanation(CombineFunction.toFloat(score), explanation);
         return exp;
     }
 

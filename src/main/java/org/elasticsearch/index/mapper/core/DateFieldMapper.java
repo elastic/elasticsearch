@@ -26,6 +26,7 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
@@ -151,9 +152,12 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
+                    if (propNode == null) {
+                        throw new MapperParsingException("Property [null_value] cannot be null.");
+                    }
                     builder.nullValue(propNode.toString());
                 } else if (propName.equals("format")) {
-                    builder.dateTimeFormatter(parseDateTimeFormatter(propName, propNode));
+                    builder.dateTimeFormatter(parseDateTimeFormatter(propNode));
                 } else if (propName.equals("numeric_resolution")) {
                     builder.timeUnit(TimeUnit.valueOf(propNode.toString().toUpperCase(Locale.ROOT)));
                 } else if (propName.equals("locale")) {
@@ -249,9 +253,9 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public BytesRef indexedValueForSearch(Object value) {
-        BytesRef bytesRef = new BytesRef();
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
         NumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
-        return bytesRef;
+        return bytesRef.get();
     }
 
     private long parseValue(Object value) {
@@ -299,19 +303,23 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     public long parseToMilliseconds(Object value, @Nullable QueryParseContext context, boolean includeUpper) {
-        return parseToMilliseconds(value, context, includeUpper, null);
+        return parseToMilliseconds(value, context, includeUpper, null, dateMathParser);
     }
 
-    public long parseToMilliseconds(Object value, @Nullable QueryParseContext context, boolean includeUpper, @Nullable DateTimeZone zone) {
+    public long parseToMilliseconds(Object value, @Nullable QueryParseContext context, boolean includeUpper, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
         if (value instanceof Number) {
             return ((Number) value).longValue();
         }
-        return parseToMilliseconds(convertToString(value), context, includeUpper, zone);
+        return parseToMilliseconds(convertToString(value), context, includeUpper, zone, forcedDateParser);
     }
 
-    public long parseToMilliseconds(String value, @Nullable QueryParseContext context, boolean includeUpper, @Nullable DateTimeZone zone) {
+    public long parseToMilliseconds(String value, @Nullable QueryParseContext context, boolean includeUpper, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
         long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
-        long time = includeUpper && roundCeil ? dateMathParser.parseRoundCeil(value, now, zone) : dateMathParser.parse(value, now, zone);
+        DateMathParser dateParser = dateMathParser;
+        if (forcedDateParser != null) {
+            dateParser = forcedDateParser;
+        }
+        long time = includeUpper && roundCeil ? dateParser.parseRoundCeil(value, now, zone) : dateParser.parse(value, now, zone);
         return time;
     }
 
@@ -324,28 +332,28 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, context);
+        return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null, context);
     }
 
-    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable QueryParseContext context) {
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context, false, timeZone),
-                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper, timeZone),
+                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context, false, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
+                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
                 includeLower, includeUpper);
     }
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return rangeFilter(lowerTerm, upperTerm, includeLower, includeUpper, null, context, false);
+        return rangeFilter(lowerTerm, upperTerm, includeLower, includeUpper, null, null, context, null);
     }
 
-    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable QueryParseContext context, boolean explicitCaching) {
-        return rangeFilter(null, lowerTerm, upperTerm, includeLower, includeUpper, timeZone, context, explicitCaching);
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, @Nullable QueryParseContext context, @Nullable Boolean explicitCaching) {
+        return rangeFilter(null, lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser, context, explicitCaching);
     }
 
     @Override
     public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return rangeFilter(parseContext, lowerTerm, upperTerm, includeLower, includeUpper, null, context, false);
+        return rangeFilter(parseContext, lowerTerm, upperTerm, includeLower, includeUpper, null, null, context, null);
     }
 
     /*
@@ -354,8 +362,9 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
      * - the object to parse is a String (does not apply to ms since epoch which are UTC based time values)
      * - the String to parse does not have already a timezone defined (ie. `2014-01-01T00:00:00+03:00`)
      */
-    public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable QueryParseContext context, boolean explicitCaching) {
-        boolean cache = explicitCaching;
+    public Filter rangeFilter(QueryParseContext parseContext, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, @Nullable QueryParseContext context, @Nullable Boolean explicitCaching) {
+        boolean cache;
+        boolean cacheable = true;
         Long lowerVal = null;
         Long upperVal = null;
         if (lowerTerm != null) {
@@ -363,8 +372,8 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 lowerVal = ((Number) lowerTerm).longValue();
             } else {
                 String value = convertToString(lowerTerm);
-                cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
-                lowerVal = parseToMilliseconds(value, context, false, timeZone);
+                cacheable = !hasDateExpressionWithNoRounding(value);
+                lowerVal = parseToMilliseconds(value, context, false, timeZone, forcedDateParser);
             }
         }
         if (upperTerm != null) {
@@ -372,9 +381,19 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 upperVal = ((Number) upperTerm).longValue();
             } else {
                 String value = convertToString(upperTerm);
-                cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
-                upperVal = parseToMilliseconds(value, context, includeUpper, timeZone);
+                cacheable = cacheable && !hasDateExpressionWithNoRounding(value);
+                upperVal = parseToMilliseconds(value, context, includeUpper, timeZone, forcedDateParser);
             }
+        }
+
+        if (explicitCaching != null) {
+            if (explicitCaching) {
+                cache = cacheable;
+            } else {
+                cache = false;
+            }
+        } else {
+            cache = cacheable;
         }
 
         Filter filter;
@@ -397,7 +416,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
     }
 
-    private boolean hasNowExpressionWithNoRounding(String value) {
+    private boolean hasDateExpressionWithNoRounding(String value) {
         int index = value.indexOf("now");
         if (index != -1) {
             if (value.length() == 3) {

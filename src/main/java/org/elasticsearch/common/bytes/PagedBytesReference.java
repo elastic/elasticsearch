@@ -20,11 +20,11 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -43,7 +43,6 @@ import java.util.Arrays;
 public class PagedBytesReference implements BytesReference {
 
     private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
-    private static final int NIO_GATHERING_LIMIT = 524288;
 
     private final BigArrays bigarrays;
     protected final ByteArray bytearray;
@@ -231,9 +230,7 @@ public class PagedBytesReference implements BytesReference {
         // this would indicate that our numBuffer calculation is off by one.
         assert (numBuffers == bufferSlot);
 
-        // we can use gathering writes from the ChannelBuffers, but only if they are
-        // moderately small to prevent OOMs due to DirectBuffer allocations.
-        return ChannelBuffers.wrappedBuffer(length <= NIO_GATHERING_LIMIT, buffers);
+        return ChannelBuffers.wrappedBuffer(NettyUtils.DEFAULT_GATHERING, buffers);
     }
 
     @Override
@@ -274,8 +271,8 @@ public class PagedBytesReference implements BytesReference {
         }
 
         byte[] bytes = toBytes();
-        final CharsRef ref = new CharsRef(length);
-        UnicodeUtil.UTF8toUTF16(bytes, offset, length, ref);
+        final CharsRefBuilder ref = new CharsRefBuilder();
+        ref.copyUTF8Bytes(bytes, offset, length);
         return ref.toString();
     }
 

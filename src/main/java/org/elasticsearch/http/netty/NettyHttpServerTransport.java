@@ -37,14 +37,15 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.http.*;
-import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.transport.BindTransportException;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
-import org.jboss.netty.handler.codec.http.*;
+import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
+import org.jboss.netty.handler.codec.http.HttpContentCompressor;
+import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
 import org.jboss.netty.handler.timeout.ReadTimeoutException;
 
 import java.io.IOException;
@@ -64,6 +65,13 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     static {
         NettyUtils.setup();
     }
+
+    public static final String SETTING_CORS_ENABLED = "http.cors.enabled";
+    public static final String SETTING_CORS_ALLOW_ORIGIN = "http.cors.allow-origin";
+    public static final String SETTING_CORS_MAX_AGE = "http.cors.max-age";
+    public static final String SETTING_CORS_ALLOW_METHODS = "http.cors.allow-methods";
+    public static final String SETTING_CORS_ALLOW_HEADERS = "http.cors.allow-headers";
+    public static final String SETTING_CORS_ALLOW_CREDENTIALS = "http.cors.allow-credentials";
 
     private final NetworkService networkService;
     final BigArrays bigArrays;
@@ -352,15 +360,13 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                 requestDecoder.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             pipeline.addLast("decoder", requestDecoder);
-            if (transport.compression) {
-                pipeline.addLast("decoder_compress", new HttpContentDecompressor());
-            }
+            pipeline.addLast("decoder_compress", new ESHttpContentDecompressor(transport.compression));
             HttpChunkAggregator httpChunkAggregator = new HttpChunkAggregator((int) transport.maxContentLength.bytes());
             if (transport.maxCompositeBufferComponents != -1) {
                 httpChunkAggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             pipeline.addLast("aggregator", httpChunkAggregator);
-            pipeline.addLast("encoder", new HttpResponseEncoder());
+            pipeline.addLast("encoder", new ESHttpResponseEncoder());
             if (transport.compression) {
                 pipeline.addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));
             }

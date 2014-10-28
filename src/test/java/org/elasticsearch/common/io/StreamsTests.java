@@ -20,6 +20,9 @@
 package org.elasticsearch.common.io;
 
 import com.google.common.base.Charsets;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -27,7 +30,6 @@ import java.io.*;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.io.Streams.*;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -86,6 +88,18 @@ public class StreamsTests extends ElasticsearchTestCase {
         StringReader in = new StringReader(content);
         String result = copyToString(in);
         assertThat(result, equalTo(content));
+    }
+    
+    @Test
+    public void testBytesStreamInput() throws IOException {
+        byte stuff[] = new byte[] { 0, 1, 2, 3 };
+        BytesRef stuffRef = new BytesRef(stuff, 2, 2);
+        BytesArray stuffArray = new BytesArray(stuffRef);
+        BytesStreamInput input = new BytesStreamInput(stuffArray);
+        assertEquals(2, input.read());
+        assertEquals(3, input.read());
+        assertEquals(-1, input.read());
+        input.close();
     }
 
 }

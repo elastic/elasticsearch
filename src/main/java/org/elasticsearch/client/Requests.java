@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -61,6 +62,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.common.xcontent.XContentType;
 
 /**
@@ -159,6 +161,16 @@ public class Requests {
      */
     public static ExistsRequest existsRequest(String... indices) {
         return new ExistsRequest(indices);
+    }
+
+    /**
+     * Creates a suggest request for getting suggestions from provided <code>indices</code>.
+     * The suggest query has to be set using the JSON source using {@link org.elasticsearch.action.suggest.SuggestRequest#suggest(org.elasticsearch.common.bytes.BytesReference)}.
+     * @param indices The indices to suggest from. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @see org.elasticsearch.client.Client#suggest(org.elasticsearch.action.suggest.SuggestRequest)
+     */
+    public static SuggestRequest suggestRequest(String... indices) {
+        return new SuggestRequest(indices);
     }
 
     /**
@@ -488,6 +500,16 @@ public class Requests {
      */
     public static DeleteRepositoryRequest deleteRepositoryRequest(String name) {
         return new DeleteRepositoryRequest(name);
+    }
+
+    /**
+     * Verifies snapshot repository
+     *
+     * @param name repository name
+     * @return repository verification request
+     */
+    public static VerifyRepositoryRequest verifyRepositoryRequest(String name) {
+        return new VerifyRepositoryRequest(name);
     }
 
 

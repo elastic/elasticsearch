@@ -33,6 +33,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeOperationActio
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -115,6 +116,12 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
     public void updateMappingOnMaster(String index, DocumentMapper documentMapper, String indexUUID, MappingUpdateListener listener) {
         assert !documentMapper.type().equals(MapperService.DEFAULT_MAPPING) : "_default_ mapping should not be updated";
         masterMappingUpdater.add(new MappingChange(documentMapper, index, indexUUID, listener));
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(MappingUpdatedRequest request, ClusterState state) {
+        // internal call by other nodes, no need to check for blocks
+        return null;
     }
 
     @Override

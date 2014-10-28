@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -32,9 +33,13 @@ import org.junit.Test;
 
 import java.net.InetSocketAddress;
 
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN;
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ENABLED;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -47,9 +52,11 @@ public class CorsRegexTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
-                .put("http.cors.allow-origin", "/https?:\\/\\/localhost(:[0-9]+)?/")
-                .put("network.host", "127.0.0.1")
                 .put(super.nodeSettings(nodeOrdinal))
+                .put(SETTING_CORS_ALLOW_ORIGIN, "/https?:\\/\\/localhost(:[0-9]+)?/")
+                .put(SETTING_CORS_ALLOW_CREDENTIALS, true)
+                .put(SETTING_CORS_ENABLED, true)
+                .put(InternalNode.HTTP_ENABLED, true)
                 .build();
     }
 
@@ -62,6 +69,8 @@ public class CorsRegexTests extends ElasticsearchIntegrationTest {
         corsValue = "https://localhost:9200";
         response = httpClient().method("GET").path("/").addHeader("User-Agent", "Mozilla Bar").addHeader("Origin", corsValue).execute();
         assertResponseWithOriginheader(response, corsValue);
+        assertThat(response.getHeaders(), hasKey("Access-Control-Allow-Credentials"));
+        assertThat(response.getHeaders().get("Access-Control-Allow-Credentials"), is("true"));
     }
 
     @Test

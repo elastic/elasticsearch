@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Iterators;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.Iterators;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -41,6 +41,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Random;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -147,6 +148,7 @@ public class CompositeTestCluster extends TestCluster {
             externalNode.stop();
             String s = cluster.startNode(nodeSettings);
             ExternalNode.waitForNode(existingClient, s);
+            assertNoTimeout(existingClient.admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size())).get());
             return true;
         }
         return false;
@@ -206,6 +208,11 @@ public class CompositeTestCluster extends TestCluster {
     @Override
     public int numDataNodes() {
         return runningNodes().size() + cluster.numDataNodes();
+    }
+
+    @Override
+    public int numDataAndMasterNodes() {
+        return runningNodes().size() + cluster.numDataAndMasterNodes();
     }
 
     @Override

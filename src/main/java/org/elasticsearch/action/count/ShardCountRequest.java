@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -52,8 +53,8 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
 
     }
 
-    public ShardCountRequest(String index, int shardId, @Nullable String[] filteringAliases, CountRequest request) {
-        super(index, shardId, request);
+    ShardCountRequest(ShardId shardId, @Nullable String[] filteringAliases, CountRequest request) {
+        super(shardId, request);
         this.minScore = request.minScore();
         this.querySource = request.source();
         this.types = request.types();
@@ -109,7 +110,7 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         }
         nowInMillis = in.readVLong();
 
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             terminateAfter = in.readVInt();
         } else {
             terminateAfter = DEFAULT_TERMINATE_AFTER;
@@ -137,7 +138,7 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         }
         out.writeVLong(nowInMillis);
 
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeVInt(terminateAfter);
         }
     }

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -89,9 +89,6 @@ public class HasChildQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
                     childType = parser.text();
-                } else if ("_scope".equals(currentFieldName)) {
-                    throw new QueryParsingException(parseContext.index(),
-                            "the [_scope] support in [has_child] query has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
                     scoreType = ScoreType.fromString(parser.text());
                 } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
@@ -149,16 +146,16 @@ public class HasChildQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "[has_child] 'max_children' is less than 'min_children'");
         }
 
-        Filter nonNestedDocsFilter = null;
+        FixedBitSetFilter nonNestedDocsFilter = null;
         if (parentDocMapper.hasNestedObjects()) {
-            nonNestedDocsFilter = parseContext.cacheFilter(NonNestedDocsFilter.INSTANCE, null);
+            nonNestedDocsFilter = parseContext.fixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
         }
 
         // wrap the query with type query
         innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
         Query query;
-        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
+        FixedBitSetFilter parentFilter = parseContext.fixedBitSetFilter(parentDocMapper.typeFilter());
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
         if (minChildren > 1 || maxChildren > 0 || scoreType != ScoreType.NONE) {
             query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, minChildren,

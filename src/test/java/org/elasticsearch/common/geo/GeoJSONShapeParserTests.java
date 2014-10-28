@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.geo;
 
+import com.spatial4j.core.shape.Circle;
+import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.ShapeCollection;
 import com.spatial4j.core.shape.jts.JtsGeometry;
@@ -73,6 +75,58 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
         LineString expected = GEOMETRY_FACTORY.createLineString(
                 lineCoordinates.toArray(new Coordinate[lineCoordinates.size()]));
         assertGeometryEquals(jtsGeom(expected), lineGeoJson);
+    }
+
+    @Test
+    public void testParse_multiLineString() throws IOException {
+        String multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "MultiLineString")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(100.0).value(0.0).endArray()
+                .startArray().value(101.0).value(1.0).endArray()
+                .endArray()
+                .startArray()
+                .startArray().value(102.0).value(2.0).endArray()
+                .startArray().value(103.0).value(3.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        MultiLineString expected = GEOMETRY_FACTORY.createMultiLineString(new LineString[]{
+                GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                        new Coordinate(100, 0),
+                        new Coordinate(101, 1),
+                }),
+                GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                        new Coordinate(102, 2),
+                        new Coordinate(103, 3),
+                }),
+        });
+        assertGeometryEquals(jtsGeom(expected), multilinesGeoJson);
+    }
+
+    @Test
+    public void testParse_circle() throws IOException {
+        String multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "circle")
+                .startArray("coordinates").value(100.0).value(0.0).endArray()
+                .field("radius", "100m")
+                .endObject().string();
+
+        Circle expected = SPATIAL_CONTEXT.makeCircle(100.0, 0.0, 360 * 100 / GeoUtils.EARTH_EQUATOR);
+        assertGeometryEquals(expected, multilinesGeoJson);
+    }
+
+    @Test
+    public void testParse_envelope() throws IOException {
+        String multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "envelope")
+                .startArray("coordinates")
+                .startArray().value(-50).value(30).endArray()
+                .startArray().value(50).value(-30).endArray()
+                .endArray()
+                .endObject().string();
+
+        Rectangle expected = SPATIAL_CONTEXT.makeRectangle(-50, 50, -30, 30);
+        assertGeometryEquals(expected, multilinesGeoJson);
     }
 
     @Test
@@ -225,6 +279,39 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
         Shape expected = shapeCollection(withoutHoles, withHoles);
 
         assertGeometryEquals(expected, multiPolygonGeoJson);
+    }
+
+    @Test
+    public void testParse_geometryCollection() throws IOException {
+        String geometryCollectionGeoJson = XContentFactory.jsonBuilder().startObject()
+                .field("type","GeometryCollection")
+                .startArray("geometries")
+                    .startObject()
+                        .field("type", "LineString")
+                        .startArray("coordinates")
+                            .startArray().value(100.0).value(0.0).endArray()
+                            .startArray().value(101.0).value(1.0).endArray()
+                        .endArray()
+                    .endObject()
+                    .startObject()
+                        .field("type", "Point")
+                        .startArray("coordinates").value(102.0).value(2.0).endArray()
+                    .endObject()
+                .endArray()
+                .endObject()
+                .string();
+
+        Shape[] expected = new Shape[2];
+        LineString expectedLineString = GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                new Coordinate(100, 0),
+                new Coordinate(101, 1),
+        });
+        expected[0] = jtsGeom(expectedLineString);
+        Point expectedPoint = GEOMETRY_FACTORY.createPoint(new Coordinate(102.0, 2.0));
+        expected[1] = new JtsPoint(expectedPoint, SPATIAL_CONTEXT);
+
+        //equals returns true only if geometries are in the same order
+        assertGeometryEquals(shapeCollection(expected), geometryCollectionGeoJson);
     }
 
     @Test

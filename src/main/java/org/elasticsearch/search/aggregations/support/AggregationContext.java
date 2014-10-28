@@ -33,6 +33,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -177,7 +178,9 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         if (dataSource == null) {
             final IndexFieldData<?> indexFieldData = config.fieldContext.indexFieldData();
             ValuesSource.MetaData metaData = ValuesSource.MetaData.load(config.fieldContext.indexFieldData(), searchContext);
-            if (indexFieldData instanceof IndexOrdinalsFieldData) {
+            if (indexFieldData instanceof ParentChildIndexFieldData) {
+                dataSource = new ValuesSource.Bytes.WithOrdinals.ParentChild((ParentChildIndexFieldData) indexFieldData, metaData);
+            } else if (indexFieldData instanceof IndexOrdinalsFieldData) {
                 dataSource = new ValuesSource.Bytes.WithOrdinals.FieldData((IndexOrdinalsFieldData) indexFieldData, metaData);
             } else {
                 dataSource = new ValuesSource.Bytes.FieldData(indexFieldData, metaData);

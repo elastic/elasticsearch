@@ -29,7 +29,7 @@ Response:
 }
 --------------------------------------------------
 
-As can be seen, the name of the aggregation (`min_price` above) also serves as the key by which the aggreagtion result can be retrieved from the returned response.
+As can be seen, the name of the aggregation (`min_price` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
 ==== Script
 

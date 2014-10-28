@@ -51,8 +51,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestExplainAction extends BaseRestHandler {
 
     @Inject
-    public RestExplainAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestExplainAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
     }
@@ -106,9 +106,10 @@ public class RestExplainAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(ExplainResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                builder.field(Fields._INDEX, explainRequest.index())
-                        .field(Fields._TYPE, explainRequest.type())
-                        .field(Fields._ID, explainRequest.id())
+                //null checks for bw comp, since we only added in 1.4 index, type and id to ExplainResponse
+                builder.field(Fields._INDEX, response.getIndex() != null ? response.getIndex() : explainRequest.index())
+                        .field(Fields._TYPE, response.getType() != null ? response.getType() : explainRequest.type())
+                        .field(Fields._ID, response.getId() != null ? response.getId() : explainRequest.id())
                         .field(Fields.MATCHED, response.isMatch());
 
                 if (response.hasExplanation()) {

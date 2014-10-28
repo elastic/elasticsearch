@@ -25,6 +25,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -99,9 +100,9 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
         IndexableField f = doc.getField("test");
         assertThat(f.stringValue(), equalTo("2"));
 
-        BytesRef bytes = new BytesRef();
+        BytesRefBuilder bytes = new BytesRefBuilder();
         NumericUtils.intToPrefixCoded(2, 0, bytes);
-        topDocs = searcher.search(new TermQuery(new Term("test", bytes)), 1);
+        topDocs = searcher.search(new TermQuery(new Term("test", bytes.get())), 1);
         doc = searcher.doc(topDocs.scoreDocs[0].doc);
         f = doc.getField("test");
         assertThat(f.stringValue(), equalTo("2"));

@@ -25,13 +25,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 
 import java.io.IOException;
 import java.util.*;
@@ -54,8 +55,25 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         }
     };
 
+
+    public static final BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+        @Override
+        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
+            Bucket bucket = new Bucket();
+            bucket.readFrom(in);
+            return bucket;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            return context;
+        }
+    };
+
     public static void registerStreams() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
+        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
 
@@ -64,6 +82,10 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         protected long geohashAsLong;
         protected long docCount;
         protected InternalAggregations aggregations;
+
+        public Bucket() {
+            // For Serialization only
+        }
 
         public Bucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
             this.docCount = docCount;
@@ -105,14 +127,14 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
             return 0;
         }
 
-        public Bucket reduce(List<? extends Bucket> buckets, BigArrays bigArrays) {
+        public Bucket reduce(List<? extends Bucket> buckets, ReduceContext context) {
             List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
             long docCount = 0;
             for (Bucket bucket : buckets) {
                 docCount += bucket.docCount;
                 aggregationsList.add(bucket.aggregations);
             }
-            final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, bigArrays);
+            final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
             return new Bucket(geohashAsLong, docCount, aggs);
         }
 
@@ -121,6 +143,29 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
             return geohashAsLong;
         }
 
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            geohashAsLong = in.readLong();
+            docCount = in.readVLong();
+            aggregations = InternalAggregations.readAggregations(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(geohashAsLong);
+            out.writeVLong(docCount);
+            aggregations.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(CommonFields.KEY, getKeyAsText());
+            builder.field(CommonFields.DOC_COUNT, docCount);
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
+            return builder;
+        }
     }
 
     private int requiredSize;
@@ -142,9 +187,9 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
     }
 
     @Override
-    public Collection<GeoHashGrid.Bucket> getBuckets() {
+    public List<GeoHashGrid.Bucket> getBuckets() {
         Object o = buckets;
-        return (Collection<GeoHashGrid.Bucket>) o;
+        return (List<GeoHashGrid.Bucket>) o;
     }
 
     @Override
@@ -192,7 +237,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         BucketPriorityQueue ordered = new BucketPriorityQueue(size);
         for (LongObjectPagedHashMap.Cursor<List<Bucket>> cursor : buckets) {
             List<Bucket> sameCellBuckets = cursor.value;
-            ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext.bigArrays()));
+            ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext));
         }
         buckets.close();
         Bucket[] list = new Bucket[ordered.size()];
@@ -209,7 +254,9 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         int size = in.readVInt();
         List<Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            buckets.add(new Bucket(in.readLong(), in.readVLong(), InternalAggregations.readAggregations(in)));
+            Bucket bucket = new Bucket();
+            bucket.readFrom(in);
+            buckets.add(bucket);
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -221,9 +268,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         writeSize(requiredSize, out);
         out.writeVInt(buckets.size());
         for (Bucket bucket : buckets) {
-            out.writeLong(bucket.geohashAsLong);
-            out.writeVLong(bucket.getDocCount());
-            ((InternalAggregations) bucket.getAggregations()).writeTo(out);
+            bucket.writeTo(out);
         }
     }
 
@@ -231,11 +276,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS);
         for (Bucket bucket : buckets) {
-            builder.startObject();
-            builder.field(CommonFields.KEY, bucket.getKeyAsText());
-            builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
-            ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);
-            builder.endObject();
+            bucket.toXContent(builder, params);
         }
         builder.endArray();
         return builder;

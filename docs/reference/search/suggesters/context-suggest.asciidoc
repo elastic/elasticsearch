@@ -1,14 +1,12 @@
 [[suggester-context]]
 === Context Suggester
 
-added[1.2.0]
-
 The context suggester is an extension to the suggest API of Elasticsearch. Namely the
 suggester system provides a very fast way of searching documents by handling these
 entirely in memory. But this special treatment does not allow the handling of
 traditional queries and filters, because those would have notable impact on the
 performance. So the context extension is designed to take so-called context information
-into account to specify a more accurate way of searching within the suggester system. 
+into account to specify a more accurate way of searching within the suggester system.
 Instead of using the traditional query and filter system a predefined ``context`` is
 configured to limit suggestions to a particular subset of suggestions.
 Such a context is defined by a set of context mappings which can either be a simple
@@ -19,7 +17,7 @@ For instance:
 
 [source,js]
 --------------------------------------------------
-PUT services/service/_mapping
+PUT services/_mapping/service
 {
     "service": {
         "properties": {
@@ -317,4 +315,3 @@ POST services/_suggest
     }
 }
 --------------------------------------------------
-

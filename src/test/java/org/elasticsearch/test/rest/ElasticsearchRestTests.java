@@ -19,11 +19,16 @@
 
 package org.elasticsearch.test.rest;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.RestException;
@@ -52,13 +57,10 @@ import java.util.Set;
 //tests distribution disabled for now since it causes reporting problems,
 // due to the non unique suite name
 //@ReplicateOnEachVm
+@AbstractRandomizedTest.Rest
 @ClusterScope(randomDynamicTemplates = false)
 public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
-    /**
-     * Property that allows to control whether the REST tests need to be run (default) or not (false)
-     */
-    public static final String REST_TESTS = "tests.rest";
     /**
      * Property that allows to control which REST tests get run. Supports comma separated list of tests
      * or directories that contain tests e.g. -Dtests.rest.suite=index,get,create/10_with_id
@@ -103,6 +105,19 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        TestGroup testGroup = Rest.class.getAnnotation(TestGroup.class);
+        String sysProperty = TestGroup.Utilities.getSysProperty(Rest.class);
+        boolean enabled;
+        try {
+            enabled = RandomizedTest.systemPropertyAsBoolean(sysProperty, testGroup.enabled());
+        } catch (IllegalArgumentException e) {
+            // Ignore malformed system property, disable the group if malformed though.
+            enabled = false;
+        }
+        if (!enabled) {
+            return Lists.newArrayList();
+        }
+        //parse tests only if rest test group is enabled, otherwise rest tests might not even be available on file system
         List<RestTestCandidate> restTestCandidates = collectTestCandidates();
         List<Object[]> objects = Lists.newArrayList();
         for (RestTestCandidate restTestCandidate : restTestCandidates) {
@@ -158,19 +173,24 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     @BeforeClass
     public static void initExecutionContext() throws IOException, RestException {
-        //skip REST tests if disabled through -Dtests.rest=false
-        assumeTrue(systemPropertyAsBoolean(REST_TESTS, true));
-
         String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
         RestSpec restSpec = RestSpec.parseFrom(DEFAULT_SPEC_PATH, specPaths);
-        assert restTestExecutionContext == null;
         restTestExecutionContext = new RestTestExecutionContext(restSpec);
     }
 
     @AfterClass
     public static void close() {
-        restTestExecutionContext.close();
-        restTestExecutionContext = null;
+        if (restTestExecutionContext != null) {
+            restTestExecutionContext.close();
+            restTestExecutionContext = null;
+        }
+    }
+
+    /**
+     * Used to obtain settings for the REST client that is used to send REST requests.
+     */
+    protected Settings restClientSettings() {
+        return ImmutableSettings.EMPTY;
     }
 
     @Before
@@ -182,8 +202,8 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
             String testPath = testCandidate.getSuitePath() + "/" + testSection;
             assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.matches(Paths.get(testPath)));
         }
-
-        restTestExecutionContext.resetClient(cluster().httpAddresses());
+        //The client needs non static info to get initialized, therefore it can't be initialized in the before class
+        restTestExecutionContext.resetClient(cluster().httpAddresses(), restClientSettings());
         restTestExecutionContext.clear();
 
         //skip test if the whole suite (yaml file) is disabled

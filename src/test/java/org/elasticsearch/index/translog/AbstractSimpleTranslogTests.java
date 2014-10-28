@@ -20,10 +20,9 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
@@ -34,12 +33,18 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.google.common.collect.Lists.newArrayList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  *
@@ -65,19 +70,21 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
     protected abstract Translog create();
 
+    protected abstract String translogFileDirectory();
+
     @Test
     public void testRead() throws IOException {
         Translog.Location loc1 = translog.add(new Translog.Create("test", "1", new byte[]{1}));
         Translog.Location loc2 = translog.add(new Translog.Create("test", "2", new byte[]{2}));
-        assertThat(TranslogStreams.readSource(translog.read(loc1)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
-        assertThat(TranslogStreams.readSource(translog.read(loc2)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
+        assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
+        assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
         translog.sync();
-        assertThat(TranslogStreams.readSource(translog.read(loc1)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
-        assertThat(TranslogStreams.readSource(translog.read(loc2)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
+        assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
+        assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
         Translog.Location loc3 = translog.add(new Translog.Create("test", "2", new byte[]{3}));
-        assertThat(TranslogStreams.readSource(translog.read(loc3)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+        assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
         translog.sync();
-        assertThat(TranslogStreams.readSource(translog.read(loc3)).source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+        assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
     }
 
     @Test
@@ -145,23 +152,23 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
         snapshot = translog.snapshot();
 
-        assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Create create = (Translog.Create) snapshot.next();
+        assertThat(create != null, equalTo(true));
         assertThat(create.source().toBytes(), equalTo(new byte[]{1}));
 
-        assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Index index = (Translog.Index) snapshot.next();
+        assertThat(index != null, equalTo(true));
         assertThat(index.source().toBytes(), equalTo(new byte[]{2}));
 
-        assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Delete delete = (Translog.Delete) snapshot.next();
+        assertThat(delete != null, equalTo(true));
         assertThat(delete.uid(), equalTo(newUid("3")));
 
-        assertThat(snapshot.hasNext(), equalTo(true));
         Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) snapshot.next();
+        assertThat(deleteByQuery != null, equalTo(true));
         assertThat(deleteByQuery.source().toBytes(), equalTo(new byte[]{4}));
 
-        assertThat(snapshot.hasNext(), equalTo(false));
+        assertThat(snapshot.next(), equalTo(null));
 
         snapshot.close();
 
@@ -188,16 +195,19 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         snapshot.close();
 
         snapshot = translog.snapshot();
-        assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Create create = (Translog.Create) snapshot.next();
+        assertThat(create != null, equalTo(true));
         assertThat(create.source().toBytes(), equalTo(new byte[]{1}));
         snapshot.close();
 
         Translog.Snapshot snapshot1 = translog.snapshot();
-        // we use the translogSize to also navigate to the last position on this snapshot
-        // so snapshot(Snapshot) will work properly
         MatcherAssert.assertThat(snapshot1, TranslogSizeMatcher.translogSize(1));
         assertThat(snapshot1.estimatedTotalOperations(), equalTo(1));
+
+        // seek to the end of the translog snapshot
+        while (snapshot1.next() != null) {
+            // spin
+        }
 
         translog.add(new Translog.Index("test", "2", new byte[]{2}));
         snapshot = translog.snapshot(snapshot1);
@@ -206,10 +216,10 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         snapshot.close();
 
         snapshot = translog.snapshot(snapshot1);
-        assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Index index = (Translog.Index) snapshot.next();
+        assertThat(index != null, equalTo(true));
         assertThat(index.source().toBytes(), equalTo(new byte[]{2}));
-        assertThat(snapshot.hasNext(), equalTo(false));
+        assertThat(snapshot.next(), equalTo(null));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(2));
         snapshot.close();
         snapshot1.close();
@@ -235,17 +245,17 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         snapshot.close();
 
         snapshot = translog.snapshot(actualSnapshot);
-        assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Index index = (Translog.Index) snapshot.next();
+        assertThat(index != null, equalTo(true));
         assertThat(index.source().toBytes(), equalTo(new byte[]{3}));
-        assertThat(snapshot.hasNext(), equalTo(false));
+        assertThat(snapshot.next(), equalTo(null));
 
         actualSnapshot.close();
         snapshot.close();
     }
 
     @Test
-    public void testSnapshotWithSeekForward() {
+    public void testSnapshotWithSeekTo() {
         Translog.Snapshot snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
         snapshot.close();
@@ -253,19 +263,23 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         translog.add(new Translog.Create("test", "1", new byte[]{1}));
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
+        // seek to the end of the translog snapshot
+        while (snapshot.next() != null) {
+            // spin
+        }
         long lastPosition = snapshot.position();
         snapshot.close();
 
         translog.add(new Translog.Create("test", "2", new byte[]{1}));
         snapshot = translog.snapshot();
-        snapshot.seekForward(lastPosition);
+        snapshot.seekTo(lastPosition);
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
         snapshot.close();
 
         snapshot = translog.snapshot();
-        snapshot.seekForward(lastPosition);
-        assertThat(snapshot.hasNext(), equalTo(true));
+        snapshot.seekTo(lastPosition);
         Translog.Create create = (Translog.Create) snapshot.next();
+        assertThat(create != null, equalTo(true));
         assertThat(create.id(), equalTo("2"));
         snapshot.close();
     }
@@ -347,10 +361,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         }
 
         for (LocationOperation locationOperation : writtenOperations) {
-            byte[] data = translog.read(locationOperation.location);
-            StreamInput streamInput = new BytesStreamInput(data, false);
-            streamInput.readInt(); // size
-            Translog.Operation op = TranslogStreams.readTranslogOperation(streamInput);
+            Translog.Operation op = translog.read(locationOperation.location);
             Translog.Operation expectedOp = locationOperation.operation;
             assertEquals(expectedOp.opType(), op.opType());
             switch (op.opType()) {
@@ -397,6 +408,51 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
     }
 
+    @Test
+    @LuceneTestCase.BadApple(bugUrl = "corrupting size can cause OOME")
+    public void testTranslogChecksums() throws Exception {
+        List<Translog.Location> locations = newArrayList();
+
+        int translogOperations = randomIntBetween(10, 100);
+        for (int op = 0; op < translogOperations; op++) {
+            String ascii = randomAsciiOfLengthBetween(1, 50);
+            locations.add(translog.add(new Translog.Create("test", "" + op, ascii.getBytes("UTF-8"))));
+        }
+        translog.sync();
+
+        corruptTranslogs(translogFileDirectory());
+
+        AtomicInteger corruptionsCaught = new AtomicInteger(0);
+        for (Translog.Location location : locations) {
+            try {
+                translog.read(location);
+            } catch (TranslogCorruptedException e) {
+                corruptionsCaught.incrementAndGet();
+            }
+        }
+        assertThat("at least one corruption was caused and caught", corruptionsCaught.get(), greaterThanOrEqualTo(1));
+    }
+
+    /**
+     * Randomly overwrite some bytes in the translog files
+     */
+    private void corruptTranslogs(String directory) throws Exception {
+        File[] files = new File(directory).listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.getName().startsWith("translog-")) {
+                    logger.info("--> corrupting {}...", file.getName());
+                    RandomAccessFile f = new RandomAccessFile(file, "rw");
+                    int corruptions = scaledRandomIntBetween(10, 50);
+                    for (int i = 0; i < corruptions; i++) {
+                        f.seek(randomIntBetween(0, (int)f.length()));
+                        f.write(randomByte());
+                    }
+                    f.close();
+                }
+            }
+        }
+    }
 
     private Term newUid(String id) {
         return new Term("_uid", id);

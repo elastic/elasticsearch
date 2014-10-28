@@ -25,10 +25,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class ShardExistsRequest extends BroadcastShardOperationRequest {
+class ShardExistsRequest extends BroadcastShardOperationRequest {
 
     private float minScore;
 
@@ -44,8 +45,8 @@ public class ShardExistsRequest extends BroadcastShardOperationRequest {
     ShardExistsRequest() {
     }
 
-    public ShardExistsRequest(String index, int shardId, @Nullable String[] filteringAliases, ExistsRequest request) {
-        super(index, shardId, request);
+    ShardExistsRequest(ShardId shardId, @Nullable String[] filteringAliases, ExistsRequest request) {
+        super(shardId, request);
         this.minScore = request.minScore();
         this.querySource = request.source();
         this.types = request.types();

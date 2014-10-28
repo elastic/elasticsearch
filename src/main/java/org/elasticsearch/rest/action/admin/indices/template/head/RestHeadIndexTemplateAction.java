@@ -36,8 +36,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestHeadIndexTemplateAction extends BaseRestHandler {
 
     @Inject
-    public RestHeadIndexTemplateAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestHeadIndexTemplateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         controller.registerHandler(HEAD, "/_template/{name}", this);
     }

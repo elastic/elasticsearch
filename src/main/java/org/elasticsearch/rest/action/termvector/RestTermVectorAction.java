@@ -27,10 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import java.util.HashSet;
@@ -46,8 +43,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestTermVectorAction extends BaseRestHandler {
 
     @Inject
-    public RestTermVectorAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestTermVectorAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
+        controller.registerHandler(GET, "/{index}/{type}/_termvector", this);
+        controller.registerHandler(POST, "/{index}/{type}/_termvector", this);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_termvector", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_termvector", this);
     }
@@ -78,12 +77,14 @@ public class RestTermVectorAction extends BaseRestHandler {
         termVectorRequest.positions(request.paramAsBoolean("positions", termVectorRequest.positions()));
         termVectorRequest.payloads(request.paramAsBoolean("payloads", termVectorRequest.payloads()));
         termVectorRequest.routing(request.param("routing"));
+        termVectorRequest.realtime(request.paramAsBoolean("realtime", null));
         termVectorRequest.parent(request.param("parent"));
         termVectorRequest.preference(request.param("preference"));
         termVectorRequest.termStatistics(request.paramAsBoolean("termStatistics", termVectorRequest.termStatistics()));
         termVectorRequest.termStatistics(request.paramAsBoolean("term_statistics", termVectorRequest.termStatistics()));
         termVectorRequest.fieldStatistics(request.paramAsBoolean("fieldStatistics", termVectorRequest.fieldStatistics()));
         termVectorRequest.fieldStatistics(request.paramAsBoolean("field_statistics", termVectorRequest.fieldStatistics()));
+        termVectorRequest.dfs(request.paramAsBoolean("dfs", termVectorRequest.dfs()));
     }
 
     static public void addFieldStringsFromParameter(TermVectorRequest termVectorRequest, String fields) {

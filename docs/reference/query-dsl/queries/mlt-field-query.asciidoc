@@ -1,6 +1,8 @@
 [[query-dsl-mlt-field-query]]
 === More Like This Field Query
 
+deprecated[1.4.0,Replaced by <<query-dsl-mlt-query>> set to a specific `field`]
+
 The `more_like_this_field` query is the same as the `more_like_this`
 query, except it runs against a single field. It provides nicer query
 DSL over the generic `more_like_this` query, and support typed fields

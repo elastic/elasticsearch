@@ -77,3 +77,9 @@ On versions before `1.4.0.Beta1` all operations are rejected when a node loses i
 only write operations will be rejected by default. Read operations will still be served based on the information available
 to the node, which may result in being partial and possibly also stale. If the default is undesired then the
 pre `1.4.0.Beta1` behaviour can be enabled, see: <<modules-discovery-zen,no-master-block>>
+
+[float]
+==== More Like This Field
+
+The More Like This Field query has been deprecated in favor of the <<query-dsl-mlt-query, More Like This Query>>
+restrained set to a specific `field`. It will be removed in 2.0.

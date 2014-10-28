@@ -6,28 +6,17 @@
 package org.elasticsearch.shield.authc.support;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.User;
+import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
-
-    static class AlwaysAuthenticateCachingRealm extends CachingUsernamePasswordRealm {
-        public AlwaysAuthenticateCachingRealm() {
-            super(ImmutableSettings.EMPTY);
-        }
-        public final AtomicInteger INVOCATION_COUNTER = new AtomicInteger(0);
-        @Override protected User doAuthenticate(UsernamePasswordToken token) {
-            INVOCATION_COUNTER.incrementAndGet();
-            return new User.Simple(token.principal(), "testRole1", "testRole2");
-        }
-
-        @Override public String type() { return "test"; }
-    }
 
     @Test
     public void testCache(){
@@ -62,5 +51,70 @@ public class CachingUsernamePasswordRealmTests extends ElasticsearchTestCase {
         realm.authenticate(new UsernamePasswordToken(user, pass2));
 
         assertThat(realm.INVOCATION_COUNTER.intValue(), is(2));
+    }
+
+    @Test
+    public void testAutheticateContract() throws Exception {
+        Realm<UsernamePasswordToken> realm = new FailingAuthenticationRealm(ImmutableSettings.EMPTY);
+        User user = realm.authenticate(new UsernamePasswordToken("user", SecuredStringTests.build("pass")));
+        assertThat(user , nullValue());
+
+        realm = new ThrowingAuthenticationRealm(ImmutableSettings.EMPTY);
+        user = realm.authenticate(new UsernamePasswordToken("user", SecuredStringTests.build("pass")));
+        assertThat(user , nullValue());
+    }
+
+    static class FailingAuthenticationRealm extends CachingUsernamePasswordRealm {
+
+        FailingAuthenticationRealm(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected User doAuthenticate(UsernamePasswordToken token) {
+            return null;
+        }
+
+        @Override
+        public String type() {
+            return "failing";
+        }
+    }
+
+    static class ThrowingAuthenticationRealm extends CachingUsernamePasswordRealm {
+
+        ThrowingAuthenticationRealm(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        protected User doAuthenticate(UsernamePasswordToken token) {
+            throw new RuntimeException("whatever exception");
+        }
+
+        @Override
+        public String type() {
+            return "throwing";
+        }
+    }
+
+    static class AlwaysAuthenticateCachingRealm extends CachingUsernamePasswordRealm {
+
+        public final AtomicInteger INVOCATION_COUNTER = new AtomicInteger(0);
+
+        AlwaysAuthenticateCachingRealm() {
+            super(ImmutableSettings.EMPTY);
+        }
+
+        @Override
+        protected User doAuthenticate(UsernamePasswordToken token) {
+            INVOCATION_COUNTER.incrementAndGet();
+            return new User.Simple(token.principal(), "testRole1", "testRole2");
+        }
+
+        @Override
+        public String type() {
+            return "always";
+        }
     }
 }

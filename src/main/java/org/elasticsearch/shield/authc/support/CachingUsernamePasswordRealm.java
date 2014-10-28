@@ -10,6 +10,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.UncheckedExecutionException;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationException;
@@ -92,7 +93,7 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
             public UserWithHash call() throws Exception {
                 User user = doAuthenticate(token);
                 if (user == null) {
-                    throw new AuthenticationException("Could not authenticate ['" + token.principal() + "]");
+                    throw new AuthenticationException("Could not authenticate [" + token.principal() + "]");
                 }
                 return new UserWithHash(user, token.credentials(), hasher);
             }
@@ -108,8 +109,8 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
             userWithHash = cache.get(token.principal(), callback);
             return userWithHash.user;
             
-        } catch (ExecutionException ee) {
-            logger.warn("Could not authenticate ['" + token.principal() + "]", ee);
+        } catch (ExecutionException | UncheckedExecutionException ee) {
+            logger.warn("Could not authenticate [" + token.principal() + "]", ee);
             return null;
         }
     }

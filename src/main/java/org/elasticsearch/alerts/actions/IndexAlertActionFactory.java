@@ -7,42 +7,46 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.XContentParser;
 
-import java.util.Locale;
-import java.util.Map;
+import java.io.IOException;
 
 /**
  * Created by brian on 8/17/14.
  */
 public class IndexAlertActionFactory implements AlertActionFactory {
-    Client client;
 
+    private final Client client;
 
     public IndexAlertActionFactory(Client client){
         this.client = client;
     }
 
     @Override
-    public AlertAction createAction(Object parameters) {
-        try {
-            if (parameters instanceof Map) {
-                Map<String, Object> paramMap = (Map<String, Object>) parameters;
-                String index = paramMap.get("index").toString();
-                if (!index.toLowerCase(Locale.ROOT).equals(index)) {
-                    throw new ElasticsearchIllegalArgumentException("Index names must be all lowercase");
-                }
+    public AlertAction createAction(XContentParser parser) throws IOException {
+        String index = null;
+        String type = null;
 
-                String type = paramMap.get("type").toString();
-                if (!type.toLowerCase(Locale.ROOT).equals(type)) {
-                    throw new ElasticsearchIllegalArgumentException("Type names must be all lowercase");
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                switch (currentFieldName) {
+                    case "index":
+                        index = parser.text();
+                        break;
+                    case "type":
+                        type = parser.text();
+                        break;
+                    default:
+                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                 }
-
-                return new IndexAlertAction(index, type, client);
             } else {
-                throw new ElasticsearchIllegalArgumentException("Unable to parse [" + parameters + "] as an IndexAlertAction");
+                throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
             }
-        } catch (Throwable t){
-            throw new ElasticsearchIllegalArgumentException("Unable to parse [" + parameters + "] as an IndexAlertAction", t);
         }
+        return new IndexAlertAction(index, type, client);
     }
 }

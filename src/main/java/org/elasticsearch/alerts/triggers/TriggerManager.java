@@ -13,14 +13,11 @@ import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
-import java.util.Locale;
+import java.io.IOException;
 import java.util.Map;
 
 
@@ -32,34 +29,52 @@ public class TriggerManager extends AbstractComponent {
     private final AlertManager alertManager;
     private final ScriptService scriptService;
 
-    public static AlertTrigger parseTriggerFromMap(Map<String, Object> triggerMap) {
-        for (Map.Entry<String,Object> entry : triggerMap.entrySet()){
-            AlertTrigger.TriggerType type = AlertTrigger.TriggerType.fromString(entry.getKey());
-            if (type == AlertTrigger.TriggerType.SCRIPT) {
-                ScriptedAlertTrigger scriptedTrigger = parseScriptedTrigger(entry.getValue());
-                return new AlertTrigger(scriptedTrigger);
-            } else {
-                AlertTrigger.SimpleTrigger simpleTrigger = AlertTrigger.SimpleTrigger.fromString(entry.getValue().toString().substring(0, 1));
-                int value = Integer.valueOf(entry.getValue().toString().substring(1));
-                return new AlertTrigger(simpleTrigger, type, value);
-            }
-        }
-        throw new ElasticsearchIllegalArgumentException();
-    }
+    public static AlertTrigger parseTrigger(XContentParser parser) throws IOException {
+        AlertTrigger trigger = null;
 
-    private static ScriptedAlertTrigger parseScriptedTrigger(Object value) {
-        if (value instanceof Map) {
-            Map<String,Object> valueMap = (Map<String,Object>)value;
-            try {
-                return new ScriptedAlertTrigger(valueMap.get("script").toString(),
-                        ScriptService.ScriptType.valueOf(valueMap.get("script_type").toString().toUpperCase(Locale.ROOT)), ///TODO : Fix ScriptType to parse strings properly, currently only accepts uppercase versions of the enum names
-                        valueMap.get("script_lang").toString());
-            } catch (Exception e){
-                throw new ElasticsearchIllegalArgumentException("Unable to parse " + value + " as a ScriptedAlertTrigger", e);
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                switch (currentFieldName) {
+                    case "script":
+                        String script = null;
+                        ScriptService.ScriptType scriptType = null;
+                        String scriptLang = null;
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token.isValue()) {
+                                switch (currentFieldName) {
+                                    case "script" :
+                                        script = parser.text();
+                                        break;
+                                    case "script_type" :
+                                        scriptType = ScriptService.ScriptType.valueOf(parser.text());
+                                        break;
+                                    case "script_lang" :
+                                        scriptLang = parser.text();
+                                        break;
+                                    default:
+                                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                                }
+                            }
+                        }
+                        trigger = new AlertTrigger(new ScriptedAlertTrigger(script, scriptType, scriptLang));
+                        break;
+                    default:
+                        break;
+                }
+            } else if (token.isValue()) {
+                String expression = parser.text();
+                AlertTrigger.SimpleTrigger simpleTrigger = AlertTrigger.SimpleTrigger.fromString(expression.substring(0, 1));
+                int value = Integer.valueOf(expression.substring(1));
+                trigger = new AlertTrigger(simpleTrigger, AlertTrigger.TriggerType.NUMBER_OF_EVENTS, value);
             }
-        } else {
-            throw new ElasticsearchIllegalArgumentException("Unable to parse " + value + " as a ScriptedAlertTrigger, not a Map");
         }
+        return trigger;
     }
 
     @Inject

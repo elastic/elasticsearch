@@ -7,16 +7,16 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class AlertActionRegistry extends AbstractComponent {
 
@@ -37,16 +37,23 @@ public class AlertActionRegistry extends AbstractComponent {
                 .build();
     }
 
-    public List<AlertAction> parseActionsFromMap(Map<String,Object> actionMap) {
-        ImmutableOpenMap<String, AlertActionFactory> actionImplemented = this.actionImplemented;
+    public List<AlertAction> instantiateAlertActions(XContentParser parser) throws IOException {
         List<AlertAction> actions = new ArrayList<>();
-        for (Map.Entry<String, Object> actionEntry : actionMap.entrySet()) {
-            AlertActionFactory factory = actionImplemented.get(actionEntry.getKey());
-            if (factory != null) {
-                actions.add(factory.createAction(actionEntry.getValue()));
-            } else {
-                throw new ElasticsearchIllegalArgumentException("No action exists with the name [" + actionEntry.getKey() + "]");
+        ImmutableOpenMap<String, AlertActionFactory> actionImplemented = this.actionImplemented;
+        String actionFactoryName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                actionFactoryName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                AlertActionFactory factory = actionImplemented.get(actionFactoryName);
+                if (factory != null) {
+                    actions.add(factory.createAction(parser));
+                } else {
+                    throw new ElasticsearchIllegalArgumentException("No action exists with the name [" + actionFactoryName + "]");
+                }
             }
+
         }
         return actions;
     }

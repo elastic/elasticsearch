@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -15,22 +16,18 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,11 +35,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -197,45 +192,82 @@ public class AlertActionManager {
 
 
     protected AlertActionEntry parseHistory(String historyId, SearchHit sh, long version) {
-        Map<String, Object> fields = sh.sourceAsMap();
-        return parseHistory(historyId, fields, version);
+        return parseHistory(historyId, sh.getSourceRef(), version);
     }
 
-    protected AlertActionEntry parseHistory(String historyId, Map<String,Object> fields, long version) {
-        return parseHistory(historyId, fields, version, actionRegistry, logger);
+    protected AlertActionEntry parseHistory(String historyId, BytesReference source, long version) {
+        return parseHistory(historyId, source, version, actionRegistry, logger);
     }
 
-    protected static AlertActionEntry parseHistory(String historyId, Map<String,Object> fields, long version,
+    protected static AlertActionEntry parseHistory(String historyId, BytesReference source, long version,
                                                    AlertActionRegistry actionRegistry, ESLogger logger) {
-        String alertName = fields.get(ALERT_NAME_FIELD).toString();
-        boolean triggered = (Boolean)fields.get(TRIGGERED_FIELD);
-        DateTime fireTime = new DateTime(fields.get(FIRE_TIME_FIELD).toString());
-        DateTime scheduledFireTime = new DateTime(fields.get(SCHEDULED_FIRE_TIME_FIELD).toString());
-        AlertTrigger trigger = TriggerManager.parseTriggerFromMap((Map<String,Object>)fields.get(TRIGGER_FIELD));
-        String queryRan = fields.get(QUERY_RAN_FIELD).toString();
-        long numberOfResults = ((Number)fields.get(NUMBER_OF_RESULTS_FIELD)).longValue();
-        Object actionObj = fields.get(ACTIONS_FIELD);
-        List<AlertAction> actions;
-        if (actionObj instanceof Map) {
-            Map<String, Object> actionMap = (Map<String, Object>) actionObj;
-            actions = actionRegistry.parseActionsFromMap(actionMap);
-        } else {
-            throw new ElasticsearchException("Unable to parse actions [" + actionObj + "]");
+        AlertActionEntry entry = new AlertActionEntry();
+        entry.setId(historyId);
+        entry.setVersion(version);
+        try (XContentParser parser = XContentHelper.createParser(source)) {
+            String currentFieldName = null;
+            XContentParser.Token token = parser.nextToken();
+            assert token == XContentParser.Token.START_OBJECT;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    switch (currentFieldName) {
+                        case ACTIONS_FIELD:
+                            entry.setActions(actionRegistry.instantiateAlertActions(parser));
+                            break;
+                        case TRIGGER_FIELD:
+                            entry.setTrigger(TriggerManager.parseTrigger(parser));
+                            break;
+                        default:
+                            throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                    }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    switch (currentFieldName) {
+                        case INDICES_FIELD:
+                            List<String> indices = new ArrayList<>();
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                indices.add(parser.text());
+                            }
+                            entry.setIndices(indices);
+                            break;
+                        default:
+                            throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                    }
+                } else if (token.isValue()) {
+                    switch (currentFieldName) {
+                        case ALERT_NAME_FIELD:
+                            entry.setAlertName(parser.text());
+                            break;
+                        case TRIGGERED_FIELD:
+                            entry.setTriggered(parser.booleanValue());
+                            break;
+                        case FIRE_TIME_FIELD:
+                            entry.setFireTime(DateTime.parse(parser.text()));
+                            break;
+                        case SCHEDULED_FIRE_TIME_FIELD:
+                            entry.setScheduledTime(DateTime.parse(parser.text()));
+                            break;
+                        case QUERY_RAN_FIELD:
+                            entry.setTriggeringQuery(parser.text());
+                            break;
+                        case NUMBER_OF_RESULTS_FIELD:
+                            entry.setNumberOfResults(parser.longValue());
+                            break;
+                        case AlertActionState.FIELD_NAME:
+                            entry.setEntryState(AlertActionState.fromString(parser.text()));
+                            break;
+                        default:
+                            throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                    }
+                } else {
+
+                }
+            }
+        } catch (IOException e) {
+            throw new ElasticsearchException("Error during parsing alert action", e);
         }
-
-        List<String> indices = new ArrayList<>();
-        if (fields.get(INDICES_FIELD) != null && fields.get(INDICES_FIELD) instanceof List){
-            indices = (List<String>)fields.get(INDICES_FIELD);
-        } else {
-            logger.debug("Indices : " + fields.get(INDICES_FIELD) + " class " +
-                    (fields.get(INDICES_FIELD) != null ? fields.get(INDICES_FIELD).getClass() : null ));
-        }
-
-        String stateString = fields.get(AlertActionState.FIELD_NAME).toString();
-        AlertActionState state = AlertActionState.fromString(stateString);
-
-        return new AlertActionEntry(historyId, version, alertName, triggered, fireTime, scheduledFireTime, trigger, queryRan,
-                numberOfResults, actions, indices, state);
+        return entry;
     }
 
 
@@ -309,7 +341,7 @@ public class AlertActionManager {
         getRequest.id(entryId);
         GetResponse getResponse = client.get(getRequest).actionGet();
         if (getResponse.isExists()) {
-            return parseHistory(entryId, getResponse.getSourceAsMap(), getResponse.getVersion());
+            return parseHistory(entryId, getResponse.getSourceAsBytesRef(), getResponse.getVersion());
         } else {
             throw new ElasticsearchException("Unable to find [" + entryId + "] in the [" + ALERT_HISTORY_INDEX + "]" );
         }

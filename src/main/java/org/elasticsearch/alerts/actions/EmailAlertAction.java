@@ -9,25 +9,27 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
 import javax.mail.*;
 import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
 
 public class EmailAlertAction implements AlertAction {
-    List<Address> emailAddresses = new ArrayList<>();
-    String displayField = null;
 
+    private String displayField = null;
+    private List<Address> emailAddresses = new ArrayList<>();
+
+    // TODO: Move to factory and make configurable
+    int port = 587;
+    String server = "smtp.gmail.com";
     String from = "esalertingtest@gmail.com";
     String passwd = "elasticsearchforthewin";
-    String server = "smtp.gmail.com";
-    int port = 587;
 
-    public EmailAlertAction(String ... addresses){
+    public EmailAlertAction(String displayField, String ... addresses){
         for (String address : addresses) {
             addEmailAddress(address);
         }

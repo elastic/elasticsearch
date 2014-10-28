@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.alerts.actions;
 
-import org.elasticsearch.alerts.BasicAlertingTest;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -16,15 +19,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+
 /**
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0, numDataNodes = 1)
 public class AlertActionsTest extends ElasticsearchIntegrationTest {
 
+    private static final FormatDateTimeFormatter formatter = DateFieldMapper.Defaults.DATE_TIME_FORMATTER;
+
     @Test
-    public void testAlertActionParser(){
-        DateTime fireTime = new DateTime();
-        DateTime scheduledFireTime = new DateTime();
+    public void testAlertActionParser() throws Exception {
+        DateTime fireTime = new DateTime(DateTimeZone.UTC);
+        DateTime scheduledFireTime = new DateTime(DateTimeZone.UTC);
         Map<String, Object> triggerMap = new HashMap<>();
         triggerMap.put("numberOfEvents", ">1");
         Map<String,Object> actionMap = new HashMap<>();
@@ -34,18 +41,20 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         emailParamMap.put("addresses", addresses);
         actionMap.put("email", emailParamMap);
 
-        Map<String, Object> fieldMap = new HashMap<>();
-        fieldMap.put(AlertActionManager.ALERT_NAME_FIELD, "testName");
-        fieldMap.put(AlertActionManager.TRIGGERED_FIELD, true);
-        fieldMap.put(AlertActionManager.FIRE_TIME_FIELD, fireTime.toDateTimeISO().toString());
-        fieldMap.put(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, scheduledFireTime.toDateTimeISO().toString());
-        fieldMap.put(AlertActionManager.TRIGGER_FIELD, triggerMap);
-        fieldMap.put(AlertActionManager.QUERY_RAN_FIELD, "foobar");
-        fieldMap.put(AlertActionManager.NUMBER_OF_RESULTS_FIELD,10);
-        fieldMap.put(AlertActionManager.ACTIONS_FIELD, actionMap);
-        fieldMap.put(AlertActionState.FIELD_NAME, AlertActionState.ACTION_NEEDED.toString());
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        builder.field(AlertActionManager.ALERT_NAME_FIELD, "testName");
+        builder.field(AlertActionManager.TRIGGERED_FIELD, true);
+        builder.field(AlertActionManager.FIRE_TIME_FIELD, formatter.printer().print(fireTime));
+        builder.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, formatter.printer().print(scheduledFireTime));
+        builder.field(AlertActionManager.TRIGGER_FIELD, triggerMap);
+        builder.field(AlertActionManager.QUERY_RAN_FIELD, "foobar");
+        builder.field(AlertActionManager.NUMBER_OF_RESULTS_FIELD, 10);
+        builder.field(AlertActionManager.ACTIONS_FIELD, actionMap);
+        builder.field(AlertActionState.FIELD_NAME, AlertActionState.ACTION_NEEDED.toString());
+        builder.endObject();
         AlertActionRegistry alertActionRegistry = internalCluster().getInstance(AlertActionRegistry.class, internalCluster().getMasterName());
-        AlertActionEntry actionEntry = AlertActionManager.parseHistory("foobar", fieldMap, 0, alertActionRegistry, logger);
+        AlertActionEntry actionEntry = AlertActionManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry, logger);
 
         assertEquals(actionEntry.getVersion(), 0);
         assertEquals(actionEntry.getAlertName(), "testName");

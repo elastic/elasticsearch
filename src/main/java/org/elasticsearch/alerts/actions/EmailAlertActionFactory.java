@@ -5,37 +5,47 @@
  */
 package org.elasticsearch.alerts.actions;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class EmailAlertActionFactory implements AlertActionFactory {
 
     @Override
-    public AlertAction createAction(Object parameters) {
-        EmailAlertAction action = new EmailAlertAction();
-        if (parameters instanceof List){
-            for (String emailAddress : (List<String>)parameters) {
-                action.addEmailAddress(emailAddress);
+    public AlertAction createAction(XContentParser parser) throws IOException {
+        String display = null;
+        List<String> addresses = new ArrayList<>();
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                switch (currentFieldName) {
+                    case "display":
+                        display = parser.text();
+                        break;
+                    default:
+                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                switch (currentFieldName) {
+                    case "addresses":
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            addresses.add(parser.text());
+                        }
+                        break;
+                    default:
+                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                }
+            } else {
+                throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
             }
-        } else if (parameters instanceof Map) {
-            Map<String,Object> paramMap = (Map<String,Object>)parameters;
-            Object addresses = paramMap.get("addresses");
-            if (addresses == null){
-                throw new ElasticsearchException("Unable to parse email addresses from : " + parameters);
-            }
-            for (String emailAddress : (List<String>)addresses) {
-                action.addEmailAddress(emailAddress);
-            }
-            Object displayField = paramMap.get("display");
-            if (displayField != null){
-                action.displayField(displayField.toString());
-            }
-        } else {
-            throw new ElasticsearchIllegalArgumentException("Unable to parse [" + parameters + "] as an EmailAlertAction");
         }
-        return action;
+        return new EmailAlertAction(display, addresses.toArray(new String[addresses.size()]));
     }
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
-import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -30,24 +29,19 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
 /**
  */
 public class AlertsStore extends AbstractComponent {
 
-    public static final ParseField QUERY_FIELD =  new ParseField("query");
+    public static final ParseField QUERY_NAME_FIELD =  new ParseField("query");
     public static final ParseField SCHEDULE_FIELD =  new ParseField("schedule");
     public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
     public static final ParseField TIMEPERIOD_FIELD = new ParseField("timeperiod");
@@ -200,96 +194,73 @@ public class AlertsStore extends AbstractComponent {
         return parseAlert(alertId, sh.getSourceRef(), sh.getVersion());
     }
 
-    private Alert parseAlert(String alertId, BytesReference bytesReference, long version) {
-        // TODO: streaming parsing!
-        Map<String, Object> fields = XContentHelper.convertToMap(bytesReference, false).v2();
-        String query = fields.get(QUERY_FIELD.getPreferredName()).toString();
-        String schedule = fields.get(SCHEDULE_FIELD.getPreferredName()).toString();
-        Object triggerObj = fields.get(TRIGGER_FIELD.getPreferredName());
-        AlertTrigger trigger = null;
-        if (triggerObj instanceof Map) {
-            Map<String, Object> triggerMap = (Map<String, Object>) triggerObj;
-            trigger = TriggerManager.parseTriggerFromMap(triggerMap);
-        } else {
-            throw new ElasticsearchException("Unable to parse trigger [" + triggerObj + "]");
-        }
-
-        String timeString = fields.get(TIMEPERIOD_FIELD.getPreferredName()).toString();
-        TimeValue timePeriod = TimeValue.parseTimeValue(timeString, defaultTimePeriod);
-
-        Object actionObj = fields.get(ACTION_FIELD.getPreferredName());
-        List<AlertAction> actions = null;
-        if (actionObj instanceof Map) {
-            Map<String, Object> actionMap = (Map<String, Object>) actionObj;
-            actions = alertActionRegistry.parseActionsFromMap(actionMap);
-        } else {
-            throw new ElasticsearchException("Unable to parse actions [" + actionObj + "]");
-        }
-
-        DateTime lastRan = new DateTime(0);
-        if( fields.get(LASTRAN_FIELD.getPreferredName()) != null){
-            lastRan = new DateTime(fields.get(LASTRAN_FIELD.getPreferredName()).toString());
-        } else if (fields.get("lastRan") != null) {
-            lastRan = new DateTime(fields.get("lastRan").toString());
-        }
-
-        DateTime running = new DateTime(0);
-        if (fields.get(CURRENTLY_RUNNING.getPreferredName()) != null) {
-            running = new DateTime(fields.get(CURRENTLY_RUNNING.getPreferredName()).toString());
-        }
-
-        DateTime lastActionFire = new DateTime(0);
-        if (fields.get(LAST_ACTION_FIRE.getPreferredName()) != null) {
-            lastActionFire = new DateTime(fields.get(LAST_ACTION_FIRE.getPreferredName()).toString());
-        }
-
-        List<String> indices = new ArrayList<>();
-        if (fields.get(INDICES.getPreferredName()) != null && fields.get(INDICES.getPreferredName()) instanceof List){
-            indices = (List<String>)fields.get(INDICES.getPreferredName());
-        } else {
-            logger.warn("Indices : " + fields.get(INDICES.getPreferredName()) + " class " + fields.get(INDICES.getPreferredName()).getClass() );
-        }
-
-        boolean enabled = true;
-        if (fields.get(ENABLED.getPreferredName()) != null ) {
-            logger.error(ENABLED.getPreferredName() + " " + fields.get(ENABLED.getPreferredName()));
-            Object enabledObj = fields.get(ENABLED.getPreferredName());
-            enabled = parseAsBoolean(enabledObj);
-        }
-
-        boolean simpleQuery = true;
-        if (fields.get(SIMPLE_QUERY.getPreferredName()) != null ) {
-            logger.error(SIMPLE_QUERY.getPreferredName() + " " + fields.get(SIMPLE_QUERY.getPreferredName()));
-            Object enabledObj = fields.get(SIMPLE_QUERY.getPreferredName());
-            simpleQuery = parseAsBoolean(enabledObj);
-        }
-
-        Alert alert =  new Alert(alertId, query, trigger, timePeriod, actions, schedule, lastRan, indices, running, version, enabled, simpleQuery);
-        alert.lastActionFire(lastActionFire);
-
-        if (fields.get(TIMESTAMP_FIELD.getPreferredName()) != null) {
-            alert.timestampString(fields.get(TIMESTAMP_FIELD.getPreferredName()).toString());
-        }
-
-        return alert;
-    }
-
-    private boolean parseAsBoolean(Object enabledObj) {
-        boolean enabled;
-        if (enabledObj instanceof Boolean){
-            enabled = (Boolean)enabledObj;
-        } else {
-            if (enabledObj.toString().toLowerCase(Locale.ROOT).equals("true") ||
-                    enabledObj.toString().toLowerCase(Locale.ROOT).equals("1")) {
-                enabled = true;
-            } else if ( enabledObj.toString().toLowerCase(Locale.ROOT).equals("false") ||
-                    enabledObj.toString().toLowerCase(Locale.ROOT).equals("0")) {
-                enabled = false;
-            } else {
-                throw new ElasticsearchIllegalArgumentException("Unable to parse [" + enabledObj + "] as a boolean");
+    private Alert parseAlert(String alertName, BytesReference source, long version) {
+        Alert alert = new Alert();
+        alert.alertName(alertName);
+        alert.version(version);
+        try (XContentParser parser = XContentHelper.createParser(source)) {
+            String currentFieldName = null;
+            XContentParser.Token token = parser.nextToken();
+            assert token == XContentParser.Token.START_OBJECT;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if (TRIGGER_FIELD.match(currentFieldName)) {
+                        alert.trigger(TriggerManager.parseTrigger(parser));
+                    } else if (ACTION_FIELD.match(currentFieldName)) {
+                        List<AlertAction> actions = alertActionRegistry.instantiateAlertActions(parser);
+                        alert.actions(actions);
+                    } else {
+                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                    }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if (INDICES.match(currentFieldName)) {
+                        List<String> indices = new ArrayList<>();
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            indices.add(parser.text());
+                        }
+                        alert.indices(indices);
+                    } else {
+                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                    }
+                } else if (token.isValue()) {
+                    if (QUERY_NAME_FIELD.match(currentFieldName)) {
+                        alert.queryName(parser.textOrNull());
+                    } else if (SCHEDULE_FIELD.match(currentFieldName)) {
+                        alert.schedule(parser.textOrNull());
+                    } else if (TIMEPERIOD_FIELD.match(currentFieldName)) {
+                        alert.timestampString(parser.textOrNull());
+                    } else if (LASTRAN_FIELD.match(currentFieldName)) {
+                        alert.lastRan(DateTime.parse(parser.textOrNull()));
+                    } else if (CURRENTLY_RUNNING.match(currentFieldName)) {
+                        alert.running(DateTime.parse(parser.textOrNull()));
+                    } else if (ENABLED.match(currentFieldName)) {
+                        alert.enabled(parser.booleanValue());
+                    } else if (SIMPLE_QUERY.match(currentFieldName)) {
+                        alert.simpleQuery(parser.booleanValue());
+                    } else if (TIMEPERIOD_FIELD.match(currentFieldName)) {
+                        alert.timePeriod(TimeValue.parseTimeValue(parser.textOrNull(), defaultTimePeriod));
+                    } else if (LAST_ACTION_FIRE.match(currentFieldName)) {
+                        alert.lastActionFire(DateTime.parse(parser.textOrNull()));
+                    } else {
+                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                    }
+                } else {
+                    throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
+                }
             }
+        } catch (IOException e) {
+            throw new ElasticsearchException("Error during parsing alert", e);
         }
-        return enabled;
+
+        if (alert.timePeriod() == null) {
+            alert.timePeriod(defaultTimePeriod);
+        }
+        if (alert.lastActionFire() == null) {
+            alert.lastActionFire(new DateTime(0));
+        }
+        return alert;
     }
 
     private ClusterHealthStatus createAlertsIndex() {

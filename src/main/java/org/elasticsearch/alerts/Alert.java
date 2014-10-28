@@ -17,7 +17,7 @@ import java.util.List;
 
 public class Alert implements ToXContent {
 
-    private final String alertName;
+    private String alertName;
     private String queryName;
     private AlertTrigger trigger;
     private TimeValue timePeriod;
@@ -93,6 +93,10 @@ public class Alert implements ToXContent {
         return alertName;
     }
 
+    public void alertName(String alertName) {
+        this.alertName = alertName;
+    }
+
     public String queryName() {
         return queryName;
     }
@@ -141,6 +145,9 @@ public class Alert implements ToXContent {
         this.lastRan = lastRan;
     }
 
+    public Alert() {
+    }
+
     public Alert(String alertName, String queryName, AlertTrigger trigger,
                  TimeValue timePeriod, List<AlertAction> actions, String schedule, DateTime lastRan,
                  List<String> indices, DateTime running, long version, boolean enabled, boolean simpleQuery){
@@ -163,33 +170,47 @@ public class Alert implements ToXContent {
 
         //Note we deliberately don't serialize the version here
         builder.startObject();
-        builder.field(AlertsStore.QUERY_FIELD.getPreferredName(), queryName);
-        builder.field(AlertsStore.SCHEDULE_FIELD.getPreferredName(), schedule);
-        builder.field(AlertsStore.TIMEPERIOD_FIELD.getPreferredName(), timePeriod);
-        builder.field(AlertsStore.LASTRAN_FIELD.getPreferredName(), lastRan);
-        builder.field(AlertsStore.CURRENTLY_RUNNING.getPreferredName(), running);
+        if (queryName != null) {
+            builder.field(AlertsStore.QUERY_NAME_FIELD.getPreferredName(), queryName);
+        }
+        if (schedule != null) {
+            builder.field(AlertsStore.SCHEDULE_FIELD.getPreferredName(), schedule);
+        }
+        if (timePeriod != null) {
+            builder.field(AlertsStore.TIMEPERIOD_FIELD.getPreferredName(), timePeriod);
+        }
+        if (lastRan != null) {
+            builder.field(AlertsStore.LASTRAN_FIELD.getPreferredName(), lastRan);
+        }
+        if (running != null) {
+            builder.field(AlertsStore.CURRENTLY_RUNNING.getPreferredName(), running);
+        }
         builder.field(AlertsStore.ENABLED.getPreferredName(), enabled);
         builder.field(AlertsStore.SIMPLE_QUERY.getPreferredName(), simpleQuery);
-        builder.field(AlertsStore.LAST_ACTION_FIRE.getPreferredName(), lastActionFire);
-
-        builder.field(AlertsStore.TRIGGER_FIELD.getPreferredName());
-        trigger.toXContent(builder, params);
-        builder.field(AlertsStore.ACTION_FIELD.getPreferredName());
-
-        builder.startObject();
-        for (AlertAction action : actions){
-            builder.field(action.getActionName());
-            action.toXContent(builder, params);
+        if (lastActionFire != null) {
+            builder.field(AlertsStore.LAST_ACTION_FIRE.getPreferredName(), lastActionFire);
         }
-        builder.endObject();
+
+        if (actions != null && !actions.isEmpty()) {
+            builder.startObject(AlertsStore.ACTION_FIELD.getPreferredName());
+            for (AlertAction action : actions){
+                builder.field(action.getActionName());
+                action.toXContent(builder, params);
+            }
+            builder.endObject();
+        }
 
         if (indices != null && !indices.isEmpty()) {
-            builder.field(AlertsStore.INDICES.getPreferredName());
-            builder.startArray();
+            builder.startArray(AlertsStore.INDICES.getPreferredName());
             for (String index : indices){
                 builder.value(index);
             }
             builder.endArray();
+        }
+
+        if (trigger != null) {
+            builder.field(AlertsStore.TRIGGER_FIELD.getPreferredName());
+            trigger.toXContent(builder, params);
         }
 
         builder.endObject();

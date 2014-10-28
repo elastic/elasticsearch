@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -36,7 +37,7 @@ import java.util.*;
 /**
  *
  */
-public abstract class InternalTerms extends InternalAggregation implements Terms, ToXContent, Streamable {
+public abstract class InternalTerms extends InternalMultiBucketAggregation implements Terms, ToXContent, Streamable {
 
     protected static final String DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = "doc_count_error_upper_bound";
     protected static final String SUM_OF_OTHER_DOC_COUNTS = "sum_other_doc_count";

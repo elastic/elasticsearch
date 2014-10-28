@@ -36,11 +36,22 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -382,6 +393,9 @@ public class LongTermsTests extends AbstractTermsTests {
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(5));
+        Object[] propertiesKeys = (Object[]) terms.getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) terms.getProperty("_count");
+        Object[] propertiesCounts = (Object[]) terms.getProperty("sum.value");
 
         for (int i = 0; i < 5; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("" + i);
@@ -392,6 +406,9 @@ public class LongTermsTests extends AbstractTermsTests {
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             assertThat((long) sum.getValue(), equalTo(i+i+1l));
+            assertThat((String) propertiesKeys[i], equalTo(String.valueOf(i)));
+            assertThat((long) propertiesDocCounts[i], equalTo(1l));
+            assertThat((double) propertiesCounts[i], equalTo((double) i + i + 1l));
         }
     }
 

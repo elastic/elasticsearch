@@ -136,6 +136,7 @@ public class FilterTests extends ElasticsearchIntegrationTest {
         assertThat(filter, notNullValue());
         assertThat(filter.getName(), equalTo("tag1"));
         assertThat(filter.getDocCount(), equalTo((long) numTag1Docs));
+        assertThat((long) filter.getProperty("_count"), equalTo((long) numTag1Docs));
 
         long sum = 0;
         for (int i = 0; i < numTag1Docs; ++i) {
@@ -146,6 +147,7 @@ public class FilterTests extends ElasticsearchIntegrationTest {
         assertThat(avgValue, notNullValue());
         assertThat(avgValue.getName(), equalTo("avg_value"));
         assertThat(avgValue.getValue(), equalTo((double) sum / numTag1Docs));
+        assertThat((double) filter.getProperty("avg_value.value"), equalTo((double) sum / numTag1Docs));
     }
 
     @Test

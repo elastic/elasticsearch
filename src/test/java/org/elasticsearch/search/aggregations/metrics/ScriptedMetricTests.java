@@ -19,11 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -31,6 +26,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetric;
@@ -39,8 +35,14 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.scriptedMetric;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -52,6 +54,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 @ClusterScope(scope = Scope.SUITE)
 @ElasticsearchIntegrationTest.SuiteScopeTest
@@ -139,12 +142,12 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
             Map<String, Object> map = (Map<String, Object>) object;
             assertThat(map.size(), lessThanOrEqualTo(1));
             if (map.size() == 1) {
-                assertThat(map.get("count"), notNullValue());
-                assertThat(map.get("count"), instanceOf(Number.class));
-                assertThat((Number) map.get("count"), equalTo((Number) 1));
+            assertThat(map.get("count"), notNullValue());
+            assertThat(map.get("count"), instanceOf(Number.class));
+            assertThat((Number) map.get("count"), equalTo((Number) 1));
                 numShardsRun++;
-            }
         }
+    }
         // We don't know how many shards will have documents but we need to make
         // sure that at least one shard ran the map script
         assertThat(numShardsRun, greaterThan(0));
@@ -363,6 +366,57 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(Number.class));
         assertThat(((Number) object).longValue(), equalTo(numDocs * 3));
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @Test
+    public void testInitMapCombineReduce_getProperty() throws Exception {
+        Map<String, Object> varsMap = new HashMap<>();
+        varsMap.put("multiplier", 1);
+        Map<String, Object> params = new HashMap<>();
+        params.put("_agg", new ArrayList<>());
+        params.put("vars", varsMap);
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        global("global")
+                                .subAggregation(
+                                        scriptedMetric("scripted")
+                                                .params(params)
+                                                .initScript("vars.multiplier = 3")
+                                                .mapScript("_agg.add(vars.multiplier)")
+                                                .combineScript(
+                                                        "newaggregation = []; sum = 0;for (a in _agg) { sum += a}; newaggregation.add(sum); return newaggregation")
+                                                .reduceScript(
+                                                        "newaggregation = []; sum = 0;for (aggregation in _aggs) { for (a in aggregation) { sum += a} }; newaggregation.add(sum); return newaggregation")))
+                .execute().actionGet();
+
+        assertSearchResponse(searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocs));
+
+        Global global = searchResponse.getAggregations().get("global");
+        assertThat(global, notNullValue());
+        assertThat(global.getName(), equalTo("global"));
+        assertThat(global.getDocCount(), equalTo(numDocs));
+        assertThat(global.getAggregations(), notNullValue());
+        assertThat(global.getAggregations().asMap().size(), equalTo(1));
+
+        ScriptedMetric scriptedMetricAggregation = global.getAggregations().get("scripted");
+        assertThat(scriptedMetricAggregation, notNullValue());
+        assertThat(scriptedMetricAggregation.getName(), equalTo("scripted"));
+        assertThat(scriptedMetricAggregation.aggregation(), notNullValue());
+        assertThat(scriptedMetricAggregation.aggregation(), instanceOf(ArrayList.class));
+        List<?> aggregationList = (List<?>) scriptedMetricAggregation.aggregation();
+        assertThat(aggregationList.size(), equalTo(1));
+        Object object = aggregationList.get(0);
+        assertThat(object, notNullValue());
+        assertThat(object, instanceOf(Number.class));
+        assertThat(((Number) object).longValue(), equalTo(numDocs * 3));
+        assertThat((ScriptedMetric) global.getProperty("scripted"), sameInstance(scriptedMetricAggregation));
+        assertThat((List) global.getProperty("scripted.value"), sameInstance((List) aggregationList));
+        assertThat((List) scriptedMetricAggregation.getProperty("value"), sameInstance((List) aggregationList));
+
     }
 
     @Test

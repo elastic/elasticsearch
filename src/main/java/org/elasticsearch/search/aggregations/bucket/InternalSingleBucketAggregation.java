@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.collect.HppcMaps;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -80,6 +80,26 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         }
         final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
         return newAggregation(getName(), docCount, aggs);
+    }
+
+    @Override
+    public Object getProperty(List<String> path) {
+        if (path.isEmpty()) {
+            return this;
+        } else {
+            String aggName = path.get(0);
+            if (aggName.equals("_count")) {
+                if (path.size() > 1) {
+                    throw new ElasticsearchIllegalArgumentException("_count must be the last element in the path");
+                }
+                return getDocCount();
+            }
+            InternalAggregation aggregation = aggregations.get(aggName);
+            if (aggregation == null) {
+                throw new ElasticsearchIllegalArgumentException("Cannot find an aggregation named [" + aggName + "] in [" + getName() + "]");
+            }
+            return aggregation.getProperty(path.subList(1, path.size()));
+        }
     }
 
     @Override

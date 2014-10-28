@@ -35,7 +35,11 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -268,6 +272,9 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
         assertThat(range.getBuckets().size(), equalTo(3));
+        Object[] propertiesKeys = (Object[]) range.getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) range.getProperty("_count");
+        Object[] propertiesCounts = (Object[]) range.getProperty("sum.value");
 
         Range.Bucket bucket = range.getBucketByKey("*-3.0");
         assertThat(bucket, notNullValue());
@@ -278,6 +285,9 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo(3.0)); // 1 + 2
+        assertThat((String) propertiesKeys[0], equalTo("*-3.0"));
+        assertThat((long) propertiesDocCounts[0], equalTo(2l));
+        assertThat((double) propertiesCounts[0], equalTo(3.0));
 
         bucket = range.getBucketByKey("3.0-6.0");
         assertThat(bucket, notNullValue());
@@ -288,6 +298,9 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo(12.0)); // 3 + 4 + 5
+        assertThat((String) propertiesKeys[1], equalTo("3.0-6.0"));
+        assertThat((long) propertiesDocCounts[1], equalTo(3l));
+        assertThat((double) propertiesCounts[1], equalTo(12.0));
 
         bucket = range.getBucketByKey("6.0-*");
         assertThat(bucket, notNullValue());
@@ -302,6 +315,9 @@ public class RangeTests extends ElasticsearchIntegrationTest {
             total += i + 1;
         }
         assertThat(sum.getValue(), equalTo((double) total));
+        assertThat((String) propertiesKeys[2], equalTo("6.0-*"));
+        assertThat((long) propertiesDocCounts[2], equalTo(numDocs - 5l));
+        assertThat((double) propertiesCounts[2], equalTo((double) total));
     }
 
     @Test

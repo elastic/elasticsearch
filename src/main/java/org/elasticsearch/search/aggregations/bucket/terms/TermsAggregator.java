@@ -29,7 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalOrder.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.OrderPath;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -142,13 +142,13 @@ public abstract class TermsAggregator extends BucketsAggregator {
         this.subAggCollectMode = subAggCollectMode;
         // Don't defer any child agg if we are dependent on it for pruning results
         if (order instanceof Aggregation){
-            OrderPath path = ((Aggregation) order).path();
+            AggregationPath path = ((Aggregation) order).path();
             aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
         } else if (order instanceof CompoundOrder) {
             CompoundOrder compoundOrder = (CompoundOrder) order;
             for (Terms.Order orderElement : compoundOrder.orderElements()) {
                 if (orderElement instanceof Aggregation) {
-                    OrderPath path = ((Aggregation) orderElement).path();
+                    AggregationPath path = ((Aggregation) orderElement).path();
                     aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
                 }
             }

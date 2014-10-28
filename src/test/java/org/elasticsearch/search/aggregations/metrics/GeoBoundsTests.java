@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
@@ -45,11 +46,13 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geoBounds;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.core.IsNull.notNullValue;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  *
@@ -217,6 +220,40 @@ public class GeoBoundsTests extends ElasticsearchIntegrationTest {
         assertThat(topLeft.lon(), equalTo(singleTopLeft.lon()));
         assertThat(bottomRight.lat(), equalTo(singleBottomRight.lat()));
         assertThat(bottomRight.lon(), equalTo(singleBottomRight.lon()));
+    }
+
+    @Test
+    public void testSingleValuedField_getProperty() throws Exception {
+        SearchResponse searchResponse = client()
+                .prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        global("global").subAggregation(geoBounds("geoBounds").field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false)))
+                .execute().actionGet();
+
+        assertSearchResponse(searchResponse);
+
+        Global global = searchResponse.getAggregations().get("global");
+        assertThat(global, notNullValue());
+        assertThat(global.getName(), equalTo("global"));
+        assertThat(global.getDocCount(), equalTo((long) numDocs));
+        assertThat(global.getAggregations(), notNullValue());
+        assertThat(global.getAggregations().asMap().size(), equalTo(1));
+
+        GeoBounds geobounds = global.getAggregations().get("geoBounds");
+        assertThat(geobounds, notNullValue());
+        assertThat(geobounds.getName(), equalTo("geoBounds"));
+        assertThat((GeoBounds) global.getProperty("geoBounds"), sameInstance(geobounds));
+        GeoPoint topLeft = geobounds.topLeft();
+        GeoPoint bottomRight = geobounds.bottomRight();
+        assertThat(topLeft.lat(), equalTo(singleTopLeft.lat()));
+        assertThat(topLeft.lon(), equalTo(singleTopLeft.lon()));
+        assertThat(bottomRight.lat(), equalTo(singleBottomRight.lat()));
+        assertThat(bottomRight.lon(), equalTo(singleBottomRight.lon()));
+        assertThat((double) global.getProperty("geoBounds.top"), equalTo(singleTopLeft.lat()));
+        assertThat((double) global.getProperty("geoBounds.left"), equalTo(singleTopLeft.lon()));
+        assertThat((double) global.getProperty("geoBounds.bottom"), equalTo(singleBottomRight.lat()));
+        assertThat((double) global.getProperty("geoBounds.right"), equalTo(singleBottomRight.lon()));
     }
 
     @Test

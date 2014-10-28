@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.List;
@@ -28,7 +29,7 @@ import java.util.List;
 public interface SignificantTerms extends MultiBucketsAggregation, Iterable<SignificantTerms.Bucket> {
 
 
-    static abstract class Bucket implements MultiBucketsAggregation.Bucket {
+    static abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
 
         long subsetDf;
         long subsetSize;

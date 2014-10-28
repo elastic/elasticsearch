@@ -25,6 +25,14 @@ public class AbstractLicensingTestBase {
 
     }
 
+    public static String getTestPriKeyPath() throws Exception {
+        return getResourcePath("/private.key");
+    }
+
+    public static String getTestPubKeyPath() throws Exception {
+        return getResourcePath("/public.key");
+    }
+
     private static String getResourcePath(String resource) throws Exception {
         URL url = ESLicenseManager.class.getResource(resource);
         return url.toURI().getPath();

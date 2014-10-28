@@ -36,6 +36,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.license.plugin.core.LicensesService.LicensesUpdateResponse;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.Matchers.equalTo;
@@ -150,9 +151,9 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         ESLicenseManager esLicenseManager = masterLicenseManager();
         final CountDownLatch latch1 = new CountDownLatch(1);
         // todo: fix with awaitBusy
-        licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses), "test"), new ActionListener<ClusterStateUpdateResponse>() {
+        licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses), "test"), new ActionListener<LicensesUpdateResponse>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+            public void onResponse(LicensesUpdateResponse clusterStateUpdateResponse) {
                 if (clusterStateUpdateResponse.isAcknowledged()) {
                     latch1.countDown();
                 }
@@ -178,9 +179,9 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         List<ESLicense> licenses2 = ESLicenses.fromSource(licenseOutput);
         final CountDownLatch latch2 = new CountDownLatch(1);
         // todo: fix with awaitBusy
-        licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses2), "test"), new ActionListener<ClusterStateUpdateResponse>() {
+        licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses2), "test"), new ActionListener<LicensesUpdateResponse>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+            public void onResponse(LicensesUpdateResponse clusterStateUpdateResponse) {
                 if (clusterStateUpdateResponse.isAcknowledged()) {
                     latch2.countDown();
                 }
@@ -289,9 +290,9 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
 
         final CountDownLatch latch1 = new CountDownLatch(1);
         // todo: fix with awaitBusy
-        masterLicensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses), "test"), new ActionListener<ClusterStateUpdateResponse>() {
+        masterLicensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses), "test"), new ActionListener<LicensesUpdateResponse>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
+            public void onResponse(LicensesUpdateResponse clusterStateUpdateResponse) {
                 if (clusterStateUpdateResponse.isAcknowledged()) {
                     latch1.countDown();
                 }

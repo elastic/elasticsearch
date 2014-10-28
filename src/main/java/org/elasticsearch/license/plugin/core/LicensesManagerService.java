@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.license.plugin.core.LicensesService.DeleteLicenseRequestHolder;
+import static org.elasticsearch.license.plugin.core.LicensesService.LicensesUpdateResponse;
 import static org.elasticsearch.license.plugin.core.LicensesService.PutLicenseRequestHolder;
 
 @ImplementedBy(LicensesService.class)
@@ -21,7 +22,7 @@ public interface LicensesManagerService {
 
     //TODO: documentation
 
-    public LicensesStatus registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener);
+    public void registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<LicensesUpdateResponse> listener);
 
     public void unregisterLicenses(final DeleteLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener);
 

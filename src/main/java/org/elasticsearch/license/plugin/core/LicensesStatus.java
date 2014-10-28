@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.license.plugin.core;
 
+import org.elasticsearch.ElasticsearchIllegalStateException;
+
 public enum LicensesStatus {
     VALID((byte) 0),
     INVALID((byte) 1),
@@ -13,5 +15,21 @@ public enum LicensesStatus {
     private byte id;
     LicensesStatus(byte id) {
         this.id = id;
+    }
+
+    public int id() {
+        return id;
+    }
+
+    public static LicensesStatus fromId(int id) {
+        if (id == 0) {
+            return VALID;
+        } else if (id == 1) {
+            return INVALID;
+        } else if (id == 2) {
+            return EXPIRED;
+        } else {
+            throw new ElasticsearchIllegalStateException("no valid LicensesStatus for id=" + id);
+        }
     }
 }

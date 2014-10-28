@@ -18,10 +18,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.ElasticsearchLicenseException;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
+import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import static org.elasticsearch.license.plugin.core.LicensesService.LicensesUpdateResponse;
 import static org.elasticsearch.license.plugin.core.LicensesService.PutLicenseRequestHolder;
 
 public class TransportPutLicenseAction extends TransportMasterNodeOperationAction<PutLicenseRequest, PutLicenseResponse> {
@@ -59,10 +61,10 @@ public class TransportPutLicenseAction extends TransportMasterNodeOperationActio
     @Override
     protected void masterOperation(final PutLicenseRequest request, ClusterState state, final ActionListener<PutLicenseResponse> listener) throws ElasticsearchException {
         final PutLicenseRequestHolder requestHolder = new PutLicenseRequestHolder(request, "put licenses []");
-        LicensesStatus status = licensesManagerService.registerLicenses(requestHolder, new ActionListener<ClusterStateUpdateResponse>() {
+        licensesManagerService.registerLicenses(requestHolder, new ActionListener<LicensesUpdateResponse>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                listener.onResponse(new PutLicenseResponse(clusterStateUpdateResponse.isAcknowledged()));
+            public void onResponse(LicensesUpdateResponse licensesUpdateResponse) {
+                listener.onResponse(new PutLicenseResponse(licensesUpdateResponse.isAcknowledged(), licensesUpdateResponse.status()));
             }
 
             @Override
@@ -70,15 +72,6 @@ public class TransportPutLicenseAction extends TransportMasterNodeOperationActio
                 listener.onFailure(e);
             }
         });
-
-        switch (status) {
-            case VALID:
-                return;
-            case INVALID:
-                throw new ElasticsearchLicenseException("Found Invalid License(s)");
-            case EXPIRED:
-                throw new ElasticsearchLicenseException("Found Expired License(s)");
-        }
     }
 
 }

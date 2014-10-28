@@ -27,12 +27,12 @@ public class GetLicenseRequest extends MasterNodeReadOperationRequest<GetLicense
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        readLocal(in, Version.V_1_0_0_RC2);
+        readLocal(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeLocal(out, Version.V_1_0_0_RC2);
+        writeLocal(out);
     }
 }

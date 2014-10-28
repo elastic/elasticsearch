@@ -59,7 +59,9 @@ public class RestGetLicenseAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final Map<String, String> overrideParams = ImmutableMap.of(ESLicenses.OMIT_SIGNATURE, "true");
         final ToXContent.Params params = new ToXContent.DelegatingMapParams(overrideParams, request);
-        client.admin().cluster().execute(GetLicenseAction.INSTANCE, new GetLicenseRequest(), new RestBuilderListener<GetLicenseResponse>(channel) {
+        GetLicenseRequest getLicenseRequest = new GetLicenseRequest();
+        getLicenseRequest.local(request.paramAsBoolean("local", getLicenseRequest.local()));
+        client.admin().cluster().execute(GetLicenseAction.INSTANCE, getLicenseRequest, new RestBuilderListener<GetLicenseResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetLicenseResponse response, XContentBuilder builder) throws Exception {
                 ESLicenses.toXContent(response.licenses(), builder, params);

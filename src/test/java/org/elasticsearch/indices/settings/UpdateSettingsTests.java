@@ -215,7 +215,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
 
         // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
         logger.info("test: optimize");
-        client().admin().indices().prepareOptimize("test").get();
+        client().admin().indices().prepareOptimize("test").setWaitForMerge(true).get();
         logger.info("test: optimize done");
 
         // Record current throttling so far
@@ -248,6 +248,13 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
 
         // No additional merge IO throttling should have happened:
         assertEquals(sumThrottleTime, newSumThrottleTime);
+
+        // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"
+        // when ElasticsearchIntegrationTest.after tries to remove indices created by the test:
+
+        // Wait for merges to finish
+        client().admin().indices().prepareOptimize("test").setWaitForMerge(true).get();
+        flush();
 
         logger.info("test: test done");
     }

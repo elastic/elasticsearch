@@ -38,7 +38,11 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -392,6 +396,9 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
         assertThat(range.getBuckets().size(), equalTo(3));
+        Object[] propertiesKeys = (Object[]) range.getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) range.getProperty("_count");
+        Object[] propertiesCounts = (Object[]) range.getProperty("sum.value");
 
         DateRange.Bucket bucket = range.getBucketByKey("r1");
         assertThat(bucket, notNullValue());
@@ -404,6 +411,9 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo((double) 1 + 2));
+        assertThat((String) propertiesKeys[0], equalTo("r1"));
+        assertThat((long) propertiesDocCounts[0], equalTo(2l));
+        assertThat((double) propertiesCounts[0], equalTo((double) 1 + 2));
 
         bucket = range.getBucketByKey("r2");
         assertThat(bucket, notNullValue());
@@ -416,6 +426,9 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo((double) 3 + 4));
+        assertThat((String) propertiesKeys[1], equalTo("r2"));
+        assertThat((long) propertiesDocCounts[1], equalTo(2l));
+        assertThat((double) propertiesCounts[1], equalTo((double) 3 + 4));
 
         bucket = range.getBucketByKey("r3");
         assertThat(bucket, notNullValue());
@@ -427,6 +440,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
+        assertThat((String) propertiesKeys[2], equalTo("r3"));
+        assertThat((long) propertiesDocCounts[2], equalTo(numDocs - 4l));
     }
 
     @Test

@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.HasAggregations;
-import org.elasticsearch.search.aggregations.support.OrderPath;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.util.Collection;
 import java.util.List;
@@ -63,21 +63,23 @@ public interface MultiBucketsAggregation extends Aggregation {
          */
         Aggregations getAggregations();
 
+        Object getProperty(String containingAggName, List<String> path);
+
         static class SubAggregationComparator<B extends Bucket> implements java.util.Comparator<B> {
 
-            private final OrderPath path;
+            private final AggregationPath path;
             private final boolean asc;
 
             public SubAggregationComparator(String expression, boolean asc) {
                 this.asc = asc;
-                this.path = OrderPath.parse(expression);
+                this.path = AggregationPath.parse(expression);
             }
 
             public boolean asc() {
                 return asc;
             }
 
-            public OrderPath path() {
+            public AggregationPath path() {
                 return path;
             }
 

@@ -19,7 +19,13 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.base.Function;
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,9 +34,14 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -104,6 +115,23 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     @Override
     public <A extends Aggregation> A get(String name) {
         return (A) asMap().get(name);
+    }
+
+    public Object getProperty(String path) {
+        AggregationPath aggPath = AggregationPath.parse(path);
+        return getProperty(aggPath.getPathElementsAsStringList());
+    }
+
+    public Object getProperty(List<String> path) {
+        if (path.isEmpty()) {
+            return this;
+        }
+        String aggName = path.get(0);
+        InternalAggregation aggregation = get(aggName);
+        if (aggregation == null) {
+            throw new ElasticsearchIllegalArgumentException("Cannot find an aggregation named [" + aggName + "]");
+        }
+        return aggregation.getProperty(path.subList(1, path.size()));
     }
 
     /**

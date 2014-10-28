@@ -30,10 +30,7 @@ import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -48,7 +45,7 @@ import java.util.Map;
 /**
  * TODO should be renamed to InternalNumericHistogram (see comment on {@link Histogram})?
  */
-public class InternalHistogram<B extends InternalHistogram.Bucket> extends InternalAggregation implements Histogram {
+public class InternalHistogram<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation implements Histogram {
 
     final static Type TYPE = new Type("histogram", "histo");
     final static Factory FACTORY = new Factory();
@@ -85,7 +82,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
-    public static class Bucket implements Histogram.Bucket {
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket {
 
         long key;
         long docCount;

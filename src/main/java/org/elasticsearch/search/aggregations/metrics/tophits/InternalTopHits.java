@@ -18,10 +18,14 @@
  */
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
+import java.io.IOException;
+import java.util.List;
+
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,10 +37,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 
 /**
  */
@@ -126,6 +126,15 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
             return new InternalTopHits(name, new InternalSearchHits(hits, reducedTopDocs.totalHits, reducedTopDocs.getMaxScore()));
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
+        }
+    }
+
+    @Override
+    public Object getProperty(List<String> path) {
+        if (path.isEmpty()) {
+            return this;
+        } else {
+            throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
     }
 

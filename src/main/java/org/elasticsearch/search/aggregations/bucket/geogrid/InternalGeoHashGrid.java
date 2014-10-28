@@ -27,10 +27,7 @@ import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 
@@ -42,7 +39,7 @@ import java.util.*;
  * All geohashes in a grid are of the same precision and held internally as a single long
  * for efficiency's sake.
  */
-public class InternalGeoHashGrid extends InternalAggregation implements GeoHashGrid {
+public class InternalGeoHashGrid extends InternalMultiBucketAggregation implements GeoHashGrid {
 
     public static final Type TYPE = new Type("geohash_grid", "ghcells");
 
@@ -77,7 +74,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
     }
 
 
-    static class Bucket implements GeoHashGrid.Bucket, Comparable<Bucket> {
+    static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements GeoHashGrid.Bucket, Comparable<Bucket> {
 
         protected long geohashAsLong;
         protected long docCount;

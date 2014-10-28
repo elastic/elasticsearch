@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -151,7 +152,7 @@ public class HasChildQueryParser implements QueryParser {
 
         Filter nonNestedDocsFilter = null;
         if (parentDocMapper.hasNestedObjects()) {
-            nonNestedDocsFilter = parseContext.cacheFilter(NonNestedDocsFilter.INSTANCE, null);
+            nonNestedDocsFilter = new FixedBitSetCachingWrapperFilter(parseContext.cacheFilter(NonNestedDocsFilter.INSTANCE, null));
         }
 
         // wrap the query with type query

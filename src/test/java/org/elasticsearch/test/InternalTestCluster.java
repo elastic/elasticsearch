@@ -202,6 +202,7 @@ public final class InternalTestCluster extends TestCluster {
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
                                boolean enableRandomBenchNodes,
                                int jvmOrdinal, String nodePrefix) {
+        super(clusterSeed);
         this.clusterName = clusterName;
 
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {

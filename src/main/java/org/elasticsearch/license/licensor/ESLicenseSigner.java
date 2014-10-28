@@ -95,6 +95,9 @@ public class ESLicenseSigner {
                 .withHolder(licenseSpec.issuedTo())
                 .withIssuer(licenseSpec.issuer());
 
+        // NOTE: to add additional feature(s) to the internal license
+        // encode the new feature(s) in featureToXContent rather
+        // than doing licenseBuilder.addFeature(..)
         XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
         featureToXContent(licenseSpec, contentBuilder);
         licenseBuilder.addFeature(contentBuilder.string());

@@ -133,8 +133,8 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         return (CompositeTestCluster) cluster();
     }
 
-    protected TestCluster buildTestCluster(Scope scope) throws IOException {
-        TestCluster cluster = super.buildTestCluster(scope);
+    protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        TestCluster cluster = super.buildTestCluster(scope, seed);
         ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new SettingsSource() {
             @Override
             public Settings node(int nodeOrdinal) {

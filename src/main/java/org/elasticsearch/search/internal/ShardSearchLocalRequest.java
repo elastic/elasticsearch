@@ -80,7 +80,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     private BytesReference templateSource;
     private String templateName;
     private ScriptService.ScriptType templateType;
-    private Map<String, String> templateParams;
+    private Map<String, Object> templateParams;
     private Boolean queryCache;
 
     private long nowInMillis;
@@ -188,7 +188,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
-    public Map<String, String> templateParams() {
+    public Map<String, Object> templateParams() {
         return templateParams;
     }
 
@@ -236,7 +236,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
                 templateType = ScriptService.ScriptType.readFrom(in);
             }
             if (in.readBoolean()) {
-                templateParams = (Map<String, String>) in.readGenericValue();
+                templateParams = (Map<String, Object>) in.readGenericValue();
             }
         }
         if (in.getVersion().onOrAfter(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
@@ -302,4 +302,3 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         return out.bytes().copyBytesArray();
     }
 }
-

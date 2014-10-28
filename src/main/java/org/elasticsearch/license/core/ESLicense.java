@@ -157,7 +157,6 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
         builder.issuedTo(in.readString());
         builder.issuer(in.readString());
         builder.signature(in.readOptionalString());
-        builder.verify();
         return builder.build();
     }
 

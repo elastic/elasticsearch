@@ -6,12 +6,16 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.common.base.Predicate;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
+import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
+import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
+import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Test;
 
@@ -24,7 +28,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-@ClusterScope(scope = TEST, numDataNodes = 3, numClientNodes = 0)
+@ClusterScope(scope = TEST, numDataNodes = 10, numClientNodes = 0)
 public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationTests {
 
     private final int trialLicenseDurationInSeconds = 5;
@@ -39,82 +43,55 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
     }
 
     @Test
-    public void test() throws Exception {
+    public void test1() throws Exception {
+        logger.info(" --> trial license generated");
         // managerService should report feature to be enabled on all data nodes
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                for (LicensesManagerService managerService : licensesManagerServices()) {
-                    if (!managerService.enabledFeatures().contains(TestPluginService.FEATURE_NAME)) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-        }, 2, TimeUnit.SECONDS), equalTo(true));
-
-
+        assertLicenseManagerEnabledFeatureFor(TestPluginService.FEATURE_NAME);
         // consumer plugin service should return enabled on all data nodes
-        /*assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                for (TestPluginService pluginService : consumerPluginServices()) {
-                    if (!pluginService.enabled()) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-        }, 2, TimeUnit.SECONDS), equalTo(true));*/
         assertConsumerPluginEnableNotification(2);
 
-
+        logger.info(" --> check trial license expiry notification");
         // consumer plugin should notify onDisabled on all data nodes (expired trial license)
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                for (TestPluginService pluginService : consumerPluginServices()) {
-                    if(pluginService.enabled()) {
-                        return false;
-                    }
+        assertConsumerPluginDisableNotification(trialLicenseDurationInSeconds * 2);
+        assertLicenseManagerDisabledFeatureFor(TestPluginService.FEATURE_NAME);
 
-                }
-                return true;
-            }
-        }, trialLicenseDurationInSeconds * 2, TimeUnit.SECONDS), equalTo(true));
-
-        // consumer plugin should notify onEnabled on all data nodes (signed license)
-        /*
+        logger.info(" --> put signed license");
         ESLicense license = generateSignedLicense(TestPluginService.FEATURE_NAME, TimeValue.timeValueSeconds(5));
         final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster()).setLicense(Lists.newArrayList(license)).get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
 
-        logger.info(" --> put signed license");
+        logger.info(" --> check signed license enabled notification");
+        // consumer plugin should notify onEnabled on all data nodes (signed license)
+        assertConsumerPluginEnableNotification(2);
+        assertLicenseManagerEnabledFeatureFor(TestPluginService.FEATURE_NAME);
+
+        logger.info(" --> check signed license expiry notification");
+        // consumer plugin should notify onDisabled on all data nodes (expired signed license)
+        assertConsumerPluginDisableNotification(5);
+        assertLicenseManagerDisabledFeatureFor(TestPluginService.FEATURE_NAME);
+    }
+
+    private void assertLicenseManagerEnabledFeatureFor(final String feature) throws InterruptedException {
+        assertLicenseManagerStatusFor(feature, true);
+    }
+
+    private void assertLicenseManagerDisabledFeatureFor(final String feature) throws InterruptedException {
+        assertLicenseManagerStatusFor(feature, false);
+    }
+
+    private void assertLicenseManagerStatusFor(final String feature, final boolean expectedEnabled) throws InterruptedException {
         assertThat(awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
-                for (TestPluginService pluginService : consumerPluginServices()) {
-                    if (!pluginService.enabled()) {
+                for (LicensesManagerService managerService : licensesManagerServices()) {
+                    if (expectedEnabled != managerService.enabledFeatures().contains(feature)) {
                         return false;
                     }
                 }
                 return true;
             }
         }, 2, TimeUnit.SECONDS), equalTo(true));
-
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                for (TestPluginService pluginService : consumerPluginServices()) {
-                    if (pluginService.enabled()) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-        }, 5, TimeUnit.SECONDS), equalTo(true));
-        */
     }
 
     private void assertConsumerPluginDisableNotification(int timeoutInSec) throws InterruptedException {
@@ -142,7 +119,7 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
         final ESLicense licenseSpec = ESLicense.builder()
                 .uid(UUID.randomUUID().toString())
                 .feature(feature)
-                .expiryDate(expiryDate.getMillis())
+                .expiryDate(System.currentTimeMillis() + expiryDate.getMillis())
                 .issueDate(System.currentTimeMillis())
                 .type("subscription")
                 .subscriptionType("gold")

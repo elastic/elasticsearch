@@ -37,7 +37,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -80,7 +79,6 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.lastObservedLicensesState = new AtomicReference<>(null);
-        //this.notificationScheduler = new AtomicReference<>(null);
         transportService.registerHandler(REGISTER_TRIAL_LICENSE_ACTION_NAME, new RegisterTrialLicenseRequestHandler());
     }
 
@@ -90,7 +88,6 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      * This method can be only called on the master node. It tries to create a new licenses on the master
      * and if provided license(s) is VALID it is added to cluster metadata.
      *
-     * @return LicensesStatus indicating if the provided license(s) is VALID (accepted), INVALID (tampered license) or EXPIRED
      */
     @Override
     public void registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<LicensesUpdateResponse> listener) {
@@ -282,12 +279,6 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     @Override
     protected void doClose() throws ElasticsearchException {
         logger.info("Closing LicensesService");
-        /*
-        if (notificationScheduler.get() != null) {
-            notificationScheduler.get().cancel(true);
-            notificationScheduler.set(null);
-        }
-        */
         clusterService.remove(this);
 
         if (registeredListeners != null) {
@@ -390,7 +381,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         }
 
         LicensesMetaData currentMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        if (!hasLicenseForFeature(listenerHolder.feature, currentMetaData)) {
+        if (expiryDateForFeature(listenerHolder.feature, currentMetaData) == -1l) {
             // does not have any license so generate a trial license
             TrialLicenseOptions options = listenerHolder.trialLicenseOptions;
             if (options != null) {
@@ -428,15 +419,15 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         return true;
     }
 
-    private boolean hasLicenseForFeature(String feature, LicensesMetaData currentLicensesMetaData) {
+    private long expiryDateForFeature(String feature, LicensesMetaData currentLicensesMetaData) {
         final Map<String, ESLicense> effectiveLicenses = getEffectiveLicenses(currentLicensesMetaData);
         ESLicense featureLicense;
         if ((featureLicense = effectiveLicenses.get(feature)) != null) {
-            if (featureLicense.expiryDate() > System.currentTimeMillis()) {
-                return true;
-            }
+            logger.info("effective license for "+ feature + " relative expiry: " + TimeValue.timeValueMillis(effectiveLicenses.get(feature).expiryDate() - System.currentTimeMillis()));
+            return featureLicense.expiryDate();
         }
-        return false;
+        logger.info("no effective license for " + feature);
+        return -1l;
     }
 
 
@@ -486,25 +477,6 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                     logger.info("Reschedule licensing client notification job was rejected", ex);
                 }
             }
-            /*
-
-            LicensesMetaData currentLicensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-
-            // Change to debug
-            logger.info("calling notifyFeaturesIfNeeded from LicensingClientNotificationJob");
-
-            long nextScheduleFrequency;
-            if ((nextScheduleFrequency = notifyFeaturesAndScheduleNotification(currentLicensesMetaData)) == -1l) {
-                return;
-            }
-
-            TimeValue updateFrequency = TimeValue.timeValueMillis(nextScheduleFrequency);
-            logger.trace("Scheduling next run for licensing client notification job in: {}", updateFrequency.toString());
-            try {
-                threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingLicensingClientNotificationJob());
-            } catch (EsRejectedExecutionException ex) {
-                logger.info("Reschedule licensing client notification job was rejected", ex);
-            }*/
         }
     }
 
@@ -519,13 +491,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             sb.append(listenerHolder.feature);
             sb.append(", ");
 
-            long expiryDate = -1l;
-            if (hasLicenseForFeature(listenerHolder.feature, currentLicensesMetaData)) {
-                final Map<String, ESLicense> effectiveLicenses = getEffectiveLicenses(currentLicensesMetaData);
-                final ESLicense license = effectiveLicenses.get(listenerHolder.feature);
-                expiryDate = license.expiryDate();
-
-                sb.append((license.signature() != null) ? "signed" : "trial");
+            long expiryDate;
+            if ((expiryDate = expiryDateForFeature(listenerHolder.feature, currentLicensesMetaData)) != -1l) {
                 sb.append(" license expiry: ");
                 sb.append(expiryDate);
                 sb.append(", ");
@@ -616,17 +583,13 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         }
 
         private void enableFeatureIfNeeded() {
-            //logger.info("enabled flag: " + enabled.get());
             if (enabled.compareAndSet(false, true)) {
-                //logger.info("calling onEnabled on listener");
                 listener.onEnabled();
             }
         }
 
         private void disableFeatureIfNeeded() {
-            //logger.info("enabled flag: " + enabled.get());
             if (enabled.compareAndSet(true, false)) {
-                //logger.info("calling onDisabled on listener");
                 listener.onDisabled();
             }
         }
@@ -638,10 +601,12 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             return new LicensesWrapper(licensesMetaData);
         }
 
+        private final LicensesMetaData oldState;
         private ImmutableSet<String> signatures = ImmutableSet.of();
         private ImmutableSet<String> encodedTrialLicenses = ImmutableSet.of();
 
         private LicensesWrapper(LicensesMetaData licensesMetaData) {
+            this.oldState = licensesMetaData;
             if (licensesMetaData != null) {
                 this.signatures = ImmutableSet.copyOf(licensesMetaData.getSignatures());
                 this.encodedTrialLicenses = ImmutableSet.copyOf(licensesMetaData.getEncodedTrialLicenses());
@@ -679,17 +644,15 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
         public void addSignedLicenses(ESLicenseManager licenseManager, Set<ESLicense> newLicenses) {
             Set<ESLicense> currentSignedLicenses = signedLicenses(licenseManager);
-            final ImmutableMap<String, ESLicense> licenseMap = reduceAndMap(Sets.union(currentSignedLicenses, newLicenses));
-            this.signatures = licenseManager.toSignatures(licenseMap.values());
+            this.signatures = licenseManager.toSignatures(Sets.union(currentSignedLicenses, newLicenses));
         }
 
         public void removeFeatures(ESLicenseManager licenseManager, Set<String> featuresToDelete) {
             Set<ESLicense> currentSignedLicenses = signedLicenses(licenseManager);
-            final ImmutableMap<String, ESLicense> licenseMap = reduceAndMap(currentSignedLicenses);
             Set<ESLicense> licensesToDelete = new HashSet<>();
-            for (Map.Entry<String, ESLicense> entry : licenseMap.entrySet()) {
-                if (featuresToDelete.contains(entry.getKey())) {
-                    licensesToDelete.add(entry.getValue());
+            for (ESLicense license : currentSignedLicenses) {
+                if (featuresToDelete.contains(license.feature())) {
+                    licensesToDelete.add(license);
                 }
             }
             Set<ESLicense> reducedLicenses = Sets.difference(currentSignedLicenses, licensesToDelete);
@@ -697,6 +660,11 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         }
 
         public LicensesMetaData get() {
+            if (oldState != null) {
+                if (oldState.getSignatures().equals(signatures) && oldState.getEncodedTrialLicenses().equals(encodedTrialLicenses)) {
+                    return oldState;
+                }
+            }
             return new LicensesMetaData(signatures, encodedTrialLicenses);
         }
     }
@@ -753,10 +721,6 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     //Should not be exposed; used by testing only
     public void clear() {
-        /*if (notificationScheduler.get() != null) {
-            notificationScheduler.get().cancel(true);
-            notificationScheduler.set(null);
-        }*/
         registeredListeners.clear();
     }
 }

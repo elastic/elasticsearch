@@ -147,13 +147,20 @@ public class LicensesMetaData implements MetaData.Custom {
                 }
                 if (fieldName != null) {
                     if (fieldName.equals(Fields.LICENSES)) {
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            signatures.add(parser.text());
+                        if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                if (parser.currentToken().isValue()) {
+                                    signatures.add(parser.text());
+                                }
+                            }
                         }
-                    }
-                    if (fieldName.equals(Fields.TRIAL_LICENSES)) {
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            encodedTrialLicenses.add(parser.text());
+                    } else if (fieldName.equals(Fields.TRIAL_LICENSES)) {
+                        if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                if (parser.currentToken().isValue()) {
+                                    encodedTrialLicenses.add(parser.text());
+                                }
+                            }
                         }
                     }
                 }
@@ -167,10 +174,8 @@ public class LicensesMetaData implements MetaData.Custom {
          */
         @Override
         public void toXContent(LicensesMetaData licensesMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject();
             builder.array(Fields.LICENSES, licensesMetaData.signatures.toArray(new String[licensesMetaData.signatures.size()]));
             builder.array(Fields.TRIAL_LICENSES, licensesMetaData.encodedTrialLicenses.toArray(new String [licensesMetaData.encodedTrialLicenses.size()]));
-            builder.endObject();
         }
 
         @Override

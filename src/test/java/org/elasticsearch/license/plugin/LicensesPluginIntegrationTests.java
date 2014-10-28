@@ -5,59 +5,37 @@
  */
 package org.elasticsearch.license.plugin;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.base.Predicate;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.AbstractLicensingTestBase;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
-import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
-import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
-import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
-import org.elasticsearch.license.plugin.core.LicensesService;
-import org.elasticsearch.license.plugin.core.LicensesStatus;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
-import org.junit.Before;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.license.AbstractLicensingTestBase.getTestPriKeyPath;
 import static org.elasticsearch.license.AbstractLicensingTestBase.getTestPubKeyPath;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = TEST, numDataNodes = 3, numClientNodes = 0)
-public class LicensesPluginIntegrationTests extends ElasticsearchIntegrationTest {
+public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationTests {
 
     private final int trialLicenseDurationInSeconds = 5;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
-                .put("plugins.load_classpath_plugins", false)
+                .put(super.nodeSettings(nodeOrdinal))
                 .put("test_consumer_plugin.trial_license_duration_in_seconds", trialLicenseDurationInSeconds)
                 .put("plugin.types", LicensePlugin.class.getName() + "," + TestConsumerPlugin.class.getName())
                 .build();
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        // Plugin should be loaded on the transport client as well
-        return nodeSettings(0);
     }
 
     @Test

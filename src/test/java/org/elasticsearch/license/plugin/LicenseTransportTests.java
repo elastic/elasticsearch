@@ -36,24 +36,10 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 @ClusterScope(scope = SUITE, numDataNodes = 10)
-public class LicenseTransportTests extends ElasticsearchIntegrationTest {
+public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
 
     private static String pubKeyPath = null;
     private static String priKeyPath = null;
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
-                .put("plugins.load_classpath_plugins", false)
-                .put("plugin.types", LicensePlugin.class.getName())
-                .build();
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        // Plugin should be loaded on the transport client as well
-        return nodeSettings(0);
-    }
 
     @BeforeClass
     public static void setup() throws IOException, URISyntaxException {

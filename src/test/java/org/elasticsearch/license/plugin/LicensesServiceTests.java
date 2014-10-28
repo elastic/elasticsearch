@@ -42,26 +42,12 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = TEST, numDataNodes = 10)
-public class LicensesServiceTests extends ElasticsearchIntegrationTest {
+public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
 
 
     private static String pubKeyPath = null;
     private static String priKeyPath = null;
     private static String node = null;
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
-                .put("plugins.load_classpath_plugins", false)
-                .put("plugin.types", LicensePlugin.class.getName())
-                .build();
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        // Plugin should be loaded on the transport client as well
-        return nodeSettings(0);
-    }
 
     @BeforeClass
     public static void setup() throws IOException, URISyntaxException {
@@ -69,30 +55,9 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         pubKeyPath = Paths.get(LicenseTransportTests.class.getResource("/public.key").toURI()).toAbsolutePath().toString();
     }
 
-
     @Before
     public void beforeTest() throws Exception {
-        final CountDownLatch latch = new CountDownLatch(1);
-        // todo: fix with awaitBusy
-        masterClusterService().submitStateUpdateTask("delete licensing metadata", new ProcessedClusterStateUpdateTask() {
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                latch.countDown();
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                mdBuilder.putCustom(LicensesMetaData.TYPE, null);
-                return ClusterState.builder(currentState).metaData(mdBuilder).build();
-            }
-
-            @Override
-            public void onFailure(String source, @Nullable Throwable t) {
-                logger.error("error on metaData cleanup after test", t);
-            }
-        });
-        latch.await();
+        wipeAllLicenses();
         clear();
 
         DiscoveryNodes discoveryNodes = LicensesServiceTests.masterClusterService().state().getNodes();

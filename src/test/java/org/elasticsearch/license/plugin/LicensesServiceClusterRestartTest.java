@@ -18,8 +18,6 @@ import org.elasticsearch.license.plugin.action.get.GetLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.nio.file.Paths;
@@ -32,34 +30,42 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = SUITE, numDataNodes = 0)
-public class LicensesServiceClusterRestartTest extends ElasticsearchIntegrationTest {
+public class LicensesServiceClusterRestartTest extends AbstractLicensesIntegrationTests {
 
     static String priKeyPath;
     static String pubKeyPath;
 
     @Override
     protected Settings transportClientSettings() {
-        // Plugin should be loaded on the transport client as well
-        return settingsBuilder().build();
+        return super.transportClientSettings();
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("gateway.type", "local")
+                .put("format", "json")
+                .build();
+    }
 
-    @Test @Ignore
+    @Test
     public void test() throws Exception {
         priKeyPath = Paths.get(LicensesServiceClusterRestartTest.class.getResource("/private.key").toURI()).toAbsolutePath().toString();
         pubKeyPath = Paths.get(LicensesServiceClusterRestartTest.class.getResource("/public.key").toURI()).toAbsolutePath().toString();
 
         logger.info("--> starting 1 nodes");
-        String node1 = internalCluster().startNode(settingsBuilder());
-
+        String node1 = internalCluster().startNode();
         ensureGreen();
+        wipeAllLicenses();
+
         final List<ESLicense> esLicenses = putLicense(node1);
         final Client startNodeClient = internalCluster().startNodeClient(settingsBuilder().build());
         //TODO: just pass node name instead
         getAndCheckLicense(startNodeClient, esLicenses);
 
         logger.info("--> cluster state before full cluster restart");
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = clusterService().state();
         logger.info("Cluster state: {}", clusterState);
 
         logger.info("--> restart all nodes");

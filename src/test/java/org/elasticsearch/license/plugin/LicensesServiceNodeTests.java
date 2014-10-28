@@ -21,28 +21,17 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = TEST, numDataNodes = 10, numClientNodes = 0)
-public class LicensesServiceNodeTests extends ElasticsearchIntegrationTest {
+public class LicensesServiceNodeTests extends AbstractLicensesIntegrationTests {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return nodeSettings();
-    }
-
-    private Settings nodeSettings() {
         return ImmutableSettings.settingsBuilder()
-                .put("plugins.load_classpath_plugins", false)
+                .put(super.nodeSettings(nodeOrdinal))
                 .put("test_consumer_plugin.trial_license_duration_in_seconds", 10)
                 .putArray("plugin.types", LicensePlugin.class.getName(), TestConsumerPlugin.class.getName())
                 .put(InternalNode.HTTP_ENABLED, true)
                 .build();
     }
-
-    @Override
-    protected Settings transportClientSettings() {
-        // Plugin should be loaded on the transport client as well
-        return nodeSettings();
-    }
-
 
     @Test
     @TestLogging("_root:DEBUG")

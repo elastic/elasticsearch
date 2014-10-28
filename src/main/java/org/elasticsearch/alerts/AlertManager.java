@@ -544,6 +544,9 @@ public class AlertManager extends AbstractLifecycleComponent {
                 if (alertIndexMetaData != null) {
                     if (event.state().routingTable().index(ALERT_INDEX).allPrimaryShardsActive()) {
                         started.set(true);
+                        // TODO: the starter flag should only be set to true once the alert loader has completed.
+                        // Right now there is a window of time between when started=true and loading has completed where
+                        // alerts can get lost
                         threadPool.executor(ThreadPool.Names.GENERIC).execute(new AlertLoader());
                     }
                 }

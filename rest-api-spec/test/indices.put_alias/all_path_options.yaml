@@ -106,7 +106,7 @@ setup:
 
 
   - do:
-      catch: request
+      catch: param
       indices.put_alias:
         name: alias
 
@@ -116,6 +116,6 @@ setup:
 
 
   - do:
-      catch: request
+      catch: param
       indices.put_alias: {}
 

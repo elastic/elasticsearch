@@ -44,8 +44,6 @@ include::queries/match-all-query.asciidoc[]
 
 include::queries/mlt-query.asciidoc[]
 
-include::queries/mlt-field-query.asciidoc[]
-
 include::queries/nested-query.asciidoc[]
 
 include::queries/prefix-query.asciidoc[]

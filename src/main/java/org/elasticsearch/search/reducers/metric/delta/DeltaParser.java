@@ -32,6 +32,7 @@ public class DeltaParser implements Reducer.Parser {
 
     protected static final ParseField BUCKETS_FIELD = new ParseField("buckets");
     protected static final ParseField FIELD_NAME_FIELD = new ParseField("field");
+    protected static final ParseField GRADIENT_FIELD = new ParseField("gradient");
 
     @Override
     public String type() {
@@ -42,6 +43,7 @@ public class DeltaParser implements Reducer.Parser {
     public ReducerFactory parse(String reducerName, XContentParser parser, SearchContext context) throws IOException {
         String buckets = null;
         String fieldName = null;
+        boolean gradient = false;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -53,6 +55,13 @@ public class DeltaParser implements Reducer.Parser {
                     buckets = parser.text();
                 } else if (FIELD_NAME_FIELD.match(currentFieldName)) {
                     fieldName = parser.text();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
+                            + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                if (GRADIENT_FIELD.match(currentFieldName)) {
+                    gradient = parser.booleanValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].");
@@ -70,7 +79,7 @@ public class DeltaParser implements Reducer.Parser {
         if (fieldName == null) {
             throw new SearchParseException(context, "Missing [" + FIELD_NAME_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
         }
-        return new DeltaReducer.Factory(reducerName, buckets, fieldName);
+        return new DeltaReducer.Factory(reducerName, buckets, fieldName, gradient);
     }
 
 }

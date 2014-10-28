@@ -25,11 +25,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.reducers.*;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -44,60 +42,66 @@ public class DeltaReducer extends Reducer {
         }
     };
     private String fieldName;
+    private boolean gradient;
 
     public static void registerStreams() {
         ReducerFactoryStreams.registerStream(STREAM, InternalDelta.TYPE.stream());
     }
 
-    public DeltaReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context, Reducer parent) {
+    public DeltaReducer(String name, String bucketsPath, String fieldName, boolean gradient, ReducerFactories factories, ReducerContext context, Reducer parent) {
         super(name, bucketsPath, factories, context, parent);
         this.fieldName = fieldName;
+        this.gradient = gradient;
     }
 
     @Override
     public InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType,
             BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
-        List<? extends Bucket> buckets = aggregation.getBuckets();
-        Bucket firstBucket = buckets.get(0);
-        Bucket lastBucket = buckets.get(buckets.size() - 1);
         Queue<String> path = new LinkedBlockingQueue<>(1); // NOCOMMIT using a queue here is clunky. Need to use a better datastructure for paths
         path.offer(fieldName);
-        double firstBucketValue = (double) firstBucket.getProperty(name(), path);
-        path = new LinkedBlockingQueue<>(1);
-        path.offer(fieldName);
-        double lastBucketValue = (double) lastBucket.getProperty(name(), path);
-        return new InternalDelta(name(), lastBucketValue - firstBucketValue);
+        Object[] bucketProperties = (Object[]) aggregation.getProperty(path);
+        double firstBucketValue = (double) bucketProperties[0];
+        double lastBucketValue = (double) bucketProperties[bucketProperties.length - 1];
+        double deltaValue = lastBucketValue - firstBucketValue;
+        if (this.gradient) {
+            deltaValue = deltaValue / (bucketProperties.length - 1);
+        }
+        return new InternalDelta(name(), deltaValue);
     }
 
     public static class Factory extends ReducerFactory {
 
         private String bucketsPath;
         private String fieldName;
+        private boolean showGradient;
 
         public Factory() {
             super(InternalDelta.TYPE);
         }
 
-        public Factory(String name, String bucketsPath, String fieldName) {
+        public Factory(String name, String bucketsPath, String fieldName, boolean showGradient) {
             super(name, InternalDelta.TYPE);
             this.fieldName = fieldName;
+            this.showGradient = showGradient;
         }
 
         @Override
         public Reducer create(ReducerContext context, Reducer parent) {
-            return new DeltaReducer(name, bucketsPath, fieldName, factories, context, parent);
+            return new DeltaReducer(name, bucketsPath, fieldName, showGradient, factories, context, parent);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             name = in.readString();
             bucketsPath = in.readString();
+            showGradient = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             out.writeString(bucketsPath);
+            out.writeBoolean(showGradient);
         }
         
     }

@@ -16,11 +16,13 @@ setup:
   - do:
       indices.put_alias:
         name:  alias1
+        index: _all
         body:
           routing: "routing value"
   - do:
       indices.put_alias:
         name:  alias2
+        index: _all
         body:
           routing: "routing value"
 

@@ -287,7 +287,10 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                             }
                             final IndexMetaData indexMetaData = loadIndexState(indexName);
                             if (indexMetaData != null) {
-                                if (danglingTimeout.millis() == 0) {
+                                if(autoImportDangled.shouldImport()){
+                                    logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state [{}]", indexName, autoImportDangled);
+                                    danglingIndices.put(indexName, new DanglingIndex(indexName, null));
+                                } else if (danglingTimeout.millis() == 0) {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
                                     try {
                                         nodeEnv.deleteIndexDirectorySafe(new Index(indexName));

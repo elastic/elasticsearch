@@ -70,9 +70,8 @@ public abstract class GeoPointCompressedAtomicFieldData extends AbstractAtomicGe
         @Override
         public Iterable<? extends Accountable> getChildResources() {
             List<Accountable> resources = new ArrayList<>();
-            // nocommit: https://issues.apache.org/jira/browse/LUCENE-6026
-            resources.add(Accountables.namedAccountable("latitude", lat.ramBytesUsed()));
-            resources.add(Accountables.namedAccountable("longitude", lon.ramBytesUsed()));
+            resources.add(Accountables.namedAccountable("latitude", lat));
+            resources.add(Accountables.namedAccountable("longitude", lon));
             return Collections.unmodifiableList(resources);
         }
 
@@ -145,9 +144,8 @@ public abstract class GeoPointCompressedAtomicFieldData extends AbstractAtomicGe
         @Override
         public Iterable<? extends Accountable> getChildResources() {
             List<Accountable> resources = new ArrayList<>();
-            // nocommit: https://issues.apache.org/jira/browse/LUCENE-6026
-            resources.add(Accountables.namedAccountable("latitude", lat.ramBytesUsed()));
-            resources.add(Accountables.namedAccountable("longitude", lon.ramBytesUsed()));
+            resources.add(Accountables.namedAccountable("latitude", lat));
+            resources.add(Accountables.namedAccountable("longitude", lon));
             if (set != null) {
                 resources.add(Accountables.namedAccountable("missing bitset", set));
             }

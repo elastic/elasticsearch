@@ -135,7 +135,7 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public Map<String, String> templateParams() {
+    public Map<String, Object> templateParams() {
         return shardSearchLocalRequest.templateParams();
     }
 

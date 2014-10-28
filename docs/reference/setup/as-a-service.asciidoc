@@ -6,9 +6,9 @@ In order to run elasticsearch as a service on your operating system, the provide
 [float]
 === Linux
 
-Currently our build automatically creates a debian package and an RPM package, which is available on the download page. The package itself does not have any dependencies, but you have to make sure that you installed a JDK.
+Currently our build automatically creates a Debian package and an RPM package with <<setup-dir-layout,these directory structures>>, which are available on the download page. The package itself does not have any dependencies, but you have to make sure that you installed a JDK.
 
-Each package features a configuration file, which allows you to set the following parameters
+Each package features a configuration file, which allows you to set the following parameters:
 
 [horizontal]
 `ES_USER`::               The user to run as, defaults to `elasticsearch`
@@ -41,9 +41,9 @@ sudo /etc/init.d/elasticsearch start
 --------------------------------------------------
 
 [float]
-===== Installing the oracle JDK
+===== Installing the Oracle JDK
 
-The usual recommendation is to run the Oracle JDK with elasticsearch. However Ubuntu and Debian only ship the OpenJDK due to license issues. You can easily install the oracle installer package though. In case you are missing the `add-apt-repository` command under Debian GNU/Linux, make sure have at least Debian Wheezy and the package `python-software-properties` installed
+The usual recommendation is to run the Oracle JDK with elasticsearch. However, Ubuntu and Debian only ship with the OpenJDK due to license issues. You can easily run the Oracle installer package though. In case you are missing the `add-apt-repository` command under Debian GNU/Linux, make sure have at least Debian Wheezy and the package `python-software-properties` installed
 
 [source,sh]
 --------------------------------------------------

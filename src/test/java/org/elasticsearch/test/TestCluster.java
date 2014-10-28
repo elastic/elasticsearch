@@ -44,10 +44,19 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 public abstract class TestCluster implements Iterable<Client>, Closeable {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
+    private final long seed;
 
     protected Random random;
 
     protected double transportClientRatio = 0.0;
+
+    public TestCluster(long seed) {
+        this.seed = seed;
+    }
+
+    public long seed() {
+        return seed;
+    }
 
     /**
      * This method should be executed before each test to reset the cluster to its initial state.

@@ -30,6 +30,8 @@ import org.elasticsearch.search.reducers.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class DeltaReducer extends Reducer {
 
@@ -58,8 +60,13 @@ public class DeltaReducer extends Reducer {
         List<? extends Bucket> buckets = aggregation.getBuckets();
         Bucket firstBucket = buckets.get(0);
         Bucket lastBucket = buckets.get(buckets.size() - 1);
-        
-        return null;
+        Queue<String> path = new LinkedBlockingQueue<>(1); // NOCOMMIT using a queue here is clunky. Need to use a better datastructure for paths
+        path.offer(fieldName);
+        double firstBucketValue = (double) firstBucket.getProperty(name(), path);
+        path = new LinkedBlockingQueue<>(1);
+        path.offer(fieldName);
+        double lastBucketValue = (double) lastBucket.getProperty(name(), path);
+        return new InternalDelta(name(), lastBucketValue - firstBucketValue);
     }
 
     public static class Factory extends ReducerFactory {

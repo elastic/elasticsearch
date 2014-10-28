@@ -53,6 +53,7 @@ public class InternalDelta extends InternalNumericMetricsAggregation.SingleValue
 
     public InternalDelta(String name, double deltaValue) {
         super(name);
+        this.value = deltaValue;
     }
 
     @Override

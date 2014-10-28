@@ -83,6 +83,7 @@ public class DeltaReducer extends Reducer {
             super(name, InternalDelta.TYPE);
             this.fieldName = fieldName;
             this.showGradient = showGradient;
+            this.bucketsPath = bucketsPath;
         }
 
         @Override

@@ -21,6 +21,8 @@ package org.elasticsearch.search.reducers;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.InternalSlidingWindow;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowReducer;
+import org.elasticsearch.search.reducers.metric.avg.AvgReducer;
+import org.elasticsearch.search.reducers.metric.avg.InternalAvg;
 import org.elasticsearch.search.reducers.metric.delta.DeltaReducer;
 import org.elasticsearch.search.reducers.metric.delta.InternalDelta;
 
@@ -36,9 +38,11 @@ public class TransportReductionModule extends AbstractModule {
 //        InternalMetricReduction.registerStreams();
         InternalSlidingWindow.registerStreams();
         InternalDelta.registerStreams();
+        InternalAvg.registerStreams();
         
         // NOCOMMIT register reducerFactoryStreams
         SlidingWindowReducer.registerStreams();
         DeltaReducer.registerStreams();
+        AvgReducer.registerStreams();
     }
 }

@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowParser;
+import org.elasticsearch.search.reducers.metric.avg.AvgParser;
 import org.elasticsearch.search.reducers.metric.delta.DeltaParser;
 
 import java.util.List;
@@ -34,6 +35,7 @@ public class ReductionModule extends AbstractModule {
     public ReductionModule() {
         parsers.add(SlidingWindowParser.class);
         parsers.add(DeltaParser.class);
+        parsers.add(AvgParser.class);
     }
 
     /**

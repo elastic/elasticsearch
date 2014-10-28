@@ -5,23 +5,30 @@
  */
 package org.elasticsearch.license.core;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
 import java.util.*;
 
 public class ESLicenses {
 
-    public static void toXContent(Collection<ESLicense> licenses, XContentBuilder builder) throws IOException {
+    final static class Fields {
+        static final String LICENSES = "licenses";
+    }
+
+    private final static class XFields {
+        static final XContentBuilderString LICENSES = new XContentBuilderString(Fields.LICENSES);
+    }
+
+    public static void toXContent(Collection<ESLicense> licenses, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.startArray("licenses");
+        builder.startArray(XFields.LICENSES);
         for (ESLicense license : licenses) {
-            ESLicense.toXContent(license, builder);
+            license.toXContent(builder, params);
         }
         builder.endArray();
         builder.endObject();
@@ -35,23 +42,35 @@ public class ESLicenses {
         return fromXContent(XContentFactory.xContent(bytes).createParser(bytes));
     }
 
-    private static List<ESLicense> fromXContent(XContentParser parser) throws IOException {
-        Set<ESLicense> esLicenses = new HashSet<>();
-        final Map<String, Object> licensesMap = parser.mapAndClose();
-        @SuppressWarnings("unchecked")
-        final List<Map<String, Object>> licenseMaps = (ArrayList<Map<String, Object>>)licensesMap.get("licenses");
-        for (Map<String, Object> licenseMap : licenseMaps) {
-            final ESLicense esLicense = ESLicense.fromXContent(licenseMap);
-            esLicenses.add(esLicense);
+    public static List<ESLicense> fromXContent(XContentParser parser) throws IOException {
+        List<ESLicense> esLicenses = new ArrayList<>();
+        if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+            if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                String currentFieldName = parser.currentName();
+                if (Fields.LICENSES.equals(currentFieldName)) {
+                    if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            esLicenses.add(ESLicense.fromXContent(parser));
+                        }
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse licenses expected an array of licenses");
+                    }
+                }
+                // Ignore all other fields - might be created with new version
+            } else {
+                throw new ElasticsearchParseException("failed to parse licenses expected field");
+            }
+        } else {
+            throw new ElasticsearchParseException("failed to parse licenses expected start object");
         }
-        return new ArrayList<>(esLicenses);
+        return esLicenses;
     }
 
     public static List<ESLicense> readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
         List<ESLicense> esLicenses = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            esLicenses.add(ESLicense.readFrom(in));
+            esLicenses.add(ESLicense.readESLicense(in));
         }
         return esLicenses;
     }
@@ -59,9 +78,8 @@ public class ESLicenses {
     public static void writeTo(List<ESLicense> esLicenses, StreamOutput out) throws IOException {
         out.writeVInt(esLicenses.size());
         for (ESLicense license : esLicenses) {
-            ESLicense.writeTo(license, out);
+            license.writeTo(out);
         }
-
     }
 
     public static ImmutableMap<String, ESLicense> reduceAndMap(Set<ESLicense> esLicensesSet) {

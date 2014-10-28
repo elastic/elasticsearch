@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.license.core;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
-public class ESLicense implements Comparable<ESLicense> {
+public class ESLicense implements Comparable<ESLicense>, ToXContent {
 
     private final String uid;
     private final String issuer;
@@ -115,6 +117,129 @@ public class ESLicense implements Comparable<ESLicense> {
     public int compareTo(ESLicense o) {
         assert o != null;
         return Long.compare(expiryDate, o.expiryDate);
+    }
+
+    static ESLicense readESLicense(StreamInput in) throws IOException {
+        in.readVInt(); // Version for future extensibility
+        Builder builder = builder();
+        builder.uid(in.readString());
+        builder.type(Type.fromString(in.readString()));
+        builder.subscriptionType(SubscriptionType.fromString(in.readString()));
+        builder.issueDate(in.readLong());
+        builder.feature(in.readString());
+        builder.expiryDate(in.readLong());
+        builder.maxNodes(in.readInt());
+        builder.issuedTo(in.readString());
+        builder.issuer(in.readString());
+        builder.signature(in.readOptionalString());
+        return builder.verifyAndBuild();
+    }
+
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(VERSION);
+        out.writeString(uid);
+        out.writeString(type.string());
+        out.writeString(subscriptionType.string());
+        out.writeLong(issueDate);
+        out.writeString(feature);
+        out.writeLong(expiryDate);
+        out.writeInt(maxNodes);
+        out.writeString(issuedTo);
+        out.writeString(issuer);
+        out.writeOptionalString(signature);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(XFields.UID, uid);
+        builder.field(XFields.TYPE, type.string());
+        builder.field(XFields.SUBSCRIPTION_TYPE, subscriptionType.string());
+        builder.field(XFields.ISSUE_DATE, issueDate);
+        builder.field(XFields.FEATURE, feature);
+        builder.field(XFields.EXPIRY_DATE, expiryDate);
+        builder.field(XFields.MAX_NODES, maxNodes);
+        builder.field(XFields.ISSUED_TO, issuedTo);
+        builder.field(XFields.ISSUER, issuer);
+        if (signature != null) {
+            builder.field(XFields.SIGNATURE, signature);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    private final static int VERSION = 1;
+
+    final static class Fields {
+        static final String UID = "uid";
+        static final String TYPE = "type";
+        static final String SUBSCRIPTION_TYPE = "subscription_type";
+        static final String ISSUE_DATE = "issue_date";
+        static final String FEATURE = "feature";
+        static final String EXPIRY_DATE = "expiry_date";
+        static final String MAX_NODES = "max_nodes";
+        static final String ISSUED_TO = "issued_to";
+        static final String ISSUER = "issuer";
+        static final String SIGNATURE = "signature";
+    }
+
+    private final static class XFields {
+        static final XContentBuilderString UID = new XContentBuilderString(Fields.UID);
+        static final XContentBuilderString TYPE = new XContentBuilderString(Fields.TYPE);
+        static final XContentBuilderString SUBSCRIPTION_TYPE = new XContentBuilderString(Fields.SUBSCRIPTION_TYPE);
+        static final XContentBuilderString ISSUE_DATE = new XContentBuilderString(Fields.ISSUE_DATE);
+        static final XContentBuilderString FEATURE = new XContentBuilderString(Fields.FEATURE);
+        static final XContentBuilderString EXPIRY_DATE = new XContentBuilderString(Fields.EXPIRY_DATE);
+        static final XContentBuilderString MAX_NODES = new XContentBuilderString(Fields.MAX_NODES);
+        static final XContentBuilderString ISSUED_TO = new XContentBuilderString(Fields.ISSUED_TO);
+        static final XContentBuilderString ISSUER = new XContentBuilderString(Fields.ISSUER);
+        static final XContentBuilderString SIGNATURE = new XContentBuilderString(Fields.SIGNATURE);
+    }
+
+    public static ESLicense fromXContent(XContentParser parser) throws IOException {
+        Builder builder = new Builder();
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.START_OBJECT) {
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    String currentFieldName = parser.currentName();
+                    token = parser.nextToken();
+                    if (token.isValue()) {
+                        if (Fields.UID.equals(currentFieldName)) {
+                            builder.uid(parser.text());
+                        } else if (Fields.TYPE.equals(currentFieldName)) {
+                            builder.type(Type.fromString(parser.text()));
+                        } else if (Fields.SUBSCRIPTION_TYPE.equals(currentFieldName)) {
+                            builder.subscriptionType(SubscriptionType.fromString(parser.text()));
+                        } else if (Fields.ISSUE_DATE.equals(currentFieldName)) {
+                            builder.issueDate(parser.longValue());
+                        } else if (Fields.FEATURE.equals(currentFieldName)) {
+                            builder.feature(parser.text());
+                        } else if (Fields.EXPIRY_DATE.equals(currentFieldName)) {
+                            builder.expiryDate(parser.longValue());
+                        } else if (Fields.MAX_NODES.equals(currentFieldName)) {
+                            builder.maxNodes(parser.intValue());
+                        } else if (Fields.ISSUED_TO.equals(currentFieldName)) {
+                            builder.issuedTo(parser.text());
+                        } else if (Fields.ISSUER.equals(currentFieldName)) {
+                            builder.issuer(parser.text());
+                        } else if (Fields.SIGNATURE.equals(currentFieldName)) {
+                            builder.signature(parser.text());
+                        }
+                        // Ignore unknown elements - might be new version of license
+                    } else if (token == XContentParser.Token.START_ARRAY) {
+                        // It was probably created by newer version - ignoring
+                        parser.skipChildren();
+                    } else if (token == XContentParser.Token.START_OBJECT) {
+                        // It was probably created by newer version - ignoring
+                        parser.skipChildren();
+                    }
+                }
+            }
+        } else {
+            throw new ElasticsearchParseException("failed to parse licenses expected a license object");
+        }
+        return builder.verifyAndBuild();
     }
 
     /**
@@ -304,83 +429,6 @@ public class ESLicense implements Comparable<ESLicense> {
                throw new IllegalStateException("expiryDate has to be set");
             }
         }
-    }
-
-
-    final static class Fields {
-        static final String UID = "uid";
-        static final String TYPE = "type";
-        static final String SUBSCRIPTION_TYPE = "subscription_type";
-        static final String ISSUE_DATE = "issue_date";
-        static final String FEATURE = "feature";
-        static final String EXPIRY_DATE = "expiry_date";
-        static final String MAX_NODES = "max_nodes";
-        static final String ISSUED_TO = "issued_to";
-        static final String ISSUER = "issuer";
-        static final String SIGNATURE = "signature";
-    }
-
-
-    static void toXContent(ESLicense license, XContentBuilder builder) throws IOException {
-        builder.startObject();
-        builder.field(Fields.UID, license.uid);
-        builder.field(Fields.TYPE, license.type.string());
-        builder.field(Fields.SUBSCRIPTION_TYPE, license.subscriptionType.string());
-        builder.field(Fields.ISSUE_DATE, license.issueDate);
-        builder.field(Fields.FEATURE, license.feature);
-        builder.field(Fields.EXPIRY_DATE, license.expiryDate);
-        builder.field(Fields.MAX_NODES, license.maxNodes);
-        builder.field(Fields.ISSUED_TO, license.issuedTo);
-        builder.field(Fields.ISSUER, license.issuer);
-        builder.field(Fields.SIGNATURE, license.signature);
-        builder.endObject();
-    }
-
-
-    static ESLicense fromXContent(Map<String, Object> map) throws IOException {
-        return new Builder()
-                .uid((String) map.get(Fields.UID))
-                .type(Type.fromString((String) map.get(Fields.TYPE)))
-                .subscriptionType(SubscriptionType.fromString((String) map.get(Fields.SUBSCRIPTION_TYPE)))
-                .feature((String) map.get(Fields.FEATURE))
-                .maxNodes((int) map.get(Fields.MAX_NODES))
-                .issuedTo((String) map.get(Fields.ISSUED_TO))
-                .signature((String) map.get(Fields.SIGNATURE))
-                .issueDate((long) map.get(Fields.ISSUE_DATE))
-                .expiryDate((long) map.get(Fields.EXPIRY_DATE))
-                .issuer((String) map.get(Fields.ISSUER))
-                .verifyAndBuild();
-    }
-
-    static ESLicense readFrom(StreamInput in) throws IOException {
-        Map<String, Object> licenseMap = in.readMap();
-        return builder()
-                .uid((String) licenseMap.get(Fields.UID))
-                .type(Type.fromString((String) licenseMap.get(Fields.TYPE)))
-                .subscriptionType(SubscriptionType.fromString((String) licenseMap.get(Fields.SUBSCRIPTION_TYPE)))
-                .issueDate((long) licenseMap.get(Fields.ISSUE_DATE))
-                .feature((String) licenseMap.get(Fields.FEATURE))
-                .expiryDate((long) licenseMap.get(Fields.EXPIRY_DATE))
-                .maxNodes((int) licenseMap.get(Fields.MAX_NODES))
-                .issuedTo((String) licenseMap.get(Fields.ISSUED_TO))
-                .signature((String) licenseMap.get(Fields.SIGNATURE))
-                .issuer((String) licenseMap.get(Fields.ISSUER))
-                .verifyAndBuild();
-    }
-
-    static void writeTo(ESLicense esLicense, StreamOutput out) throws IOException {
-        Map<String, Object> licenseMap = new HashMap<>();
-        licenseMap.put(Fields.UID, esLicense.uid);
-        licenseMap.put(Fields.TYPE, esLicense.type.string());
-        licenseMap.put(Fields.SUBSCRIPTION_TYPE, esLicense.subscriptionType.string());
-        licenseMap.put(Fields.ISSUE_DATE, esLicense.issueDate);
-        licenseMap.put(Fields.FEATURE, esLicense.feature);
-        licenseMap.put(Fields.EXPIRY_DATE, esLicense.expiryDate);
-        licenseMap.put(Fields.MAX_NODES, esLicense.maxNodes);
-        licenseMap.put(Fields.ISSUED_TO, esLicense.issuedTo);
-        licenseMap.put(Fields.ISSUER, esLicense.issuer);
-        licenseMap.put(Fields.SIGNATURE, esLicense.signature);
-        out.writeMap(licenseMap);
     }
 
 }

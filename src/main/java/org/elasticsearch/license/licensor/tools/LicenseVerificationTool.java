@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -80,7 +81,7 @@ public class LicenseVerificationTool {
 
         // dump effective licences
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, out);
-        ESLicenses.toXContent(licenseProvider.getEffectiveLicenses().values(), builder);
+        ESLicenses.toXContent(licenseProvider.getEffectiveLicenses().values(), builder, ToXContent.EMPTY_PARAMS);
         builder.flush();
     }
 

@@ -32,9 +32,13 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.*;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
@@ -89,13 +93,12 @@ public abstract class MetaDataStateFormat<T> {
         Preconditions.checkArgument(locations != null, "Locations must not be null");
         Preconditions.checkArgument(locations.length > 0, "One or more locations required");
         String fileName = prefix + version + STATE_FILE_EXTENSION;
-        File stateLocation = new File(locations[0], STATE_DIR_NAME);
-        FileSystemUtils.mkdirs(stateLocation);
-        final File tmpStateFile = new File(stateLocation, fileName + ".tmp");
-        final Path tmpStatePath = tmpStateFile.toPath();
-        final Path finalStatePath = new File(stateLocation, fileName).toPath();
+        Path stateLocation = Paths.get(locations[0].getPath(), STATE_DIR_NAME);
+        Files.createDirectories(stateLocation);
+        final Path tmpStatePath = stateLocation.resolve(fileName + ".tmp");
+        final Path finalStatePath = stateLocation.resolve(fileName);
         try {
-            try (OutputStreamIndexOutput out = new OutputStreamIndexOutput(new FileOutputStream(tmpStateFile), BUFFER_SIZE)) {
+            try (OutputStreamIndexOutput out = new OutputStreamIndexOutput(Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
                 out.writeInt(format.index());
                 out.writeLong(version);
@@ -114,24 +117,24 @@ public abstract class MetaDataStateFormat<T> {
                 }
                 CodecUtil.writeFooter(out);
             }
-            IOUtils.fsync(tmpStateFile, false); // fsync the state file
+            IOUtils.fsync(tmpStatePath.toFile(), false); // fsync the state file
             Files.move(tmpStatePath, finalStatePath, StandardCopyOption.ATOMIC_MOVE);
-            IOUtils.fsync(stateLocation, true);
+            IOUtils.fsync(stateLocation.toFile(), true);
             for (int i = 1; i < locations.length; i++) {
-                stateLocation = new File(locations[i], STATE_DIR_NAME);
-                FileSystemUtils.mkdirs(stateLocation);
-                Path tmpPath = new File(stateLocation, fileName + ".tmp").toPath();
-                Path finalPath = new File(stateLocation, fileName).toPath();
+                stateLocation = Paths.get(locations[i].getPath(), STATE_DIR_NAME);
+                Files.createDirectories(stateLocation);
+                Path tmpPath = stateLocation.resolve(fileName + ".tmp");
+                Path finalPath = stateLocation.resolve(fileName);
                 try {
                     Files.copy(finalStatePath, tmpPath);
                     Files.move(tmpPath, finalPath, StandardCopyOption.ATOMIC_MOVE); // we are on the same FileSystem / Partition here we can do an atomic move
-                    IOUtils.fsync(stateLocation, true); // we just fsync the dir here..
+                    IOUtils.fsync(stateLocation.toFile(), true); // we just fsync the dir here..
                 } finally {
                     Files.deleteIfExists(tmpPath);
                 }
             }
         } finally {
-            Files.deleteIfExists(tmpStateFile.toPath());
+            Files.deleteIfExists(tmpStatePath);
         }
         if (deleteOldFiles) {
             cleanupOldFiles(prefix, fileName, locations);

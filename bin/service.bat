@@ -138,10 +138,17 @@ if NOT "%ES_DIRECT_SIZE%" == "" set JAVA_OPTS=%JAVA_OPTS% -XX:MaxDirectMemorySiz
 rem thread stack size
 set JVM_SS=256
 
+REM set to headless, just in case
+set JAVA_OPTS=%JAVA_OPTS% -Djava.awt.headless=true
+
+REM Force the JVM to use IPv4 stack
+if NOT "%ES_USE_IPV4%" == "" (
+set JAVA_OPTS=%JAVA_OPTS% -Djava.net.preferIPv4Stack=true
+)
+
 REM Enable aggressive optimizations in the JVM
 REM    - Disabled by default as it might cause the JVM to crash
 REM set JAVA_OPTS=%JAVA_OPTS% -XX:+AggressiveOpts
-
 
 set JAVA_OPTS=%JAVA_OPTS% -XX:+UseConcMarkSweepGC
 

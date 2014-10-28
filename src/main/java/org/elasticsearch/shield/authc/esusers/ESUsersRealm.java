@@ -5,17 +5,14 @@
  */
 package org.elasticsearch.shield.authc.esusers;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.name.Named;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.support.CachingUsernamePasswordRealm;
-import org.elasticsearch.shield.authc.support.UserPasswdStore;
-import org.elasticsearch.shield.authc.support.UserRolesStore;
+import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.transport.TransportMessage;
 
@@ -26,15 +23,18 @@ public class ESUsersRealm extends CachingUsernamePasswordRealm {
 
     public static final String TYPE = "esusers";
 
-    final UserPasswdStore userPasswdStore;
-    final UserRolesStore userRolesStore;
+    final FileUserPasswdStore userPasswdStore;
+    final FileUserRolesStore userRolesStore;
 
     @Inject
-    public ESUsersRealm(Settings settings, @Named("file") UserPasswdStore userPasswdStore,
-                        @Named("file") UserRolesStore userRolesStore, RestController restController) {
+    public ESUsersRealm(Settings settings, FileUserPasswdStore userPasswdStore,
+                        FileUserRolesStore userRolesStore, RestController restController) {
         super(settings);
+        Listener listener = new Listener();
         this.userPasswdStore = userPasswdStore;
+        userPasswdStore.addListener(listener);
         this.userRolesStore = userRolesStore;
+        userRolesStore.addListener(listener);
         restController.registerRelevantHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
     }
 
@@ -60,16 +60,17 @@ public class ESUsersRealm extends CachingUsernamePasswordRealm {
 
     @Override
     protected User doAuthenticate(UsernamePasswordToken token) {
-        if (userPasswdStore == null) {
-            return null;
-        }
         if (!userPasswdStore.verifyPassword(token.principal(), token.credentials())) {
             return null;
         }
-        String[] roles = Strings.EMPTY_ARRAY;
-        if (userRolesStore != null) {
-            roles = userRolesStore.roles(token.principal());
-        }
+        String[] roles = userRolesStore.roles(token.principal());
         return new User.Simple(token.principal(), roles);
+    }
+
+    class Listener implements RefreshListener {
+        @Override
+        public void onRefresh() {
+            expireAll();
+        }
     }
 }

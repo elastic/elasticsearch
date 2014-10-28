@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -27,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * This class loads and monitors the file defining the mappings of LDAP Group DNs to internal ES Roles.
@@ -38,16 +40,17 @@ public class LdapGroupToRoleMapper extends AbstractComponent {
     public static final String USE_UNMAPPED_GROUPS_AS_ROLES_SETTING = "unmapped_groups_as_roles";
 
     private final Path file;
-    private final Listener listener;
     private final boolean useUnmappedGroupsAsRoles;
     private volatile ImmutableMap<LdapName, Set<String>> groupRoles;
 
+    private CopyOnWriteArrayList<RefreshListener> listeners;
+
     @Inject
     public LdapGroupToRoleMapper(Settings settings, Environment env, ResourceWatcherService watcherService) {
-        this(settings, env, watcherService, Listener.NOOP);
+        this(settings, env, watcherService, null);
     }
 
-    LdapGroupToRoleMapper(Settings settings, Environment env, ResourceWatcherService watcherService, Listener listener) {
+    LdapGroupToRoleMapper(Settings settings, Environment env, ResourceWatcherService watcherService, RefreshListener listener) {
         super(settings);
         useUnmappedGroupsAsRoles = componentSettings.getAsBoolean(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false);
         file = resolveFile(componentSettings, env);
@@ -55,7 +58,14 @@ public class LdapGroupToRoleMapper extends AbstractComponent {
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
-        this.listener = listener;
+        listeners = new CopyOnWriteArrayList<>();
+        if (listener != null) {
+            listeners.add(listener);
+        }
+    }
+
+    synchronized void addListener(RefreshListener listener) {
+        listeners.add(listener);
     }
 
     public static Path resolveFile(Settings settings, Environment env) {
@@ -121,6 +131,12 @@ public class LdapGroupToRoleMapper extends AbstractComponent {
         return (String) groupLdapName.getRdn(groupLdapName.size() - 1).getValue();
     }
 
+    protected void notifyRefresh() {
+        for (RefreshListener listener : listeners) {
+            listener.onRefresh();
+        }
+    }
+
     private class FileListener extends FileChangesListener {
         @Override
         public void onFileCreated(File file) {
@@ -136,7 +152,7 @@ public class LdapGroupToRoleMapper extends AbstractComponent {
         public void onFileChanged(File file) {
             if (file.equals(LdapGroupToRoleMapper.this.file.toFile())) {
                 groupRoles = parseFile(file.toPath(), logger);
-                listener.onRefresh();
+                notifyRefresh();
             }
         }
     }

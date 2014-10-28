@@ -15,8 +15,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.support.Hasher;
+import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authc.support.UserPasswdStore;
 import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -32,25 +32,26 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  *
  */
-public class FileUserPasswdStore extends AbstractComponent implements UserPasswdStore {
+public class FileUserPasswdStore extends AbstractComponent {
 
     private final Path file;
     final Hasher hasher = Hasher.HTPASSWD;
 
     private volatile ImmutableMap<String, char[]> esUsers;
 
-    private final Listener listener;
+    private CopyOnWriteArrayList<RefreshListener> listeners;
 
     @Inject
     public FileUserPasswdStore(Settings settings, Environment env, ResourceWatcherService watcherService) {
-        this(settings, env, watcherService, Listener.NOOP);
+        this(settings, env, watcherService, null);
     }
 
-    FileUserPasswdStore(Settings settings, Environment env, ResourceWatcherService watcherService, Listener listener) {
+    FileUserPasswdStore(Settings settings, Environment env, ResourceWatcherService watcherService, RefreshListener listener) {
         super(settings);
         file = resolveFile(settings, env);
         esUsers = parseFile(file, logger);
@@ -60,10 +61,16 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
         FileWatcher watcher = new FileWatcher(file.getParent().toFile());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
-        this.listener = listener;
+        listeners = new CopyOnWriteArrayList<>();
+        if (listener != null) {
+            listeners.add(listener);
+        }
     }
 
-    @Override
+    void addListener(RefreshListener listener) {
+        listeners.add(listener);
+    }
+
     public boolean verifyPassword(String username, SecuredString password) {
         if (esUsers == null) {
             return false;
@@ -139,20 +146,23 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
         }
     }
 
+    protected void notifyRefresh() {
+        for (RefreshListener listener : listeners) {
+            listener.onRefresh();
+        }
+    }
+
     private class FileListener extends FileChangesListener {
         @Override
         public void onFileCreated(File file) {
-            if (file.equals(FileUserPasswdStore.this.file.toFile())) {
-                esUsers = parseFile(file.toPath(), logger);
-                listener.onRefresh();
-            }
+            onFileChanged(file);
         }
 
         @Override
         public void onFileDeleted(File file) {
             if (file.equals(FileUserPasswdStore.this.file.toFile())) {
                 esUsers = ImmutableMap.of();
-                listener.onRefresh();
+                notifyRefresh();
             }
         }
 
@@ -160,19 +170,8 @@ public class FileUserPasswdStore extends AbstractComponent implements UserPasswd
         public void onFileChanged(File file) {
             if (file.equals(FileUserPasswdStore.this.file.toFile())) {
                 esUsers = parseFile(file.toPath(), logger);
-                listener.onRefresh();
+                notifyRefresh();
             }
         }
-    }
-
-    public static interface Listener {
-
-        final Listener NOOP = new Listener() {
-            @Override
-            public void onRefresh() {
-            }
-        };
-
-        void onRefresh();
     }
 }

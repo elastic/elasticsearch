@@ -7,12 +7,7 @@ package org.elasticsearch.shield.authc.esusers;
 
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.authc.Realm;
-import org.elasticsearch.shield.authc.support.UserPasswdStore;
-import org.elasticsearch.shield.authc.support.UserRolesStore;
 import org.elasticsearch.shield.support.AbstractShieldModule;
-
-import static org.elasticsearch.common.inject.name.Names.named;
 
 /**
  *
@@ -30,8 +25,8 @@ public class ESUsersModule extends AbstractShieldModule.Node {
     protected void configureNode() {
         if (enabled) {
             bind(ESUsersRealm.class).asEagerSingleton();
-            bind(UserPasswdStore.class).annotatedWith(named("file")).to(FileUserPasswdStore.class).asEagerSingleton();
-            bind(UserRolesStore.class).annotatedWith(named("file")).to(FileUserRolesStore.class).asEagerSingleton();
+            bind(FileUserPasswdStore.class).asEagerSingleton();
+            bind(FileUserRolesStore.class).asEagerSingleton();
         } else {
             bind(ESUsersRealm.class).toProvider(Providers.<ESUsersRealm>of(null));
         }

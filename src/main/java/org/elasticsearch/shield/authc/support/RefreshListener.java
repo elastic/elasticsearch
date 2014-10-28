@@ -8,16 +8,14 @@ package org.elasticsearch.shield.authc.support;
 /**
  *
  */
-public interface UserPasswdStore {
+public interface RefreshListener {
 
-    boolean verifyPassword(String username, SecuredString password);
+    static final RefreshListener NOOP = new RefreshListener() {
+        @Override
+        public void onRefresh() {
+        }
+    };
 
-    static interface Writable extends UserPasswdStore {
-
-        void store(String username, SecuredString password);
-
-        void remove(String username);
-
-    }
+    void onRefresh();
 
 }

@@ -22,6 +22,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionManager;
+import org.elasticsearch.alerts.actions.AlertActionRegistry;
+import org.elasticsearch.alerts.actions.AlertActionEntry;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.TriggerManager;
@@ -31,7 +33,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,11 +61,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AlertManager extends AbstractLifecycleComponent {
 
+
     public static final String ALERT_INDEX = ".alerts";
     public static final String ALERT_TYPE = "alert";
-    public static final String ALERT_HISTORY_INDEX = "alerthistory";
-    public static final String ALERT_HISTORY_TYPE = "alertHistory";
-
     public static final ParseField QUERY_FIELD =  new ParseField("query");
     public static final ParseField SCHEDULE_FIELD =  new ParseField("schedule");
     public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
@@ -79,11 +79,16 @@ public class AlertManager extends AbstractLifecycleComponent {
 
     private final Client client;
     private AlertScheduler scheduler;
+    private final ThreadPool threadPool;
 
     private final ConcurrentMap<String,Alert> alertMap;
 
     private AtomicBoolean started = new AtomicBoolean(false);
+    private AtomicBoolean startActions = new AtomicBoolean(false);
+
+    private AlertActionRegistry actionRegistry;
     private AlertActionManager actionManager;
+
     final TimeValue defaultTimePeriod = new TimeValue(300*1000); //TODO : read from config
 
 
@@ -91,10 +96,6 @@ public class AlertManager extends AbstractLifecycleComponent {
         for (Map.Entry<String, Alert> entry : alertMap.entrySet()) {
             scheduler.addAlert(entry.getKey(), entry.getValue());
         }
-    }
-
-    public void setActionManager(AlertActionManager actionManager){
-        this.actionManager = actionManager;
     }
 
     @Override
@@ -114,21 +115,25 @@ public class AlertManager extends AbstractLifecycleComponent {
 
 
     @Inject
-    public AlertManager(Settings settings, Client client, ClusterService clusterService) {
+    public AlertManager(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool,
+                        AlertActionRegistry actionRegistry) {
         super(settings);
         logger.warn("Initing AlertManager");
         this.client = client;
         alertMap = ConcurrentCollections.newConcurrentMap();
         clusterService.add(new AlertsClusterStateListener());
+        this.threadPool = threadPool;
+        this.actionRegistry = actionRegistry;
+        this.actionManager = new AlertActionManager(client, this, actionRegistry, threadPool);
     }
 
     public void setAlertScheduler(AlertScheduler scheduler){
         this.scheduler = scheduler;
     }
 
+
     private ClusterHealthStatus createAlertsIndex() {
         CreateIndexResponse cir = client.admin().indices().prepareCreate(ALERT_INDEX).addMapping(ALERT_TYPE).execute().actionGet(); //TODO FIX MAPPINGS
-        logger.warn(cir.toString());
         ClusterHealthResponse actionGet = client.admin().cluster()
                 .health(Requests.clusterHealthRequest(ALERT_INDEX).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         return actionGet.getStatus();
@@ -141,6 +146,25 @@ public class AlertManager extends AbstractLifecycleComponent {
             return null;
         } else {
             return indexedAlert.lastActionFire();
+        }
+    }
+
+
+    public void doAction(Alert alert, AlertActionEntry result, DateTime scheduledTime) {
+        logger.warn("We have triggered");
+        DateTime lastActionFire = timeActionLastTriggered(alert.alertName());
+        long msSinceLastAction = scheduledTime.getMillis() - lastActionFire.getMillis();
+        logger.error("last action fire [{}]", lastActionFire);
+        logger.error("msSinceLastAction [{}]", msSinceLastAction);
+
+        if (alert.timePeriod().getMillis() > msSinceLastAction) {
+            logger.warn("Not firing action because it was fired in the timePeriod");
+        } else {
+            actionRegistry.doAction(alert, result);
+            logger.warn("Did action !");
+
+            alert.lastActionFire(scheduledTime);
+            persistAlert(alert.alertName(), alert, IndexRequest.OpType.INDEX);
         }
     }
 
@@ -235,6 +259,7 @@ public class AlertManager extends AbstractLifecycleComponent {
         if (!client.admin().indices().prepareExists(ALERT_INDEX).execute().actionGet().isExists()) {
             createAlertsIndex();
         }
+
         SearchResponse searchResponse = client.prepareSearch().setSource(
                 "{ \"query\" : " +
                         "{ \"match_all\" :  {}}," +
@@ -257,15 +282,11 @@ public class AlertManager extends AbstractLifecycleComponent {
         return 0;
     }
 
-    public boolean updateLastRan(String alertName, DateTime fireTime, DateTime scheduledTime, boolean firedAction) throws Exception {
+    public boolean updateLastRan(String alertName, DateTime fireTime, DateTime scheduledTime) throws Exception {
         try {
             Alert alert = getAlertForName(alertName);
             alert.lastRan(fireTime);
             XContentBuilder alertBuilder = XContentFactory.jsonBuilder().prettyPrint();
-            if (firedAction) {
-                logger.error("Fired action [{}]",firedAction);
-                alert.lastActionFire(scheduledTime);
-            }
             alert.toXContent(alertBuilder, ToXContent.EMPTY_PARAMS);
             logger.error(XContentHelper.convertToJson(alertBuilder.bytes(),false,true));
             UpdateRequest updateRequest = new UpdateRequest();
@@ -283,46 +304,6 @@ public class AlertManager extends AbstractLifecycleComponent {
         }
     }
 
-    public boolean addHistory(String alertName, boolean triggered,
-                              DateTime fireTime, SearchRequestBuilder triggeringQuery,
-                              AlertTrigger trigger, long numberOfResults,
-                              List<AlertAction> actions,
-                              @Nullable List<String> indices) throws Exception {
-        XContentBuilder historyEntry = XContentFactory.jsonBuilder();
-        historyEntry.startObject();
-        historyEntry.field("alertName", alertName);
-        historyEntry.field("triggered", triggered);
-        historyEntry.field("fireTime", fireTime.toDateTimeISO());
-        historyEntry.field("trigger");
-        trigger.toXContent(historyEntry, ToXContent.EMPTY_PARAMS);
-        historyEntry.field("queryRan", triggeringQuery.toString());
-        historyEntry.field("numberOfResults", numberOfResults);
-        historyEntry.field("actions");
-        historyEntry.startArray();
-        for (AlertAction action : actions) {
-            action.toXContent(historyEntry, ToXContent.EMPTY_PARAMS);
-        }
-        historyEntry.endArray();
-        if (indices != null) {
-            historyEntry.field("indices");
-            historyEntry.startArray();
-            for (String index : indices) {
-                historyEntry.value(index);
-            }
-            historyEntry.endArray();
-        }
-        historyEntry.endObject();
-        IndexRequest indexRequest = new IndexRequest();
-        indexRequest.index(ALERT_HISTORY_INDEX);
-        indexRequest.type(ALERT_HISTORY_TYPE);
-        indexRequest.source(historyEntry);
-        indexRequest.listenerThreaded(false);
-        indexRequest.operationThreaded(false);
-        indexRequest.refresh(true); //Always refresh after indexing an alert
-        indexRequest.opType(IndexRequest.OpType.CREATE);
-        client.index(indexRequest).actionGet().isCreated();
-        return true;
-    }
 
     public boolean deleteAlert(String alertName) throws InterruptedException, ExecutionException {
         if (!started.get()) {
@@ -433,12 +414,7 @@ public class AlertManager extends AbstractLifecycleComponent {
 
     public Alert parseAlert(String alertId, Map<String, Object> fields, long version ) {
 
-        //Map<String,SearchHitField> fields = sh.getFields();
         logger.warn("Parsing : [{}]", alertId);
-        for (String field : fields.keySet() ) {
-            logger.warn("Field : [{}]", field);
-        }
-
         String query = fields.get(QUERY_FIELD.getPreferredName()).toString();
         String schedule = fields.get(SCHEDULE_FIELD.getPreferredName()).toString();
         Object triggerObj = fields.get(TRIGGER_FIELD.getPreferredName());
@@ -457,9 +433,9 @@ public class AlertManager extends AbstractLifecycleComponent {
         List<AlertAction> actions = null;
         if (actionObj instanceof Map) {
             Map<String, Object> actionMap = (Map<String, Object>) actionObj;
-            actions = actionManager.parseActionsFromMap(actionMap);
+            actions = actionRegistry.parseActionsFromMap(actionMap);
         } else {
-            throw new ElasticsearchException("Unable to parse actions [" + triggerObj + "]");
+            throw new ElasticsearchException("Unable to parse actions [" + actionObj + "]");
         }
 
         DateTime lastRan = new DateTime(0);
@@ -540,33 +516,65 @@ public class AlertManager extends AbstractLifecycleComponent {
         return started.get();
     }
 
+    public boolean addHistory(String alertName, boolean isTriggered, DateTime dateTime, DateTime scheduledTime,
+                              SearchRequestBuilder srb, AlertTrigger trigger, long totalHits, List<AlertAction> actions,
+                              List<String> indices) throws IOException{
+        return actionManager.addHistory(alertName, isTriggered, dateTime, scheduledTime, srb, trigger, totalHits, actions, indices);
+    }
+
     private final class AlertsClusterStateListener implements ClusterStateListener {
 
         @Override
         public void clusterChanged(ClusterChangedEvent event) {
-            if (event.indicesDeleted().contains(ALERT_INDEX)) {
-                alertMap.clear();
+            if (!event.localNodeMaster()) { //We are not the master
+                if (started.compareAndSet(false, true)) {
+                    scheduler.clearAlerts();
+                    alertMap.clear();
+                }
+
+                if (startActions.compareAndSet(false, true)) {
+                    //If actionManager was running and we aren't the master stop
+                    actionManager.doStop(); //Safe to call this multiple times, it's a noop if we are already stopped
+                }
+                return;
             }
 
             if (!started.get()) {
                 IndexMetaData alertIndexMetaData = event.state().getMetaData().index(ALERT_INDEX);
                 if (alertIndexMetaData != null) {
                     if (event.state().routingTable().index(ALERT_INDEX).allPrimaryShardsActive()) {
-                        // TODO: Do on a different thread and have some kind of retry mechanism?
-                        try {
-                            loadAlerts();
-                            sendAlertsToScheduler();
-                        } catch (Exception e) {
-                            logger.warn("Error during loading of alerts from an existing .alerts index... refresh the alerts manually");
-                        }
                         started.set(true);
+                        threadPool.executor(ThreadPool.Names.GENERIC).execute(new AlertLoader());
                     }
-                } else {
-                    started.set(true);
+                }
+            }
+
+            if (!startActions.get()) {
+                IndexMetaData indexMetaData = event.state().getMetaData().index(AlertActionManager.ALERT_HISTORY_INDEX);
+                if (indexMetaData != null) {
+                    if (event.state().routingTable().index(ALERT_INDEX).allPrimaryShardsActive()) {
+                        startActions.set(true);
+                        actionManager.doStart();
+                    }
                 }
             }
         }
 
+    }
+
+    private class AlertLoader implements Runnable {
+        @Override
+        public void run() {
+            // TODO: have some kind of retry mechanism?
+            try {
+                loadAlerts();
+                sendAlertsToScheduler();
+            } catch (Exception e) {
+                logger.warn("Error during loading of alerts from an existing .alerts index... refresh the alerts manually");
+            }
+            started.set(true);
+
+        }
     }
 
 }

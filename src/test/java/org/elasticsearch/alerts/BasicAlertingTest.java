@@ -8,6 +8,8 @@ package org.elasticsearch.alerts;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionFactory;
+import org.elasticsearch.alerts.actions.AlertActionRegistry;
+import org.elasticsearch.alerts.actions.AlertActionEntry;
 import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
@@ -31,7 +33,7 @@ import static org.hamcrest.core.Is.is;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0, maxNumDataNodes = 3)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0, maxNumDataNodes = 1, minNumDataNodes = 1, numDataNodes = 1)
 public class BasicAlertingTest extends ElasticsearchIntegrationTest {
 
     @Override
@@ -48,11 +50,15 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
     @Test
     // TODO: add request, response & request builder etc.
     public void testAlerSchedulerStartsProperly() throws Exception {
-        createIndex("my-index");
-        createIndex(ScriptService.SCRIPT_INDEX);
-        client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
-        client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "query")
+        createIndex("my-index");
+        createIndex(AlertManager.ALERT_INDEX);
+        createIndex(AlertActionManager.ALERT_HISTORY_INDEX);
+        ensureGreen("my-index", AlertManager.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX);
+
+        client().preparePutIndexedScript()
+                .setScriptLang("mustache")
+                .setId("query")
                 .setSource(jsonBuilder().startObject().startObject("template").startObject("match_all").endObject().endObject().endObject())
                 .get();
 
@@ -92,14 +98,14 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
             }
 
             @Override
-            public boolean doAction(String alertName, AlertResult alert) {
-                logger.info("Alert {} invoked: {}", alertName, alert);
+            public boolean doAction(Alert alert, AlertActionEntry actionEntry) {
+                logger.info("Alert {} invoked: {}", alert.alertName(), actionEntry);
                 alertActionInvoked.set(true);
                 return true;
             }
         };
-        AlertActionManager alertActionManager = internalCluster().getInstance(AlertActionManager.class, internalCluster().getMasterName());
-        alertActionManager.registerAction("test", new AlertActionFactory() {
+        AlertActionRegistry alertActionRegistry = internalCluster().getInstance(AlertActionRegistry.class, internalCluster().getMasterName());
+        alertActionRegistry.registerAction("test", new AlertActionFactory() {
             @Override
             public AlertAction createAction(Object parameters) {
                 return alertAction;
@@ -125,7 +131,7 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
             @Override
             public void run() {
                 assertThat(alertActionInvoked.get(), is(true));
-                IndicesExistsResponse indicesExistsResponse = client().admin().indices().prepareExists(AlertManager.ALERT_HISTORY_INDEX).get();
+                IndicesExistsResponse indicesExistsResponse = client().admin().indices().prepareExists(AlertActionManager.ALERT_HISTORY_INDEX).get();
                 assertThat(indicesExistsResponse.isExists(), is(true));
             }
         }, 30, TimeUnit.SECONDS);

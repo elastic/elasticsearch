@@ -9,9 +9,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.AlertManager;
-import org.elasticsearch.alerts.AlertResult;
 import org.elasticsearch.alerts.actions.AlertActionManager;
+import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -42,21 +41,22 @@ public class AlertScheduler extends AbstractLifecycleComponent implements Cluste
     private final Client client;
     private final Scheduler scheduler;
     private final AlertManager alertManager;
-    private final ScriptService scriptService;
     private final TriggerManager triggerManager;
-    private final AlertActionManager actionManager;
+    private final ScriptService scriptService;
+
+    private AlertActionManager actionManager;
+
 
     private final AtomicBoolean run = new AtomicBoolean(false);
 
     @Inject
     public AlertScheduler(Settings settings, AlertManager alertManager, Client client,
-                          TriggerManager triggerManager, AlertActionManager actionManager,
-                          ScriptService scriptService, ClusterService clusterService) {
+                          TriggerManager triggerManager, ScriptService scriptService,
+                          ClusterService clusterService) {
         super(settings);
         this.alertManager = alertManager;
         this.client = client;
         this.triggerManager = triggerManager;
-        this.actionManager = actionManager;
         this.scriptService = scriptService;
         try {
             SchedulerFactory schFactory = new StdSchedulerFactory();
@@ -77,7 +77,7 @@ public class AlertScheduler extends AbstractLifecycleComponent implements Cluste
                     logger.info("Starting scheduler");
                     scheduler.start();
                 } catch (SchedulerException se){
-                    logger.error("Failed to start quartz scheduler",se);
+                    logger.error("Failed to start quartz scheduler", se);
                 }
             }
         } else {
@@ -89,10 +89,12 @@ public class AlertScheduler extends AbstractLifecycleComponent implements Cluste
         if (run.compareAndSet(true, false)) {
             try {
                 logger.info("Stopping scheduler");
-                scheduler.clear();
-                scheduler.shutdown(false);
+                if (!scheduler.isShutdown()) {
+                    scheduler.clear();
+                    scheduler.shutdown(false);
+                }
             } catch (SchedulerException se){
-                logger.error("Failed to stop quartz scheduler",se);
+                logger.error("Failed to stop quartz scheduler", se);
             }
         }
     }
@@ -156,36 +158,17 @@ public class AlertScheduler extends AbstractLifecycleComponent implements Cluste
 
             SearchResponse sr = srb.execute().get();
             logger.warn("Got search response hits : [{}]", sr.getHits().getTotalHits() );
-            AlertResult result = new AlertResult(alertName, sr, alert.trigger(),
-                    triggerManager.isTriggered(alertName,sr), srb, indices,
-                    new DateTime(jobExecutionContext.getScheduledFireTime()));
 
-            boolean firedAction = false;
-            if (result.isTriggered) {
-                logger.warn("We have triggered");
-                DateTime lastActionFire = alertManager.timeActionLastTriggered(alertName);
-                long msSinceLastAction = scheduledTime.getMillis() - lastActionFire.getMillis();
-                logger.error("last action fire [{}]", lastActionFire);
-                logger.error("msSinceLastAction [{}]", msSinceLastAction);
+            boolean isTriggered = triggerManager.isTriggered(alertName,sr);
 
-                if (alert.timePeriod().getMillis() > msSinceLastAction) {
-                    logger.warn("Not firing action because it was fired in the timePeriod");
-                } else {
-                    actionManager.doAction(alertName, result);
-                    logger.warn("Did action !");
-                    firedAction = true;
-                }
-
-            } else {
-                logger.warn("We didn't trigger");
-            }
-            alertManager.updateLastRan(alertName, new DateTime(jobExecutionContext.getFireTime()),scheduledTime,firedAction);
-            if (!alertManager.addHistory(alertName, result.isTriggered,
-                    new DateTime(jobExecutionContext.getScheduledFireTime()), result.query,
-                    result.trigger, result.searchResponse.getHits().getTotalHits(), alert.actions(), alert.indices()))
+            alertManager.updateLastRan(alertName, new DateTime(jobExecutionContext.getFireTime()),scheduledTime);
+            if (!alertManager.addHistory(alertName, isTriggered,
+                    new DateTime(jobExecutionContext.getScheduledFireTime()), scheduledTime, srb,
+                    alert.trigger(), sr.getHits().getTotalHits(), alert.actions(), alert.indices()))
             {
                 logger.warn("Failed to store history for alert [{}]", alertName);
             }
+
         } catch (Exception e) {
             logger.error("Failed execute alert [{}]", e, alertName);
         }

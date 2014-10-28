@@ -168,4 +168,29 @@ public class AlertTrigger implements ToXContent {
         }
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        AlertTrigger that = (AlertTrigger) o;
+
+        if (value != that.value) return false;
+        if (scriptedTrigger != null ? !scriptedTrigger.equals(that.scriptedTrigger) : that.scriptedTrigger != null)
+            return false;
+        if (trigger != that.trigger) return false;
+        if (triggerType != that.triggerType) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = trigger != null ? trigger.hashCode() : 0;
+        result = 31 * result + (triggerType != null ? triggerType.hashCode() : 0);
+        result = 31 * result + value;
+        result = 31 * result + (scriptedTrigger != null ? scriptedTrigger.hashCode() : 0);
+        return result;
+    }
+
 }

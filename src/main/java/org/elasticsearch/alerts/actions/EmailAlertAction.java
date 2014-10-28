@@ -6,9 +6,8 @@
 package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.alerts.AlertResult;
+import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,7 +26,6 @@ public class EmailAlertAction implements AlertAction {
     String passwd = "elasticsearchforthewin";
     String server = "smtp.gmail.com";
     int port = 587;
-
 
     public EmailAlertAction(String ... addresses){
         for (String address : addresses) {
@@ -69,7 +67,7 @@ public class EmailAlertAction implements AlertAction {
     }
 
     @Override
-    public boolean doAction(String alertName, AlertResult result) {
+    public boolean doAction(Alert alert, AlertActionEntry result) {
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.starttls.enable", "true");
@@ -86,19 +84,21 @@ public class EmailAlertAction implements AlertAction {
             message.setFrom(new InternetAddress(from));
             message.setRecipients(Message.RecipientType.TO,
                     emailAddresses.toArray(new Address[1]));
-            message.setSubject("Elasticsearch Alert " + alertName + " triggered");
+            message.setSubject("Elasticsearch Alert " + alert.alertName() + " triggered");
             StringBuffer output = new StringBuffer();
-            output.append("The following query triggered because " + result.trigger.toString() + "\n");
-            output.append("The total number of hits returned : " + result.searchResponse.getHits().getTotalHits() + "\n");
-            output.append("For query : " + result.query.toString());
+            output.append("The following query triggered because " + result.getTrigger().toString() + "\n");
+            output.append("The total number of hits returned : " + result.getNumberOfResults() + "\n");
+            output.append("For query : " + result.getTriggeringQuery());
             output.append("\n");
             output.append("Indices : ");
-            for (String index : result.indices) {
+            for (String index : result.getIndices()) {
                 output.append(index);
                 output.append("/");
             }
             output.append("\n");
             output.append("\n");
+            /*
+            ///@TODO: FIX THE SEARCH RESULT DISPLAY STUFF
             if (displayField != null) {
                 for (SearchHit sh : result.searchResponse.getHits().getHits()) {
                     if (sh.sourceAsMap().containsKey(displayField)) {
@@ -111,6 +111,7 @@ public class EmailAlertAction implements AlertAction {
             } else {
                 output.append(result.searchResponse.toString());
             }
+            */
             message.setText(output.toString());
             Transport.send(message);
         } catch (Exception e){

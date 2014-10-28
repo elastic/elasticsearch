@@ -14,7 +14,7 @@ public class DateUtils {
 
     private final static FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
 
-    private final static DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.parser();
+    private final static DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.parser().withZoneUTC();
 
     public static long endOfTheDay(String date) {
         MutableDateTime dateTime = dateTimeFormatter.parseMutableDateTime(date);

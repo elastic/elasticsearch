@@ -130,7 +130,8 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         final ESLicense tamperedLicense = ESLicense.builder()
                 .fromLicenseSpec(esLicense, esLicense.signature())
                 .expiryDate(esLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
-                .verifyAndBuild();
+                .verify()
+                .build();
 
         assertTrue(LicensesStatus.INVALID == licensesManagerService.checkLicenses(Collections.singleton(tamperedLicense)));
     }

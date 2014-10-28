@@ -119,6 +119,31 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
         return Long.compare(expiryDate, o.expiryDate);
     }
 
+    public void verify() {
+        if (issuer == null) {
+            throw new IllegalStateException("issuer can not be null");
+        } else if (issuedTo == null) {
+            throw new IllegalStateException("issuedTo can not be null");
+        } else if (issueDate == -1) {
+            throw new IllegalStateException("issueDate has to be set");
+        } else if (type == null) {
+            throw new IllegalStateException("type can not be null");
+        } else if (subscriptionType == null) {
+            throw new IllegalStateException("subscriptionType can not be null");
+        } else if (uid == null) {
+            throw new IllegalStateException("uid can not be null");
+        } else if (feature == null) {
+            throw new IllegalStateException("at least one feature has to be enabled");
+        } else if (signature == null) {
+            throw new IllegalStateException("signature can not be null");
+        } else if (maxNodes == -1) {
+            throw new IllegalStateException("maxNodes has to be set");
+        } else if (expiryDate == -1) {
+            throw new IllegalStateException("expiryDate has to be set");
+        }
+    }
+
+
     static ESLicense readESLicense(StreamInput in) throws IOException {
         in.readVInt(); // Version for future extensibility
         Builder builder = builder();
@@ -132,7 +157,8 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
         builder.issuedTo(in.readString());
         builder.issuer(in.readString());
         builder.signature(in.readOptionalString());
-        return builder.verifyAndBuild();
+        builder.verify();
+        return builder.build();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -161,7 +187,7 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
         builder.field(XFields.MAX_NODES, maxNodes);
         builder.field(XFields.ISSUED_TO, issuedTo);
         builder.field(XFields.ISSUER, issuer);
-        if (signature != null) {
+        if (signature != null && !params.paramAsBoolean(ESLicenses.OMIT_SIGNATURE, false)) {
             builder.field(XFields.SIGNATURE, signature);
         }
         builder.endObject();
@@ -196,50 +222,16 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
         static final XContentBuilderString SIGNATURE = new XContentBuilderString(Fields.SIGNATURE);
     }
 
-    public static ESLicense fromXContent(XContentParser parser) throws IOException {
-        Builder builder = new Builder();
-        XContentParser.Token token = parser.currentToken();
-        if (token == XContentParser.Token.START_OBJECT) {
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    String currentFieldName = parser.currentName();
-                    token = parser.nextToken();
-                    if (token.isValue()) {
-                        if (Fields.UID.equals(currentFieldName)) {
-                            builder.uid(parser.text());
-                        } else if (Fields.TYPE.equals(currentFieldName)) {
-                            builder.type(parser.text());
-                        } else if (Fields.SUBSCRIPTION_TYPE.equals(currentFieldName)) {
-                            builder.subscriptionType(parser.text());
-                        } else if (Fields.ISSUE_DATE.equals(currentFieldName)) {
-                            builder.issueDate(parser.longValue());
-                        } else if (Fields.FEATURE.equals(currentFieldName)) {
-                            builder.feature(parser.text());
-                        } else if (Fields.EXPIRY_DATE.equals(currentFieldName)) {
-                            builder.expiryDate(parser.longValue());
-                        } else if (Fields.MAX_NODES.equals(currentFieldName)) {
-                            builder.maxNodes(parser.intValue());
-                        } else if (Fields.ISSUED_TO.equals(currentFieldName)) {
-                            builder.issuedTo(parser.text());
-                        } else if (Fields.ISSUER.equals(currentFieldName)) {
-                            builder.issuer(parser.text());
-                        } else if (Fields.SIGNATURE.equals(currentFieldName)) {
-                            builder.signature(parser.text());
-                        }
-                        // Ignore unknown elements - might be new version of license
-                    } else if (token == XContentParser.Token.START_ARRAY) {
-                        // It was probably created by newer version - ignoring
-                        parser.skipChildren();
-                    } else if (token == XContentParser.Token.START_OBJECT) {
-                        // It was probably created by newer version - ignoring
-                        parser.skipChildren();
-                    }
-                }
-            }
+    private static long parseDate(XContentParser parser, String description) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+            return parser.longValue();
         } else {
-            throw new ElasticsearchParseException("failed to parse licenses expected a license object");
+            try {
+                return DateUtils.endOfTheDay((parser.text()));
+            } catch (IllegalArgumentException ex) {
+                throw new ElasticsearchParseException("invalid " + description + " date format " + parser.text());
+            }
         }
-        return builder.verifyAndBuild();
     }
 
     public static Builder builder() {
@@ -324,10 +316,49 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
                     .signature(signature);
         }
 
-        public ESLicense verifyAndBuild() {
-            verify();
-            return new ESLicense(uid, issuer, issuedTo, issueDate, type,
-                    subscriptionType, feature, signature, expiryDate, maxNodes);
+        public Builder fromXContent(XContentParser parser) throws IOException {
+            XContentParser.Token token = parser.currentToken();
+            if (token == XContentParser.Token.START_OBJECT) {
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        String currentFieldName = parser.currentName();
+                        token = parser.nextToken();
+                        if (token.isValue()) {
+                            if (Fields.UID.equals(currentFieldName)) {
+                                uid(parser.text());
+                            } else if (Fields.TYPE.equals(currentFieldName)) {
+                                type(parser.text());
+                            } else if (Fields.SUBSCRIPTION_TYPE.equals(currentFieldName)) {
+                                subscriptionType(parser.text());
+                            } else if (Fields.ISSUE_DATE.equals(currentFieldName)) {
+                                issueDate(parseDate(parser, "issue"));
+                            } else if (Fields.FEATURE.equals(currentFieldName)) {
+                                feature(parser.text());
+                            } else if (Fields.EXPIRY_DATE.equals(currentFieldName)) {
+                                expiryDate(parseDate(parser, "expiration"));
+                            } else if (Fields.MAX_NODES.equals(currentFieldName)) {
+                                maxNodes(parser.intValue());
+                            } else if (Fields.ISSUED_TO.equals(currentFieldName)) {
+                                issuedTo(parser.text());
+                            } else if (Fields.ISSUER.equals(currentFieldName)) {
+                                issuer(parser.text());
+                            } else if (Fields.SIGNATURE.equals(currentFieldName)) {
+                                signature(parser.text());
+                            }
+                            // Ignore unknown elements - might be new version of license
+                        } else if (token == XContentParser.Token.START_ARRAY) {
+                            // It was probably created by newer version - ignoring
+                            parser.skipChildren();
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            // It was probably created by newer version - ignoring
+                            parser.skipChildren();
+                        }
+                    }
+                }
+            } else {
+                throw new ElasticsearchParseException("failed to parse licenses expected a license object");
+            }
+            return this;
         }
 
         public ESLicense build() {
@@ -335,7 +366,7 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
                     subscriptionType, feature, signature, expiryDate, maxNodes);
         }
 
-        private void verify() {
+        public Builder verify() {
             if (issuer == null) {
                throw new IllegalStateException("issuer can not be null");
             } else if (issuedTo == null) {
@@ -357,6 +388,7 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
             } else if (expiryDate == -1) {
                throw new IllegalStateException("expiryDate has to be set");
             }
+            return this;
         }
     }
 

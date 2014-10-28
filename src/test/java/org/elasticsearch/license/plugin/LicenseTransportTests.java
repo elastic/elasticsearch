@@ -140,7 +140,8 @@ public class LicenseTransportTests extends ElasticsearchIntegrationTest {
         final ESLicense tamperedLicense = ESLicense.builder()
                 .fromLicenseSpec(esLicense, esLicense.signature())
                 .expiryDate(esLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
-                .verifyAndBuild();
+                .verify()
+                .build();
 
         PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster());
         builder.setLicense(Collections.singletonList(tamperedLicense));

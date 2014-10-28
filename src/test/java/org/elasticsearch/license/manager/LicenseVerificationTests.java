@@ -141,7 +141,8 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
         final ESLicense tamperedLicense = ESLicense.builder()
                 .fromLicenseSpec(esLicense, esLicense.signature())
                 .expiryDate(esLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
-                .verifyAndBuild();
+                .verify()
+                .build();
 
         try {
             esLicenseProvider.setLicenses(Collections.singleton(tamperedLicense));
@@ -161,8 +162,8 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
             ESLicense license = licenseProvider.getESLicense(featureType);
             assertTrue("License should have issuedTo of " + featureAttributes.issuedTo, license.issuedTo().equals(featureAttributes.issuedTo));
             assertTrue("License should have issuer of " + featureAttributes.issuer, license.issuer().equals(featureAttributes.issuer));
-            assertTrue("License should have issue date of " + DateUtils.longFromDateString(featureAttributes.issueDate), license.issueDate() == DateUtils.longFromDateString(featureAttributes.issueDate));
-            assertTrue("License should have expiry date of " + DateUtils.longExpiryDateFromString(featureAttributes.expiryDate) + " got: " + license.expiryDate(), license.expiryDate() == DateUtils.longExpiryDateFromString(featureAttributes.expiryDate));
+            assertTrue("License should have issue date of " + DateUtils.beginningOfTheDay(featureAttributes.issueDate), license.issueDate() == DateUtils.beginningOfTheDay(featureAttributes.issueDate));
+            assertTrue("License should have expiry date of " + DateUtils.endOfTheDay(featureAttributes.expiryDate) + " got: " + license.expiryDate(), license.expiryDate() == DateUtils.endOfTheDay(featureAttributes.expiryDate));
             assertTrue("License should have type of " + featureAttributes.type + " got: " + license.type(), license.type().equals(featureAttributes.type));
             assertTrue("License should have subscription type of " + featureAttributes.subscriptionType, license.subscriptionType().equals(featureAttributes.subscriptionType));
 

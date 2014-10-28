@@ -121,7 +121,8 @@ public class ESLicenseSigner {
 
         return ESLicense.builder()
                 .fromLicenseSpec(licenseSpec, signature)
-                .verifyAndBuild();
+                .verify()
+                .build();
     }
 
     private void featureToXContent(ESLicense license, XContentBuilder builder) throws IOException {

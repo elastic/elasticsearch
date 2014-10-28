@@ -5,57 +5,24 @@
  */
 package org.elasticsearch.license.core;
 
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.TimeZone;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.joda.time.MutableDateTime;
+import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 
 public class DateUtils {
-    public static final TimeZone TIME_ZONE = TimeZone.getTimeZone("UTC");
 
-    private static DateFormat getDateFormat() {
-        DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-        dateFormat.setTimeZone(TIME_ZONE);
-        dateFormat.setLenient(false);
-        return dateFormat;
+    private final static FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
+
+    private final static DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.parser();
+
+    public static long endOfTheDay(String date) {
+        MutableDateTime dateTime = dateTimeFormatter.parseMutableDateTime(date);
+        dateTime.dayOfMonth().roundCeiling();
+        return dateTime.getMillis();
     }
 
-    public static long longExpiryDateFromDate(long date) {
-        Date dateObj = new Date(date);
-
-        Calendar calendar = Calendar.getInstance();
-        calendar.clear();
-        calendar.setTimeZone(TIME_ZONE);
-        calendar.setTimeInMillis(dateObj.getTime());
-
-        calendar.set(Calendar.HOUR, 23);
-        calendar.set(Calendar.MINUTE, 59);
-        calendar.set(Calendar.SECOND, 59);
-
-        return calendar.getTimeInMillis();
-    }
-
-    public static long longFromDateString(String dateStr) throws ParseException {
-        Date dateObj = getDateFormat().parse(dateStr);
-        Calendar calendar = Calendar.getInstance();
-        calendar.clear();
-        calendar.setTimeZone(TIME_ZONE);
-        calendar.setTimeInMillis(dateObj.getTime());
-        return calendar.getTimeInMillis();
-    }
-
-    public static long longExpiryDateFromString(String dateStr) throws ParseException {
-        return longExpiryDateFromDate(longFromDateString(dateStr));
-    }
-
-    public static String dateStringFromLongDate(long date) {
-        Date dateObj = new Date(date);
-        Calendar calendar = Calendar.getInstance();
-        calendar.clear();
-        calendar.setTimeZone(TIME_ZONE);
-        calendar.setTimeInMillis(dateObj.getTime());
-        return getDateFormat().format(calendar.getTime());
+    public static long beginningOfTheDay(String date) {
+        return dateTimeFormatter.parseDateTime(date).getMillis();
     }
 }

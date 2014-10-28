@@ -6,6 +6,7 @@
 package org.elasticsearch.license;
 
 import org.apache.commons.io.FileUtils;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.core.DateUtils;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
@@ -15,11 +16,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.junit.Assert.assertTrue;
 
 public class TestUtils {
@@ -27,30 +26,26 @@ public class TestUtils {
     public final static String SHIELD = "shield";
     public final static String MARVEL = "marvel";
 
-    public static String generateESLicenses(Map<String, FeatureAttributes> featureAttributes) {
-        StringBuilder licenseBuilder = new StringBuilder();
-        int size = featureAttributes.values().size();
-        int i = 0;
+    public static String generateESLicenses(Map<String, FeatureAttributes> featureAttributes) throws IOException {
+        XContentBuilder licenses = jsonBuilder();
+        licenses.startObject();
+        licenses.startArray("licenses");
         for (FeatureAttributes attributes : featureAttributes.values()) {
-            licenseBuilder.append("{\n" +
-                    "    \"type\" : \"" + attributes.type + "\",\n" +
-                    "    \"subscription_type\" : \"" + attributes.subscriptionType + "\",\n" +
-                    "    \"issued_to\" : \"" + attributes.issuedTo + "\",\n" +
-                    "    \"issuer\" : \"" + attributes.issuer + "\",\n" +
-                    "    \"issue_date\" : \"" + attributes.issueDate + "\",\n" +
-                    "    \"expiry_date\" : \"" + attributes.expiryDate + "\",\n" +
-                    "    \"feature\" : \"" + attributes.featureType + "\",\n" +
-                    "    \"max_nodes\" : " + attributes.maxNodes +
-                    "}");
-            if (++i < size) {
-                licenseBuilder.append(",\n");
-            }
+            licenses.startObject()
+                    .field("uid", attributes.uid)
+                    .field("type", attributes.type)
+                    .field("subscription_type", attributes.subscriptionType)
+                    .field("issued_to", attributes.issuedTo)
+                    .field("issuer", attributes.issuer)
+                    .field("issue_date", attributes.issueDate)
+                    .field("expiry_date", attributes.expiryDate)
+                    .field("feature", attributes.featureType)
+                    .field("max_nodes", attributes.maxNodes)
+                    .endObject();
         }
-        return "{\n" +
-                "  \"licenses\" : [" +
-                licenseBuilder.toString() +
-                "]\n" +
-                "}";
+        licenses.endArray();
+        licenses.endObject();
+        return licenses.string();
 
     }
 
@@ -91,8 +86,8 @@ public class TestUtils {
             assertTrue("expected value for type was: " + attributes.type + " but got: " + esLicense.type(), esLicense.type().equals(attributes.type));
             assertTrue("expected value for subscriptionType was: " + attributes.subscriptionType + " but got: " + esLicense.subscriptionType(), esLicense.subscriptionType().equals(attributes.subscriptionType));
             assertTrue("expected value for feature was: " + attributes.featureType + " but got: " + esLicense.feature(), esLicense.feature().equals(attributes.featureType));
-            assertTrue("expected value for issueDate was: " + DateUtils.longFromDateString(attributes.issueDate) + " but got: " + esLicense.issueDate(), esLicense.issueDate() == DateUtils.longFromDateString(attributes.issueDate));
-            assertTrue("expected value for expiryDate: " + DateUtils.longExpiryDateFromString(attributes.expiryDate) + " but got: " + esLicense.expiryDate(), esLicense.expiryDate() == DateUtils.longExpiryDateFromString(attributes.expiryDate));
+            assertTrue("expected value for issueDate was: " + DateUtils.beginningOfTheDay(attributes.issueDate) + " but got: " + esLicense.issueDate(), esLicense.issueDate() == DateUtils.beginningOfTheDay(attributes.issueDate));
+            assertTrue("expected value for expiryDate: " + DateUtils.endOfTheDay(attributes.expiryDate) + " but got: " + esLicense.expiryDate(), esLicense.expiryDate() == DateUtils.endOfTheDay(attributes.expiryDate));
             assertTrue("expected value for maxNodes: " + attributes.maxNodes + " but got: " + esLicense.maxNodes(), esLicense.maxNodes() == attributes.maxNodes);
 
             assertTrue("generated licenses should have non-null uid field", esLicense.uid() != null);
@@ -139,6 +134,7 @@ public class TestUtils {
 
     public static class FeatureAttributes {
 
+        public final String uid;
         public final String featureType;
         public final String type;
         public final String subscriptionType;
@@ -149,6 +145,11 @@ public class TestUtils {
         public final String issuer;
 
         public FeatureAttributes(String featureType, String type, String subscriptionType, String issuedTo, String issuer, int maxNodes, String issueDateStr, String expiryDateStr) throws ParseException {
+            this(UUID.randomUUID().toString(), featureType, type, subscriptionType, issuedTo, issuer, maxNodes, issueDateStr, expiryDateStr);
+        }
+
+        public FeatureAttributes(String uid, String featureType, String type, String subscriptionType, String issuedTo, String issuer, int maxNodes, String issueDateStr, String expiryDateStr) throws ParseException {
+            this.uid = uid;
             this.featureType = featureType;
             this.type = type;
             this.subscriptionType = subscriptionType;

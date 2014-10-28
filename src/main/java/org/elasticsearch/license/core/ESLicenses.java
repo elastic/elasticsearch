@@ -16,7 +16,9 @@ import java.util.*;
 
 public class ESLicenses {
 
-    final static class Fields {
+    public static final String OMIT_SIGNATURE = "rest_api";
+
+    private final static class Fields {
         static final String LICENSES = "licenses";
     }
 
@@ -35,14 +37,18 @@ public class ESLicenses {
     }
 
     public static List<ESLicense> fromSource(String content) throws IOException {
-        return fromSource(content.getBytes(LicensesCharset.UTF_8));
+        return fromSource(content.getBytes(LicensesCharset.UTF_8), true);
     }
 
     public static List<ESLicense> fromSource(byte[] bytes) throws IOException {
-        return fromXContent(XContentFactory.xContent(bytes).createParser(bytes));
+        return fromXContent(XContentFactory.xContent(bytes).createParser(bytes), true);
     }
 
-    public static List<ESLicense> fromXContent(XContentParser parser) throws IOException {
+    public static List<ESLicense> fromSource(byte[] bytes, boolean verify) throws IOException {
+        return fromXContent(XContentFactory.xContent(bytes).createParser(bytes), verify);
+    }
+
+    public static List<ESLicense> fromXContent(XContentParser parser, boolean verify) throws IOException {
         List<ESLicense> esLicenses = new ArrayList<>();
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
@@ -50,7 +56,11 @@ public class ESLicenses {
                 if (Fields.LICENSES.equals(currentFieldName)) {
                     if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            esLicenses.add(ESLicense.fromXContent(parser));
+                            ESLicense.Builder builder = ESLicense.builder().fromXContent(parser);
+                            if (verify) {
+                                builder.verify();
+                            }
+                            esLicenses.add(builder.build());
                         }
                     } else {
                         throw new ElasticsearchParseException("failed to parse licenses expected an array of licenses");

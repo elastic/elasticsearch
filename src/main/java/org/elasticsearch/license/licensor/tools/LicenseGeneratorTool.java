@@ -14,7 +14,6 @@ import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.core.LicensesCharset;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
-import org.elasticsearch.license.licensor.LicenseSpecs;
 
 import java.io.File;
 import java.io.IOException;
@@ -49,13 +48,13 @@ public class LicenseGeneratorTool {
             switch (command) {
                 case "--license":
                     String licenseInput = args[++i];
-                    licenseSpecs.addAll(LicenseSpecs.fromSource(licenseInput.getBytes(LicensesCharset.UTF_8)));
+                    licenseSpecs.addAll(ESLicenses.fromSource(licenseInput.getBytes(LicensesCharset.UTF_8), false));
                     break;
                 case "--licenseFile":
                     File licenseFile = new File(args[++i]);
                     if (licenseFile.exists()) {
                         final byte[] bytes = Files.readAllBytes(Paths.get(licenseFile.getAbsolutePath()));
-                        licenseSpecs.addAll(LicenseSpecs.fromSource(bytes));
+                        licenseSpecs.addAll(ESLicenses.fromSource(bytes, false));
                     } else {
                         throw new IllegalArgumentException(licenseFile.getAbsolutePath() + " does not exist!");
                     }

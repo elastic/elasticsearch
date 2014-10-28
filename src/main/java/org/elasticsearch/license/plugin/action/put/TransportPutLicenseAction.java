@@ -38,7 +38,7 @@ public class TransportPutLicenseAction extends TransportMasterNodeOperationActio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.SAME;
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override

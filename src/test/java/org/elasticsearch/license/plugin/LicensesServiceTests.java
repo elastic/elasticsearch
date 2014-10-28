@@ -146,7 +146,7 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
         List<ESLicense> licenses = ESLicenses.fromSource(licenseOutput);
 
         LicensesManagerService licensesManagerService = masterLicensesManagerService();
-        ESLicenseManager esLicenseManager = ((LicensesService) licensesManagerService).getEsLicenseManager();
+        ESLicenseManager esLicenseManager = masterLicenseManager();
         final CountDownLatch latch1 = new CountDownLatch(1);
         // todo: fix with awaitBusy
         licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses), "test"), new ActionListener<ClusterStateUpdateResponse>() {
@@ -342,6 +342,11 @@ public class LicensesServiceTests extends ElasticsearchIntegrationTest {
     private LicensesManagerService masterLicensesManagerService() {
         final InternalTestCluster clients = internalCluster();
         return clients.getInstance(LicensesManagerService.class, clients.getMasterName());
+    }
+
+    private ESLicenseManager masterLicenseManager() {
+        final InternalTestCluster clients = internalCluster();
+        return clients.getInstance(ESLicenseManager.class, clients.getMasterName());
     }
 
     private LicensesManagerService licensesManagerService() {

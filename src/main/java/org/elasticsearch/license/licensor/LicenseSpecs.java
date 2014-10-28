@@ -14,15 +14,12 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.*;
 
-import static org.elasticsearch.license.core.ESLicense.SubscriptionType;
-import static org.elasticsearch.license.core.ESLicense.Type;
-
 public class LicenseSpecs {
 
     private static ESLicense fromXContent(Map<String, Object> map) throws IOException, ParseException {
         ESLicense.Builder builder = new ESLicense.Builder()
-                .type(Type.fromString((String) map.get("type")))
-                .subscriptionType(SubscriptionType.fromString((String) map.get("subscription_type")))
+                .type((String) map.get("type"))
+                .subscriptionType((String) map.get("subscription_type"))
                 .feature((String) map.get("feature"))
                 .maxNodes((int) map.get("max_nodes"))
                 .issuedTo((String) map.get("issued_to"))

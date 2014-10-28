@@ -16,9 +16,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-import static org.elasticsearch.license.core.ESLicense.SubscriptionType;
-import static org.elasticsearch.license.core.ESLicense.Type;
-
 public class TrialLicenseUtils {
 
     public static TrialLicenseBuilder builder() {
@@ -27,8 +24,8 @@ public class TrialLicenseUtils {
 
     public static class TrialLicenseBuilder {
         private static final String DEFAULT_ISSUER = "elasticsearch";
-        private static final Type DEFAULT_TYPE = Type.TRIAL;
-        private static final SubscriptionType DEFAULT_SUBSCRIPTION_TYPE = SubscriptionType.NONE;
+        private static final String DEFAULT_TYPE = "trial";
+        private static final String DEFAULT_SUBSCRIPTION_TYPE = "none";
 
         private String feature;
         private long expiryDate = -1;

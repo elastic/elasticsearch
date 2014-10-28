@@ -127,8 +127,8 @@ public class ESLicenseSigner {
     private void featureToXContent(ESLicense license, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field("feature", license.feature());
-        builder.field("type", license.type().string());
-        builder.field("subscription_type", license.subscriptionType().string());
+        builder.field("type", license.type());
+        builder.field("subscription_type", license.subscriptionType());
         builder.field("max_nodes", license.maxNodes());
         builder.endObject();
     }

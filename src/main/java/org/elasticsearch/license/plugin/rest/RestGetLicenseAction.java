@@ -71,8 +71,8 @@ public class RestGetLicenseAction extends BaseRestHandler {
             builder.startObject();
 
             builder.field("uid", license.uid());
-            builder.field("type", license.type().string());
-            builder.field("subscription_type", license.subscriptionType().string());
+            builder.field("type", license.type());
+            builder.field("subscription_type", license.subscriptionType());
             builder.field("issued_to", license.issuedTo());
             builder.field("issue_date", DateUtils.dateStringFromLongDate(license.issueDate()));
             builder.field("expiry_date", DateUtils.dateStringFromLongDate(license.expiryDate()));

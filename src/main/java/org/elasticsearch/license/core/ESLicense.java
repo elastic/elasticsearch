@@ -21,15 +21,15 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
     private final String issuer;
     private final String issuedTo;
     private final long issueDate;
-    private final Type type;
-    private final SubscriptionType subscriptionType;
+    private final String type;
+    private final String subscriptionType;
     private final String feature;
     private final String signature;
     private final long expiryDate;
     private final int maxNodes;
 
-    private ESLicense(String uid, String issuer, String issuedTo, long issueDate, Type type,
-                     SubscriptionType subscriptionType, String feature, String signature, long expiryDate, int maxNodes) {
+    private ESLicense(String uid, String issuer, String issuedTo, long issueDate, String type,
+                     String subscriptionType, String feature, String signature, long expiryDate, int maxNodes) {
         this.uid = uid;
         this.issuer = issuer;
         this.issuedTo = issuedTo;
@@ -53,14 +53,14 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
     /**
      * @return type of the license [trial, subscription, internal]
      */
-    public Type type() {
+    public String type() {
         return type;
     }
 
     /**
      * @return subscription type of the license [none, silver, gold, platinum]
      */
-    public SubscriptionType subscriptionType() {
+    public String subscriptionType() {
         return subscriptionType;
     }
 
@@ -123,8 +123,8 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
         in.readVInt(); // Version for future extensibility
         Builder builder = builder();
         builder.uid(in.readString());
-        builder.type(Type.fromString(in.readString()));
-        builder.subscriptionType(SubscriptionType.fromString(in.readString()));
+        builder.type(in.readString());
+        builder.subscriptionType(in.readString());
         builder.issueDate(in.readLong());
         builder.feature(in.readString());
         builder.expiryDate(in.readLong());
@@ -138,8 +138,8 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(VERSION);
         out.writeString(uid);
-        out.writeString(type.string());
-        out.writeString(subscriptionType.string());
+        out.writeString(type);
+        out.writeString(subscriptionType);
         out.writeLong(issueDate);
         out.writeString(feature);
         out.writeLong(expiryDate);
@@ -153,8 +153,8 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(XFields.UID, uid);
-        builder.field(XFields.TYPE, type.string());
-        builder.field(XFields.SUBSCRIPTION_TYPE, subscriptionType.string());
+        builder.field(XFields.TYPE, type);
+        builder.field(XFields.SUBSCRIPTION_TYPE, subscriptionType);
         builder.field(XFields.ISSUE_DATE, issueDate);
         builder.field(XFields.FEATURE, feature);
         builder.field(XFields.EXPIRY_DATE, expiryDate);
@@ -208,9 +208,9 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
                         if (Fields.UID.equals(currentFieldName)) {
                             builder.uid(parser.text());
                         } else if (Fields.TYPE.equals(currentFieldName)) {
-                            builder.type(Type.fromString(parser.text()));
+                            builder.type(parser.text());
                         } else if (Fields.SUBSCRIPTION_TYPE.equals(currentFieldName)) {
-                            builder.subscriptionType(SubscriptionType.fromString(parser.text()));
+                            builder.subscriptionType(parser.text());
                         } else if (Fields.ISSUE_DATE.equals(currentFieldName)) {
                             builder.issueDate(parser.longValue());
                         } else if (Fields.FEATURE.equals(currentFieldName)) {
@@ -242,77 +242,6 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
         return builder.verifyAndBuild();
     }
 
-    /**
-     * Enum for License Type
-     */
-    public enum Type {
-        TRIAL("trial"),
-        SUBSCRIPTION("subscription"),
-        INTERNAL("internal");
-
-        private final String name;
-
-        private Type(String name) {
-            this.name = name;
-        }
-
-        public String string() {
-            return name;
-        }
-
-        public static Type fromString(String type) {
-            if (type.equalsIgnoreCase(TRIAL.string())) {
-                return TRIAL;
-            } else if (type.equalsIgnoreCase(SUBSCRIPTION.string())) {
-                return SUBSCRIPTION;
-            } else if (type.equalsIgnoreCase(INTERNAL.string())) {
-                return INTERNAL;
-            } else {
-                throw new IllegalArgumentException("Invalid Type=" + type);
-            }
-
-        }
-    }
-
-    /**
-     * Enum for License Subscription Type
-     */
-    public enum SubscriptionType {
-        NONE("none"),
-        DEVELOPMENT("development"),
-        SILVER("silver"),
-        GOLD("gold"),
-        PLATINUM("platinum");
-
-        public static SubscriptionType DEFAULT = NONE;
-
-        private final String name;
-
-        private SubscriptionType(String name) {
-            this.name = name;
-        }
-
-        public String string() {
-            return name;
-        }
-
-        public static SubscriptionType fromString(String subscriptionType) {
-            if (subscriptionType.equalsIgnoreCase(NONE.string())) {
-                return NONE;
-            } else if (subscriptionType.equalsIgnoreCase(DEVELOPMENT.string())) {
-                return DEVELOPMENT;
-            } else if (subscriptionType.equalsIgnoreCase(SILVER.string())) {
-                return SILVER;
-            } else if (subscriptionType.equalsIgnoreCase(GOLD.string())) {
-                return GOLD;
-            } else if (subscriptionType.equalsIgnoreCase(PLATINUM.string())) {
-                return PLATINUM;
-            } else {
-                throw new IllegalArgumentException("Invalid SubscriptionType=" + subscriptionType);
-            }
-        }
-    }
-
     public static Builder builder() {
         return new Builder();
     }
@@ -322,8 +251,8 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
         private String issuer;
         private String issuedTo;
         private long issueDate = -1;
-        private Type type;
-        private SubscriptionType subscriptionType = SubscriptionType.DEFAULT;
+        private String type;
+        private String subscriptionType = "none";
         private String feature;
         private String signature;
         private long expiryDate = -1;
@@ -350,12 +279,12 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
             return this;
         }
 
-        public Builder type(Type type) {
+        public Builder type(String type) {
             this.type = type;
             return this;
         }
 
-        public Builder subscriptionType(SubscriptionType subscriptionType) {
+        public Builder subscriptionType(String subscriptionType) {
             this.subscriptionType = subscriptionType;
             return this;
         }

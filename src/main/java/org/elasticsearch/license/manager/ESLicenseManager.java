@@ -22,9 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import static org.elasticsearch.license.core.ESLicense.SubscriptionType;
-import static org.elasticsearch.license.core.ESLicense.Type;
-
 /**
  * Class responsible for reading signed licenses, maintaining an effective esLicenses instance, verification of licenses
  * and querying against licenses on a feature basis
@@ -111,8 +108,8 @@ public class ESLicenseManager {
                         && licenseFeatures.subscriptionType != null) {
                     builder.maxNodes(licenseFeatures.maxNodes)
                             .feature(licenseFeatures.feature)
-                            .type(Type.fromString(licenseFeatures.type))
-                            .subscriptionType(SubscriptionType.fromString(licenseFeatures.subscriptionType));
+                            .type(licenseFeatures.type)
+                            .subscriptionType(licenseFeatures.subscriptionType);
                     break;
                 }
             } catch (IOException ignored) {}
@@ -142,8 +139,8 @@ public class ESLicenseManager {
             String featureName = feature.getName();
             LicenseFeatures licenseFeatures = licenseFeaturesFromSource(featureName);
             maxNodesValid = eslicense.maxNodes() == licenseFeatures.maxNodes;
-            typeValid = eslicense.type().string().equals(licenseFeatures.type);
-            subscriptionTypeValid = eslicense.subscriptionType().string().equals(licenseFeatures.subscriptionType);
+            typeValid = eslicense.type().equals(licenseFeatures.type);
+            subscriptionTypeValid = eslicense.subscriptionType().equals(licenseFeatures.subscriptionType);
             featureValid = eslicense.feature().equals(licenseFeatures.feature);
 
             if (maxNodesValid && typeValid && subscriptionTypeValid && featureValid) {

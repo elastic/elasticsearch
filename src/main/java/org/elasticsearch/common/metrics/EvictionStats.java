@@ -30,19 +30,15 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
+/**
+ * Provides a serializable container for eviction metrics (total evictions plus one-, five- and fifteen-minute eviction rates)
+ */
 public class EvictionStats implements Streamable, ToXContent {
 
     private long evictions;
     private double evictionsOneMinuteRate;
     private double evictionsFiveMinuteRate;
     private double evictionsFifteenMinuteRate;
-
-    public EvictionStats() {
-        this.evictions = 0;
-        this.evictionsOneMinuteRate = 0;
-        this.evictionsFiveMinuteRate = 0;
-        this.evictionsFifteenMinuteRate = 0;
-    }
 
     public EvictionStats(long evictions, double oneMin, double fiveMin, double fifteenMin) {
         this.evictions = evictions;
@@ -52,12 +48,20 @@ public class EvictionStats implements Streamable, ToXContent {
     }
 
     public EvictionStats(MeterMetric evictionMeter) {
-        this.evictions = evictionMeter.count();
-        this.evictionsOneMinuteRate = evictionMeter.oneMinuteRate();
-        this.evictionsFiveMinuteRate = evictionMeter.fiveMinuteRate();
-        this.evictionsFifteenMinuteRate = evictionMeter.fifteenMinuteRate();
+        this(evictionMeter.count(), evictionMeter.oneMinuteRate(), evictionMeter.fiveMinuteRate(), evictionMeter.fifteenMinuteRate());
     }
 
+    public EvictionStats() {
+        this(0,0,0,0);
+    }
+
+    /**
+     * Add the stats from `other` EvictionStats object to the stats of `this` object, resulting in a
+     * cumulative sum of the two objects.  `This` object will be modified to hold the cumulative sum,
+     * while `other` will remain unmodified.
+     *
+     * @param other Another EvictionStats that you wish to add to this
+     */
     public void add(EvictionStats other) {
         this.evictions += other.getEvictions();
         this.evictionsOneMinuteRate += other.getEvictionsOneMinuteRate();
@@ -102,9 +106,11 @@ public class EvictionStats implements Streamable, ToXContent {
         builder.field(Fields.EVICTIONS, getEvictions());
 
         builder.startObject(Fields.RATES);
+        {
             builder.field(Fields.ONE_MIN, Double.valueOf(Strings.format1Decimals(getEvictionsOneMinuteRate(), "")));
             builder.field(Fields.FIVE_MIN, Double.valueOf(Strings.format1Decimals(getEvictionsFiveMinuteRate(),"")));
             builder.field(Fields.FIFTEEN_MIN, Double.valueOf(Strings.format1Decimals(getEvictionsFifteenMinuteRate(),"")));
+        }
         builder.endObject();
 
         return builder;

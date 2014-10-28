@@ -51,26 +51,26 @@ public class EvictionTests extends ElasticsearchIntegrationTest {
         // Set the fielddata and filter size to 1b and expire to 1ms, forces evictions immediately
         return  ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("indices.fielddata.cache.expire", "10ms")
-                .put("indices.fielddata.cache.size", "10b")
-                .put("indices.cache.filter.expire", "10ms")
-                .put("indices.cache.filter.size", "10b")
+                .put("indices.fielddata.cache.expire", "1ms")
+                .put("indices.fielddata.cache.size", "1b")
+                .put("indices.cache.filter.expire", "1ms")
+                .put("indices.cache.filter.size", "1b")
                 .build();
     }
 
     @Override
     public Settings indexSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
-        if (randomizeNumberOfShardsAndReplicas()) {
-            int numberOfShards = between(4, 10);    // We need to override this so that all nodes have at least one shard
-            if (numberOfShards > 0) {
-                builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
-            }
-            int numberOfReplicas = numberOfReplicas();
-            if (numberOfReplicas >= 0) {
-                builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
-            }
+
+        int numberOfShards = between(4, 10);    // We need to override this so that all nodes have at least one shard
+        if (numberOfShards > 0) {
+            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
         }
+        int numberOfReplicas = numberOfReplicas();
+        if (numberOfReplicas >= 0) {
+            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+        }
+
         return builder.build();
     }
 
@@ -78,6 +78,7 @@ public class EvictionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFieldDataEvictions() throws Exception {
         createIndex("test");
+        ensureGreen();
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
 
@@ -125,6 +126,7 @@ public class EvictionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFilterEvictions() throws Exception {
         createIndex("test");
+        ensureGreen();
 
         NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
 

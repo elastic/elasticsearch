@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 
 import java.io.IOException;
+import java.util.Queue;
 
 public class InternalGeoBounds extends InternalMetricsAggregation implements GeoBounds {
 
@@ -102,7 +104,54 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
         }
         return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude);
     }
-    
+
+    @Override
+    public Object getProperty(Queue<String> path) {
+        if (path.isEmpty()) {
+            return this;
+        } else if (path.size() == 1) {
+            BoundingBox boundingBox = resolveBoundingBox();
+            String bBoxSide = path.poll();
+            switch (bBoxSide) {
+            case "top":
+                return boundingBox.topLeft.lat();
+            case "left":
+                return boundingBox.topLeft.lon();
+            case "bottom":
+                return boundingBox.bottomRight.lat();
+            case "right":
+                return boundingBox.bottomRight.lon();
+            default:
+                throw new ElasticsearchIllegalArgumentException("Found unknown path element [" + bBoxSide + "] in [" + getName() + "]");
+            }
+        } else if (path.size() == 2) {
+            BoundingBox boundingBox = resolveBoundingBox();
+            GeoPoint cornerPoint = null;
+            String cornerString = path.poll();
+            switch (cornerString) {
+            case "top_left":
+                cornerPoint = boundingBox.topLeft;
+                break;
+            case "bottom_right":
+                cornerPoint = boundingBox.bottomRight;
+                break;
+            default:
+                throw new ElasticsearchIllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
+            }
+            String latLonString = path.poll();
+            switch (latLonString) {
+            case "lat":
+                return cornerPoint.lat();
+            case "lon":
+                return cornerPoint.lon();
+            default:
+                throw new ElasticsearchIllegalArgumentException("Found unknown path element [" + latLonString + "] in [" + getName() + "]");
+            }
+        } else {
+            throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+        }
+    }
+
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         GeoPoint topLeft = topLeft();

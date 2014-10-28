@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.Arrays;
@@ -61,7 +62,7 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * A bucket that is associated with a single term
      */
-    static abstract class Bucket implements MultiBucketsAggregation.Bucket {
+    static abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
 
         public abstract Number getKeyAsNumber();
 

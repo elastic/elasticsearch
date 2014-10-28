@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 
 import java.util.*;
@@ -31,7 +32,7 @@ import java.util.*;
 /**
  *
  */
-public abstract class InternalSignificantTerms extends InternalAggregation implements SignificantTerms, ToXContent, Streamable {
+public abstract class InternalSignificantTerms extends InternalMultiBucketAggregation implements SignificantTerms, ToXContent, Streamable {
 
     protected SignificanceHeuristic significanceHeuristic;
     protected int requiredSize;

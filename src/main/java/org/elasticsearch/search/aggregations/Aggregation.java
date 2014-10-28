@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import java.util.Queue;
+
 /**
  * An aggregation
  */
@@ -27,5 +29,7 @@ public interface Aggregation {
      * @return The name of this aggregation.
      */
     String getName();
+
+    Object getProperty(Queue<String> path);
 
 }

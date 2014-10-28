@@ -25,10 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 
@@ -41,7 +38,7 @@ import java.util.Map;
 /**
  *
  */
-public class InternalFilters extends InternalAggregation implements Filters {
+public class InternalFilters extends InternalMultiBucketAggregation implements Filters {
 
     public final static Type TYPE = new Type("filters");
 
@@ -75,7 +72,7 @@ public class InternalFilters extends InternalAggregation implements Filters {
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
-    public static class Bucket implements Filters.Bucket {
+    public static class Bucket extends InternalBucket implements Filters.Bucket {
 
         private final boolean keyed;
         private String key;

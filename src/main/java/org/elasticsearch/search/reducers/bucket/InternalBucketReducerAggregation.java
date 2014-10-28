@@ -37,6 +37,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public abstract class InternalBucketReducerAggregation extends InternalAggregation implements BucketReducerAggregation {
 
@@ -110,6 +112,20 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
             }
         }
             return (B) bucketMap.get(key);
+        }
+
+        @Override
+        public Object getProperty(Queue<String> path) {
+            if (path.isEmpty()) {
+                return this;
+            } else {
+                List<? extends Bucket> buckets = getBuckets();
+                Object[] propertyArray = new Object[buckets.size()];
+                for (int i = 0; i < buckets.size(); i++) {
+                    propertyArray[i] = buckets.get(i).getProperty(getName(), new LinkedBlockingQueue<>(path));
+                }
+                return propertyArray;
+            }
         }
 
         @Override
@@ -194,6 +210,20 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
     @Override
     public InternalAggregation reduce(ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public Object getProperty(Queue<String> path) {
+        if (path.isEmpty()) {
+            return this;
+        } else {
+            List<? extends Selection> selections = getSelections();
+            Object[] propertyArray = new Object[selections.size()];
+            for (int i = 0; i < selections.size(); i++) {
+                propertyArray[i] = selections.get(i).getProperty(new LinkedBlockingQueue<>(path));
+            }
+            return propertyArray;
+        }
     }
 
     @Override

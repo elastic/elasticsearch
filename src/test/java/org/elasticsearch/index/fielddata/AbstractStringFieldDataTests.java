@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.util.FixedBitSet;
+
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -332,7 +334,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         }
         final int numParents = scaledRandomIntBetween(10, 10000);
         List<Document> docs = new ArrayList<>();
-        final OpenBitSet parents = new OpenBitSet();
+        FixedBitSet parents = new FixedBitSet(64);
         for (int i = 0; i < numParents; ++i) {
             docs.clear();
             final int numChildren = randomInt(4);
@@ -352,7 +354,9 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
                 parent.add(new StringField("text", value, Store.YES));
             }
             docs.add(parent);
-            parents.set(parents.prevSetBit(parents.length() - 1) + docs.size());
+            int bit = parents.prevSetBit(parents.length() - 1) + docs.size();
+            parents = FixedBitSet.ensureCapacity(parents, bit);
+            parents.set(bit);
             writer.addDocuments(docs);
             if (randomInt(10) == 0) {
                 writer.commit();

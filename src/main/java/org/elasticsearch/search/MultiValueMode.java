@@ -533,7 +533,8 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final FixedBitSet rootDocs, final FixedBitSet innerDocs, int maxDoc) {
+    // TODO: technically innerDocs need not be BitSet: only needs advance() ?
+    public NumericDoubleValues select(final SortedNumericDoubleValues values, final double missingValue, final BitSet rootDocs, final BitSet innerDocs, int maxDoc) {
         if (rootDocs == null || innerDocs == null) {
             return select(FieldData.emptySortedNumericDoubles(maxDoc), missingValue);
         }
@@ -546,7 +547,8 @@ public enum MultiValueMode {
                     return missingValue;
                 }
 
-                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                // nocommit: remove cast when BitSet.prevSetBit is committed
+                final int prevRootDoc = ((FixedBitSet)rootDocs).prevSetBit(rootDoc - 1);
                 final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
 
                 double accumulated = startDouble();
@@ -616,7 +618,8 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final FixedBitSet rootDocs, final FixedBitSet innerDocs, int maxDoc) {
+    // TODO: technically innerDocs need not be BitSet: only needs advance() ?
+    public BinaryDocValues select(final SortedBinaryDocValues values, final BytesRef missingValue, final BitSet rootDocs, final BitSet innerDocs, int maxDoc) {
         if (rootDocs == null || innerDocs == null) {
             return select(FieldData.emptySortedBinary(maxDoc), missingValue);
         }
@@ -638,7 +641,8 @@ public enum MultiValueMode {
                     return missingValue;
                 }
 
-                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                // nocommit: remove cast when BitSet.prevSetBit is committed
+                final int prevRootDoc = ((FixedBitSet)rootDocs).prevSetBit(rootDoc - 1);
                 final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
 
                 BytesRefBuilder accumulated = null;
@@ -709,7 +713,8 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public SortedDocValues select(final RandomAccessOrds values, final FixedBitSet rootDocs, final FixedBitSet innerDocs) {
+    // TODO: technically innerDocs need not be BitSet: only needs advance() ?
+    public SortedDocValues select(final RandomAccessOrds values, final BitSet rootDocs, final BitSet innerDocs) {
         if (rootDocs == null || innerDocs == null) {
             return select((RandomAccessOrds) DocValues.emptySortedSet());
         }
@@ -733,7 +738,8 @@ public enum MultiValueMode {
                     return -1;
                 }
 
-                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                // nocommit: remove cast when BitSet.prevSetBit is committed
+                final int prevRootDoc = ((FixedBitSet)rootDocs).prevSetBit(rootDoc - 1);
                 final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
                 int ord = -1;
 

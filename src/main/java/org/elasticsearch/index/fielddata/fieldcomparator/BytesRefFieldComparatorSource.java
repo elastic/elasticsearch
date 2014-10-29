@@ -20,7 +20,6 @@
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.LeafReaderContext;
-
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
@@ -28,8 +27,8 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -81,8 +80,8 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     if (nested == null) {
                         selectedValues = sortMode.select(values);
                     } else {
-                        final FixedBitSet rootDocs = nested.rootDocs(context);
-                        final FixedBitSet innerDocs = nested.innerDocs(context);
+                        final BitSet rootDocs = nested.rootDocs(context).bits();
+                        final BitSet innerDocs = nested.innerDocs(context).bits();
                         selectedValues = sortMode.select(values, rootDocs, innerDocs);
                     }
                     if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
@@ -117,8 +116,8 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                 if (nested == null) {
                     selectedValues = sortMode.select(values, nonNullMissingBytes);
                 } else {
-                    final FixedBitSet rootDocs = nested.rootDocs(context);
-                    final FixedBitSet innerDocs = nested.innerDocs(context);
+                    final BitSet rootDocs = nested.rootDocs(context).bits();
+                    final BitSet innerDocs = nested.innerDocs(context).bits();
                     selectedValues = sortMode.select(values, nonNullMissingBytes, rootDocs, innerDocs, context.reader().maxDoc());
                 }
                 return selectedValues;

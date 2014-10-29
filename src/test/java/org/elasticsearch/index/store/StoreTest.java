@@ -598,6 +598,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                     writer.commit();
                 }
             }
+            writer.commit();
             writer.close();
             first = store.getMetadata();
             assertDeleteContent(store, directoryService);
@@ -628,6 +629,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                     writer.commit();
                 }
             }
+            writer.commit();
             writer.close();
             second = store.getMetadata();
         }
@@ -636,10 +638,10 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         for (StoreFileMetaData md : first) {
             assertThat(second.get(md.name()), notNullValue());
             // si files are different - containing timestamps etc
-            assertThat(second.get(md.name()).isSame(md), equalTo(md.name().endsWith(".si") == false));
+            assertThat(second.get(md.name()).isSame(md), equalTo(false));
         }
-        assertThat(diff.different.size(), equalTo(first.size()-1));
-        assertThat(diff.identical.size(), equalTo(1)); // commit point is identical
+        assertThat(diff.different.size(), equalTo(first.size()));
+        assertThat(diff.identical.size(), equalTo(0)); // in lucene 5 nothing is identical - we use random ids in file headers
         assertThat(diff.missing, empty());
 
         // check the self diff
@@ -658,11 +660,12 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         IndexWriter writer = new IndexWriter(store.directory(), iwc);
         writer.deleteDocuments(new Term("id", Integer.toString(random().nextInt(numDocs))));
+        writer.commit();
         writer.close();
         Store.MetadataSnapshot metadata = store.getMetadata();
         StoreFileMetaData delFile = null;
         for (StoreFileMetaData md : metadata) {
-            if (md.name().endsWith(".del")) {
+            if (md.name().endsWith(".liv")) {
                 delFile = md;
                 break;
             }
@@ -700,7 +703,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         if (delFile != null) {
             assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size()-5)); // segments_N, del file, cfs, cfe, si for the new segment
             assertThat(newCommitDiff.different.size(), equalTo(1)); // the del file must be different
-            assertThat(newCommitDiff.different.get(0).name(), endsWith(".del"));
+            assertThat(newCommitDiff.different.get(0).name(), endsWith(".liv"));
             assertThat(newCommitDiff.missing.size(), equalTo(4)); // segments_N,cfs, cfe, si for the new segment
         } else {
             assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size() - 4)); // segments_N, cfs, cfe, si for the new segment

@@ -37,6 +37,7 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
+                .put("scroll.size", randomIntBetween(1, 100))
                 .put("plugin.mandatory", "alerts")
                 .put("plugin.types", AlertsPlugin.class.getName())
                 .put("node.mode", "network")

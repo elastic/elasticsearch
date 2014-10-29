@@ -327,14 +327,25 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * Note: Checksums are calculated nevertheless since lucene does it by default sicne version 4.8.0. This method only adds the
      * verification against the checksum in the given metadata and does not add any significant overhead.
      */
-    public IndexOutput createVerifyingOutput(final String filename, final IOContext context, final StoreFileMetaData metadata) throws IOException {
-        if (metadata.hasLegacyChecksum() || metadata.checksum() == null) {
-            logger.debug("create legacy output for {}", filename);
-            return directory().createOutput(filename, context);
+    public IndexOutput createVerifyingOutput(String fileName, final StoreFileMetaData metadata, final IOContext context) throws IOException {
+        IndexOutput output = directory().createOutput(fileName, context);
+        boolean success = false;
+        try {
+            if (metadata.hasLegacyChecksum() || metadata.checksum() == null) {
+                logger.debug("create legacy output for {}", fileName);
+            } else {
+                assert metadata.writtenBy() != null;
+                assert metadata.writtenBy().onOrAfter(Version.LUCENE_48);
+                output = new VerifyingIndexOutput(metadata, output);
+            }
+            success = true;
+        } finally {
+           if (success == false) {
+               IOUtils.closeWhileHandlingException(output);
+           }
         }
-        assert metadata.writtenBy() != null;
-        assert metadata.writtenBy().onOrAfter(Version.LUCENE_48);
-        return new VerifyingIndexOutput(metadata, directory().createOutput(filename, context));
+        return output;
+
     }
 
     public static void verify(IndexOutput output) throws IOException {
@@ -418,7 +429,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     /**
      * This exists so {@link org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat} can load its boolean setting; can we find a more straightforward way?
      */
-    public class StoreDirectory extends FilterDirectory {
+    public final class StoreDirectory extends FilterDirectory {
 
         StoreDirectory(Directory delegateDirectory) throws IOException {
             super(delegateDirectory);
@@ -462,6 +473,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
 
         private void innerClose() throws IOException {
+            assert DistributorDirectory.assertConsistency(logger, distributorDirectory);
             super.close();
         }
 
@@ -789,7 +801,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
     }
 
-    private static final String CHECKSUMS_PREFIX = "_checksums-";
+    public static final String CHECKSUMS_PREFIX = "_checksums-";
 
     public static final boolean isChecksum(String name) {
         // TODO can we drowp .cks

@@ -69,6 +69,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
         static {
             FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setIndexOptions(null); // not indexed
         }
     }
 

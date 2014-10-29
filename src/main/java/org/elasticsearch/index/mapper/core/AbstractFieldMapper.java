@@ -112,7 +112,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         public T index(boolean index) {
-            this.index = true;
+            this.index = index;
             return builder;
         }
 

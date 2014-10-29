@@ -98,6 +98,8 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         public IdFieldMapper build(BuilderContext context) {
             if (index) {
                 fieldType.setIndexOptions(IndexOptions.DOCS_ONLY);
+            } else {
+                fieldType.setIndexOptions(null);
             }
             return new IdFieldMapper(name, indexName, boost, fieldType, docValues, path, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }

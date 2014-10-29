@@ -79,6 +79,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.setTokenized(true);
             FIELD_TYPE.freeze();
         }

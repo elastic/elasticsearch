@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -81,11 +82,10 @@ public class DocIdSets {
         }
         // TODO: should we use WAH8DocIdSet like Lucene?
         FixedBitSet fixedBitSet = new FixedBitSet(reader.maxDoc());
-        do {
-            fixedBitSet.set(doc);
-            doc = it.nextDoc();
-        } while (doc != DocIdSetIterator.NO_MORE_DOCS);
-        return new BitDocIdSet(fixedBitSet);
+        it = set.iterator();
+        long cost = it.cost();
+        fixedBitSet.or(it);
+        return new BitDocIdSet(fixedBitSet, cost);
     }
 
     /**
@@ -113,5 +113,30 @@ public class DocIdSets {
         FixedBitSet set = new FixedBitSet(numBits);
         set.or(iterator);
         return set;
+    }
+    
+    /**
+     * Creates a new DocIDSet if you have no idea of the cardinality,
+     * and are afraid of the cost of computing the cost.
+     * @deprecated remove usages of this.
+     */
+    @Deprecated
+    public static BitDocIdSet newDocIDSet(BitSet bs) {
+        final int cost;
+        if (bs instanceof FixedBitSet) {
+            cost = guessCost((FixedBitSet) bs);
+        } else {
+            cost = bs.approximateCardinality();
+        }
+        return new BitDocIdSet(bs, cost);
+    }
+    
+    // nocommit: we should instead base this always on cost of clauses and stuff???
+    private static int guessCost(FixedBitSet bs) {
+        if (bs.length() < 8192) {
+            return bs.cardinality();
+        } else {
+            return bs.length() / 8192 * new FixedBitSet(bs.getBits(), 8192).cardinality();
+        }
     }
 }

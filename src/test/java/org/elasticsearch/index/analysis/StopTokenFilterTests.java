@@ -75,7 +75,6 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         tokenizer.setReader(new StringReader("foo bar"));
         TokenStream create = tokenFilter.create(tokenizer);
         assertThat(create, instanceOf(StopFilter.class));
-        assertThat(((StopFilter)create).getEnablePositionIncrements(), equalTo(true));
     }
 
     @Test
@@ -90,7 +89,8 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         tokenizer.setReader(new StringReader("foo bar"));
         TokenStream create = tokenFilter.create(tokenizer);
         assertThat(create, instanceOf(StopFilter.class));
-        assertThat(((StopFilter)create).getEnablePositionIncrements(), equalTo(false));
+        // nocommit: was posInc=false actually supported in 4.3 in lucene (other than for ancient back compat?)
+        fail("what happened here, and what to do about it");
     }
 
     @Test

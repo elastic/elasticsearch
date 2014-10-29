@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.apache.lucene.util.BitDocIdSet;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BitDocIdSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
@@ -81,9 +79,9 @@ public class IndexedGeoBoundingBoxFilter {
                 }
             } else {
                 if (main == null) {
-                    main = (FixedBitSet) set;
+                    main = ((BitDocIdSet) set).bits();
                 } else {
-                    main.or((FixedBitSet) set);
+                    main.or(set.iterator());
                 }
             }
 
@@ -92,7 +90,7 @@ public class IndexedGeoBoundingBoxFilter {
                 return null;
             }
             main.and(set.iterator());
-            return main;
+            return DocIdSets.newDocIDSet(main);
         }
 
         @Override
@@ -129,19 +127,19 @@ public class IndexedGeoBoundingBoxFilter {
         }
 
         @Override
-        public FixedBitSet getDocIdSet(LeafReaderContext context, Bits acceptedDocs) throws IOException {
-            FixedBitSet main;
+        public BitDocIdSet getDocIdSet(LeafReaderContext context, Bits acceptedDocs) throws IOException {
+            BitSet main;
             DocIdSet set = lonFilter.getDocIdSet(context, acceptedDocs);
             if (DocIdSets.isEmpty(set)) {
                 return null;
             }
-            main = (FixedBitSet) set;
+            main = ((BitDocIdSet) set).bits();
             set = latFilter.getDocIdSet(context, acceptedDocs);
             if (DocIdSets.isEmpty(set)) {
                 return null;
             }
             main.and(set.iterator());
-            return main;
+            return DocIdSets.newDocIDSet(main);
         }
 
         @Override

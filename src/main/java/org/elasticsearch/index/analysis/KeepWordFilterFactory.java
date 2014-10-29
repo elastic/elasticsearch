@@ -91,8 +91,10 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         if (version.onOrAfter(Version.LUCENE_4_4)) {
             return new KeepWordFilter(tokenStream, keepWords);
+        } else {
+            // nocommit: what happened here? 
+            throw new UnsupportedOperationException();
         }
-        return new KeepWordFilter(version, enablePositionIncrements, tokenStream, keepWords);
     }
 
 

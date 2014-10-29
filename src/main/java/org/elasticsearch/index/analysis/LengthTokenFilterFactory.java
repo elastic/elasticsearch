@@ -57,7 +57,9 @@ public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         if (version.onOrAfter(Version.LUCENE_4_4)) {
             return new LengthFilter(tokenStream, min, max);
+        } else {
+            // nocommit: what happened here? 
+            throw new UnsupportedOperationException();
         }
-        return new LengthFilter(version, enablePositionIncrements, tokenStream, min, max);
     }
 }

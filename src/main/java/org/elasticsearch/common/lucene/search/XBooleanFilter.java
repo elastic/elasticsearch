@@ -25,6 +25,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.docset.AllDocIdSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
@@ -179,7 +180,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
 
         if (!hasBits) {
             if (!fastOrClauses.isEmpty()) {
-                DocIdSetIterator it = res.iterator();
+                DocIdSetIterator it = new BitSetIterator(res, 0);
                 at_least_one_should_clause_iter:
                 for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
                     for (ResultClause fastOrClause : fastOrClauses) {
@@ -199,7 +200,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
             if (hasShouldClauses && !hasNonEmptyShouldClause) {
                 return null;
             } else {
-                return res;
+                return DocIdSets.newDocIDSet(res);
             }
         }
 
@@ -244,7 +245,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
                 } else {
                     Bits bits = clause.bits;
                     // use the "res" to drive the iteration
-                    DocIdSetIterator it = res.iterator();
+                    DocIdSetIterator it = new BitSetIterator(res, 0);
                     for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
                         if (!bits.get(doc)) {
                             res.clear(doc);
@@ -262,7 +263,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
                 } else {
                     Bits bits = clause.bits;
                     // let res drive the iteration
-                    DocIdSetIterator it = res.iterator();
+                    DocIdSetIterator it = new BitSetIterator(res, 0);
                     for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
                         if (bits.get(doc)) {
                             res.clear(doc);
@@ -277,7 +278,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
         // clause must match in order for a doc to be a match. What we do here is checking if matched docs match with
         // any should filter. TODO: Add an option to have disable minimum_should_match=1 behaviour
         if (!slowOrClauses.isEmpty() || !fastOrClauses.isEmpty()) {
-            DocIdSetIterator it = res.iterator();
+            DocIdSetIterator it = new BitSetIterator(res, 0);
             at_least_one_should_clause_iter:
             for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
                 for (ResultClause fastOrClause : fastOrClauses) {
@@ -303,7 +304,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
         if (hasShouldClauses && !hasNonEmptyShouldClause) {
             return null;
         } else {
-            return res;
+            return DocIdSets.newDocIDSet(res);
         }
 
     }

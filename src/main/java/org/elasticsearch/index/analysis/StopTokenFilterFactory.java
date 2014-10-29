@@ -64,8 +64,11 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public TokenStream create(TokenStream tokenStream) {
         if (removeTrailing) {
-            StopFilter filter = new StopFilter(version, tokenStream, stopWords);
-            filter.setEnablePositionIncrements(enablePositionIncrements);
+            StopFilter filter = new StopFilter(tokenStream, stopWords);
+            if (enablePositionIncrements == false) {
+                // nocommit: what happened here? 
+                throw new UnsupportedOperationException();
+            }
             return filter;
         } else {
             return new SuggestStopFilter(tokenStream, stopWords);

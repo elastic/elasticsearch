@@ -24,6 +24,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
@@ -34,6 +35,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -41,7 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 @UsesLuceneFieldCacheOnPurpose
-// nocommit: wrap with uninvertingreader, whereever it does this
 public class SimpleLuceneTests extends ElasticsearchTestCase {
 
     @Test
@@ -53,7 +54,9 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
             document.add(new TextField("str", new String(new char[]{(char) (97 + i), (char) (97 + i)}), Field.Store.YES));
             indexWriter.addDocument(document);
         }
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        HashMap<String, UninvertingReader.Type> mapping = new HashMap<>();
+        mapping.put("str", UninvertingReader.Type.SORTED);
+        IndexReader reader = new UninvertingReader(SlowCompositeReaderWrapper.wrap(DirectoryReader.open(indexWriter, true)), mapping);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), null, 10, new Sort(new SortField("str", SortField.Type.STRING)));
         for (int i = 0; i < 10; i++) {

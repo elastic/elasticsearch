@@ -18,12 +18,16 @@
  */
 package org.elasticsearch.index.codec.postingsformat;
 
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
+import com.google.common.collect.Iterators;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.TermsConsumer;
 import org.apache.lucene.codecs.lucene41.Lucene41PostingsFormat;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.common.util.BloomFilter;
@@ -31,6 +35,7 @@ import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat.Bl
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 /**
  * This is the default postings format for Elasticsearch that special cases
@@ -44,12 +49,19 @@ public final class Elasticsearch090PostingsFormat extends PostingsFormat {
 
     public Elasticsearch090PostingsFormat() {
         super("es090");
-        bloomPostings = new BloomFilterPostingsFormat(new Lucene41PostingsFormat(), BloomFilter.Factory.DEFAULT);
+        bloomPostings = new BloomFilterPostingsFormat(new Lucene50PostingsFormat(), BloomFilter.Factory.DEFAULT);
     }
 
     public PostingsFormat getDefaultWrapped() {
         return bloomPostings.getDelegate();
     }
+    private static final Predicate<String> UID_FIELD_FILTER = new Predicate<String>() {
+
+        @Override
+        public boolean apply(String s) {
+            return  UidFieldMapper.NAME.equals(s);
+        }
+    };
 
     @Override
     public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
@@ -57,17 +69,28 @@ public final class Elasticsearch090PostingsFormat extends PostingsFormat {
         return new FieldsConsumer() {
 
             @Override
-            public void close() throws IOException {
-                fieldsConsumer.close();
+            public void write(Fields fields) throws IOException {
+
+                Fields maskedFields = new FilterLeafReader.FilterFields(fields) {
+                    @Override
+                    public Iterator<String> iterator() {
+                        return Iterators.filter(this.in.iterator(), Predicates.not(UID_FIELD_FILTER));
+                    }
+                };
+                fieldsConsumer.getDelegate().write(maskedFields);
+                maskedFields = new FilterLeafReader.FilterFields(fields) {
+                    @Override
+                    public Iterator<String> iterator() {
+                        return Iterators.singletonIterator(UidFieldMapper.NAME);
+                    }
+                };
+                // only go through bloom for the UID field
+                fieldsConsumer.write(maskedFields);
             }
 
             @Override
-            public TermsConsumer addField(FieldInfo field) throws IOException {
-                if (UidFieldMapper.NAME.equals(field.name)) {
-                    // only go through bloom for the UID field
-                    return fieldsConsumer.addField(field);
-                }
-                return fieldsConsumer.getDelegate().addField(field);
+            public void close() throws IOException {
+                fieldsConsumer.close();
             }
         };
     }

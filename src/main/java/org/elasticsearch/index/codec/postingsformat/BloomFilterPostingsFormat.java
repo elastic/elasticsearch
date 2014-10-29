@@ -100,6 +100,10 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
         return new BloomFilteredFieldsProducer(state);
     }
 
+    public PostingsFormat getDelegate() {
+        return delegatePostingsFormat;
+    }
+
     private final class LazyBloomLoader implements Accountable {
         private final long offset;
         private final IndexInput indexInput;

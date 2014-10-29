@@ -152,7 +152,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             final String bloomFileName = IndexFileNames.segmentFileName(
                     state.segmentInfo.name, state.segmentSuffix, BLOOM_EXTENSION);
             final Directory directory = state.directory;
-            IndexInput dataInput = directory.openChecksumInput(bloomFileName, state.context);
+            IndexInput dataInput = directory.openInput(bloomFileName, state.context);
             try {
                 ChecksumIndexInput bloomIn = new BufferedChecksumIndexInput(dataInput.clone());
                 version = CodecUtil.checkHeader(bloomIn, BLOOM_CODEC_NAME, BLOOM_CODEC_VERSION,

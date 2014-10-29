@@ -7,34 +7,25 @@ package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.base.Predicate;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
-import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.manager.ESLicenseManager;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.license.plugin.core.*;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
-import org.junit.*;
+import org.junit.Before;
+import org.junit.Test;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.license.plugin.core.LicensesService.LicensesUpdateResponse;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -44,16 +35,8 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope = TEST, numDataNodes = 10)
 public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
 
-
-    private static String pubKeyPath = null;
-    private static String priKeyPath = null;
     private static String node = null;
-
-    @BeforeClass
-    public static void setup() throws IOException, URISyntaxException {
-        priKeyPath = Paths.get(LicenseTransportTests.class.getResource("/private.key").toURI()).toAbsolutePath().toString();
-        pubKeyPath = Paths.get(LicenseTransportTests.class.getResource("/public.key").toURI()).toAbsolutePath().toString();
-    }
+    private static String[] nodes;
 
     @Before
     public void beforeTest() throws Exception {
@@ -62,247 +45,352 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
 
         DiscoveryNodes discoveryNodes = LicensesServiceTests.masterClusterService().state().getNodes();
         Set<String> dataNodeSet = new HashSet<>();
-        for(DiscoveryNode discoveryNode : discoveryNodes) {
+        for (DiscoveryNode discoveryNode : discoveryNodes) {
             if (discoveryNode.dataNode()) {
                 dataNodeSet.add(discoveryNode.getName());
             }
         }
-        String[] dataNodes = dataNodeSet.toArray(new String[dataNodeSet.size()]);
-        node = dataNodes[randomIntBetween(0, dataNodes.length - 1)];
+        nodes = dataNodeSet.toArray(new String[dataNodeSet.size()]);
+        node = nodes[randomIntBetween(0, nodes.length - 1)];
     }
 
     @Test
-    public void testEmptySignedLicenseCheck() {
+    public void testStoreAndGetLicenses() throws Exception {
         LicensesManagerService licensesManagerService = masterLicensesManagerService();
-        assertTrue(LicensesStatus.VALID == licensesManagerService.checkLicenses(new HashSet<ESLicense>()));
+        ESLicense shieldShortLicense = generateSignedLicense("shield", TimeValue.timeValueHours(1));
+        ESLicense shieldLongLicense = generateSignedLicense("shield", TimeValue.timeValueHours(2));
+        ESLicense marvelShortLicense = generateSignedLicense("marvel", TimeValue.timeValueHours(1));
+        ESLicense marvelLongLicense = generateSignedLicense("marvel", TimeValue.timeValueHours(2));
+
+        List<ESLicense> licenses = Arrays.asList(shieldLongLicense, shieldShortLicense, marvelLongLicense, marvelShortLicense);
+        Collections.shuffle(licenses);
+        putAndCheckSignedLicensesAction(licensesManagerService, licenses, LicensesStatus.VALID);
+
+        final ImmutableSet<String> licenseSignatures = masterLicenseManager().toSignatures(licenses);
+        LicensesMetaData licensesMetaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
+
+        // all licenses should be stored in the metaData
+        assertThat(licenseSignatures, equalTo(licensesMetaData.getSignatures()));
+
+        // only the latest expiry date license for each feature should be returned by getLicenses()
+        final List<ESLicense> getLicenses = licensesManagerService.getLicenses();
+        TestUtils.isSame(getLicenses, Arrays.asList(shieldLongLicense, marvelLongLicense));
     }
 
     @Test
-    public void testInvalidSignedLicenseCheck() throws Exception {
+    public void testInvalidLicenseStorage() throws Exception {
         LicensesManagerService licensesManagerService = masterLicensesManagerService();
+        ESLicense signedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
 
-        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
-        TestUtils.FeatureAttributes featureAttributes =
-                new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-12-13");
-        map.put(TestUtils.SHIELD, featureAttributes);
-        String licenseString = TestUtils.generateESLicenses(map);
-        String licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
-        Set<ESLicense> licenses = new HashSet<>(ESLicenses.fromSource(licenseOutput));
-
-        assertTrue(LicensesStatus.VALID == licensesManagerService.checkLicenses(licenses));
-
-        ESLicense esLicense = ESLicenses.reduceAndMap(licenses).get(TestUtils.SHIELD);
-
-        final ESLicense tamperedLicense = ESLicense.builder()
-                .fromLicenseSpec(esLicense, esLicense.signature())
-                .expiryDate(esLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
+        // modify content of signed license
+        ESLicense tamperedLicense = ESLicense.builder()
+                .fromLicenseSpec(signedLicense, signedLicense.signature())
+                .expiryDate(signedLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
                 .verify()
                 .build();
 
-        assertTrue(LicensesStatus.INVALID == licensesManagerService.checkLicenses(Collections.singleton(tamperedLicense)));
-    }
+        putAndCheckSignedLicensesAction(licensesManagerService, Arrays.asList(tamperedLicense), LicensesStatus.INVALID);
 
-    @Test
-    public void testStoringLicenses() throws Exception {
-        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
-        TestUtils.FeatureAttributes featureAttributes1 =
-                new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-12-13");
-        map.put(TestUtils.SHIELD, featureAttributes1);
-        String licenseString = TestUtils.generateESLicenses(map);
-        String licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
-        List<ESLicense> licenses = ESLicenses.fromSource(licenseOutput);
-
-        LicensesManagerService licensesManagerService = masterLicensesManagerService();
-        ESLicenseManager esLicenseManager = masterLicenseManager();
-        final CountDownLatch latch1 = new CountDownLatch(1);
-        // todo: fix with awaitBusy
-        licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses), "test"), new ActionListener<LicensesUpdateResponse>() {
-            @Override
-            public void onResponse(LicensesUpdateResponse clusterStateUpdateResponse) {
-                if (clusterStateUpdateResponse.isAcknowledged()) {
-                    latch1.countDown();
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-
-            }
-        });
-
-        latch1.await();
-        LicensesMetaData metaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
-        Set<ESLicense> metaDataLicense = esLicenseManager.fromSignatures(metaData.getSignatures());
-        TestUtils.isSame(new HashSet<>(licenses), metaDataLicense);
-
-
-        TestUtils.FeatureAttributes featureAttributes2 =
-                new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2016-12-13");
-        map.put(TestUtils.SHIELD, featureAttributes2);
-        licenseString = TestUtils.generateESLicenses(map);
-        licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
-        List<ESLicense> licenses2 = ESLicenses.fromSource(licenseOutput);
-        final CountDownLatch latch2 = new CountDownLatch(1);
-        // todo: fix with awaitBusy
-        licensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses2), "test"), new ActionListener<LicensesUpdateResponse>() {
-            @Override
-            public void onResponse(LicensesUpdateResponse clusterStateUpdateResponse) {
-                if (clusterStateUpdateResponse.isAcknowledged()) {
-                    latch2.countDown();
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-
-            }
-        });
-
-        latch2.await();
-        metaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
-        metaDataLicense = esLicenseManager.fromSignatures(metaData.getSignatures());
-        TestUtils.isSame(new HashSet<>(licenses2), metaDataLicense);
-    }
-
-    @Test
-    public void testTrialLicenseGeneration() throws Exception {
-        LicensesClientService clientService = licensesClientService();
-        final CountDownLatch latch = new CountDownLatch(1);
-        // todo: fix with awaitBusy
-        clientService.register("shield", new LicensesService.TrialLicenseOptions(TimeValue.timeValueHours(10), 100), new LicensesClientService.Listener() {
-            @Override
-            public void onEnabled() {
-                logger.info("got onEnabled from LicensesClientService");
-                latch.countDown();
-            }
-
-            @Override
-            public void onDisabled() {
-                fail();
-            }
-        });
-        logger.info("waiting for onEnabled");
-        latch.await();
-    }
-
-    @Test
-    public void testMultipleClientRegistration() {
-    }
-
-    private class TestLicenseClientListener implements LicensesClientService.Listener {
-
-        AtomicBoolean shouldBeEnabled = new AtomicBoolean(false);
-        AtomicBoolean processed = new AtomicBoolean(false);
-
-        private TestLicenseClientListener(boolean shouldBeEnabled) {
-            this.shouldBeEnabled.getAndSet(shouldBeEnabled);
-        }
-
-        private void reset() {
-            processed.set(false);
-        }
-
-        @Override
-        public void onEnabled() {
-            if (this.shouldBeEnabled.get()) {
-                logger.info("onEnabled called from LicensesClientService");
-                processed.set(true);
-            } else {
-                fail("onEnabled should not have been called");
-            }
-
-        }
-
-        @Override
-        public void onDisabled() {
-            if (!this.shouldBeEnabled.get()) {
-                logger.info("onEnabled called from LicensesClientService");
-                processed.set(true);
-            } else {
-                fail("onDisabled should not have been called");
-            }
+        // ensure that the invalid license never made it to cluster state
+        LicensesMetaData licensesMetaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
+        if (licensesMetaData != null) {
+            assertThat(licensesMetaData.getSignatures().size(), equalTo(0));
         }
     }
 
     @Test
-    public void testClientValidation() throws Exception {
-        // start with no trial license
-        // feature should be onDisabled
-        // then add signed license
-        // feature should be onEnabled
+    public void testTrialLicenseEnforcement() throws Exception {
+        // register with trial license and assert onEnable and onDisable notification
 
-        LicensesClientService clientService = licensesClientService();
-        final LicensesManagerService managerService = licensesManagerService();
-        LicensesManagerService masterLicensesManagerService = masterLicensesManagerService();
-        final TestLicenseClientListener testLicenseClientListener = new TestLicenseClientListener(false);
-        clientService.register("shield", null, testLicenseClientListener);
+        final LicensesClientService clientService = licensesClientService();
+        final TestTrackingClientListener clientListener = new TestTrackingClientListener();
+        List<Action> actions = new ArrayList<>();
 
-        for (String enabledFeature : managerService.enabledFeatures()) {
-            assertFalse(enabledFeature.equals("shield"));
+        final TimeValue expiryDuration = TimeValue.timeValueSeconds(2);
+        actions.add(registerWithTrialLicense(clientService, clientListener, "feature1", expiryDuration));
+        actions.add(assertExpiryAction("trial", expiryDuration));
+        assertClientListenerNotificationCount(clientListener, actions);
+    }
+
+    @Test
+    public void testMultipleClientSignedLicenseEnforcement() throws Exception {
+        // multiple client registration with null trial license and then different expiry signed license
+
+        final LicensesManagerService masterLicensesManagerService = masterLicensesManagerService();
+        final List<LicensesService> licensesServices = licensesServices(2);
+        assertThat(licensesServices.size(), equalTo(2));
+        final TestTrackingClientListener clientListener1 = new TestTrackingClientListener();
+        final TestTrackingClientListener clientListener2 = new TestTrackingClientListener();
+
+        List<Action> firstClientActions = new ArrayList<>();
+        List<Action> secondClientActions = new ArrayList<>();
+
+        final TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(2);
+        firstClientActions.add(registerWithoutTrialLicense(licensesServices.get(0), clientListener1, "feature1"));
+        firstClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, "feature1", firstExpiryDuration));
+        firstClientActions.add(assertExpiryAction("signed", firstExpiryDuration));
+
+        final TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(1);
+        secondClientActions.add(registerWithoutTrialLicense(licensesServices.get(1), clientListener2, "feature2"));
+        secondClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, "feature2", secondExpiryDuration));
+        secondClientActions.add(assertExpiryAction("signed", secondExpiryDuration));
+
+        if (randomBoolean()) {
+            assertClientListenerNotificationCount(clientListener1, firstClientActions);
+            assertClientListenerNotificationCount(clientListener2, secondClientActions);
+        } else {
+            assertClientListenerNotificationCount(clientListener2, secondClientActions);
+            assertClientListenerNotificationCount(clientListener1, firstClientActions);
         }
-        logger.info("pass initial check");
+    }
 
-        assertFalse(testLicenseClientListener.processed.get());
+    @Test
+    public void testMultipleClientTrialAndSignedLicenseEnforcement() throws Exception {
+        // multiple client registration: one with trial license and another with signed license (different expiry duration)
 
-        testLicenseClientListener.shouldBeEnabled.set(true);
-        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
-        TestUtils.FeatureAttributes featureAttributes1 =
-                new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-12-13");
-        map.put(TestUtils.SHIELD, featureAttributes1);
-        String licenseString = TestUtils.generateESLicenses(map);
-        String licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
-        List<ESLicense> licenses = ESLicenses.fromSource(licenseOutput);
+        final LicensesManagerService masterLicensesManagerService = masterLicensesManagerService();
+        final List<LicensesService> licensesServices = licensesServices(2);
+        assertThat(licensesServices.size(), equalTo(2));
+        final TestTrackingClientListener clientListener1 = new TestTrackingClientListener();
+        final TestTrackingClientListener clientListener2 = new TestTrackingClientListener();
 
-        final CountDownLatch latch1 = new CountDownLatch(1);
-        // todo: fix with awaitBusy
-        masterLicensesManagerService.registerLicenses(new LicensesService.PutLicenseRequestHolder(new PutLicenseRequest().licenses(licenses), "test"), new ActionListener<LicensesUpdateResponse>() {
-            @Override
-            public void onResponse(LicensesUpdateResponse clusterStateUpdateResponse) {
-                if (clusterStateUpdateResponse.isAcknowledged()) {
-                    latch1.countDown();
-                }
-            }
+        List<Action> firstClientActions = new ArrayList<>();
+        List<Action> secondClientActions = new ArrayList<>();
 
-            @Override
-            public void onFailure(Throwable e) {
+        firstClientActions.add(registerWithoutTrialLicense(licensesServices.get(0), clientListener1, "feature1"));
 
-            }
-        });
+        final TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(2);
+        firstClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, "feature1", firstExpiryDuration));
 
-        latch1.await();
+        firstClientActions.add(assertExpiryAction("signed", firstExpiryDuration));
 
-        logger.info("waiting for onEnabled");
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                return managerService.enabledFeatures().contains("shield");
-            }
-        }, 1, TimeUnit.MINUTES), equalTo(true));
+        final TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(1);
+        secondClientActions.add(registerWithTrialLicense(licensesServices.get(1), clientListener2, "feature2", secondExpiryDuration));
 
+        secondClientActions.add(assertExpiryAction("trial", secondExpiryDuration));
+
+        if (randomBoolean()) {
+            assertClientListenerNotificationCount(clientListener1, firstClientActions);
+            assertClientListenerNotificationCount(clientListener2, secondClientActions);
+        } else {
+            assertClientListenerNotificationCount(clientListener2, secondClientActions);
+            assertClientListenerNotificationCount(clientListener1, firstClientActions);
+        }
+    }
+
+    @Test
+    public void testMultipleClientTrialLicenseRegistration() throws Exception {
+        // multiple client registration: both with trail license of different expiryDuration
+
+        final List<LicensesService> licensesServices = licensesServices(2);
+        assertThat(licensesServices.size(), equalTo(2));
+        final TestTrackingClientListener clientListener1 = new TestTrackingClientListener();
+        final TestTrackingClientListener clientListener2 = new TestTrackingClientListener();
+
+        List<Action> firstClientActions = new ArrayList<>();
+        List<Action> secondClientActions = new ArrayList<>();
+
+        TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(1);
+        firstClientActions.add(registerWithTrialLicense(licensesServices.get(0), clientListener1, "feature1", firstExpiryDuration));
+
+        firstClientActions.add(assertExpiryAction("trial", firstExpiryDuration));
+
+        TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(2);
+        secondClientActions.add(registerWithTrialLicense(licensesServices.get(1), clientListener2, "feature2", secondExpiryDuration));
+
+        secondClientActions.add(assertExpiryAction("trial", secondExpiryDuration));
+
+        if (randomBoolean()) {
+            assertClientListenerNotificationCount(clientListener1, firstClientActions);
+            assertClientListenerNotificationCount(clientListener2, secondClientActions);
+        } else {
+            assertClientListenerNotificationCount(clientListener2, secondClientActions);
+            assertClientListenerNotificationCount(clientListener1, firstClientActions);
+        }
     }
 
     @Test
     public void testFeatureWithoutLicense() throws Exception {
-        LicensesClientService clientService = licensesClientService();
-        // todo: fix with awaitBusy
-        clientService.register("marvel", null, new LicensesClientService.Listener() {
-            @Override
-            public void onEnabled() {
-                fail();
-            }
+        // client registration with no trial license + no signed license
+        final LicensesClientService clientService = licensesClientService();
+        final TestTrackingClientListener clientListener = new TestTrackingClientListener();
+        List<Action> actions = new ArrayList<>();
 
-            @Override
-            public void onDisabled() {
-            }
-        });
-
-        LicensesManagerService managerService = licensesManagerService();
-        assertFalse("feature should not be enabled: no licenses registered", managerService.enabledFeatures().contains("marvel"));
+        actions.add(registerWithoutTrialLicense(clientService, clientListener, "feature1"));
+        assertClientListenerNotificationCount(clientListener, actions);
     }
 
     @Test
     public void testLicenseExpiry() throws Exception {
-        //TODO, first figure out how to generate a license with a quick expiry in matter of seconds
+        final LicensesClientService clientService = licensesClientService();
+        final TestTrackingClientListener clientListener = new TestTrackingClientListener();
+        List<Action> actions = new ArrayList<>();
+
+        TimeValue expiryDuration = TimeValue.timeValueSeconds(2);
+        actions.add(registerWithTrialLicense(clientService, clientListener, "feature1", expiryDuration));
+        actions.add(assertExpiryAction("trial", expiryDuration));
+        assertClientListenerNotificationCount(clientListener, actions);
+    }
+
+    @Test
+    public void testRandomMultipleClientMultipleFeature() throws Exception {
+        List<LicensesService> licensesServices = licensesServices(10);
+        LicensesManagerService masterLicensesManagerService = masterLicensesManagerService();
+        Map<TestTrackingClientListener, List<Action>> clientListenersWithActions = new HashMap<>();
+        for (LicensesService licensesService : licensesServices) {
+            final TestTrackingClientListener clientListener = new TestTrackingClientListener();
+            String feature = randomRealisticUnicodeOfCodepointLengthBetween(2, 10);
+            TimeValue expiryDuration = TimeValue.timeValueSeconds(randomIntBetween(1, 5));
+            List<Action> actions = new ArrayList<>();
+            if (randomBoolean()) {
+                actions.add(registerWithTrialLicense(licensesService, clientListener, feature, expiryDuration));
+                actions.add(assertExpiryAction("trial", expiryDuration));
+            } else {
+                actions.add(registerWithoutTrialLicense(licensesService, clientListener, feature));
+                actions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, feature, expiryDuration));
+                actions.add(assertExpiryAction("signed", expiryDuration));
+            }
+            clientListenersWithActions.put(clientListener, actions);
+        }
+
+        for (Map.Entry<TestTrackingClientListener, List<Action>> entry : clientListenersWithActions.entrySet()) {
+            assertClientListenerNotificationCount(entry.getKey(), entry.getValue());
+        }
+
+    }
+
+    private void putAndCheckSignedLicensesAction(final LicensesManagerService masterLicensesManagerService, final List<ESLicense> license, final LicensesStatus expectedStatus) {
+        PutLicenseRequest putLicenseRequest = new PutLicenseRequest().licenses(license);
+        LicensesService.PutLicenseRequestHolder requestHolder = new LicensesService.PutLicenseRequestHolder(putLicenseRequest, "test");
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean success = new AtomicBoolean(false);
+        masterLicensesManagerService.registerLicenses(requestHolder, new ActionListener<LicensesUpdateResponse>() {
+            @Override
+            public void onResponse(LicensesUpdateResponse licensesUpdateResponse) {
+                if (licensesUpdateResponse.isAcknowledged() && licensesUpdateResponse.status() == expectedStatus) {
+                    success.set(true);
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                latch.countDown();
+            }
+        });
+        try {
+            assertThat(latch.await(100, TimeUnit.MILLISECONDS), equalTo(true));
+        } catch (InterruptedException e) {
+        }
+        assertThat(success.get(), equalTo(true));
+    }
+
+    private Action generateAndPutSignedLicenseAction(final LicensesManagerService masterLicensesManagerService, final String feature, final TimeValue expiryDuration) throws Exception {
+        return new Action(new Runnable() {
+            @Override
+            public void run() {
+                ESLicense license;
+                try {
+                    license = generateSignedLicense(feature, expiryDuration);
+                } catch (Exception e) {
+                    fail(e.getMessage());
+                    return;
+                }
+                putAndCheckSignedLicensesAction(masterLicensesManagerService, Arrays.asList(license), LicensesStatus.VALID);
+            }
+        }, 0, 1, "should trigger onEnable once [signed license]");
+    }
+
+    private Action registerWithoutTrialLicense(final LicensesClientService clientService, final LicensesClientService.Listener clientListener, final String feature) {
+        return new Action(new Runnable() {
+            @Override
+            public void run() {
+                clientService.register(feature, null, clientListener);
+            }
+        }, 0, 0, "should not trigger any notification [disabled by default]");
+    }
+
+    private Action registerWithTrialLicense(final LicensesClientService clientService, final LicensesClientService.Listener clientListener, final String feature, final TimeValue expiryDuration) {
+        return new Action(new Runnable() {
+            @Override
+            public void run() {
+                clientService.register(feature, new LicensesService.TrialLicenseOptions(expiryDuration, 10),
+                        clientListener);
+            }
+        }, 0, 1, "should trigger onEnable once [trial license]");
+    }
+
+    private Action assertExpiryAction(String licenseType, TimeValue expiryDuration) {
+        return new Action(new Runnable() {
+            @Override
+            public void run() {
+            }
+        }, 1, 0, TimeValue.timeValueMillis(expiryDuration.getMillis() * 2),
+                "should trigger onDisable once [" + licenseType + " license expiry]");
+    }
+
+    private void assertClientListenerNotificationCount(final TestTrackingClientListener clientListener, List<Action> actions) throws Exception {
+        assertThat(clientListener.onDisabledCount.get(), equalTo(0));
+        assertThat(clientListener.onEnabledCount.get(), equalTo(0));
+
+        for (final Action action : actions) {
+            final AtomicBoolean actionPerformed = new AtomicBoolean(false);
+            assertThat(action.msg, awaitBusy(new Predicate<Object>() {
+                AtomicInteger previousOnEnabledCount = new AtomicInteger(0);
+                AtomicInteger previousOnDisabledCount = new AtomicInteger(0);
+
+                @Override
+                public boolean apply(Object o) {
+                    if (actionPerformed.compareAndSet(false, true)) {
+                        previousOnEnabledCount.set(clientListener.onEnabledCount.get());
+                        previousOnDisabledCount.set(clientListener.onDisabledCount.get());
+                        action.run();
+                    }
+
+                    return ((clientListener.onEnabledCount.get() - previousOnEnabledCount.get()) == action.expectedEnabledCount
+                            && (clientListener.onDisabledCount.get() - previousOnDisabledCount.get()) == action.expectedDisabledCount);
+                }
+            }, action.timeout.getMillis(), TimeUnit.MILLISECONDS), equalTo(true));
+        }
+    }
+
+    private class TestTrackingClientListener implements LicensesClientService.Listener {
+        AtomicInteger onEnabledCount = new AtomicInteger(0);
+        AtomicInteger onDisabledCount = new AtomicInteger(0);
+
+        @Override
+        public void onEnabled() {
+            onEnabledCount.incrementAndGet();
+        }
+
+        @Override
+        public void onDisabled() {
+            onDisabledCount.incrementAndGet();
+        }
+    }
+
+    private class Action {
+        final int expectedDisabledCount;
+        final int expectedEnabledCount;
+        final TimeValue timeout;
+        final Runnable action;
+        final String msg;
+
+        private Action(Runnable action, int expectedEnabledCount, int expectedDisabledCount, String msg) {
+            this(action, expectedEnabledCount, expectedDisabledCount, TimeValue.timeValueSeconds(1), msg);
+        }
+
+        private Action(Runnable action, int expectedDisabledCount, int expectedEnabledCount, TimeValue timeout, String msg) {
+            this.expectedDisabledCount = expectedDisabledCount;
+            this.expectedEnabledCount = expectedEnabledCount;
+            this.action = action;
+            this.timeout = timeout;
+            this.msg = msg;
+        }
+
+        public void run() {
+            action.run();
+        }
     }
 
 
@@ -316,12 +404,25 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
         return clients.getInstance(ESLicenseManager.class, clients.getMasterName());
     }
 
-    private LicensesManagerService licensesManagerService() {
-        return internalCluster().getInstance(LicensesManagerService.class, node);
-    }
-
     private LicensesClientService licensesClientService() {
         return internalCluster().getInstance(LicensesClientService.class, node);
+    }
+
+    private List<LicensesService> licensesServices(int count) {
+        List<LicensesService> licensesServices = new ArrayList<>(count);
+        Set<String> selectedNodes = new HashSet<>();
+        selectedNodes.add(node);
+        licensesServices.add(internalCluster().getInstance(LicensesService.class, node));
+        for (int i = 0; i < Math.min(count - 1, nodes.length - 1); i++) {
+            while (true) {
+                String newNode = randomFrom(nodes);
+                if (!selectedNodes.contains(newNode)) {
+                    licensesServices.add(internalCluster().getInstance(LicensesService.class, newNode));
+                    break;
+                }
+            }
+        }
+        return licensesServices;
     }
 
     private static ClusterService masterClusterService() {
@@ -338,6 +439,4 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
             nodeService.clear();
         }
     }
-
-
 }

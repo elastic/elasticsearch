@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import com.google.common.base.Preconditions;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticsearchException;
@@ -154,7 +154,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
     };
 
     private final BigArrays bigArrays;
-    private final OpenBitSet algorithm;
+    private LongBitSet algorithm;
     private ByteArray runLens;
     private final Hashset hashSet;
     private final int p, m;
@@ -166,7 +166,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
         p = precision;
         m = 1 << p;
         this.bigArrays = bigArrays;
-        algorithm = new OpenBitSet();
+        algorithm = new LongBitSet(initialBucketCount); // nocommit: ???
         runLens = bigArrays.newByteArray(initialBucketCount << p);
         hashSet = new Hashset(initialBucketCount);
         final double alpha;
@@ -193,6 +193,8 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     private void ensureCapacity(long numBuckets) {
+        // nocommit: ???
+        algorithm = LongBitSet.ensureCapacity(algorithm, numBuckets);
         runLens = bigArrays.grow(runLens, numBuckets << p);
     }
 

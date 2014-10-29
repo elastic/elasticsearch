@@ -100,13 +100,13 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         if (randomBoolean()) {
             BytesRef term = new BytesRef("123.0");
             buckets.add(new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY, null));
-            sTerms[0] = new SignificantLongTerms(10, 20, "some_name", null, 1, 1, heuristic, buckets);
+            sTerms[0] = new SignificantLongTerms(10, 20, "some_name", null, 1, 1, heuristic, buckets, null);
             sTerms[1] = new SignificantLongTerms();
         } else {
 
             BytesRef term = new BytesRef("someterm");
             buckets.add(new SignificantStringTerms.Bucket(term, 1, 2, 3, 4, InternalAggregations.EMPTY));
-            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets);
+            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets, null);
             sTerms[1] = new SignificantStringTerms();
         }
         return sTerms;

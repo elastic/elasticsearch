@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
 *
@@ -52,8 +53,8 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalMax() {} // for serialization
 
-    public InternalMax(String name, double max) {
-        super(name);
+    public InternalMax(String name, double max, Map<String, Object> metaData) {
+        super(name, metaData);
         this.max = max;
     }
 
@@ -77,19 +78,17 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : reduceContext.aggregations()) {
             max = Math.max(max, ((InternalMax) aggregation).max);
         }
-        return new InternalMax(name, max);
+        return new InternalMax(name, max, getMetaData());
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         valueFormatter = ValueFormatterStreams.readOptional(in);
         max = in.readDouble();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(valueFormatter, out);
         out.writeDouble(max);
     }

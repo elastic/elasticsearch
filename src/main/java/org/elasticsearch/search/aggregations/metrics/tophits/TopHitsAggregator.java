@@ -35,6 +35,7 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  */
@@ -47,8 +48,8 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
     private Scorer currentScorer;
     private AtomicReaderContext currentContext;
 
-    public TopHitsAggregator(FetchPhase fetchPhase, TopHitsContext topHitsContext, String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
-        super(name, estimatedBucketsCount, context, parent);
+    public TopHitsAggregator(FetchPhase fetchPhase, TopHitsContext topHitsContext, String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent, Map<String, Object> metaData) {
+        super(name, estimatedBucketsCount, context, parent, metaData);
         this.fetchPhase = fetchPhase;
         topDocsCollectors = new LongObjectPagedHashMap<>(estimatedBucketsCount, context.bigArrays());
         this.topHitsContext = topHitsContext;
@@ -156,8 +157,8 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
         }
 
         @Override
-        public Aggregator create(AggregationContext aggregationContext, Aggregator parent, long expectedBucketsCount) {
-            return new TopHitsAggregator(fetchPhase, topHitsContext, name, expectedBucketsCount, aggregationContext, parent);
+        public Aggregator createInternal(AggregationContext aggregationContext, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+            return new TopHitsAggregator(fetchPhase, topHitsContext, name, expectedBucketsCount, aggregationContext, parent, metaData);
         }
 
         @Override

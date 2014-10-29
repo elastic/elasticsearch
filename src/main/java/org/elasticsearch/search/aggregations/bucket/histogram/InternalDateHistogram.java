@@ -31,6 +31,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -113,8 +114,8 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
 
         @Override
         public InternalDateHistogram create(String name, List<InternalDateHistogram.Bucket> buckets, InternalOrder order,
-                                            long minDocCount, EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed) {
-            return new InternalDateHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
+                                            long minDocCount, EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
+            return new InternalDateHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metaData);
         }
 
         @Override
@@ -128,8 +129,8 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
     InternalDateHistogram() {} // for serialization
 
     InternalDateHistogram(String name, List<InternalDateHistogram.Bucket> buckets, InternalOrder order, long minDocCount,
-                          EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed) {
-        super(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
+                          EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
+        super(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metaData);
     }
 
     @Override
@@ -175,8 +176,8 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    protected void doReadFrom(StreamInput in) throws IOException {
+        super.doReadFrom(in);
         bucketsMap = null; // we need to reset this on read (as it's lazily created on demand)
     }
 

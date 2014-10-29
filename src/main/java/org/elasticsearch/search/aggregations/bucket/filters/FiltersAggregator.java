@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -52,9 +53,9 @@ public class FiltersAggregator extends BucketsAggregator {
     private boolean keyed;
 
     public FiltersAggregator(String name, AggregatorFactories factories, List<KeyedFilter> filters, boolean keyed, AggregationContext aggregationContext,
-            Aggregator parent) {
+            Aggregator parent, Map<String, Object> metaData) {
         super(name, BucketAggregationMode.MULTI_BUCKETS, factories, filters.size() * (parent == null ? 1 : parent.estimatedBucketCount()),
-                aggregationContext, parent);
+                aggregationContext, parent, metaData);
         this.keyed = keyed;
         this.filters = filters.toArray(new KeyedFilter[filters.size()]);
         this.bits = new Bits[this.filters.length];
@@ -94,7 +95,7 @@ public class FiltersAggregator extends BucketsAggregator {
             InternalFilters.Bucket bucket = new InternalFilters.Bucket(filter.key, bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
-        return new InternalFilters(name, buckets, keyed);
+        return new InternalFilters(name, buckets, keyed, getMetaData());
     }
 
     @Override
@@ -105,7 +106,7 @@ public class FiltersAggregator extends BucketsAggregator {
             InternalFilters.Bucket bucket = new InternalFilters.Bucket(filters[i].key, 0, subAggs, keyed);
             buckets.add(bucket);
         }
-        return new InternalFilters(name, buckets, keyed);
+        return new InternalFilters(name, buckets, keyed, getMetaData());
     }
 
     private final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
@@ -124,8 +125,8 @@ public class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
-            return new FiltersAggregator(name, factories, filters, keyed, context, parent);
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+            return new FiltersAggregator(name, factories, filters, keyed, context, parent, metaData);
         }
     }
 

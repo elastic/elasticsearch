@@ -32,6 +32,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -119,8 +120,8 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> i
         }
 
         @Override
-        public InternalDateRange create(String name, List<InternalDateRange.Bucket> ranges, ValueFormatter formatter, boolean keyed) {
-            return new InternalDateRange(name, ranges, formatter, keyed);
+        public InternalDateRange create(String name, List<InternalDateRange.Bucket> ranges, ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
+            return new InternalDateRange(name, ranges, formatter, keyed, metaData);
         }
 
         @Override
@@ -131,8 +132,8 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> i
 
     InternalDateRange() {} // for serialization
 
-    InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed) {
-        super(name, ranges, formatter, keyed);
+    InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
+        super(name, ranges, formatter, keyed, metaData);
     }
 
     @Override

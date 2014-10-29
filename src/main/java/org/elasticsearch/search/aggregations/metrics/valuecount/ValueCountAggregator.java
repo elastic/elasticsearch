@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * A field data based aggregator that counts the number of values a specific field has within the aggregation context.
@@ -46,8 +47,8 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     // a count per bucket
     LongArray counts;
 
-    public ValueCountAggregator(String name, long expectedBucketsCount, ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, 0, aggregationContext, parent);
+    public ValueCountAggregator(String name, long expectedBucketsCount, ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        super(name, 0, aggregationContext, parent, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             // expectedBucketsCount == 0 means it's a top level bucket
@@ -81,15 +82,15 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalValueCount(name, 0);
+            return new InternalValueCount(name, 0, getMetaData());
         }
         assert owningBucketOrdinal < counts.size();
-        return new InternalValueCount(name, counts.get(owningBucketOrdinal));
+        return new InternalValueCount(name, counts.get(owningBucketOrdinal), getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0l);
+        return new InternalValueCount(name, 0l, getMetaData());
     }
 
     @Override
@@ -97,20 +98,20 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         Releasables.close(counts);
     }
 
-    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS> {
+    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS, Map<String, Object>> {
 
         public Factory(String name, ValuesSourceConfig<VS> config) {
             super(name, InternalValueCount.TYPE.name(), config);
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new ValueCountAggregator(name, 0, null, aggregationContext, parent);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            return new ValueCountAggregator(name, 0, null, aggregationContext, parent, metaData);
         }
 
         @Override
-        protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-            return new ValueCountAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent);
+        protected Aggregator create(VS valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+            return new ValueCountAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, metaData);
         }
 
     }

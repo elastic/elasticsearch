@@ -38,6 +38,7 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
 
     private List<AbstractAggregationBuilder> aggregations;
     private BytesReference aggregationsBinary;
+    private Map<String, Object> metaData;
 
     /**
      * Sole constructor, typically used by sub-classes.
@@ -101,10 +102,21 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
         }
     }
 
+    /**
+     * Sets the meta data to be included in the aggregation response
+     */
+    public B setMetaData(Map<String, Object> metaData) {
+        this.metaData = metaData;
+        return (B)this;
+    }
+
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
 
+        if (this.metaData != null) {
+            builder.field("meta", this.metaData);
+        }
         builder.field(type);
         internalXContent(builder, params);
 

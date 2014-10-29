@@ -26,14 +26,15 @@ import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -378,17 +379,23 @@ public class ScriptService extends AbstractComponent {
         }
     }
 
-    public GetResponse queryScriptIndex(Client client, String scriptLang, String id){
-        return queryScriptIndex(client, scriptLang, id, Versions.MATCH_ANY, VersionType.INTERNAL);
-    }
 
-    public GetResponse queryScriptIndex(Client client, String scriptLang, String id,
-                                        long version, VersionType versionType){
+    private GetResponse queryScriptIndex(Client client, String scriptLang, String id){
         scriptLang = validateScriptLanguage(scriptLang);
         return client.prepareGet(SCRIPT_INDEX, scriptLang, id)
-                .setVersion(version)
-                .setVersionType(versionType)
+                .setVersion(Versions.MATCH_ANY)
+                .setPreference("_local")
+                .setOperationThreaded(false)
+                .setVersionType(VersionType.INTERNAL)
                 .get();
+    }
+
+    public void queryScriptIndex(GetIndexedScriptRequest request, final ActionListener<GetResponse> listener) {
+        String scriptLang = validateScriptLanguage(request.scriptLang());
+        GetRequest getRequest = new GetRequest(SCRIPT_INDEX).type(scriptLang).id(request.id())
+                .version(request.version()).versionType(request.versionType())
+                .operationThreaded(false).preference("_local"); //Set preference for no forking
+        client.get(getRequest, listener);
     }
 
     private String validateScriptLanguage(String scriptLang) {
@@ -401,7 +408,7 @@ public class ScriptService extends AbstractComponent {
     }
 
     private String getScriptFromIndex(Client client, String scriptLang, String id) {
-        GetResponse responseFields = queryScriptIndex(client,scriptLang,id);
+        GetResponse responseFields = queryScriptIndex(client, scriptLang, id);
         if (responseFields.isExists()) {
             return getScriptFromResponse(responseFields);
         }

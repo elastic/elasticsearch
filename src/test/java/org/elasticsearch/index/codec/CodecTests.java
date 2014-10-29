@@ -31,6 +31,7 @@ import org.apache.lucene.codecs.lucene45.Lucene45Codec;
 import org.apache.lucene.codecs.lucene46.Lucene46Codec;
 import org.apache.lucene.codecs.lucene49.Lucene49Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50Codec;
+import org.apache.lucene.codecs.lucene50.Lucene50DocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -107,7 +108,7 @@ public class CodecTests extends ElasticsearchSingleNodeLuceneTestCase {
         for (String dvf : Arrays.asList("default")) {
             assertThat(docValuesFormatService.get(dvf), instanceOf(PreBuiltDocValuesFormatProvider.class));
         }
-        assertThat(docValuesFormatService.get("default").get(), instanceOf(Lucene410DocValuesFormat.class));
+        assertThat(docValuesFormatService.get("default").get(), instanceOf(Lucene50DocValuesFormat.class));
     }
 
     @Test
@@ -162,7 +163,7 @@ public class CodecTests extends ElasticsearchSingleNodeLuceneTestCase {
         CodecService codecService = createCodecService(indexSettings);
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
         assertThat(documentMapper.mappers().name("field1").mapper().docValuesFormatProvider(), instanceOf(PreBuiltDocValuesFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field1").mapper().docValuesFormatProvider().get(), instanceOf(Lucene410DocValuesFormat.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().docValuesFormatProvider().get(), instanceOf(Lucene50DocValuesFormat.class));
 
         assertThat(documentMapper.mappers().name("field2").mapper().docValuesFormatProvider(), instanceOf(DefaultDocValuesFormatProvider.class));
     }

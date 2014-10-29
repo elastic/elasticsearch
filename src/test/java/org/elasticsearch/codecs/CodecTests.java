@@ -51,12 +51,6 @@ public class CodecTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testFieldsWithCustomPostingsFormat() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         assertAcked(prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                         .field("postings_format", "test1").field("index_options", "docs").field("type", "string").endObject().endObject().endObject().endObject())
@@ -78,15 +72,9 @@ public class CodecTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testCustomDocValuesFormat() throws IOException {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         assertAcked(prepareCreate("test")
             .addMapping("test", jsonBuilder().startObject().startObject("test")
-                    .startObject("_version").field("doc_values_format", "Lucene410").endObject()
+                    .startObject("_version").field("doc_values_format", "Lucene50").endObject()
                     .startObject("properties").startObject("field").field("type", "long").field("doc_values_format", "dvf").endObject().endObject()
                     .endObject().endObject())
             .setSettings(ImmutableSettings.settingsBuilder()

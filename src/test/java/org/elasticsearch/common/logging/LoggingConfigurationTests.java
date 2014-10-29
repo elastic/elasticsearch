@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.logging;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.io.Files;
 import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
 import org.elasticsearch.common.logging.log4j.Log4jESLogger;
@@ -32,7 +31,6 @@ import org.junit.Test;
 
 import java.io.File;
 import java.net.URL;
-import java.util.Enumeration;
 
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -46,21 +44,13 @@ public class LoggingConfigurationTests extends ElasticsearchTestCase {
     public void testMultipleConfigs() throws Exception {
         File configDir = resolveConfigDir();
         logger.info("Using config directory: {}", configDir.getAbsolutePath());
-        File loggingFile = new File(configDir, "logging.yml");
-        logger.info("Contents of {}: {}", loggingFile, Files.toString(loggingFile, UTF8));
         Settings settings = ImmutableSettings.builder()
                 .put("path.conf", configDir.getAbsolutePath())
                 .build();
-        logger.info("LogConfigurator Settings: {}", settings.getAsMap());
         LogConfigurator.configure(settings);
 
         ESLogger esLogger = Log4jESLoggerFactory.getLogger("first");
         Logger logger = ((Log4jESLogger) esLogger).logger();
-        this.logger.info("Found following appenders:");
-        for (Enumeration allAppenders = logger.getAllAppenders(); allAppenders.hasMoreElements();) {
-            Appender appender = (Appender) allAppenders.nextElement();
-            this.logger.info("Found appender: {}", appender.getName());
-        }
         Appender appender = logger.getAppender("console1");
         assertThat(appender, notNullValue());
 

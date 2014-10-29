@@ -85,7 +85,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         private String path = Defaults.PATH;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
+            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), IndexOptions.DOCS_ONLY);
             indexName = Defaults.INDEX_NAME;
         }
 
@@ -96,11 +96,6 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
         @Override
         public IdFieldMapper build(BuilderContext context) {
-            if (index) {
-                fieldType.setIndexOptions(IndexOptions.DOCS_ONLY);
-            } else {
-                fieldType.setIndexOptions(null);
-            }
             return new IdFieldMapper(name, indexName, boost, fieldType, docValues, path, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
     }

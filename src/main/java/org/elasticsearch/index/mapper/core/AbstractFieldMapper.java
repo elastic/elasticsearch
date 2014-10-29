@@ -72,11 +72,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         public static final boolean DOC_VALUES = false;
 
         static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.setTokenized(true);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setStoreTermVectors(false);
             FIELD_TYPE.setOmitNorms(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.freeze();
         }
 
@@ -87,7 +87,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     public abstract static class Builder<T extends Builder, Y extends AbstractFieldMapper> extends Mapper.Builder<T, Y> {
 
         protected final FieldType fieldType;
-        protected boolean index = true;
+        private final IndexOptions defaultOptions;
         protected Boolean docValues;
         protected float boost = Defaults.BOOST;
         protected boolean omitNormsSet = false;
@@ -106,13 +106,23 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         protected CopyTo copyTo;
 
         protected Builder(String name, FieldType fieldType) {
+            this(name, fieldType, fieldType.indexOptions());
+        }
+        protected Builder(String name, FieldType fieldType, IndexOptions defaultOptions) {
             super(name);
             this.fieldType = fieldType;
+            this.defaultOptions = defaultOptions;
             multiFieldsBuilder = new MultiFields.Builder();
         }
 
         public T index(boolean index) {
-            this.index = index;
+            if (index) {
+                if (fieldType.indexOptions() == null) {
+                    fieldType.setIndexOptions(defaultOptions);
+                }
+            } else {
+                fieldType.setIndexOptions(null);
+            }
             return builder;
         }
 
@@ -703,7 +713,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             }
             builder.endObject();
         }
-        if (includeDefaults || fieldType.indexOptions() != defaultFieldType.indexOptions()) {
+        //nocommit - what should we put here if indexOptions are null?
+        if (includeDefaults || fieldType.indexOptions() != defaultFieldType.indexOptions() && fieldType.indexOptions() != null) {
             builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
         }
 

@@ -18,22 +18,23 @@
  */
 package org.elasticsearch.index.store;
 
-import java.io.IOException;
-import java.nio.file.Path;
-
-import org.apache.lucene.store.BaseDirectoryTestCase;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.MockDirectoryWrapper;
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.store.*;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.test.ElasticsearchThreadFilter;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
-import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Arrays;
 
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE)
@@ -90,5 +91,42 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
             // expected
         }
         dd.close();
+    }
+
+    public void testTempFilesUsePrimary() throws IOException {
+        final int iters = 1 + random().nextInt(10);
+        for (int i = 0; i < iters; i++) {
+            Directory primary = newDirectory();
+            Directory dir = newDirectory();
+            final Directory[] dirs = new Directory[] {primary, dir};
+
+            Distributor distrib = new Distributor() {
+
+                @Override
+                public Directory primary() {
+                    return dirs[0];
+                }
+
+                @Override
+                public Directory[] all() {
+                    return dirs;
+                }
+
+                @Override
+                public synchronized Directory any() {
+                    throw new IllegalStateException("any should not be called");
+                }
+            };
+
+            DistributorDirectory dd = new DistributorDirectory(distrib);
+            String file = RandomPicks.randomFrom(random(), Arrays.asList(Store.CHECKSUMS_PREFIX, IndexFileNames.OLD_SEGMENTS_GEN, IndexFileNames.PENDING_SEGMENTS, IndexFileNames.SEGMENTS));
+            String tmpFileName =  "tmp_" + RandomPicks.randomFrom(random(), Arrays.asList("recovery.", "foobar.", "test.")) + Math.max(0, Math.abs(random().nextLong())) + "." + file;
+            try (IndexOutput out = dd.createTempOutput(tmpFileName, file, IOContext.DEFAULT)) {
+                out.writeInt(1);
+            }
+            dd.renameFile(tmpFileName, file);
+            assertEquals(primary.fileLength(file), 4);
+            IOUtils.close(dd);
+        }
     }
 }

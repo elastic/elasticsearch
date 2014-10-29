@@ -197,6 +197,14 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     /**
+     * Creates an IndexOutput for the given temporary file name and ensures that files that need to be placed in a primary
+     * directory can be successfully renamed.
+     */
+    public IndexOutput createTempOutput(String tempFilename, String origFileName, IOContext context) throws IOException {
+        return distributorDirectory.createTempOutput(tempFilename, origFileName, context);
+    }
+
+    /**
      * Deletes the content of a shard store. Be careful calling this!.
      */
     public void deleteContent() throws IOException {
@@ -327,13 +335,25 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * verification against the checksum in the given metadata and does not add any significant overhead.
      */
     public IndexOutput createVerifyingOutput(final String filename, final IOContext context, final StoreFileMetaData metadata) throws IOException {
+       return createVerifyingOutput(directory().createOutput(filename, context), metadata);
+    }
+
+    /**
+     * The returned IndexOutput might validate the files checksum if the file has been written with a newer lucene version
+     * and the metadata holds the necessary information to detect that it was been written by Lucene 4.8 or newer. If it has only
+     * a legacy checksum, returned IndexOutput will not verify the checksum.
+     *
+     * Note: Checksums are calculated nevertheless since lucene does it by default sicne version 4.8.0. This method only adds the
+     * verification against the checksum in the given metadata and does not add any significant overhead.
+     */
+    public IndexOutput createVerifyingOutput(IndexOutput output, final StoreFileMetaData metadata) throws IOException {
         if (metadata.hasLegacyChecksum() || metadata.checksum() == null) {
-            logger.debug("create legacy output for {}", filename);
-            return directory().createOutput(filename, context);
+            logger.debug("create legacy output for {}", metadata.name());
+            return output;
         }
         assert metadata.writtenBy() != null;
         assert metadata.writtenBy().onOrAfter(Version.LUCENE_4_8_0);
-        return new VerifyingIndexOutput(metadata, directory().createOutput(filename, context));
+        return new VerifyingIndexOutput(metadata, output);
     }
 
     public static void verify(IndexOutput output) throws IOException {
@@ -789,7 +809,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
     }
 
-    private static final String CHECKSUMS_PREFIX = "_checksums-";
+    public static final String CHECKSUMS_PREFIX = "_checksums-";
 
     public static final boolean isChecksum(String name) {
         // TODO can we drowp .cks

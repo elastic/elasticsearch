@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.store.distributor.Distributor;
@@ -124,6 +125,10 @@ public final class DistributorDirectory extends BaseDirectory {
             throw new IOException("Can't rename file from " + source
                     + " to: " + dest + ": target file already exists");
         }
+        if (usePrimary(dest) && directory != distributor.primary()) {
+            throw new ElasticsearchIllegalStateException("Can not rename: " + source + " to " + dest
+                    + " destination file must be placed in a primary directory but source directory is not a primary");
+        }
         boolean success = false;
         try {
             directory.renameFile(source, dest);
@@ -159,9 +164,9 @@ public final class DistributorDirectory extends BaseDirectory {
      * Returns true if the primary directory should be used for the given file.
      */
     private boolean usePrimary(String name) {
-        return Store.isChecksum(name) || 
-               IndexFileNames.OLD_SEGMENTS_GEN.equals(name) || 
-               IndexWriter.WRITE_LOCK_NAME.equals(name) || 
+        return Store.isChecksum(name) ||
+               IndexFileNames.OLD_SEGMENTS_GEN.equals(name) ||
+               IndexWriter.WRITE_LOCK_NAME.equals(name) ||
                name.startsWith(IndexFileNames.SEGMENTS) || 
                name.startsWith(IndexFileNames.PENDING_SEGMENTS);
     }
@@ -220,5 +225,23 @@ public final class DistributorDirectory extends BaseDirectory {
     @Override
     public String toString() {
         return distributor.toString();
+    }
+
+    /**
+     * Creates an IndexOutput for the given temporary file name and ensures that files that need to be placed in a primary
+     * directory can be successfully renamed.
+     * @param tempFilename the temporary file name
+     * @param origFileName the name of the file used to place it in a directory.
+     * @param context the IOContext used to open the index output
+     */
+    public IndexOutput createTempOutput(String tempFilename, String origFileName, IOContext context) throws IOException {
+        if (usePrimary(origFileName)) {
+            Directory directory = nameDirMapping.putIfAbsent(tempFilename, distributor.primary());
+            if (directory != null && directory != distributor.primary()) {
+                throw new ElasticsearchIllegalStateException("temporary file [" + tempFilename + "] already exists in a non-primary directory");
+            }
+            return distributor.primary().createOutput(tempFilename, context);
+        }
+        return createOutput(tempFilename, context);
     }
 }

@@ -38,7 +38,7 @@ public class DocValuesFormats {
             builtInDocValuesFormatsX.put(name, new PreBuiltDocValuesFormatProvider.Factory(DocValuesFormat.forName(name)));
         }
         // LUCENE UPGRADE: update those DVF if necessary
-        builtInDocValuesFormatsX.put(DocValuesFormatService.DEFAULT_FORMAT, new PreBuiltDocValuesFormatProvider.Factory(DocValuesFormatService.DEFAULT_FORMAT, DocValuesFormat.forName("Lucene410")));
+        builtInDocValuesFormatsX.put(DocValuesFormatService.DEFAULT_FORMAT, new PreBuiltDocValuesFormatProvider.Factory(DocValuesFormatService.DEFAULT_FORMAT, DocValuesFormat.forName("Lucene50")));
         builtInDocValuesFormats = builtInDocValuesFormatsX.immutableMap();
     }
 

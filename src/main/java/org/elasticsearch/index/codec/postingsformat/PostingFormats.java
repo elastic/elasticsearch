@@ -54,7 +54,7 @@ public class PostingFormats {
         builtInPostingFormatsX.put(PostingsFormatService.DEFAULT_FORMAT,
                                    new PreBuiltPostingsFormatProvider.Factory(PostingsFormatService.DEFAULT_FORMAT, defaultFormat));
 
-        builtInPostingFormatsX.put("bloom_default", new PreBuiltPostingsFormatProvider.Factory("bloom_default", wrapInBloom(PostingsFormat.forName("Lucene51"))));
+        builtInPostingFormatsX.put("bloom_default", new PreBuiltPostingsFormatProvider.Factory("bloom_default", wrapInBloom(PostingsFormat.forName("Lucene50"))));
 
         builtInPostingFormats = builtInPostingFormatsX.immutableMap();
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.common.logging;
 
 import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.logging.log4j.Log4jESLogger;
 import org.elasticsearch.common.logging.log4j.Log4jESLoggerFactory;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
@@ -39,11 +40,10 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class LoggingConfigurationTests extends ElasticsearchTestCase {
 
-    // @AwaitsFix(bugUrl = "relates to commit 4ebbb657")
+    @AwaitsFix(bugUrl = "relates to commit 4ebbb657")
     @Test
     public void testMultipleConfigs() throws Exception {
         File configDir = resolveConfigDir();
-        logger.info("Using config directory: {}", configDir.getAbsolutePath());
         Settings settings = ImmutableSettings.builder()
                 .put("path.conf", configDir.getAbsolutePath())
                 .build();

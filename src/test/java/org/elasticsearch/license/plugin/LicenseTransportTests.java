@@ -8,8 +8,6 @@ package org.elasticsearch.license.plugin;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.common.collect.ImmutableSet;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
@@ -19,7 +17,6 @@ import org.elasticsearch.license.plugin.action.get.GetLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -31,11 +28,11 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
-@ClusterScope(scope = SUITE, numDataNodes = 10)
+@ClusterScope(scope = TEST, numDataNodes = 10)
 public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
 
     private static String pubKeyPath = null;

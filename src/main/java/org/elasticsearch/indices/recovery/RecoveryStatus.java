@@ -252,7 +252,7 @@ public class RecoveryStatus extends AbstractRefCounted {
         String tempFileName = getTempNameForFile(fileName);
         // add first, before it's created
         tempFileNames.add(tempFileName);
-        IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, IOContext.DEFAULT, metaData);
+        IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, metaData, IOContext.DEFAULT);
         openIndexOutputs.put(fileName, indexOutput);
         return indexOutput;
     }

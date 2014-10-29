@@ -29,6 +29,7 @@ import java.util.Hashtable;
  * for each user context would need to be supplied.
  */
 public class StandardLdapConnectionFactory extends AbstractComponent implements LdapConnectionFactory {
+
     public static final String USER_DN_TEMPLATES_SETTING = "user_dn_templates";
     public static final String GROUP_SEARCH_SUBTREE_SETTING = "group_search.subtree_search";
     public static final String GROUP_SEARCH_BASEDN_SETTING = "group_search.group_search_dn";

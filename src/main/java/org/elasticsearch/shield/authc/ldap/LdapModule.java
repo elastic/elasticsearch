@@ -17,6 +17,7 @@ import static org.elasticsearch.common.inject.name.Names.named;
  * Configures Ldap object injections
  */
 public class LdapModule extends AbstractShieldModule.Node {
+
     private final boolean enabled;
 
     public LdapModule(Settings settings) {

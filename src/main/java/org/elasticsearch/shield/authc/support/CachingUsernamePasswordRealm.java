@@ -110,7 +110,11 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
             return userWithHash.user;
             
         } catch (ExecutionException | UncheckedExecutionException ee) {
-            logger.warn("Could not authenticate [" + token.principal() + "]", ee);
+            if (logger.isTraceEnabled()) {
+                logger.trace("Realm [" + type() + "] could not authenticate [" + token.principal() + "]", ee);
+            } else if (logger.isDebugEnabled()) {
+                logger.debug("Realm [" + type() + "] could not authenticate [" + token.principal() + "]");
+            }
             return null;
         }
     }

@@ -115,7 +115,7 @@ public class LdapGroupToRoleMapper extends AbstractComponent {
      * This will map the groupDN's to ES Roles
      */
     public Set<String> mapRoles(List<String> groupDns) {
-        Set<String>roles = new HashSet<>();
+        Set<String> roles = new HashSet<>();
         for(String groupDn: groupDns){
             LdapName groupLdapName = LdapUtils.ldapName(groupDn);
             if (this.groupRoles.containsKey(groupLdapName)) {

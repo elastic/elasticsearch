@@ -10,6 +10,7 @@ package org.elasticsearch.shield.authc.ldap;
  * parameter of DN attached to each message.
  */
 public class LdapException extends SecurityException {
+
     public LdapException(String msg){
         super(msg);
     }
@@ -17,6 +18,7 @@ public class LdapException extends SecurityException {
     public LdapException(String msg, Throwable cause){
         super(msg, cause);
     }
+
     public LdapException(String msg, String dn) {
         this(msg, dn, null);
     }

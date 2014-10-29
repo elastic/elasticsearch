@@ -64,7 +64,9 @@ public class LdapRealm extends CachingUsernamePasswordRealm implements Realm<Use
             Set<String> roles = roleMapper.mapRoles(groupDNs);
             return new User.Simple(token.principal(), roles.toArray(new String[roles.size()]));
         } catch (ShieldException e){
-            logger.info("Authentication Failed for user [{}]", e, token.principal());
+            if (logger.isDebugEnabled()) {
+                logger.debug("Authentication Failed for user [{}]", e, token.principal());
+            }
             return null;
         }
     }

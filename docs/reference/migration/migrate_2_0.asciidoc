@@ -15,7 +15,11 @@ to change this behavior
 
 Partial fields were deprecated since 1.0.0beta1 in favor of <<search-request-source-filtering,source filtering>>.
 
-=== More Like This Field
+=== More Like This (MLT)
 
-The More Like This Field query has been removed in favor of the <<query-dsl-mlt-query, More Like This Query>>
-restrained set to a specific `field`.
+* The MLT Field Query has been removed in favor of the <<query-dsl-mlt-query,
+  More Like This Query>> restrained set to a specific `field`.
+
+* The MLT API has been improved to better take into account `max_query_terms`
+  and `minimum_should_match`. As a consequence the query should return
+  different but more relevant results.

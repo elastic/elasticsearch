@@ -185,7 +185,7 @@ public class AlertsStore extends AbstractComponent {
                 .setTypes(AlertManager.ALERT_TYPE)
                 .setIndices(AlertManager.ALERT_INDEX).get();
         try {
-            for (; response.getHits().hits().length != 0; response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get()) {
+            while (response.getHits().hits().length != 0) {
                 for (SearchHit sh : response.getHits()) {
                     String alertId = sh.getId();
                     Alert alert = parseAlert(alertId, sh);

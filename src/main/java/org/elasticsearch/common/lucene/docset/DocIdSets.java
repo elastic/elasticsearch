@@ -122,6 +122,9 @@ public class DocIdSets {
      */
     @Deprecated
     public static BitDocIdSet newDocIDSet(BitSet bs) {
+        if (bs == null) {
+            return null;
+        }
         final int cost;
         if (bs instanceof FixedBitSet) {
             cost = guessCost((FixedBitSet) bs);

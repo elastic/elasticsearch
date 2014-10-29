@@ -11,21 +11,16 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.ESLicense;
-import org.elasticsearch.license.licensor.ESLicenseSigner;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.license.AbstractLicensingTestBase.getTestPriKeyPath;
-import static org.elasticsearch.license.AbstractLicensingTestBase.getTestPubKeyPath;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -170,23 +165,6 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
                 return true;
             }
         }, timeoutInSec, TimeUnit.SECONDS), equalTo(true));
-    }
-
-    private ESLicense generateSignedLicense(String feature, TimeValue expiryDate) throws Exception {
-        final ESLicense licenseSpec = ESLicense.builder()
-                .uid(UUID.randomUUID().toString())
-                .feature(feature)
-                .expiryDate(System.currentTimeMillis() + expiryDate.getMillis())
-                .issueDate(System.currentTimeMillis())
-                .type("subscription")
-                .subscriptionType("gold")
-                .issuedTo("customer")
-                .issuer("elasticsearch")
-                .maxNodes(10)
-                .build();
-
-        ESLicenseSigner signer = new ESLicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
-        return signer.sign(licenseSpec);
     }
 
     private Iterable<TestPluginService> consumerPluginServices() {

@@ -12,10 +12,17 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.license.core.ESLicense;
+import org.elasticsearch.license.licensor.ESLicenseSigner;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+
+import static org.elasticsearch.license.AbstractLicensingTestBase.getTestPriKeyPath;
+import static org.elasticsearch.license.AbstractLicensingTestBase.getTestPubKeyPath;
 
 /**
  */
@@ -59,4 +66,20 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
         latch.await();
     }
 
+    public static ESLicense generateSignedLicense(String feature, TimeValue expiryDate) throws Exception {
+        final ESLicense licenseSpec = ESLicense.builder()
+                .uid(UUID.randomUUID().toString())
+                .feature(feature)
+                .expiryDate(System.currentTimeMillis() + expiryDate.getMillis())
+                .issueDate(System.currentTimeMillis())
+                .type("subscription")
+                .subscriptionType("gold")
+                .issuedTo("customer")
+                .issuer("elasticsearch")
+                .maxNodes(randomIntBetween(5, 100))
+                .build();
+
+        ESLicenseSigner signer = new ESLicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
+        return signer.sign(licenseSpec);
+    }
 }

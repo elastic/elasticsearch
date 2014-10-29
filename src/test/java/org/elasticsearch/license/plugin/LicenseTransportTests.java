@@ -6,26 +6,21 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ListenableActionFuture;
-import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
-import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequestBuilder;
-import org.elasticsearch.license.plugin.action.delete.DeleteLicenseResponse;
 import org.elasticsearch.license.plugin.action.get.GetLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
-import org.junit.BeforeClass;
+import org.elasticsearch.license.plugin.core.LicensesStatus;
+import org.junit.After;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.file.Paths;
-import java.text.ParseException;
-import java.util.*;
-import java.util.concurrent.ExecutionException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
@@ -35,111 +30,124 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 @ClusterScope(scope = TEST, numDataNodes = 10)
 public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
 
-    private static String pubKeyPath = null;
-    private static String priKeyPath = null;
-
-    @BeforeClass
-    public static void setup() throws IOException, URISyntaxException {
-        priKeyPath = Paths.get(LicenseTransportTests.class.getResource("/private.key").toURI()).toAbsolutePath().toString();
-        pubKeyPath = Paths.get(LicenseTransportTests.class.getResource("/public.key").toURI()).toAbsolutePath().toString();
+    @After
+    public void beforeTest() throws Exception {
+        wipeAllLicenses();
     }
-
-    /*
-     * TODO:
-     *  - add more delete tests
-     *  - add put invalid licenses tests
-     *  - add multiple licenses of the same feature tests
-     */
 
     @Test
     public void testEmptyGetLicense() throws Exception {
-        DeleteLicenseRequestBuilder deleteLicenseRequestBuilder = new DeleteLicenseRequestBuilder(client().admin().cluster()).setFeatures(ImmutableSet.of("marvel", "shield"));
-        final ActionFuture<DeleteLicenseResponse> deleteFuture = deleteLicenseRequestBuilder.execute();
-        final DeleteLicenseResponse deleteLicenseResponse = deleteFuture.get();
-        assertTrue(deleteLicenseResponse.isAcknowledged());
-
         final ActionFuture<GetLicenseResponse> getLicenseFuture = new GetLicenseRequestBuilder(client().admin().cluster()).execute();
-
         final GetLicenseResponse getLicenseResponse = getLicenseFuture.get();
-
         assertThat("expected 0 licenses; but got: " + getLicenseResponse.licenses().size(), getLicenseResponse.licenses().size(), equalTo(0));
     }
 
     @Test
-    public void testPutLicense() throws ParseException, ExecutionException, InterruptedException, IOException {
+    public void testPutLicense() throws Exception {
+        ESLicense signedLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(2));
+        List<ESLicense> actualLicenses = Collections.singletonList(signedLicense);
 
-        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
-        TestUtils.FeatureAttributes featureAttributes =
-                new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-12-13");
-        map.put(TestUtils.SHIELD, featureAttributes);
-        String licenseString = TestUtils.generateESLicenses(map);
-        String licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
-
-        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster());
-        //putLicenseRequest.license(licenseString);
-        final List<ESLicense> putLicenses = ESLicenses.fromSource(licenseOutput);
-        putLicenseRequestBuilder.setLicense(putLicenses);
-        //LicenseUtils.printLicense(putLicenses);
-        ensureGreen();
-
-        final ActionFuture<PutLicenseResponse> putLicenseFuture = putLicenseRequestBuilder.execute();
-
-        final PutLicenseResponse putLicenseResponse = putLicenseFuture.get();
-
+        // put license
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
+                .setLicense(actualLicenses);
+        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.execute().get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
 
-        ActionFuture<GetLicenseResponse> getLicenseFuture = new GetLicenseRequestBuilder(client().admin().cluster()).execute();
-
-        GetLicenseResponse getLicenseResponse = getLicenseFuture.get();
-
+        // get license
+        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
         assertThat(getLicenseResponse.licenses(), notNullValue());
 
-        //LicenseUtils.printLicense(getLicenseResponse.licenses());
-        TestUtils.isSame(new HashSet<>(putLicenses), new HashSet<>(getLicenseResponse.licenses()));
-
-
-        final ActionFuture<DeleteLicenseResponse> deleteFuture = new DeleteLicenseRequestBuilder(client().admin().cluster())
-                .setFeatures(ImmutableSet.of("marvel", "shield")).execute();
-        final DeleteLicenseResponse deleteLicenseResponse = deleteFuture.get();
-        assertTrue(deleteLicenseResponse.isAcknowledged());
-
-        //getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).execute().get();
-        //TestUtils.isSame(getLicenseResponse.licenses(), LicenseBuilders.licensesBuilder().verifyAndBuild());
+        // check license
+        TestUtils.isSame(actualLicenses, getLicenseResponse.licenses());
     }
 
     @Test
     public void testPutInvalidLicense() throws Exception {
-        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
-        TestUtils.FeatureAttributes featureAttributes =
-                new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-12-13");
-        map.put(TestUtils.SHIELD, featureAttributes);
-        String licenseString = TestUtils.generateESLicenses(map);
-        String licenseOutput = TestUtils.runLicenseGenerationTool(licenseString, pubKeyPath, priKeyPath);
+        ESLicense signedLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(2));
 
-        Set<ESLicense> esLicenses = new HashSet<>(ESLicenses.fromSource(licenseOutput));
-
-        ESLicense esLicense = ESLicenses.reduceAndMap(esLicenses).get(TestUtils.SHIELD);
-
-        final ESLicense tamperedLicense = ESLicense.builder()
-                .fromLicenseSpec(esLicense, esLicense.signature())
-                .expiryDate(esLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
+        // modify content of signed license
+        ESLicense tamperedLicense = ESLicense.builder()
+                .fromLicenseSpec(signedLicense, signedLicense.signature())
+                .expiryDate(signedLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
                 .verify()
                 .build();
 
         PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster());
         builder.setLicense(Collections.singletonList(tamperedLicense));
 
-        final ListenableActionFuture<PutLicenseResponse> execute = builder.execute();
+        // try to put license (should be invalid)
+        final PutLicenseResponse putLicenseResponse = builder.execute().get();
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.INVALID));
 
-        try {
-            execute.get();
-            fail("Invalid License should throw exception");
-        } catch (Throwable e) {
-            /* TODO: figure out error handling
-            String msg =e.getCause().getCause().getCause().getMessage();//e.getCause().getCause().getMessage();// e.getCause().getCause().getCause().getMessage();
-            assertTrue("Error message: " + msg, msg.contains("Invalid License(s)"));
-            */
-        }
+
+        // try to get invalid license
+        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
+        assertThat(getLicenseResponse.licenses().size(), equalTo(0));
+    }
+
+    @Test
+    public void testPutLicensesForSameFeature() throws Exception {
+        ESLicense shortedSignedLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(2));
+        ESLicense longerSignedLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(5));
+        List<ESLicense> actualLicenses = Arrays.asList(longerSignedLicense, shortedSignedLicense);
+
+        // put license
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
+                .setLicense(actualLicenses);
+        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.execute().get();
+        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+
+        // get should return only one license (with longer expiry date)
+        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
+        assertThat(getLicenseResponse.licenses(), notNullValue());
+
+        // check license
+        TestUtils.isSame(Collections.singletonList(longerSignedLicense), getLicenseResponse.licenses());
+    }
+
+    @Test
+    public void testPutLicensesForMultipleFeatures() throws Exception {
+        ESLicense shieldLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(2));
+        ESLicense marvelLicense = generateSignedLicense(TestUtils.MARVEL, TimeValue.timeValueMinutes(5));
+        List<ESLicense> actualLicenses = Arrays.asList(marvelLicense, shieldLicense);
+
+        // put license
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
+                .setLicense(actualLicenses);
+        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.execute().get();
+        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+
+        // get should return both the licenses
+        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
+        assertThat(getLicenseResponse.licenses(), notNullValue());
+
+        // check license
+        TestUtils.isSame(actualLicenses, getLicenseResponse.licenses());
+    }
+
+    @Test
+    public void testPutMultipleLicensesForMultipleFeatures() throws Exception {
+        ESLicense shortedSignedLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(2));
+        ESLicense longerSignedLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(5));
+        ESLicense marvelLicense = generateSignedLicense(TestUtils.MARVEL, TimeValue.timeValueMinutes(5));
+        List<ESLicense> actualLicenses = Arrays.asList(marvelLicense, shortedSignedLicense, longerSignedLicense);
+
+        // put license
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
+                .setLicense(actualLicenses);
+        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.execute().get();
+        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+
+        // get should return both the licenses
+        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
+        assertThat(getLicenseResponse.licenses(), notNullValue());
+
+        // check license (should get the longest expiry time for all unique features)
+        TestUtils.isSame(Arrays.asList(marvelLicense, longerSignedLicense), getLicenseResponse.licenses());
     }
 
 }

@@ -96,35 +96,35 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         LicensesStatus status = checkLicenses(newLicenses);
         switch (status) {
             case VALID:
+                clusterService.submitStateUpdateTask(requestHolder.source, new AckedClusterStateUpdateTask<LicensesUpdateResponse>(request, listener) {
+                    @Override
+                    protected LicensesUpdateResponse newResponse(boolean acknowledged) {
+                        return new LicensesUpdateResponse(acknowledged, LicensesStatus.VALID);
+                    }
+
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        MetaData metaData = currentState.metaData();
+                        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
+                        LicensesMetaData currentLicenses = metaData.custom(LicensesMetaData.TYPE);
+                        final LicensesWrapper licensesWrapper = LicensesWrapper.wrap(currentLicenses);
+                        Set<String> newSignatures = licenseManager.toSignatures(newLicenses);
+                        if (newSignatures.size() > 0) {
+                            Set<String> newLicenseSignatures = Sets.union(licensesWrapper.signatures, newSignatures);
+                            LicensesMetaData newLicensesMetaData = new LicensesMetaData(newLicenseSignatures, licensesWrapper.encodedTrialLicenses);
+                            mdBuilder.putCustom(LicensesMetaData.TYPE, newLicensesMetaData);
+                        } else {
+                            mdBuilder.putCustom(LicensesMetaData.TYPE, currentLicenses);
+                        }
+                        return ClusterState.builder(currentState).metaData(mdBuilder).build();
+                    }
+                });
                 break;
             case INVALID:
             case EXPIRED:
                 listener.onResponse(new LicensesUpdateResponse(true, status));
+                break;
         }
-        clusterService.submitStateUpdateTask(requestHolder.source, new AckedClusterStateUpdateTask<LicensesUpdateResponse>(request, listener) {
-            @Override
-            protected LicensesUpdateResponse newResponse(boolean acknowledged) {
-                return new LicensesUpdateResponse(acknowledged, LicensesStatus.VALID);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                MetaData metaData = currentState.metaData();
-                MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                LicensesMetaData currentLicenses = metaData.custom(LicensesMetaData.TYPE);
-                final LicensesWrapper licensesWrapper = LicensesWrapper.wrap(currentLicenses);
-                Set<String> newSignatures = licenseManager.toSignatures(newLicenses);
-                if (newSignatures.size() > 0) {
-                    Set<String> newLicenseSignatures = Sets.union(licensesWrapper.signatures, newSignatures);
-                    LicensesMetaData newLicensesMetaData = new LicensesMetaData(newLicenseSignatures, licensesWrapper.encodedTrialLicenses);
-                    mdBuilder.putCustom(LicensesMetaData.TYPE, newLicensesMetaData);
-                } else {
-                    mdBuilder.putCustom(LicensesMetaData.TYPE, currentLicenses);
-                }
-                return ClusterState.builder(currentState).metaData(mdBuilder).build();
-            }
-
-        });
     }
 
     public static class LicensesUpdateResponse extends ClusterStateUpdateResponse {

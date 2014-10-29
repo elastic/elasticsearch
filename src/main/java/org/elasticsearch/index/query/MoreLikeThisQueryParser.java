@@ -65,7 +65,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         public static final ParseField MAX_DOC_FREQ = new ParseField("max_doc_freq");
         public static final ParseField BOOST_TERMS = new ParseField("boost_terms");
         public static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
-        public static final ParseField PERCENT_TERMS_TO_MATCH = new ParseField("percent_terms_to_match");
+        public static final ParseField PERCENT_TERMS_TO_MATCH = new ParseField("percent_terms_to_match").withAllDeprecated("minimum_should_match");
         public static final ParseField FAIL_ON_UNSUPPORTED_FIELD = new ParseField("fail_on_unsupported_field");
         public static final ParseField STOP_WORDS = new ParseField("stop_words");
         public static final ParseField DOCUMENT_IDS = new ParseField("ids").withAllDeprecated("like");

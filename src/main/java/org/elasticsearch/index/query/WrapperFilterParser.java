@@ -58,7 +58,7 @@ public class WrapperFilterParser implements FilterParser {
 
         byte[] querySource = parser.binaryValue();
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
-            final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParser);
+            final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParserService());
             context.reset(qSourceParser);
             Filter result = context.parseInnerFilter();
             parser.nextToken();

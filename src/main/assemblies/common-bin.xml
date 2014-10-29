@@ -34,6 +34,7 @@
             <outputDirectory>bin</outputDirectory>
             <lineEnding>dos</lineEnding>
             <includes>
+                <include>elasticsearch.in.bat</include>
                 <include>elasticsearch.bat</include>
                 <include>plugin.bat</include>
                 <include>service.bat</include>

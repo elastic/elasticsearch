@@ -35,27 +35,31 @@ import static org.hamcrest.Matchers.equalTo;
 public class TestScopeClusterTests extends ElasticsearchIntegrationTest {
     private static int ITER = 0;
     private static long[] SEQUENCE = new long[100];
+    private static Long CLUSTER_SEED = null;
 
     @Test
     @Repeat(iterations = 10, useConstantSeed = true)
-    public void testReproducible() {
+    public void testReproducible() throws IOException {
         if (ITER++ == 0) {
+            CLUSTER_SEED = cluster().seed();
             for (int i = 0; i < SEQUENCE.length; i++) {
                 SEQUENCE[i] = randomLong();
             }
         } else {
+            assertEquals(CLUSTER_SEED, new Long(cluster().seed()));
             for (int i = 0; i < SEQUENCE.length; i++) {
                 assertThat(SEQUENCE[i], equalTo(randomLong()));
             }
         }
     }
 
-    protected TestCluster buildTestCluster(Scope scope) throws IOException {
+    @Override
+    protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         // produce some randomness
         int iters = between(1, 100);
         for (int i = 0; i < iters; i++) {
             randomLong();
         }
-        return super.buildTestCluster(scope);
+        return super.buildTestCluster(scope, seed);
     }
 }

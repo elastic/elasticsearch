@@ -49,8 +49,18 @@ public class TransportGetIndexedScriptAction extends HandledTransportAction<GetI
     }
 
     @Override
-    public void doExecute(GetIndexedScriptRequest request, ActionListener<GetIndexedScriptResponse> listener){
-        GetResponse scriptResponse = scriptService.queryScriptIndex(request);
-        listener.onResponse(new GetIndexedScriptResponse(scriptResponse));
+    public void doExecute(GetIndexedScriptRequest request, final ActionListener<GetIndexedScriptResponse> listener){
+        // forward the handling to the script service we are running on a network thread here...
+        scriptService.queryScriptIndex(request,new ActionListener<GetResponse>() {
+            @Override
+            public void onResponse(GetResponse getFields) {
+                listener.onResponse(new GetIndexedScriptResponse(getFields));
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                listener.onFailure(e);
+            }
+        });
     }
 }

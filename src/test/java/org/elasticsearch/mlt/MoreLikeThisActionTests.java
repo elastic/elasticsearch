@@ -50,7 +50,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
-import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisFieldQuery;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
@@ -258,14 +257,14 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 2l);
 
         // mlt field query on a numeric field -> failure by default
-        assertThrows(client().prepareSearch().setQuery(moreLikeThisFieldQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1)), SearchPhaseExecutionException.class);
+        assertThrows(client().prepareSearch().setQuery(moreLikeThisQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1)), SearchPhaseExecutionException.class);
 
         // mlt field query on a numeric field -> failure by command
-        assertThrows(client().prepareSearch().setQuery(moreLikeThisFieldQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1).failOnUnsupportedField(true)),
+        assertThrows(client().prepareSearch().setQuery(moreLikeThisQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1).failOnUnsupportedField(true)),
                 SearchPhaseExecutionException.class);
 
         // mlt field query on a numeric field but fail_on_unsupported_field set to false
-        searchResponse = client().prepareSearch().setQuery(moreLikeThisFieldQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1).failOnUnsupportedField(false)).execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1).failOnUnsupportedField(false)).execute().actionGet();
         assertHitCount(searchResponse, 0l);
     }
 

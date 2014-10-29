@@ -34,7 +34,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.CurrentTestFailedMarker;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.PrintAllThreadStacksOnFailure;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.junit.After;
 import org.junit.Before;
@@ -59,8 +58,7 @@ import java.util.logging.Logger;
 @Listeners({
         ReproduceInfoPrinter.class,
         FailureMarker.class,
-        CurrentTestFailedMarker.class,
-        PrintAllThreadStacksOnFailure.class
+        CurrentTestFailedMarker.class
 })
 @RunWith(value = com.carrotsearch.randomizedtesting.RandomizedRunner.class)
 @SuppressCodecs(value = "Lucene3x")

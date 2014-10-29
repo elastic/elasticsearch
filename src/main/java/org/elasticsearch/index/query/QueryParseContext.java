@@ -83,7 +83,7 @@ public class QueryParseContext {
 
     private boolean requireCustomQueryWrappingFilter = false;
 
-    final IndexQueryParserService indexQueryParser;
+    private final IndexQueryParserService indexQueryParser;
 
     private final Map<String, Filter> namedFilters = Maps.newHashMap();
 
@@ -136,6 +136,10 @@ public class QueryParseContext {
 
     public XContentParser parser() {
         return parser;
+    }
+    
+    public IndexQueryParserService indexQueryParserService() {
+        return indexQueryParser;
     }
 
     public AnalysisService analysisService() {

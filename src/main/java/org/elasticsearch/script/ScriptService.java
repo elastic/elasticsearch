@@ -354,12 +354,12 @@ public class ScriptService extends AbstractComponent {
         }
     }
 
-    public GetResponse queryScriptIndex(GetIndexedScriptRequest request) {
+    public void queryScriptIndex(GetIndexedScriptRequest request, final ActionListener<GetResponse> listener) {
         String scriptLang = validateScriptLanguage(request.scriptLang());
         GetRequest getRequest = new GetRequest(request, SCRIPT_INDEX).type(scriptLang).id(request.id())
                 .version(request.version()).versionType(request.versionType())
                 .operationThreaded(false).preference("_local"); //Set preference for no forking
-        return client.get(getRequest).actionGet();
+        client.get(getRequest, listener);
     }
 
     private String validateScriptLanguage(String scriptLang) {

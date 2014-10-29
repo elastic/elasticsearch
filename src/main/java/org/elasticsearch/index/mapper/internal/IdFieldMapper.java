@@ -85,7 +85,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         private String path = Defaults.PATH;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), IndexOptions.DOCS_ONLY);
+            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
             indexName = Defaults.INDEX_NAME;
         }
 

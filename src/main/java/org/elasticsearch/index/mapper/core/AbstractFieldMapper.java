@@ -106,19 +106,16 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         protected CopyTo copyTo;
 
         protected Builder(String name, FieldType fieldType) {
-            this(name, fieldType, fieldType.indexOptions());
-        }
-        protected Builder(String name, FieldType fieldType, IndexOptions defaultOptions) {
             super(name);
             this.fieldType = fieldType;
-            this.defaultOptions = defaultOptions;
+            this.defaultOptions = fieldType.indexOptions();
             multiFieldsBuilder = new MultiFields.Builder();
         }
 
         public T index(boolean index) {
             if (index) {
                 if (fieldType.indexOptions() == null) {
-                    fieldType.setIndexOptions(defaultOptions);
+                    fieldType.setIndexOptions(IndexOptions.DOCS_ONLY);
                 }
             } else {
                 fieldType.setIndexOptions(null);

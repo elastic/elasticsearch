@@ -243,6 +243,8 @@ public class AlertsStore extends AbstractComponent {
                         alert.timePeriod(TimeValue.parseTimeValue(parser.textOrNull(), defaultTimePeriod));
                     } else if (LAST_ACTION_FIRE.match(currentFieldName)) {
                         alert.lastActionFire(DateTime.parse(parser.textOrNull()));
+                    } else if (TIMESTAMP_FIELD.match(currentFieldName)) {
+                        alert.timestampString(parser.textOrNull());
                     } else {
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }

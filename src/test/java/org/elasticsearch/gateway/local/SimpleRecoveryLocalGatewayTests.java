@@ -346,18 +346,17 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Test
     @Slow
     public void testReusePeerRecovery() throws Exception {
-        ImmutableSettings.Builder settings = settingsBuilder()
+        final Settings settings = settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
                 .put("gateway.recover_after_nodes", 4)
-                .put(MockDirectoryHelper.CRASH_INDEX, false)
-                // prevent any rebalance actions during the peer recovery
-                // if we run into a relocation the reuse count will be 0 and this fails the test. We are testing here if
-                // we reuse the files on disk after full restarts for replicas.
-                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE);
+                .put(MockDirectoryHelper.CRASH_INDEX, false).build();
 
-        internalCluster().startNodesAsync(4, settings.build()).get();
-
+        internalCluster().startNodesAsync(4, settings).get();
+        // prevent any rebalance actions during the peer recovery
+        // if we run into a relocation the reuse count will be 0 and this fails the test. We are testing here if
+        // we reuse the files on disk after full restarts for replicas.
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings()).put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));
         logger.info("--> indexing docs");
         for (int i = 0; i < 1000; i++) {
             client().prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
@@ -381,7 +380,6 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
 
         logger.info("Running Cluster Health");
         ensureGreen();
-
         logger.info("--> shutting down the nodes");
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings()

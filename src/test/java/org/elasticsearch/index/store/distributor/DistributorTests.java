@@ -45,7 +45,12 @@ public class DistributorTests extends ElasticsearchTestCase {
         };
         FakeDirectoryService directoryService = new FakeDirectoryService(directories);
 
-        LeastUsedDistributor distributor = new LeastUsedDistributor(directoryService);
+        LeastUsedDistributor distributor = new LeastUsedDistributor(directoryService) {
+            @Override
+            protected long getUsableSpace(Directory directory) throws IOException {
+                return ((FakeFsDirectory)directory).useableSpace;
+            }
+        };
         for (int i = 0; i < 5; i++) {
             assertThat(distributor.any(), equalTo((Directory) directories[2]));
         }
@@ -100,7 +105,12 @@ public class DistributorTests extends ElasticsearchTestCase {
         };
         FakeDirectoryService directoryService = new FakeDirectoryService(directories);
 
-        RandomWeightedDistributor randomWeightedDistributor = new RandomWeightedDistributor(directoryService);
+        RandomWeightedDistributor randomWeightedDistributor = new RandomWeightedDistributor(directoryService) {
+            @Override
+            protected long getUsableSpace(Directory directory) throws IOException {
+                return ((FakeFsDirectory)directory).useableSpace;
+            }
+        };
         for (int i = 0; i < 10000; i++) {
             ((FakeFsDirectory) randomWeightedDistributor.any()).incrementAllocationCount();
         }
@@ -148,13 +158,13 @@ public class DistributorTests extends ElasticsearchTestCase {
     public static class FakeFsDirectory extends FSDirectory {
 
         public int allocationCount;
+        public long useableSpace;
 
-        public FakeFile fakeFile;
 
         public FakeFsDirectory(String path, long usableSpace) throws IOException {
             super(Paths.get(path), NoLockFactory.getNoLockFactory());
-            fakeFile = new FakeFile(path, usableSpace);
             allocationCount = 0;
+            this.useableSpace = usableSpace;
         }
 
         @Override
@@ -163,7 +173,7 @@ public class DistributorTests extends ElasticsearchTestCase {
         }
 
         public void setUsableSpace(long usableSpace) {
-            fakeFile.setUsableSpace(usableSpace);
+           this.useableSpace = usableSpace;
         }
 
         public void incrementAllocationCount() {
@@ -177,30 +187,6 @@ public class DistributorTests extends ElasticsearchTestCase {
         public void resetAllocationCount() {
             allocationCount = 0;
         }
-
-        @Override
-        public Path getDirectory() {
-            return fakeFile.toPath();
-        }
     }
 
-    // nocommit: will this really work?
-    
-    public static class FakeFile extends File {
-        private long usableSpace;
-
-        public FakeFile(String s, long usableSpace) {
-            super(s);
-            this.usableSpace = usableSpace;
-        }
-
-        @Override
-        public long getUsableSpace() {
-            return usableSpace;
-        }
-
-        public void setUsableSpace(long usableSpace) {
-            this.usableSpace = usableSpace;
-        }
-    }
 }

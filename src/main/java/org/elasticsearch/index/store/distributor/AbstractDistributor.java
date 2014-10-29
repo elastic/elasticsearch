@@ -25,6 +25,9 @@ import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.DirectoryService;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 
 public abstract class AbstractDistributor implements Distributor {
@@ -45,7 +48,7 @@ public abstract class AbstractDistributor implements Distributor {
     }
 
     @Override
-    public Directory any() {
+    public Directory any() throws IOException {
         if (delegates.length == 1) {
             return delegates[0];
         } else {
@@ -54,11 +57,10 @@ public abstract class AbstractDistributor implements Distributor {
     }
 
     @SuppressWarnings("unchecked")
-    protected long getUsableSpace(Directory directory) {
+    protected long getUsableSpace(Directory directory) throws IOException {
         final FSDirectory leaf = DirectoryUtils.getLeaf(directory, FSDirectory.class);
         if (leaf != null) {
-            // TODO: use filestore api instead for this
-            return leaf.getDirectory().toFile().getUsableSpace();
+            return Files.getFileStore(leaf.getDirectory()).getUsableSpace();
         } else {
             return 0;
         }
@@ -69,7 +71,7 @@ public abstract class AbstractDistributor implements Distributor {
         return name() + Arrays.toString(delegates);
     }
 
-    protected abstract Directory doAny();
+    protected abstract Directory doAny() throws IOException;
 
     protected abstract String name();
 

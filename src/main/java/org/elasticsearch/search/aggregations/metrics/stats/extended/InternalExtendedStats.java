@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
 *
@@ -61,8 +62,8 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     InternalExtendedStats() {} // for serialization
 
-    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs) {
-        super(name, count, sum, min, max);
+    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, Map<String, Object> metaData) {
+        super(name, count, sum, min, max, metaData);
         this.sumOfSqrs = sumOfSqrs;
     }
 
@@ -108,7 +109,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             sumOfSqrs += stats.getSumOfSquares();
         }
         final InternalStats stats = super.reduce(reduceContext);
-        return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs);
+        return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, getMetaData());
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * A global scope get (the document set on which we aggregate is all documents in the search context (ie. index + type)
@@ -48,8 +49,8 @@ public class InternalGlobal extends InternalSingleBucketAggregation implements G
 
     InternalGlobal() {} // for serialization
 
-    InternalGlobal(String name, long docCount, InternalAggregations aggregations) {
-        super(name, docCount, aggregations);
+    InternalGlobal(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metaData) {
+        super(name, docCount, aggregations, metaData);
     }
 
     @Override
@@ -59,6 +60,6 @@ public class InternalGlobal extends InternalSingleBucketAggregation implements G
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalGlobal(name, docCount, subAggregations);
+        return new InternalGlobal(name, docCount, subAggregations, getMetaData());
     }
 }

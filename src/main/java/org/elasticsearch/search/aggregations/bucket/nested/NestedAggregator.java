@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -49,8 +50,8 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     private Bits childDocs;
     private FixedBitSet parentDocs;
 
-    public NestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parentAggregator) {
-        super(name, factories, aggregationContext, parentAggregator);
+    public NestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData) {
+        super(name, factories, aggregationContext, parentAggregator, metaData);
         this.nestedPath = nestedPath;
         this.parentAggregator = parentAggregator;
         MapperService.SmartNameObjectMapper mapper = aggregationContext.searchContext().smartNameObjectMapper(nestedPath);
@@ -116,12 +117,12 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
+        return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalNested(name, 0, buildEmptySubAggregations());
+        return new InternalNested(name, 0, buildEmptySubAggregations(), getMetaData());
     }
 
     public String getNestedPath() {
@@ -149,8 +150,8 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         }
 
         @Override
-        public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
-            return new NestedAggregator(name, factories, path, context, parent);
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+            return new NestedAggregator(name, factories, path, context, parent, metaData);
         }
     }
 }

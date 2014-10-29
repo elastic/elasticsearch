@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Aggregate all docs that match a filter.
@@ -41,8 +42,9 @@ public class FilterAggregator extends SingleBucketAggregator {
                             org.apache.lucene.search.Filter filter,
                             AggregatorFactories factories,
                             AggregationContext aggregationContext,
-                            Aggregator parent) {
-        super(name, factories, aggregationContext, parent);
+                            Aggregator parent,
+                            Map<String, Object> metaData) {
+        super(name, factories, aggregationContext, parent, metaData);
         this.filter = filter;
     }
 
@@ -64,12 +66,12 @@ public class FilterAggregator extends SingleBucketAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        return new InternalFilter(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
+        return new InternalFilter(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalFilter(name, 0, buildEmptySubAggregations());
+        return new InternalFilter(name, 0, buildEmptySubAggregations(), getMetaData());
     }
 
     public static class Factory extends AggregatorFactory {
@@ -82,8 +84,8 @@ public class FilterAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
-            return new FilterAggregator(name, filter, factories, context, parent);
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+            return new FilterAggregator(name, filter, factories, context, parent, metaData);
         }
 
     }

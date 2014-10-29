@@ -60,13 +60,13 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     private InternalScriptedMetric() {
     }
 
-    private InternalScriptedMetric(String name) {
-        super(name);
+    private InternalScriptedMetric(String name, Map<String, Object> metaData) {
+        super(name, metaData);
     }
 
     public InternalScriptedMetric(String name, Object aggregation, String scriptLang, ScriptType scriptType, String reduceScript,
-            Map<String, Object> reduceParams) {
-        this(name);
+            Map<String, Object> reduceParams, Map<String, Object> metaData) {
+        this(name, metaData);
         this.aggregation = aggregation;
         this.scriptType = scriptType;
         this.reduceScript = reduceScript;
@@ -103,7 +103,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
             aggregation = aggregationObjects;
         }
         return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.scriptLang, firstAggregation.scriptType,
-                firstAggregation.reduceScript, firstAggregation.reduceParams);
+                firstAggregation.reduceScript, firstAggregation.reduceParams, getMetaData());
 
     }
 
@@ -113,8 +113,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         scriptLang = in.readOptionalString();
         scriptType = ScriptType.readFrom(in);
         reduceScript = in.readOptionalString();
@@ -123,8 +122,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalString(scriptLang);
         ScriptType.writeTo(scriptType, out);
         out.writeOptionalString(reduceScript);

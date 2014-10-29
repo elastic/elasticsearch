@@ -162,8 +162,8 @@ public class InternalFilters extends InternalAggregation implements Filters {
 
     public InternalFilters() {} // for serialization
 
-    public InternalFilters(String name, List<Bucket> buckets, boolean keyed) {
-        super(name);
+    public InternalFilters(String name, List<Bucket> buckets, boolean keyed, Map<String, Object> metaData) {
+        super(name, metaData);
         this.buckets = buckets;
         this.keyed = keyed;
     }
@@ -210,7 +210,7 @@ public class InternalFilters extends InternalAggregation implements Filters {
             }
         }
 
-        InternalFilters reduced = new InternalFilters(name, new ArrayList<Bucket>(bucketsList.size()), keyed);
+        InternalFilters reduced = new InternalFilters(name, new ArrayList<Bucket>(bucketsList.size()), keyed, getMetaData());
         for (List<Bucket> sameRangeList : bucketsList) {
             reduced.buckets.add((sameRangeList.get(0)).reduce(sameRangeList, reduceContext));
         }
@@ -218,8 +218,7 @@ public class InternalFilters extends InternalAggregation implements Filters {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         keyed = in.readBoolean();
         int size = in.readVInt();
         List<Bucket> buckets = Lists.newArrayListWithCapacity(size);
@@ -233,8 +232,7 @@ public class InternalFilters extends InternalAggregation implements Filters {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
         out.writeVInt(buckets.size());
         for (Bucket bucket : buckets) {

@@ -36,6 +36,7 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  */
@@ -129,8 +130,7 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         from = in.readVInt();
         size = in.readVInt();
         topDocs = Lucene.readTopDocs(in);
@@ -138,8 +138,7 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(from);
         out.writeVInt(size);
         Lucene.writeTopDocs(out, topDocs, 0);

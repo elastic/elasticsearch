@@ -18,17 +18,15 @@
  */
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.store.distributor.Distributor;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -75,22 +73,15 @@ public final class DistributorDirectory extends BaseDirectory {
         this.distributor = distributor;
         for (Directory dir : distributor.all()) {
             for (String file : dir.listAll()) {
-                if (!usePrimary(file)) {
-                    nameDirMapping.put(file, dir);
-                }
+                nameDirMapping.put(file, dir);
             }
         }
+        lockFactory = new DistributorLockFactoryWrapper(distributor.primary());
     }
 
     @Override
     public final String[] listAll() throws IOException {
-        final ArrayList<String> files = new ArrayList<>();
-        for (Directory dir : distributor.all()) {
-            for (String file : dir.listAll()) {
-                files.add(file);
-            }
-        }
-        return files.toArray(new String[files.size()]);
+        return nameDirMapping.keySet().toArray(new String[0]);
     }
 
     @Override
@@ -106,7 +97,7 @@ public final class DistributorDirectory extends BaseDirectory {
     public void deleteFile(String name) throws IOException {
         getDirectory(name, true).deleteFile(name);
         Directory remove = nameDirMapping.remove(name);
-        assert usePrimary(name) || remove != null : "Tried to delete file " + name + " but couldn't";
+        assert remove != null : "Tried to delete file " + name + " but couldn't";
     }
 
     @Override
@@ -146,26 +137,15 @@ public final class DistributorDirectory extends BaseDirectory {
     }
 
     /**
-     * Returns true if the primary directory should be used for the given file.
-     */
-    private boolean usePrimary(String name) {
-        return IndexFileNames.SEGMENTS_GEN.equals(name) || Store.isChecksum(name) || IndexWriter.WRITE_LOCK_NAME.equals(name);
-    }
-
-    /**
      * Returns the directory that has previously been associated with this file name or associates the name with a directory
      * if failIfNotAssociated is set to false.
      */
     private Directory getDirectory(String name, boolean failIfNotAssociated) throws IOException {
-        if (usePrimary(name)) {
-            return distributor.primary();
-        }
         Directory directory = nameDirMapping.get(name);
         if (directory == null) {
             if (failIfNotAssociated) {
                 throw new FileNotFoundException("No such file [" + name + "]");
             }
-
             // Pick a directory and associate this new file with it:
             final Directory dir = distributor.any();
             directory = nameDirMapping.putIfAbsent(name, dir);
@@ -179,23 +159,9 @@ public final class DistributorDirectory extends BaseDirectory {
     }
 
     @Override
-    public Lock makeLock(String name) {
-        return distributor.primary().makeLock(name);
-    }
-
-    @Override
-    public void clearLock(String name) throws IOException {
-        distributor.primary().clearLock(name);
-    }
-
-    @Override
-    public LockFactory getLockFactory() {
-        return distributor.primary().getLockFactory();
-    }
-
-    @Override
     public void setLockFactory(LockFactory lockFactory) throws IOException {
         distributor.primary().setLockFactory(lockFactory);
+        super.setLockFactory(new DistributorLockFactoryWrapper(distributor.primary()));
     }
 
     @Override
@@ -211,7 +177,7 @@ public final class DistributorDirectory extends BaseDirectory {
     /**
      * Renames the given source file to the given target file unless the target already exists.
      *
-     * @param directoryService the DirecotrySerivce to use.
+     * @param directoryService the DirectoryService to use.
      * @param from the source file name.
      * @param to the target file name
      * @throws IOException if the target file already exists.
@@ -230,6 +196,121 @@ public final class DistributorDirectory extends BaseDirectory {
         } finally {
             if (!success) {
                 nameDirMapping.remove(to);
+            }
+        }
+    }
+
+    Distributor getDistributor() {
+        return distributor;
+    }
+
+    /**
+     * Basic checks to ensure the internal mapping is consistent - should only be used in assertions
+     */
+    static boolean assertConsistency(ESLogger logger, DistributorDirectory dir) throws IOException {
+        boolean consistent = true;
+        StringBuilder builder = new StringBuilder();
+        Directory[] all = dir.distributor.all();
+        for (Directory d : all) {
+            for (String file : d.listAll()) {
+            final Directory directory = dir.nameDirMapping.get(file);
+                if (directory == null) {
+                    consistent = false;
+                    builder.append("File ").append(file)
+                            .append(" was not mapped to a directory but exists in one of the distributors directories")
+                            .append(System.lineSeparator());
+                }
+                if (directory != d) {
+                    consistent = false;
+                    builder.append("File ").append(file).append(" was  mapped to a directory ").append(directory)
+                            .append(" but exists in another distributor directory").append(d)
+                            .append(System.lineSeparator());
+                }
+
+            }
+        }
+        if (consistent == false) {
+            logger.info(builder.toString());
+        }
+        assert consistent: builder.toString();
+        return consistent; // return boolean so it can be easily be used in asserts
+    }
+
+    /**
+     * This inner class is a simple wrapper around the original
+     * lock factory to track files written / created through the
+     * lock factory. For instance {@link NativeFSLockFactory} creates real
+     * files that we should expose for consistency reasons.
+     */
+    private class DistributorLockFactoryWrapper extends LockFactory {
+        private final Directory dir;
+        private final LockFactory delegate;
+        private final boolean writesFiles;
+
+        public DistributorLockFactoryWrapper(Directory dir) {
+            this.dir = dir;
+            final FSDirectory leaf = DirectoryUtils.getLeaf(dir, FSDirectory.class);
+            if (leaf != null) {
+               writesFiles = leaf.getLockFactory() instanceof FSLockFactory;
+            } else {
+                writesFiles = false;
+            }
+            this.delegate = dir.getLockFactory();
+        }
+
+        @Override
+        public void setLockPrefix(String lockPrefix) {
+            delegate.setLockPrefix(lockPrefix);
+        }
+
+        @Override
+        public String getLockPrefix() {
+            return delegate.getLockPrefix();
+        }
+
+        @Override
+        public Lock makeLock(String lockName) {
+            return new DistributorLock(delegate.makeLock(lockName), lockName);
+        }
+
+        @Override
+        public void clearLock(String lockName) throws IOException {
+            delegate.clearLock(lockName);
+        }
+
+        @Override
+        public String toString() {
+            return "DistributorLockFactoryWrapper(" + delegate.toString() + ")";
+        }
+
+        private class DistributorLock extends Lock {
+            private final Lock delegateLock;
+            private final String name;
+
+            DistributorLock(Lock delegate, String name) {
+                this.delegateLock = delegate;
+                this.name = name;
+            }
+
+            @Override
+            public boolean obtain() throws IOException {
+                if (delegateLock.obtain()) {
+                    if (writesFiles) {
+                        assert (nameDirMapping.containsKey(name) == false || nameDirMapping.get(name) == dir);
+                        nameDirMapping.putIfAbsent(name, dir);
+                    }
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+
+            @Override
+            public void close() throws IOException { delegateLock.close(); }
+
+            @Override
+            public boolean isLocked() throws IOException {
+                return delegateLock.isLocked();
             }
         }
     }

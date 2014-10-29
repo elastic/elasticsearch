@@ -34,12 +34,13 @@ public class MultiCollector extends SimpleCollector implements XCollector {
     private final Collector[] collectors;
 
     private LeafCollector leafCollector;
-    private LeafCollector[] leafCollectors;
+    private final LeafCollector[] leafCollectors;
 
 
     public MultiCollector(Collector collector, Collector[] collectors) {
         this.collector = collector;
         this.collectors = collectors;
+        this.leafCollectors = new LeafCollector[collectors.length];
     }
 
     @Override

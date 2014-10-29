@@ -48,7 +48,7 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    private double max;
+    protected double max;
 
     InternalMax() {} // for serialization
 

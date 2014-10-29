@@ -106,7 +106,10 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         @Override
         public AllFieldMapper build(BuilderContext context) {
             // In case the mapping overrides these
-            fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+            // nocommit - this used to setIndex(true) but now we adding back positions, should we set DOCS_ONLY?
+            if (fieldType.indexOptions() == null) {
+                fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+            }
             fieldType.setTokenized(true);
 
             return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());

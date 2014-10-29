@@ -102,7 +102,7 @@ public class RecoveryStatus extends AbstractRefCounted {
     }
 
     public InternalIndexShard indexShard() {
-        ensureNotFinished();
+        ensureRefCount();
         return indexShard;
     }
 
@@ -115,7 +115,7 @@ public class RecoveryStatus extends AbstractRefCounted {
     }
 
     public Store store() {
-        ensureNotFinished();
+        ensureRefCount();
         return store;
     }
 
@@ -146,7 +146,7 @@ public class RecoveryStatus extends AbstractRefCounted {
 
     /** renames all temporary files to their true name, potentially overriding existing files */
     public void renameAllTempFiles() throws IOException {
-        ensureNotFinished();
+        ensureRefCount();
         Iterator<String> tempFileIterator = tempFileNames.iterator();
         final Directory directory = store.directory();
         while (tempFileIterator.hasNext()) {
@@ -222,7 +222,7 @@ public class RecoveryStatus extends AbstractRefCounted {
     }
 
     public IndexOutput getOpenIndexOutput(String key) {
-        ensureNotFinished();
+        ensureRefCount();
         return openIndexOutputs.get(key);
     }
 
@@ -236,7 +236,7 @@ public class RecoveryStatus extends AbstractRefCounted {
 
     /** remove and {@link org.apache.lucene.store.IndexOutput} for a given file. It is the caller's responsibility to close it */
     public IndexOutput removeOpenIndexOutputs(String name) {
-        ensureNotFinished();
+        ensureRefCount();
         return openIndexOutputs.remove(name);
     }
 
@@ -248,7 +248,7 @@ public class RecoveryStatus extends AbstractRefCounted {
      * at a later stage
      */
     public IndexOutput openAndPutIndexOutput(String fileName, StoreFileMetaData metaData, Store store) throws IOException {
-        ensureNotFinished();
+        ensureRefCount();
         String tempFileName = getTempNameForFile(fileName);
         // add first, before it's created
         tempFileNames.add(tempFileName);
@@ -284,9 +284,9 @@ public class RecoveryStatus extends AbstractRefCounted {
         return shardId + " [" + recoveryId + "]";
     }
 
-    private void ensureNotFinished() {
-        if (finished.get()) {
-            throw new ElasticsearchException("RecoveryStatus is used after it was finished. Probably a mismatch between incRef/decRef calls");
+    private void ensureRefCount() {
+        if (refCount() <= 0) {
+            throw new ElasticsearchException("RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef calls");
         }
     }
 

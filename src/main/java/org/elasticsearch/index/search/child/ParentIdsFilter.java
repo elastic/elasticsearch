@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.search.child;
 
+import org.apache.lucene.util.BitDocIdSet;
+
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.DocIdSet;
@@ -135,13 +137,15 @@ final class ParentIdsFilter extends Filter {
             acceptDocs = context.reader().getLiveDocs();
         }
 
-        FixedBitSet nonNestedDocs = null;
+        BitSet nonNestedDocs = null;
         if (nonNestedDocsFilter != null) {
-            nonNestedDocs = (FixedBitSet) nonNestedDocsFilter.getDocIdSet(context, acceptDocs);
+            // nocommit: can we remove this cast?
+            nonNestedDocs = ((BitDocIdSet) nonNestedDocsFilter.getDocIdSet(context, acceptDocs)).bits();
         }
 
         DocsEnum docsEnum = null;
-        FixedBitSet result = null;
+        // TODO: should this just use DocIdSetBuilder? 
+        BitSet result = null;
         long size = parentIds.size();
         for (int i = 0; i < size; i++) {
             parentIds.get(i, idSpare);
@@ -169,6 +173,6 @@ final class ParentIdsFilter extends Filter {
                 assert docsEnum.advance(docId + 1) == DocIdSetIterator.NO_MORE_DOCS : "DocId " + docId + " should have been the last one but docId " + docsEnum.docID() + " exists.";
             }
         }
-        return result;
+        return new BitDocIdSet(result);
     }
 }

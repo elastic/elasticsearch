@@ -46,17 +46,17 @@ public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
         super(index, indexSettings, name, settings);
         min = settings.getAsInt("min", 0);
         max = settings.getAsInt("max", Integer.MAX_VALUE);
-        if (version.onOrAfter(Version.LUCENE_44) && settings.get(ENABLE_POS_INC_KEY) != null) {
+        if (version.onOrAfter(Version.LUCENE_4_4) && settings.get(ENABLE_POS_INC_KEY) != null) {
             throw new ElasticsearchIllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain or use"
                     + " an older compatibility version (<=4.3) but beware that it might cause highlighting bugs.");
         }
-        enablePositionIncrements = version.onOrAfter(Version.LUCENE_44) ? true : settings.getAsBoolean(ENABLE_POS_INC_KEY, true);
+        enablePositionIncrements = version.onOrAfter(Version.LUCENE_4_4) ? true : settings.getAsBoolean(ENABLE_POS_INC_KEY, true);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        if (version.onOrAfter(Version.LUCENE_44)) {
-            return new LengthFilter(version, tokenStream, min, max);
+        if (version.onOrAfter(Version.LUCENE_4_4)) {
+            return new LengthFilter(tokenStream, min, max);
         }
         return new LengthFilter(version, enablePositionIncrements, tokenStream, min, max);
     }

@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
@@ -438,7 +439,8 @@ public enum MultiValueMode {
      *
      * NOTE: Calling the returned instance on docs that are not root docs is illegal
      */
-    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final FixedBitSet rootDocs, final FixedBitSet innerDocs, int maxDoc) {
+    // TODO: technically innerDocs need not be BitSet: only needs advance() ?
+    public NumericDocValues select(final SortedNumericDocValues values, final long missingValue, final BitSet rootDocs, final BitSet innerDocs, int maxDoc) {
         if (rootDocs == null || innerDocs == null) {
             return select(DocValues.emptySortedNumeric(maxDoc), missingValue);
         }
@@ -451,7 +453,8 @@ public enum MultiValueMode {
                     return missingValue;
                 }
 
-                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
+                // nocommit: remove cast when BitSet.prevSetBit is committed
+                final int prevRootDoc = ((FixedBitSet)rootDocs).prevSetBit(rootDoc - 1);
                 final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
 
                 long accumulated = startLong();

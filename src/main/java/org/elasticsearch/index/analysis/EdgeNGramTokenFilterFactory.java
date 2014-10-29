@@ -58,12 +58,12 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        if (version.onOrAfter(Version.LUCENE_43) && esVersion.onOrAfter(org.elasticsearch.Version.V_0_90_2)) {
+        if (version.onOrAfter(Version.LUCENE_4_3) && esVersion.onOrAfter(org.elasticsearch.Version.V_0_90_2)) {
             /*
              * We added this in 0.90.2 but 0.90.1 used LUCENE_43 already so we can not rely on the lucene version.
              * Yet if somebody uses 0.90.2 or higher with a prev. lucene version we should also use the deprecated version.
              */
-            final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // always use 4.4 or higher
+            final Version version = this.version == Version.LUCENE_4_3 ? Version.LUCENE_4_4 : this.version; // always use 4.4 or higher
             TokenStream result = tokenStream;
             // side=BACK is not supported anymore but applying ReverseStringFilter up-front and after the token filter has the same effect
             if (side == Side.BACK) {

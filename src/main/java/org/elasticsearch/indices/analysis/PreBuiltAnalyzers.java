@@ -60,7 +60,9 @@ import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.analysis.PatternAnalyzer;
 import org.elasticsearch.index.analysis.StandardHtmlStripAnalyzer;
+import org.elasticsearch.index.analysis.SnowballAnalyzer;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.util.Locale;
@@ -139,7 +141,9 @@ public enum PreBuiltAnalyzers {
     SNOWBALL {
         @Override
         protected Analyzer create(Version version) {
-            return new SnowballAnalyzer(version.luceneVersion, "English", StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+            Analyzer analyzer = new SnowballAnalyzer("English", StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+            analyzer.setVersion(version.luceneVersion);
+            return analyzer;
         }
     },
 
@@ -147,9 +151,9 @@ public enum PreBuiltAnalyzers {
         @Override
         protected Analyzer create(Version version) {
             if (version.onOrAfter(Version.V_1_0_0_RC1)) {
-                return new PatternAnalyzer(version.luceneVersion, Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET);
+                return new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, CharArraySet.EMPTY_SET);
             }
-            return new PatternAnalyzer(version.luceneVersion, Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+            return new PatternAnalyzer(Regex.compile("\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/, null), true, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
         }
     },
 

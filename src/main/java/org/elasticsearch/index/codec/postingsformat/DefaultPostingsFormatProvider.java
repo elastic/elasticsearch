@@ -21,13 +21,13 @@ package org.elasticsearch.index.codec.postingsformat;
 
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.blocktree.BlockTreeTermsWriter;
-import org.apache.lucene.codecs.lucene41.Lucene41PostingsFormat;
+import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * The default postingsformat, maps to {@link Lucene41PostingsFormat}.
+ * The default postingsformat, maps to {@link Lucene50PostingsFormat}.
  * <ul>
  * <li><tt>min_block_size</tt>: the minimum block size the default Lucene term
  * dictionary uses to encode on-disk blocks.</li>
@@ -41,14 +41,14 @@ public class DefaultPostingsFormatProvider extends AbstractPostingsFormatProvide
 
     private final int minBlockSize;
     private final int maxBlockSize;
-    private final Lucene41PostingsFormat postingsFormat;
+    private final Lucene50PostingsFormat postingsFormat;
 
     @Inject
     public DefaultPostingsFormatProvider(@Assisted String name, @Assisted Settings postingsFormatSettings) {
         super(name);
         this.minBlockSize = postingsFormatSettings.getAsInt("min_block_size", BlockTreeTermsWriter.DEFAULT_MIN_BLOCK_SIZE);
         this.maxBlockSize = postingsFormatSettings.getAsInt("max_block_size", BlockTreeTermsWriter.DEFAULT_MAX_BLOCK_SIZE);
-        this.postingsFormat = new Lucene41PostingsFormat(minBlockSize, maxBlockSize);
+        this.postingsFormat = new Lucene50PostingsFormat(minBlockSize, maxBlockSize);
     }
 
     public int minBlockSize() {

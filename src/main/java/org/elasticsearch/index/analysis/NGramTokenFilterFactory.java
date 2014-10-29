@@ -49,7 +49,7 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
     @SuppressWarnings("deprecation")
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // we supported it since 4.3
+        final Version version = this.version == Version.LUCENE_4_3 ? Version.LUCENE_4_4 : this.version; // we supported it since 4.3
         return new NGramTokenFilter(version, tokenStream, minGram, maxGram);
     }
 }

@@ -10,19 +10,24 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
+import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.license.AbstractLicensingTestBase.getTestPriKeyPath;
 import static org.elasticsearch.license.AbstractLicensingTestBase.getTestPubKeyPath;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 /**
  */
@@ -81,5 +86,58 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
 
         ESLicenseSigner signer = new ESLicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
         return signer.sign(licenseSpec);
+    }
+
+    protected void assertLicenseManagerEnabledFeatureFor(final String feature) throws InterruptedException {
+        assertLicenseManagerStatusFor(feature, true);
+    }
+
+    protected void assertLicenseManagerDisabledFeatureFor(final String feature) throws InterruptedException {
+        assertLicenseManagerStatusFor(feature, false);
+    }
+
+    protected void assertLicenseManagerStatusFor(final String feature, final boolean expectedEnabled) throws InterruptedException {
+        assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                for (LicensesManagerService managerService : licensesManagerServices()) {
+                    if (expectedEnabled != managerService.enabledFeatures().contains(feature)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }, 2, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    protected void assertConsumerPluginDisableNotification(int timeoutInSec) throws InterruptedException {
+        assertConsumerPluginNotification(false, timeoutInSec);
+    }
+    protected void assertConsumerPluginEnableNotification(int timeoutInSec) throws InterruptedException {
+        assertConsumerPluginNotification(true, timeoutInSec);
+    }
+
+    protected void assertConsumerPluginNotification(final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
+        assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                for (TestPluginService pluginService : consumerPluginServices()) {
+                    if (expectedEnabled != pluginService.enabled()) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }, timeoutInSec, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    private Iterable<TestPluginService> consumerPluginServices() {
+        final InternalTestCluster clients = internalCluster();
+        return clients.getDataNodeInstances(TestPluginService.class);
+    }
+
+    private Iterable<LicensesManagerService> licensesManagerServices() {
+        final InternalTestCluster clients = internalCluster();
+        return clients.getDataNodeInstances(LicensesManagerService.class);
     }
 }

@@ -124,58 +124,6 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
         assertLicenseManagerDisabledFeatureFor(TestPluginService.FEATURE_NAME);
     }
 
-    private void assertLicenseManagerEnabledFeatureFor(final String feature) throws InterruptedException {
-        assertLicenseManagerStatusFor(feature, true);
-    }
-
-    private void assertLicenseManagerDisabledFeatureFor(final String feature) throws InterruptedException {
-        assertLicenseManagerStatusFor(feature, false);
-    }
-
-    private void assertLicenseManagerStatusFor(final String feature, final boolean expectedEnabled) throws InterruptedException {
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                for (LicensesManagerService managerService : licensesManagerServices()) {
-                    if (expectedEnabled != managerService.enabledFeatures().contains(feature)) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-        }, 2, TimeUnit.SECONDS), equalTo(true));
-    }
-
-    private void assertConsumerPluginDisableNotification(int timeoutInSec) throws InterruptedException {
-        assertConsumerPluginNotification(false, timeoutInSec);
-    }
-    private void assertConsumerPluginEnableNotification(int timeoutInSec) throws InterruptedException {
-        assertConsumerPluginNotification(true, timeoutInSec);
-    }
-
-    private void assertConsumerPluginNotification(final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                for (TestPluginService pluginService : consumerPluginServices()) {
-                    if (expectedEnabled != pluginService.enabled()) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-        }, timeoutInSec, TimeUnit.SECONDS), equalTo(true));
-    }
-
-    private Iterable<TestPluginService> consumerPluginServices() {
-        final InternalTestCluster clients = internalCluster();
-        return clients.getDataNodeInstances(TestPluginService.class);
-    }
-
-    private Iterable<LicensesManagerService> licensesManagerServices() {
-        final InternalTestCluster clients = internalCluster();
-        return clients.getDataNodeInstances(LicensesManagerService.class);
-    }
 
     private LicensesManagerService masterLicenseManagerService() {
         final InternalTestCluster clients = internalCluster();

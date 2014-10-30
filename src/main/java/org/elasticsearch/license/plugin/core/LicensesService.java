@@ -654,9 +654,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
         @Override
         public void run() {
-            if (logger.isTraceEnabled()) {
-                logger.trace("Performing LicensingClientNotificationJob");
-            }
+            logger.info("Performing LicensingClientNotificationJob");
+
 
             // next clusterChanged event will deal with the missed notifications
             if (!clusterService.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
@@ -669,6 +668,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                         logger.info("Reschedule licensing client notification job was rejected", ex);
                     }
                 }
+            } else {
+                logger.info("skip notification [STATE_NOT_RECOVERED_BLOCK]");
             }
         }
     }

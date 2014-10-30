@@ -70,6 +70,7 @@ import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.factorFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -2005,7 +2006,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
             assertNoFailures(scrollResponse);
             assertThat(scrollResponse.getHits().totalHits(), equalTo(10l));
-
             int scannedDocs = 0;
             do {
                 scrollResponse = client()
@@ -2232,7 +2232,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     SearchResponse MinMaxQuery(String scoreType, int minChildren, int maxChildren, int cutoff) throws SearchPhaseExecutionException {
-        return client()
+        SearchResponse response = client()
                 .prepareSearch("test")
                 .setQuery(
                         QueryBuilders
@@ -2244,15 +2244,19 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                                                 .add(FilterBuilders.termFilter("foo", "four"), factorFunction(1))).scoreType(scoreType)
                                 .minChildren(minChildren).maxChildren(maxChildren).setShortCircuitCutoff(cutoff))
                 .addSort("_score", SortOrder.DESC).addSort("id", SortOrder.ASC).get();
+        assertSearchResponse(response);
+        return response;
     }
 
     SearchResponse MinMaxFilter( int minChildren, int maxChildren, int cutoff) throws SearchPhaseExecutionException {
-        return client()
+        SearchResponse response = client()
                 .prepareSearch("test")
                 .setQuery(
                         QueryBuilders.constantScoreQuery(FilterBuilders.hasChildFilter("child", termFilter("foo", "two"))
                                 .minChildren(minChildren).maxChildren(maxChildren).setShortCircuitCutoff(cutoff)))
                 .addSort("id", SortOrder.ASC).setTrackScores(true).get();
+        assertSearchResponse(response);
+        return response;
     }
 
 

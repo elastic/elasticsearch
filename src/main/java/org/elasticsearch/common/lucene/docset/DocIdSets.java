@@ -81,8 +81,11 @@ public class DocIdSets {
             return set;
         }
         // TODO: should we use WAH8DocIdSet like Lucene?
-        FixedBitSet fixedBitSet = new FixedBitSet(reader.maxDoc());
         it = set.iterator();
+        if (it == null) {
+            return DocIdSet.EMPTY;
+        }
+        FixedBitSet fixedBitSet = new FixedBitSet(reader.maxDoc());
         long cost = it.cost();
         fixedBitSet.or(it);
         return new BitDocIdSet(fixedBitSet, cost);

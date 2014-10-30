@@ -20,6 +20,7 @@ package org.elasticsearch.search.reducers;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.InternalSlidingWindow;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowReducer;
 import org.elasticsearch.search.reducers.metric.avg.AvgReducer;
@@ -27,6 +28,7 @@ import org.elasticsearch.search.reducers.metric.avg.InternalAvg;
 import org.elasticsearch.search.reducers.metric.delta.DeltaReducer;
 import org.elasticsearch.search.reducers.metric.delta.InternalDelta;
 import org.elasticsearch.search.reducers.metric.max.MaxReducer;
+import org.elasticsearch.search.reducers.metric.stats.StatsReducer;
 
 /**
  * A module that registers all the transport streams for the addAggregation
@@ -42,11 +44,13 @@ public class TransportReductionModule extends AbstractModule {
         InternalDelta.registerStreams();
         InternalAvg.registerStreams();
         InternalMax.registerStreams();
+        InternalStats.registerStreams();
         
         // NOCOMMIT register reducerFactoryStreams
         SlidingWindowReducer.registerStreams();
         DeltaReducer.registerStreams();
         AvgReducer.registerStreams();
         MaxReducer.registerStreams();
+        StatsReducer.registerStreams();
     }
 }

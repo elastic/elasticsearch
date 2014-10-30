@@ -17,21 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.max;
+package org.elasticsearch.search.reducers.metric.stats;
 
 import org.elasticsearch.search.reducers.ReducerFactory;
 import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
 
-
-public class MaxParser extends SimpleMetricReducerParser {
+public class StatsParser extends SimpleMetricReducerParser {
 
     @Override
     public String type() {
-        return InternalMax.TYPE.name();
+        return InternalStats.TYPE.name();
     }
 
     @Override
     public ReducerFactory createReducerFactory(String reducerName, String bucketsPath, String fieldName) {
-        return new MaxReducer.Factory(reducerName, bucketsPath, fieldName);
+        return new StatsReducer.Factory(reducerName, bucketsPath, fieldName);
     }
 }

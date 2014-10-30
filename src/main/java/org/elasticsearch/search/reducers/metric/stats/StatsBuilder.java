@@ -17,21 +17,35 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.max;
+package org.elasticsearch.search.reducers.metric.stats;
 
-import org.elasticsearch.search.reducers.ReducerFactory;
-import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.reducers.ReductionBuilder;
 
+import java.io.IOException;
 
-public class MaxParser extends SimpleMetricReducerParser {
+public class StatsBuilder extends ReductionBuilder<StatsBuilder> {
 
-    @Override
-    public String type() {
-        return InternalMax.TYPE.name();
+    private String path = null;
+
+    protected StatsBuilder(String name) {
+        super(name, InternalStats.TYPE.name());
+    }
+
+    public void path(String path) {
+        this.path = path;
     }
 
     @Override
-    public ReducerFactory createReducerFactory(String reducerName, String bucketsPath, String fieldName) {
-        return new MaxReducer.Factory(reducerName, bucketsPath, fieldName);
+    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+
+        if (path != null) {
+            builder.field(StatsParser.BUCKETS_FIELD.getPreferredName(), path);
+        }
+
+        builder.endObject();
+        return builder;
     }
+
 }

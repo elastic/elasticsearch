@@ -26,8 +26,6 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerFactory;
-import org.elasticsearch.search.reducers.metric.max.InternalMax;
-import org.elasticsearch.search.reducers.metric.max.MaxReducer;
 
 import java.io.IOException;
 
@@ -35,11 +33,6 @@ public abstract class SimpleMetricReducerParser implements Reducer.Parser {
 
     public static final ParseField BUCKETS_FIELD = new ParseField("buckets");
     public static final ParseField FIELD_NAME_FIELD = new ParseField("field");
-
-    @Override
-    public String type() {
-        return InternalMax.TYPE.name();
-    }
 
     @Override
     public ReducerFactory parse(String reducerName, XContentParser parser, SearchContext context) throws IOException {
@@ -73,8 +66,9 @@ public abstract class SimpleMetricReducerParser implements Reducer.Parser {
         if (fieldName == null) {
             throw new SearchParseException(context, "Missing [" + FIELD_NAME_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
         }
-        return new MaxReducer.Factory(reducerName, buckets, fieldName);
+        return createReducerFactory(reducerName, buckets, fieldName);
     }
 
+    public abstract ReducerFactory createReducerFactory(String reducerName, String bucketsPath, String fieldName);
 }
 

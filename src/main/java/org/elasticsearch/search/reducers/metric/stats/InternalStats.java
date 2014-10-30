@@ -17,21 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.metric.max;
+package org.elasticsearch.search.reducers.metric.stats;
 
-import org.elasticsearch.search.reducers.ReducerFactory;
-import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 
 
-public class MaxParser extends SimpleMetricReducerParser {
+public class InternalStats extends org.elasticsearch.search.aggregations.metrics.stats.InternalStats implements Stats {
 
-    @Override
-    public String type() {
-        return InternalMax.TYPE.name();
+    public InternalStats(String name, long count, double sum, double min, double max) {
+        super(name, count, sum, min, max);
     }
 
     @Override
-    public ReducerFactory createReducerFactory(String reducerName, String bucketsPath, String fieldName) {
-        return new MaxReducer.Factory(reducerName, bucketsPath, fieldName);
+    public InternalStats reduce(InternalAggregation.ReduceContext reduceContext) {
+        throw new UnsupportedOperationException("Not supported");
     }
+
 }

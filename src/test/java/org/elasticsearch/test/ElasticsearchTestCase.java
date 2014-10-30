@@ -99,20 +99,11 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     }
 
-    @Before
-    public void cleanFieldCache() {
-        // nocommit: we should make this a static method on uninvertingreader?
-        // FieldCache.DEFAULT.purgeAllCaches();
-    }
-
     @After
     public void ensureNoFieldCacheUse() {
-        // We use the lucene comparators, and by default they work on field cache.
-        // However, given the way that we use them, field cache should NEVER get loaded.
-        if (getClass().getAnnotation(UsesLuceneFieldCacheOnPurpose.class) == null) {
-            String[] entries = UninvertingReader.getUninvertedStats();
-            assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
-        }
+        // field cache should NEVER get loaded.
+        String[] entries = UninvertingReader.getUninvertedStats();
+        assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
     }
 
     /**
@@ -480,15 +471,6 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     @Ignore
     public @interface CompatibilityVersion {
         int version();
-    }
-
-    /**
-     * Most tests don't use {@link FieldCache} but some of them might do.
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.TYPE})
-    @Ignore
-    public @interface UsesLuceneFieldCacheOnPurpose {
     }
 
     /**

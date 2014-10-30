@@ -24,25 +24,21 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.ElasticsearchTestCase.UsesLuceneFieldCacheOnPurpose;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-@UsesLuceneFieldCacheOnPurpose
 public class SimpleLuceneTests extends ElasticsearchTestCase {
 
     @Test
@@ -51,12 +47,12 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         for (int i = 0; i < 10; i++) {
             Document document = new Document();
-            document.add(new TextField("str", new String(new char[]{(char) (97 + i), (char) (97 + i)}), Field.Store.YES));
+            String text = new String(new char[]{(char) (97 + i), (char) (97 + i)});
+            document.add(new TextField("str", text, Field.Store.YES));
+            document.add(new SortedDocValuesField("str", new BytesRef(text)));
             indexWriter.addDocument(document);
         }
-        HashMap<String, UninvertingReader.Type> mapping = new HashMap<>();
-        mapping.put("str", UninvertingReader.Type.SORTED);
-        IndexReader reader = new UninvertingReader(SlowCompositeReaderWrapper.wrap(DirectoryReader.open(indexWriter, true)), mapping);
+        IndexReader reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(indexWriter, true));
         IndexSearcher searcher = new IndexSearcher(reader);
         TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), null, 10, new Sort(new SortField("str", SortField.Type.STRING)));
         for (int i = 0; i < 10; i++) {

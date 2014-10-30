@@ -117,9 +117,9 @@ public abstract class MetaDataStateFormat<T> {
                 }
                 CodecUtil.writeFooter(out);
             }
-            IOUtils.fsync(tmpStatePath.toFile(), false); // fsync the state file
+            IOUtils.fsync(tmpStatePath, false); // fsync the state file
             Files.move(tmpStatePath, finalStatePath, StandardCopyOption.ATOMIC_MOVE);
-            IOUtils.fsync(stateLocation.toFile(), true);
+            IOUtils.fsync(stateLocation, true);
             for (int i = 1; i < locations.length; i++) {
                 stateLocation = Paths.get(locations[i].getPath(), STATE_DIR_NAME);
                 Files.createDirectories(stateLocation);
@@ -128,7 +128,7 @@ public abstract class MetaDataStateFormat<T> {
                 try {
                     Files.copy(finalStatePath, tmpPath);
                     Files.move(tmpPath, finalPath, StandardCopyOption.ATOMIC_MOVE); // we are on the same FileSystem / Partition here we can do an atomic move
-                    IOUtils.fsync(stateLocation.toFile(), true); // we just fsync the dir here..
+                    IOUtils.fsync(stateLocation, true); // we just fsync the dir here..
                 } finally {
                     Files.deleteIfExists(tmpPath);
                 }

@@ -63,7 +63,7 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTe
     }
 
     static void assertBitSet(BitDocIdSet actual, BitDocIdSet expected, IndexSearcher searcher) throws IOException {
-        if (!actual.equals(expected)) {
+        if (!equals(expected, actual)) {
             Description description = new StringDescription();
             description.appendText(reason(actual, expected, searcher));
             description.appendText("\nExpected: ");
@@ -73,6 +73,25 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTe
             description.appendText("\n");
             throw new java.lang.AssertionError(description.toString());
         }
+    }
+    
+    static boolean equals(BitDocIdSet expected, BitDocIdSet actual) {
+        if (actual == null && expected == null) {
+            return true;
+        } else if (actual == null || expected == null) {
+            return false;
+        }
+        BitSet actualBits = actual.bits();
+        BitSet expectedBits = expected.bits();
+        if (actualBits.length() != expectedBits.length()) {
+            return false;
+        }
+        for (int i = 0; i < expectedBits.length(); i++) {
+            if (expectedBits.get(i) != actualBits.get(i)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     static String reason(BitDocIdSet actual, BitDocIdSet expected, IndexSearcher indexSearcher) throws IOException {

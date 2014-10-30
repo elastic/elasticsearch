@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.search.child;
 
+import org.elasticsearch.common.lucene.docset.DocIdSets;
+
 import org.apache.lucene.util.BitDocIdSet;
 
 import org.apache.lucene.index.*;
@@ -173,6 +175,6 @@ final class ParentIdsFilter extends Filter {
                 assert docsEnum.advance(docId + 1) == DocIdSetIterator.NO_MORE_DOCS : "DocId " + docId + " should have been the last one but docId " + docsEnum.docID() + " exists.";
             }
         }
-        return new BitDocIdSet(result);
+        return DocIdSets.newDocIDSet(result);
     }
 }

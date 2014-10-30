@@ -21,6 +21,7 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
@@ -29,6 +30,7 @@ import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
@@ -66,6 +68,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
             Document document = new Document();
             for (int i = 0; i < fields.length; i++) {
                 document.add(new StringField(Integer.toString(i), String.valueOf(fields[i]), Field.Store.NO));
+                document.add(new SortedDocValuesField(Integer.toString(i), new BytesRef(String.valueOf(fields[i]))));
             }
             documents.add(document);
         }

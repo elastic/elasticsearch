@@ -26,8 +26,6 @@ public interface LicensesManagerService {
 
     public void unregisterLicenses(final DeleteLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener);
 
-    public LicensesStatus checkLicenses(Set<ESLicense> licenses);
-
     public Set<String> enabledFeatures();
 
     public List<ESLicense> getLicenses();

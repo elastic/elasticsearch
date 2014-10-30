@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFrom;
 import static org.elasticsearch.license.plugin.core.LicensesService.LicensesUpdateResponse;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
@@ -41,7 +42,6 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
     @Before
     public void beforeTest() throws Exception {
         wipeAllLicenses();
-        clear();
 
         DiscoveryNodes discoveryNodes = LicensesServiceTests.masterClusterService().state().getNodes();
         Set<String> dataNodeSet = new HashSet<>();
@@ -117,21 +117,19 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
         // multiple client registration with null trial license and then different expiry signed license
 
         final LicensesManagerService masterLicensesManagerService = masterLicensesManagerService();
-        final List<LicensesService> licensesServices = licensesServices(2);
-        assertThat(licensesServices.size(), equalTo(2));
+        final LicensesService licensesService = randomLicensesService();
         final TestTrackingClientListener clientListener1 = new TestTrackingClientListener();
         final TestTrackingClientListener clientListener2 = new TestTrackingClientListener();
-
         List<Action> firstClientActions = new ArrayList<>();
         List<Action> secondClientActions = new ArrayList<>();
 
         final TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(2);
-        firstClientActions.add(registerWithoutTrialLicense(licensesServices.get(0), clientListener1, "feature1"));
+        firstClientActions.add(registerWithoutTrialLicense(licensesService, clientListener1, "feature1"));
         firstClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, "feature1", firstExpiryDuration));
         firstClientActions.add(assertExpiryAction("signed", firstExpiryDuration));
 
         final TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(1);
-        secondClientActions.add(registerWithoutTrialLicense(licensesServices.get(1), clientListener2, "feature2"));
+        secondClientActions.add(registerWithoutTrialLicense(licensesService, clientListener2, "feature2"));
         secondClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, "feature2", secondExpiryDuration));
         secondClientActions.add(assertExpiryAction("signed", secondExpiryDuration));
 
@@ -149,24 +147,19 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
         // multiple client registration: one with trial license and another with signed license (different expiry duration)
 
         final LicensesManagerService masterLicensesManagerService = masterLicensesManagerService();
-        final List<LicensesService> licensesServices = licensesServices(2);
-        assertThat(licensesServices.size(), equalTo(2));
+        final LicensesService licensesService = randomLicensesService();
         final TestTrackingClientListener clientListener1 = new TestTrackingClientListener();
         final TestTrackingClientListener clientListener2 = new TestTrackingClientListener();
-
         List<Action> firstClientActions = new ArrayList<>();
         List<Action> secondClientActions = new ArrayList<>();
 
-        firstClientActions.add(registerWithoutTrialLicense(licensesServices.get(0), clientListener1, "feature1"));
-
         final TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(2);
+        firstClientActions.add(registerWithoutTrialLicense(licensesService, clientListener1, "feature1"));
         firstClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, "feature1", firstExpiryDuration));
-
         firstClientActions.add(assertExpiryAction("signed", firstExpiryDuration));
 
         final TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(1);
-        secondClientActions.add(registerWithTrialLicense(licensesServices.get(1), clientListener2, "feature2", secondExpiryDuration));
-
+        secondClientActions.add(registerWithTrialLicense(licensesService, clientListener2, "feature2", secondExpiryDuration));
         secondClientActions.add(assertExpiryAction("trial", secondExpiryDuration));
 
         if (randomBoolean()) {
@@ -182,22 +175,18 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
     public void testMultipleClientTrialLicenseRegistration() throws Exception {
         // multiple client registration: both with trail license of different expiryDuration
 
-        final List<LicensesService> licensesServices = licensesServices(2);
-        assertThat(licensesServices.size(), equalTo(2));
+        final LicensesService licensesService = randomLicensesService();
         final TestTrackingClientListener clientListener1 = new TestTrackingClientListener();
         final TestTrackingClientListener clientListener2 = new TestTrackingClientListener();
-
         List<Action> firstClientActions = new ArrayList<>();
         List<Action> secondClientActions = new ArrayList<>();
 
         TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(1);
-        firstClientActions.add(registerWithTrialLicense(licensesServices.get(0), clientListener1, "feature1", firstExpiryDuration));
-
+        firstClientActions.add(registerWithTrialLicense(licensesService, clientListener1, "feature1", firstExpiryDuration));
         firstClientActions.add(assertExpiryAction("trial", firstExpiryDuration));
 
         TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(2);
-        secondClientActions.add(registerWithTrialLicense(licensesServices.get(1), clientListener2, "feature2", secondExpiryDuration));
-
+        secondClientActions.add(registerWithTrialLicense(licensesService, clientListener2, "feature2", secondExpiryDuration));
         secondClientActions.add(assertExpiryAction("trial", secondExpiryDuration));
 
         if (randomBoolean()) {
@@ -229,19 +218,22 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
         TimeValue expiryDuration = TimeValue.timeValueSeconds(2);
         actions.add(registerWithTrialLicense(clientService, clientListener, "feature1", expiryDuration));
         actions.add(assertExpiryAction("trial", expiryDuration));
+
         assertClientListenerNotificationCount(clientListener, actions);
     }
 
     @Test
     public void testRandomMultipleClientMultipleFeature() throws Exception {
-        List<LicensesService> licensesServices = licensesServices(10);
+        LicensesService licensesService = randomLicensesService();
         LicensesManagerService masterLicensesManagerService = masterLicensesManagerService();
         Map<TestTrackingClientListener, List<Action>> clientListenersWithActions = new HashMap<>();
-        for (LicensesService licensesService : licensesServices) {
+
+        for (int i = 0; i < randomIntBetween(3, 10); i++) {
             final TestTrackingClientListener clientListener = new TestTrackingClientListener();
             String feature = randomRealisticUnicodeOfCodepointLengthBetween(2, 10);
             TimeValue expiryDuration = TimeValue.timeValueSeconds(randomIntBetween(1, 5));
             List<Action> actions = new ArrayList<>();
+
             if (randomBoolean()) {
                 actions.add(registerWithTrialLicense(licensesService, clientListener, feature, expiryDuration));
                 actions.add(assertExpiryAction("trial", expiryDuration));
@@ -323,8 +315,7 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
     private Action assertExpiryAction(String licenseType, TimeValue expiryDuration) {
         return new Action(new Runnable() {
             @Override
-            public void run() {
-            }
+            public void run() {}
         }, 1, 0, TimeValue.timeValueMillis(expiryDuration.getMillis() * 2),
                 "should trigger onDisable once [" + licenseType + " license expiry]");
     }
@@ -408,35 +399,13 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
         return internalCluster().getInstance(LicensesClientService.class, node);
     }
 
-    private List<LicensesService> licensesServices(int count) {
-        List<LicensesService> licensesServices = new ArrayList<>(count);
-        Set<String> selectedNodes = new HashSet<>();
-        selectedNodes.add(node);
-        licensesServices.add(internalCluster().getInstance(LicensesService.class, node));
-        for (int i = 0; i < Math.min(count - 1, nodes.length - 1); i++) {
-            while (true) {
-                String newNode = randomFrom(nodes);
-                if (!selectedNodes.contains(newNode)) {
-                    licensesServices.add(internalCluster().getInstance(LicensesService.class, newNode));
-                    break;
-                }
-            }
-        }
-        return licensesServices;
+    private LicensesService randomLicensesService() {
+        String randomNode = randomFrom(nodes);
+        return internalCluster().getInstance(LicensesService.class, randomNode);
     }
 
     private static ClusterService masterClusterService() {
         final InternalTestCluster clients = internalCluster();
         return clients.getInstance(ClusterService.class, clients.getMasterName());
-    }
-
-    private void clear() {
-        final InternalTestCluster clients = internalCluster();
-        LicensesService masterService = clients.getInstance(LicensesService.class, clients.getMasterName());
-        masterService.clear();
-        if (node != null) {
-            LicensesService nodeService = clients.getInstance(LicensesService.class, node);
-            nodeService.clear();
-        }
     }
 }

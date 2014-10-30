@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,7 +51,6 @@ import static org.elasticsearch.license.core.ESLicenses.reduceAndMap;
  * - LicensesClientService - allow interested plugins (features) to register to licensing notifications
  * <p/>
  * TODO: documentation
- * TODO: figure out when to check GatewayService.STATE_NOT_RECOVERED_BLOCK
  */
 @Singleton
 public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener, LicensesManagerService, LicensesClientService {
@@ -65,9 +65,11 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     private final TransportService transportService;
 
-    private List<ListenerHolder> registeredListeners = new CopyOnWriteArrayList<>();
+    private final List<ListenerHolder> registeredListeners = new CopyOnWriteArrayList<>();
 
-    private Queue<ListenerHolder> pendingRegistrations = new ConcurrentLinkedQueue<>();
+    private final Queue<ListenerHolder> pendingListeners = new ConcurrentLinkedQueue<>();
+
+    private final Queue<ScheduledFuture> scheduledNotifications = new ConcurrentLinkedQueue<>();
 
     private final AtomicReference<LicensesMetaData> lastObservedLicensesState;
 
@@ -176,31 +178,11 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     }
 
     @Override
-    public LicensesStatus checkLicenses(Set<ESLicense> licenses) {
-        final ImmutableMap<String, ESLicense> map = reduceAndMap(licenses);
-        return checkLicenses(map);
-    }
-
-    private LicensesStatus checkLicenses(Map<String, ESLicense> licenseMap) {
-        LicensesStatus status = LicensesStatus.VALID;
-        try {
-            licenseManager.verifyLicenses(licenseMap);
-        } catch (ExpiredLicenseException e) {
-            status = LicensesStatus.EXPIRED;
-        } catch (InvalidLicenseException e) {
-            status = LicensesStatus.INVALID;
-        }
-        return status;
-    }
-
-    @Override
     public Set<String> enabledFeatures() {
         Set<String> enabledFeatures = Sets.newHashSet();
-        if (registeredListeners != null) {
-            for (ListenerHolder holder : registeredListeners) {
-                if (holder.enabled.get()) {
-                    enabledFeatures.add(holder.feature);
-                }
+        for (ListenerHolder holder : registeredListeners) {
+            if (holder.enabled.get()) {
+                enabledFeatures.add(holder.feature);
             }
         }
         return enabledFeatures;
@@ -240,6 +222,22 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         return Collections.emptyList();
     }
 
+    private LicensesStatus checkLicenses(Set<ESLicense> licenses) {
+        final ImmutableMap<String, ESLicense> map = reduceAndMap(licenses);
+        return checkLicenses(map);
+    }
+
+    private LicensesStatus checkLicenses(Map<String, ESLicense> licenseMap) {
+        LicensesStatus status = LicensesStatus.VALID;
+        try {
+            licenseManager.verifyLicenses(licenseMap);
+        } catch (ExpiredLicenseException e) {
+            status = LicensesStatus.EXPIRED;
+        } catch (InvalidLicenseException e) {
+            status = LicensesStatus.INVALID;
+        }
+        return status;
+    }
 
     private void registerTrialLicense(final RegisterTrialLicenseRequest request) {
         clusterService.submitStateUpdateTask("register trial license []", new ProcessedClusterStateUpdateTask() {
@@ -310,7 +308,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     @Override
     protected void doStop() throws ElasticsearchException {
-        // Should notificationScheduler be cancelled on stop as well?
+        // Should scheduledNotifications be cancelled on stop as well?
     }
 
     @Override
@@ -318,14 +316,20 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         logger.info("Closing LicensesService");
         clusterService.remove(this);
 
-        if (registeredListeners != null) {
-            // notify features to be disabled
-            for (ListenerHolder holder : registeredListeners) {
-                holder.disableFeatureIfNeeded();
-            }
-            // clear all handlers
-            registeredListeners.clear();
+        // cancel all notifications
+        for (ScheduledFuture scheduledNotification : scheduledNotifications) {
+            scheduledNotification.cancel(true);
         }
+
+        // notify features to be disabled
+        for (ListenerHolder holder : registeredListeners) {
+            holder.disableFeatureIfNeeded();
+        }
+        // clear all handlers
+        registeredListeners.clear();
+
+        // empty out notification queue
+        scheduledNotifications.clear();
 
         lastObservedLicensesState.set(null);
     }
@@ -338,27 +342,39 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             logLicenseMetaDataStats("old", oldLicensesMetaData);
             logLicenseMetaDataStats("new", currentLicensesMetaData);
             // Check pending feature registrations and try to complete registrations
-            if (!pendingRegistrations.isEmpty()) {
+            if (!pendingListeners.isEmpty()) {
                 ListenerHolder pendingRegistrationLister;
-                while ((pendingRegistrationLister = pendingRegistrations.poll()) != null) {
-                    boolean masterAvailable = registerListener(pendingRegistrationLister);
+                boolean masterAvailable = false;
+                while ((pendingRegistrationLister = pendingListeners.poll()) != null) {
+                    masterAvailable = registerListener(pendingRegistrationLister);
                     logger.info("trying to register pending listener for " + pendingRegistrationLister.feature + " masterAvailable: " + masterAvailable);
                     if (!masterAvailable) {
-                        // if the master is not available do not, break out of trying pendingRegistrations
-                        pendingRegistrations.add(pendingRegistrationLister);
+                        // if the master is not available do not, break out of trying pendingListeners
+                        pendingListeners.add(pendingRegistrationLister);
                         break;
                     } else {
                         logger.info("successfully registered listener for: " + pendingRegistrationLister.feature);
                         registeredListeners.add(pendingRegistrationLister);
                     }
                 }
+                if (masterAvailable) {
+                    // make sure to notify new registered feature
+                    // notifications could have been scheduled for it before it was registered
+                    notifyFeaturesAndScheduleNotification(currentLicensesMetaData);
+                }
             }
+
+            clearFinishedNotifications();
 
             // notify all interested plugins
             // notifyFeaturesIfNeeded will short-circuit with -1 if the currentLicensesMetaData has been notified on earlier
             // Change to debug
             logger.info("calling notifyFeaturesAndScheduleNotificationIfNeeded from clusterChanged");
-            notifyFeaturesAndScheduleNotificationIfNeeded(currentLicensesMetaData);
+            if (event.previousState().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+                notifyFeaturesAndScheduleNotification(currentLicensesMetaData);
+            } else {
+                notifyFeaturesAndScheduleNotificationIfNeeded(currentLicensesMetaData);
+            }
         } else {
             logger.info("clusterChanged: no action [has STATE_NOT_RECOVERED_BLOCK]");
         }
@@ -368,8 +384,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         final LicensesMetaData lastNotifiedLicensesMetaData = lastObservedLicensesState.get();
         if (lastNotifiedLicensesMetaData != null && lastNotifiedLicensesMetaData.equals(currentLicensesMetaData)) {
             logger.info("currentLicensesMetaData has been already notified on");
-            // TODO: figure out when we do not want to notify when clusterChanged() is triggered
-            //return;
+            return;
         }
         notifyFeaturesAndScheduleNotification(currentLicensesMetaData);
     }
@@ -381,6 +396,65 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         }
     }
 
+    private long notifyFeatures(LicensesMetaData currentLicensesMetaData) {
+        long nextScheduleFrequency = -1l;
+        long offset = TimeValue.timeValueMillis(100).getMillis();
+        StringBuilder sb = new StringBuilder("Registered listeners: [ ");
+        for (ListenerHolder listenerHolder : registeredListeners) {
+
+            sb.append("( ");
+            sb.append("feature:");
+            sb.append(listenerHolder.feature);
+            sb.append(", ");
+
+            long expiryDate;
+            if ((expiryDate = expiryDateForFeature(listenerHolder.feature, currentLicensesMetaData)) != -1l) {
+                sb.append(" license expiry: ");
+                sb.append(expiryDate);
+                sb.append(", ");
+            }
+            long expiryDuration = expiryDate - System.currentTimeMillis();
+
+            if (expiryDate == -1l) {
+                sb.append("no trial/signed license found");
+                sb.append(", ");
+            } else {
+                sb.append("license expires in: ");
+                sb.append(TimeValue.timeValueMillis(expiryDuration).toString());
+                sb.append(", ");
+            }
+
+            if (expiryDuration > 0l) {
+                sb.append("calling enableFeatureIfNeeded");
+
+                listenerHolder.enableFeatureIfNeeded();
+                if (nextScheduleFrequency == -1l) {
+                    nextScheduleFrequency = expiryDuration + offset;
+                } else {
+                    nextScheduleFrequency = Math.min(expiryDuration + offset, nextScheduleFrequency);
+                }
+            } else {
+                sb.append("calling disableFeatureIfNeeded");
+                listenerHolder.disableFeatureIfNeeded();
+            }
+            sb.append(" )");
+        }
+        sb.append("]");
+        // Change to debug
+        logger.info(sb.toString());
+
+        logLicenseMetaDataStats("Setting last observed metaData", currentLicensesMetaData);
+        lastObservedLicensesState.set(currentLicensesMetaData);
+
+        if (nextScheduleFrequency == -1l) {
+            logger.info("no need to schedule next notification");
+        } else {
+            logger.info("next notification time: " + TimeValue.timeValueMillis(nextScheduleFrequency).toString());
+        }
+
+        return nextScheduleFrequency;
+
+    }
     private void logLicenseMetaDataStats(String prefix, LicensesMetaData licensesMetaData) {
         if (licensesMetaData != null) {
             logger.info(prefix + " LicensesMetaData: signedLicenses: " + licensesMetaData.getSignatures().size() + " trialLicenses: " + licensesMetaData.getEncodedTrialLicenses().size());
@@ -397,7 +471,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             registeredListeners.add(listenerHolder);
         } else {
             logger.info("add listener for: " + listenerHolder.feature + " to pending registration queue");
-            pendingRegistrations.add(listenerHolder);
+            pendingListeners.add(listenerHolder);
         }
     }
 
@@ -468,11 +542,6 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         return -1l;
     }
 
-
-    private String executorName() {
-        return ThreadPool.Names.GENERIC;
-    }
-
     private Map<String, ESLicense> getEffectiveLicenses(LicensesMetaData metaData) {
         Map<String, ESLicense> map = new HashMap<>();
         if (metaData != null) {
@@ -485,11 +554,29 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     }
 
+    private void clearFinishedNotifications() {
+        while (!scheduledNotifications.isEmpty()) {
+            ScheduledFuture notification = scheduledNotifications.peek();
+            if (notification.isDone()) {
+                // remove the notifications that are done
+                scheduledNotifications.poll();
+            } else {
+                // stop emptying out the queue as soon as the first undone future hits
+                break;
+            }
+        }
+    }
+
+    private String executorName() {
+        return ThreadPool.Names.GENERIC;
+    }
+
     private void scheduleNextNotification(long nextScheduleDelay) {
+        clearFinishedNotifications();
+
         try {
             final TimeValue delay = TimeValue.timeValueMillis(nextScheduleDelay);
-            // TODO: enqueue Future for management
-            threadPool.schedule(delay, executorName(), new LicensingClientNotificationJob());
+            scheduledNotifications.add(threadPool.schedule(delay, executorName(), new LicensingClientNotificationJob()));
             logger.info("Scheduling next notification after: " + delay);
         } catch (EsRejectedExecutionException ex) {
             logger.info("Couldn't re-schedule licensing client notification job", ex);
@@ -498,8 +585,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     public class LicensingClientNotificationJob implements Runnable {
 
-        public LicensingClientNotificationJob() {
-        }
+        public LicensingClientNotificationJob() {}
 
         @Override
         public void run() {
@@ -507,76 +593,21 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 logger.trace("Performing LicensingClientNotificationJob");
             }
 
-            LicensesMetaData currentLicensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-            long nextScheduleDelay = notifyFeatures(currentLicensesMetaData);
-            if (nextScheduleDelay != -1l) {
-                try {
-                    scheduleNextNotification(nextScheduleDelay);
-                } catch (EsRejectedExecutionException ex) {
-                    logger.info("Reschedule licensing client notification job was rejected", ex);
+            // next clusterChanged event will deal with the missed notifications
+            if (!clusterService.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+                LicensesMetaData currentLicensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
+                long nextScheduleDelay = notifyFeatures(currentLicensesMetaData);
+                if (nextScheduleDelay != -1l) {
+                    try {
+                        scheduleNextNotification(nextScheduleDelay);
+                    } catch (EsRejectedExecutionException ex) {
+                        logger.info("Reschedule licensing client notification job was rejected", ex);
+                    }
                 }
             }
         }
     }
 
-    private long notifyFeatures(LicensesMetaData currentLicensesMetaData) {
-        long nextScheduleFrequency = -1l;
-        long offset = TimeValue.timeValueMillis(100).getMillis();
-        StringBuilder sb = new StringBuilder("Registered listeners: [ ");
-        for (ListenerHolder listenerHolder : registeredListeners) {
-
-            sb.append("( ");
-            sb.append("feature:");
-            sb.append(listenerHolder.feature);
-            sb.append(", ");
-
-            long expiryDate;
-            if ((expiryDate = expiryDateForFeature(listenerHolder.feature, currentLicensesMetaData)) != -1l) {
-                sb.append(" license expiry: ");
-                sb.append(expiryDate);
-                sb.append(", ");
-            }
-            long expiryDuration = expiryDate - System.currentTimeMillis();
-
-            if (expiryDate == -1l) {
-                sb.append("no trial/signed license found");
-                sb.append(", ");
-            } else {
-                sb.append("license expires in: ");
-                sb.append(TimeValue.timeValueMillis(expiryDuration).toString());
-                sb.append(", ");
-            }
-
-            if (expiryDuration > 0l) {
-                sb.append("calling enableFeatureIfNeeded");
-
-                listenerHolder.enableFeatureIfNeeded();
-                if (nextScheduleFrequency == -1l) {
-                    nextScheduleFrequency = expiryDuration + offset;
-                } else {
-                    nextScheduleFrequency = Math.min(expiryDuration + offset, nextScheduleFrequency);
-                }
-            } else {
-                sb.append("calling disableFeatureIfNeeded");
-                listenerHolder.disableFeatureIfNeeded();
-            }
-            sb.append(" )");
-        }
-        sb.append("]");
-        // Change to debug
-        logger.info(sb.toString());
-
-        lastObservedLicensesState.set(currentLicensesMetaData);
-
-        if (nextScheduleFrequency == -1l) {
-            logger.info("no need to schedule next notification");
-        } else {
-            logger.info("next notification time: " + TimeValue.timeValueMillis(nextScheduleFrequency).toString());
-        }
-
-        return nextScheduleFrequency;
-
-    }
 
     public static class PutLicenseRequestHolder {
         private final PutLicenseRequest request;
@@ -707,10 +738,5 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         public String executor() {
             return ThreadPool.Names.SAME;
         }
-    }
-
-    //Should not be exposed; used by testing only
-    public void clear() {
-        registeredListeners.clear();
     }
 }

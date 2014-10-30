@@ -6,6 +6,7 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableSet;
@@ -32,7 +33,7 @@ import java.util.Collection;
 
 public class LicensePlugin extends AbstractPlugin {
 
-    private final boolean isClient;
+    private final boolean isEnabled;
 
     static {
         MetaData.registerFactory(LicensesMetaData.TYPE, LicensesMetaData.FACTORY);
@@ -40,7 +41,12 @@ public class LicensePlugin extends AbstractPlugin {
 
     @Inject
     public LicensePlugin(Settings settings) {
-        this.isClient = DiscoveryNode.clientNode(settings);
+        if (DiscoveryNode.clientNode(settings)) {
+            // Enable plugin only on node clients
+            this.isEnabled = "node".equals(settings.get(Client.CLIENT_TYPE_SETTING));
+        } else {
+            this.isEnabled = true;
+        }
     }
 
     @Override
@@ -69,7 +75,7 @@ public class LicensePlugin extends AbstractPlugin {
     @Override
     public Collection<Class<? extends LifecycleComponent>> services() {
         Collection<Class<? extends LifecycleComponent>> services = Lists.newArrayList();
-        if (!isClient) {
+        if (isEnabled) {
             services.add(LicensesService.class);
         }
         return services;
@@ -78,9 +84,9 @@ public class LicensePlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends Module>> modules() {
-        if (isClient) {
-            return ImmutableSet.of();
+        if (isEnabled) {
+            return ImmutableSet.<Class<? extends Module>>of(LicenseModule.class);
         }
-        return ImmutableSet.<Class<? extends Module>>of(LicenseModule.class);
+        return ImmutableSet.of();
     }
 }

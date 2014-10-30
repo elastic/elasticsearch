@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license.plugin;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -16,14 +17,16 @@ import java.util.Collection;
 
 public class TestConsumerPlugin extends AbstractPlugin {
 
-    private final boolean isClient;
-
-    private final Settings settings;
+    private final boolean isEnabled;
 
     @Inject
     public TestConsumerPlugin(Settings settings) {
-        this.settings = settings;
-        this.isClient = DiscoveryNode.clientNode(settings);
+        if (DiscoveryNode.clientNode(settings)) {
+            // Enable plugin only on node clients
+            this.isEnabled = "node".equals(settings.get(Client.CLIENT_TYPE_SETTING));
+        } else {
+            this.isEnabled = true;
+        }
     }
 
     @Override
@@ -40,7 +43,7 @@ public class TestConsumerPlugin extends AbstractPlugin {
     @Override
     public Collection<Class<? extends LifecycleComponent>> services() {
         Collection<Class<? extends LifecycleComponent>> services = Lists.newArrayList();
-        if (!isClient) {
+        if (isEnabled) {
             services.add(TestPluginService.class);
         }
         return services;

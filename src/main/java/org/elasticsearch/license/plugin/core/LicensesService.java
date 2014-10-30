@@ -125,10 +125,9 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                     if (newLicenseSignatures.size() != licensesWrapper.signatures.size()) {
                         LicensesMetaData newLicensesMetaData = new LicensesMetaData(newLicenseSignatures, licensesWrapper.encodedTrialLicenses);
                         mdBuilder.putCustom(LicensesMetaData.TYPE, newLicensesMetaData);
-                    } else {
-                        mdBuilder.putCustom(LicensesMetaData.TYPE, currentLicenses);
+                        return ClusterState.builder(currentState).metaData(mdBuilder).build();
                     }
-                    return ClusterState.builder(currentState).metaData(mdBuilder).build();
+                    return currentState;
                 }
             });
         } else {
@@ -284,10 +283,9 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                     final LicensesMetaData newLicensesMetaData = new LicensesMetaData(
                             licensesWrapper.signatures, newTrialLicenses);
                     mdBuilder.putCustom(LicensesMetaData.TYPE, newLicensesMetaData);
-                } else {
-                    mdBuilder.putCustom(LicensesMetaData.TYPE, currentLicensesMetaData);
+                    return ClusterState.builder(currentState).metaData(mdBuilder).build();
                 }
-                return ClusterState.builder(currentState).metaData(mdBuilder).build();
+                return currentState;
             }
 
             @Override

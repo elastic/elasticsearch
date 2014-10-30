@@ -90,13 +90,20 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     @Override
     public void clear(String reason) {
         logger.debug("full cache clear, reason [{}]", reason);
-        for (Object readerKey : seenReaders.keySet()) {
-            Boolean removed = seenReaders.remove(readerKey);
-            if (removed == null) {
-                return;
-            }
-            indicesFilterCache.addReaderKeyToClean(readerKey);
-        }
+        seenReaders.clear();
+        indicesFilterCache.cache().invalidateAll();
+        // There is an explicit call to cache.cleanUp() here because cache
+        // invalidation in Guava does not immediately remove values from the
+        // cache. In the case of a cache with a rare write or read rate,
+        // it's possible for values to persist longer than desired. In the
+        // case of the circuit breaker, when clearing the entire cache all
+        // entries should immediately be evicted so that their sizes are
+        // removed from the breaker estimates.
+        //
+        // Note this is intended by the Guava developers, see:
+        // https://code.google.com/p/guava-libraries/wiki/CachesExplained#Eviction
+        // (the "When Does Cleanup Happen" section)
+        indicesFilterCache.cache().cleanUp();
     }
 
     @Override

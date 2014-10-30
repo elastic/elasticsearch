@@ -607,7 +607,7 @@ public class GeoUtilsTests extends ElasticsearchTestCase {
             assertThat("height at level " + i, qNode.getShape().getBoundingBox().getHeight(), equalTo(180.d * height
                     / GeoUtils.EARTH_POLAR_DISTANCE));
 
-            qNode = gNode.getNextLevelCells(null).next();
+            qNode = qNode.getNextLevelCells(null).next();
         }
     }
 

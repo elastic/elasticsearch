@@ -102,6 +102,14 @@ public class LogConfigurator {
         PropertyConfigurator.configure(props);
     }
 
+    /**
+     * sets the loaded flag to false so that logging configuration can be
+     * overridden. Should only be used in tests.
+     */
+    public static void reset() {
+        loaded = false;
+    }
+
     public static void resolveConfig(Environment env, final ImmutableSettings.Builder settingsBuilder) {
 
         try {

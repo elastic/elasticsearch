@@ -46,6 +46,7 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        LogConfigurator.reset();
         File configDir = resolveConfigDir();
         // Need to set custom path.conf so we can use a custom logging.yml file for the test
         Settings settings = ImmutableSettings.builder()

@@ -23,14 +23,14 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 
 
-public class InternalAvg extends org.elasticsearch.search.aggregations.metrics.max.InternalMax implements Avg {
+public class InternalAvg extends org.elasticsearch.search.aggregations.metrics.avg.InternalAvg implements Avg {
 
-    public InternalAvg(String name, double avg) {
-        super(name, avg);
+    public InternalAvg(String name, double sum, long count) {
+        super(name, sum, count);
     }
 
     @Override
-    public org.elasticsearch.search.aggregations.metrics.max.InternalMax reduce(InternalAggregation.ReduceContext reduceContext) {
+    public InternalAvg reduce(InternalAggregation.ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 

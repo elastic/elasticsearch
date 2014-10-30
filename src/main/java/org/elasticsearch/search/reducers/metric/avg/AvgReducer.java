@@ -80,9 +80,8 @@ public abstract class AvgReducer extends Reducer {
             for (Object bucketValue : bucketProperties) {
                 avg += (double) bucketValue;
             }
-            avg /= bucketProperties.length;
 
-            return new InternalAvg(name(), avg);
+            return new InternalAvg(name(), avg, bucketProperties.length);
         }
     }
 
@@ -106,9 +105,8 @@ public abstract class AvgReducer extends Reducer {
                 totalWeight += current;
                 current += 1;
             }
-            avg /= totalWeight;
 
-            return new InternalAvg(name(), avg);
+            return new InternalAvg(name(), avg, totalWeight);
         }
     }
 
@@ -137,7 +135,7 @@ public abstract class AvgReducer extends Reducer {
 
             }
 
-            return new InternalAvg(name(), ema);
+            return new InternalAvg(name(), ema, 1);
         }
     }
 

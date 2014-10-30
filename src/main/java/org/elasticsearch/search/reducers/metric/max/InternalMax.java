@@ -28,7 +28,6 @@ public class InternalMax extends org.elasticsearch.search.aggregations.metrics.m
 
     public InternalMax(String name, double maxValue) {
         super(name, maxValue);
-        this.max = maxValue;
     }
 
     @Override

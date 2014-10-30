@@ -25,7 +25,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
@@ -453,8 +452,7 @@ public enum MultiValueMode {
                     return missingValue;
                 }
 
-                // nocommit: remove cast when BitSet.prevSetBit is committed
-                final int prevRootDoc = ((FixedBitSet)rootDocs).prevSetBit(rootDoc - 1);
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
                 final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
 
                 long accumulated = startLong();
@@ -547,8 +545,7 @@ public enum MultiValueMode {
                     return missingValue;
                 }
 
-                // nocommit: remove cast when BitSet.prevSetBit is committed
-                final int prevRootDoc = ((FixedBitSet)rootDocs).prevSetBit(rootDoc - 1);
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
                 final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
 
                 double accumulated = startDouble();
@@ -641,8 +638,7 @@ public enum MultiValueMode {
                     return missingValue;
                 }
 
-                // nocommit: remove cast when BitSet.prevSetBit is committed
-                final int prevRootDoc = ((FixedBitSet)rootDocs).prevSetBit(rootDoc - 1);
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
                 final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
 
                 BytesRefBuilder accumulated = null;
@@ -738,8 +734,7 @@ public enum MultiValueMode {
                     return -1;
                 }
 
-                // nocommit: remove cast when BitSet.prevSetBit is committed
-                final int prevRootDoc = ((FixedBitSet)rootDocs).prevSetBit(rootDoc - 1);
+                final int prevRootDoc = rootDocs.prevSetBit(rootDoc - 1);
                 final int firstNestedDoc = innerDocs.nextSetBit(prevRootDoc + 1);
                 int ord = -1;
 

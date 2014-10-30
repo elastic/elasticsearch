@@ -154,7 +154,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
     };
 
     private final BigArrays bigArrays;
-    private LongBitSet algorithm;
+    private final OpenBitSet algorithm;
     private ByteArray runLens;
     private final Hashset hashSet;
     private final int p, m;
@@ -166,7 +166,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
         p = precision;
         m = 1 << p;
         this.bigArrays = bigArrays;
-        algorithm = new LongBitSet(initialBucketCount); // nocommit: ???
+        algorithm = new OpenBitSet();
         runLens = bigArrays.newByteArray(initialBucketCount << p);
         hashSet = new Hashset(initialBucketCount);
         final double alpha;
@@ -193,8 +193,6 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     private void ensureCapacity(long numBuckets) {
-        // nocommit: ???
-        algorithm = LongBitSet.ensureCapacity(algorithm, numBuckets);
         runLens = bigArrays.grow(runLens, numBuckets << p);
     }
 
@@ -543,6 +541,33 @@ public final class HyperLogLogPlusPlus implements Releasable {
             }
         }
         return counts;
+    }
+    
+    /** looks and smells like the old openbitset. */
+    static class OpenBitSet {
+        LongBitSet impl = new LongBitSet(64);
+
+        boolean get(long bit) {
+            if (bit < impl.length()) {
+                return impl.get(bit);
+            } else {
+                return false;
+            }
+        }
+        
+        void ensureCapacity(long bit) {
+            impl = LongBitSet.ensureCapacity(impl, bit);
+        }
+        
+        void set(long bit) {
+            ensureCapacity(bit);
+            impl.set(bit);
+        }
+        
+        void clear(long bit) {
+            ensureCapacity(bit);
+            impl.clear(bit);
+        }
     }
 
 }

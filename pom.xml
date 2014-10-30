@@ -31,7 +31,7 @@
     </parent>
 
     <properties>
-        <lucene.version>5.0.0-snapshot-1634791</lucene.version>
+        <lucene.version>5.0.0</lucene.version>
         <lucene.maven.version>5.0.0-snapshot-1634791</lucene.maven.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>

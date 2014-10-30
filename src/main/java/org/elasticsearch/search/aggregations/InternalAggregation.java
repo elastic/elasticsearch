@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.List;
@@ -140,6 +141,11 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      * construction.
      */
     public abstract InternalAggregation reduce(ReduceContext reduceContext);
+
+    public Object getProperty(String path) {
+        AggregationPath aggPath = AggregationPath.parse(path);
+        return getProperty(aggPath.getPathElements());
+    }
 
     /**
      * Read a size under the assumption that a value of 0 means unlimited.

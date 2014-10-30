@@ -33,8 +33,6 @@ import org.elasticsearch.search.reducers.ReducerFactoryStreams;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 
 public class MaxReducer extends Reducer {
 
@@ -60,8 +58,7 @@ public class MaxReducer extends Reducer {
     @Override
     public InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType,
             BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
-        List<String> path = Collections.singletonList(fieldName);
-        Object[] bucketProperties = (Object[]) aggregation.getProperty(path);
+        Object[] bucketProperties = (Object[]) aggregation.getProperty(fieldName);
 
         double max = 0;
         for (Object bucketValue : bucketProperties) {

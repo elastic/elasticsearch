@@ -33,8 +33,6 @@ import org.elasticsearch.search.reducers.ReducerFactoryStreams;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 
 public abstract class AvgReducer extends Reducer {
 
@@ -62,8 +60,7 @@ public abstract class AvgReducer extends Reducer {
     }
 
     protected Object[] getProperties(MultiBucketsAggregation aggregation) {
-        List<String> path = Collections.singletonList(fieldName);
-        return (Object[]) aggregation.getProperty(path);
+        return (Object[]) aggregation.getProperty(fieldName);
     }
 
 

@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -124,6 +125,12 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
                 }
                 return propertyArray;
             }
+        }
+
+        @Override
+        public Object getProperty(String path) {
+            AggregationPath aggPath = AggregationPath.parse(path);
+            return getProperty(aggPath.getPathElements());
         }
 
         @Override

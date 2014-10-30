@@ -30,6 +30,8 @@ public interface Aggregation {
      */
     String getName();
 
+    Object getProperty(String path);
+
     Object getProperty(List<String> path);
 
 }

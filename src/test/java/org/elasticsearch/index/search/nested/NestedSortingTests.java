@@ -26,7 +26,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
-import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
+import org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
@@ -276,7 +276,7 @@ public class NestedSortingTests extends AbstractFieldDataTests {
         Filter parentFilter = new TermFilter(new Term("__type", "parent"));
         Filter childFilter = new NotFilter(parentFilter);
         BytesRefFieldComparatorSource nestedComparatorSource = new BytesRefFieldComparatorSource(indexFieldData, null, sortMode, createNested(parentFilter, childFilter));
-        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new FixedBitSetCachingWrapperFilter(parentFilter), ScoreMode.None);
+        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new BitDocIdSetCachingWrapperFilter(parentFilter), ScoreMode.None);
 
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopFieldDocs topDocs = searcher.search(query, 5, sort);
@@ -315,7 +315,7 @@ public class NestedSortingTests extends AbstractFieldDataTests {
         nestedComparatorSource = new BytesRefFieldComparatorSource(indexFieldData, null, sortMode, createNested(parentFilter, childFilter));
         query = new ToParentBlockJoinQuery(
                 new XFilteredQuery(new MatchAllDocsQuery(), childFilter),
-                new FixedBitSetCachingWrapperFilter(parentFilter),
+                new BitDocIdSetCachingWrapperFilter(parentFilter),
                 ScoreMode.None
         );
         sort = new Sort(new SortField("field2", nestedComparatorSource, true));

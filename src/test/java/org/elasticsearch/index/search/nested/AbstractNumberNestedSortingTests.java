@@ -26,7 +26,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
-import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
+import org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.lucene.search.NotFilter;
@@ -211,7 +211,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         Filter parentFilter = new TermFilter(new Term("__type", "parent"));
         Filter childFilter = new NotFilter(parentFilter);
         XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, null, createNested(parentFilter, childFilter));
-        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new FixedBitSetCachingWrapperFilter(parentFilter), ScoreMode.None);
+        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new BitDocIdSetCachingWrapperFilter(parentFilter), ScoreMode.None);
 
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopFieldDocs topDocs = searcher.search(query, 5, sort);
@@ -247,7 +247,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         nestedComparatorSource = createFieldComparator("field2", sortMode, null, createNested(parentFilter, childFilter));
         query = new ToParentBlockJoinQuery(
                 new XFilteredQuery(new MatchAllDocsQuery(), childFilter),
-                new FixedBitSetCachingWrapperFilter(parentFilter),
+                new BitDocIdSetCachingWrapperFilter(parentFilter),
                 ScoreMode.None
         );
         sort = new Sort(new SortField("field2", nestedComparatorSource, true));
@@ -322,7 +322,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         MultiValueMode sortMode = MultiValueMode.AVG;
         Filter childFilter = new NotFilter(parentFilter);
         XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127, createNested(parentFilter, childFilter));
-        Query query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new FixedBitSetCachingWrapperFilter(parentFilter), ScoreMode.None);
+        Query query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new BitDocIdSetCachingWrapperFilter(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopDocs topDocs = searcher.search(query, 5, sort);
         assertThat(topDocs.totalHits, equalTo(7));

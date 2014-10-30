@@ -29,7 +29,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
-import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
+import org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.*;
@@ -383,7 +383,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         Filter childFilter = new NotFilter(parentFilter);
         Nested nested = createNested(parentFilter, childFilter);
         BytesRefFieldComparatorSource nestedComparatorSource = new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode, nested);
-        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new FixedBitSetCachingWrapperFilter(parentFilter), ScoreMode.None);
+        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new BitDocIdSetCachingWrapperFilter(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("text", nestedComparatorSource));
         TopFieldDocs topDocs = searcher.search(query, randomIntBetween(1, numParents), sort);
         assertTrue(topDocs.scoreDocs.length > 0);

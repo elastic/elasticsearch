@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import com.carrotsearch.hppc.LongIntOpenHashMap;
 import org.apache.lucene.index.LeafReaderContext;
@@ -43,7 +43,7 @@ import java.io.IOException;
  */
 public class ReverseNestedAggregator extends SingleBucketAggregator implements ReaderContextAware {
 
-    private final BitsetFilter parentFilter;
+    private final BitDocIdSetFilter parentFilter;
     private DocIdSetIterator parentDocs;
 
     // TODO: Add LongIntPagedHashMap?
@@ -58,7 +58,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
             throw new SearchParseException(context.searchContext(), "Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation");
         }
         if (nestedPath == null) {
-            parentFilter = SearchContext.current().bitsetFilterCache().getBitsetFilter(NonNestedDocsFilter.INSTANCE);
+            parentFilter = SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
         } else {
             MapperService.SmartNameObjectMapper mapper = SearchContext.current().smartNameObjectMapper(nestedPath);
             if (mapper == null) {
@@ -71,7 +71,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
             if (!objectMapper.nested().isNested()) {
                 throw new AggregationExecutionException("[reverse_nested] nested path [" + nestedPath + "] is not nested");
             }
-            parentFilter = SearchContext.current().bitsetFilterCache().getBitsetFilter(objectMapper.nestedTypeFilter());
+            parentFilter = SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
         }
         bucketOrdToLastCollectedParentDoc = new LongIntOpenHashMap(32);
         aggregationContext.ensureScoreDocsInOrder();

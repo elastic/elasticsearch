@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
@@ -52,12 +52,12 @@ public class ParentQuery extends Query {
     private final ParentChildIndexFieldData parentChildIndexFieldData;
     private Query originalParentQuery;
     private final String parentType;
-    private final BitsetFilter childrenFilter;
+    private final BitDocIdSetFilter childrenFilter;
 
     private Query rewrittenParentQuery;
     private IndexReader rewriteIndexReader;
 
-    public ParentQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query parentQuery, String parentType, BitsetFilter childrenFilter) {
+    public ParentQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query parentQuery, String parentType, BitDocIdSetFilter childrenFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.originalParentQuery = parentQuery;
         this.parentType = parentType;

@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.search.child;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
-
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.LuceneTestCase;
@@ -121,8 +120,8 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTe
         }
     }
 
-    static BitsetFilter wrap(Filter filter) {
-        return SearchContext.current().bitsetFilterCache().getBitsetFilter(filter);
+    static BitDocIdSetFilter wrap(Filter filter) {
+        return SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(filter);
     }
 
 }

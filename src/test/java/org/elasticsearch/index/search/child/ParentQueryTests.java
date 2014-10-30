@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.IntIntOpenHashMap;
@@ -75,7 +75,7 @@ public class ParentQueryTests extends AbstractChildTests {
         Query parentQuery = new TermQuery(new Term("field", "value"));
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        BitsetFilter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
+        BitDocIdSetFilter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
         Query query = new ParentQuery(parentChildIndexFieldData, parentQuery, "parent", childrenFilter);
         QueryUtils.check(query);
     }
@@ -161,7 +161,7 @@ public class ParentQueryTests extends AbstractChildTests {
 
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        BitsetFilter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
+        BitDocIdSetFilter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
         Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueParentValues / 4;
         for (int i = 0; i < max; i++) {

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
@@ -60,18 +60,18 @@ public class ChildrenQuery extends Query {
     protected final ParentChildIndexFieldData ifd;
     protected final String parentType;
     protected final String childType;
-    protected final BitsetFilter parentFilter;
+    protected final BitDocIdSetFilter parentFilter;
     protected final ScoreType scoreType;
     protected Query originalChildQuery;
     protected final int minChildren;
     protected final int maxChildren;
     protected final int shortCircuitParentDocSet;
-    protected final BitsetFilter nonNestedDocsFilter;
+    protected final BitDocIdSetFilter nonNestedDocsFilter;
 
     protected Query rewrittenChildQuery;
     protected IndexReader rewriteIndexReader;
 
-    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, BitsetFilter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, BitsetFilter nonNestedDocsFilter) {
+    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, BitDocIdSetFilter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, BitDocIdSetFilter nonNestedDocsFilter) {
         this.ifd = ifd;
         this.parentType = parentType;
         this.childType = childType;

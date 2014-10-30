@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.IntOpenHashSet;
@@ -88,7 +88,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
         ScoreType scoreType = ScoreType.values()[random().nextInt(ScoreType.values().length)];
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        BitsetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
+        BitDocIdSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
         int minChildren = random().nextInt(10);
         int maxChildren = scaledRandomIntBetween(minChildren, 10);
         Query query = new ChildrenQuery(parentChildIndexFieldData, "parent", "child", parentFilter, childQuery, scoreType, minChildren,
@@ -178,7 +178,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
 
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        BitsetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
+        BitDocIdSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
         Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueChildValues / 4;
         for (int i = 0; i < max; i++) {
@@ -222,7 +222,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
             Query childQuery = new ConstantScoreQuery(new TermQuery(new Term("field1", childValue)));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
             ScoreType scoreType = ScoreType.values()[random().nextInt(ScoreType.values().length)];
-            BitsetFilter nonNestedDocsFilter = random().nextBoolean() ? wrap(NonNestedDocsFilter.INSTANCE) : null;
+            BitDocIdSetFilter nonNestedDocsFilter = random().nextBoolean() ? wrap(NonNestedDocsFilter.INSTANCE) : null;
 
             // leave min/max set to 0 half the time
             int minChildren = random().nextInt(2) * scaledRandomIntBetween(0, 110);
@@ -372,7 +372,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
         ((TestSearchContext)context).setSearcher(new ContextIndexSearcher(context, engineSearcher));
         ParentFieldMapper parentFieldMapper = context.mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = context.fieldData().getForField(parentFieldMapper);
-        BitsetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
+        BitDocIdSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
 
         // child query that returns the score as the value of "childScore" for each child document,
         //  with the parent's score determined by the score type

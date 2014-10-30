@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
@@ -652,13 +652,13 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final String[] filteringAliases;
         private final Filter aliasFilter;
         private final String[] types;
-        private final BitsetFilter parentFilter;
+        private final BitDocIdSetFilter parentFilter;
         private final Operation.Origin origin;
 
         private final long startTime;
         private long endTime;
 
-        public DeleteByQuery(Query query, BytesReference source, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, BitsetFilter parentFilter, Operation.Origin origin, long startTime, String... types) {
+        public DeleteByQuery(Query query, BytesReference source, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, BitDocIdSetFilter parentFilter, Operation.Origin origin, long startTime, String... types) {
             this.query = query;
             this.source = source;
             this.types = types;
@@ -693,7 +693,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return parentFilter != null;
         }
 
-        public BitsetFilter parentFilter() {
+        public BitDocIdSetFilter parentFilter() {
             return parentFilter;
         }
 

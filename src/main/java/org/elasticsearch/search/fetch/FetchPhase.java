@@ -203,7 +203,7 @@ public class FetchPhase implements SearchPhase {
 
     private int findRootDocumentIfNested(SearchContext context, LeafReaderContext subReaderContext, int subDocId) throws IOException {
         if (context.mapperService().hasNested()) {
-            BitDocIdSet nonNested = context.bitsetFilterCache().getBitsetFilter(NonNestedDocsFilter.INSTANCE).getDocIdSet(subReaderContext, null);
+            BitDocIdSet nonNested = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE).getDocIdSet(subReaderContext);
             BitSet bits = nonNested.bits();
             if (!bits.get(subDocId)) {
                 return bits.nextSetBit(subDocId);
@@ -365,10 +365,10 @@ public class FetchPhase implements SearchPhase {
                 parentFilter = NonNestedDocsFilter.INSTANCE;
             }
 
-            BitDocIdSet parentBitSet = context.bitsetFilterCache().getBitsetFilter(parentFilter).getDocIdSet(subReaderContext, null);
+            BitDocIdSet parentBitSet = context.bitsetFilterCache().getBitDocIdSetFilter(parentFilter).getDocIdSet(subReaderContext);
             BitSet parentBits = parentBitSet.bits();
             int offset = 0;
-            BitDocIdSet nestedDocsBitSet = context.bitsetFilterCache().getBitsetFilter(nestedObjectMapper.nestedTypeFilter()).getDocIdSet(subReaderContext, null);
+            BitDocIdSet nestedDocsBitSet = context.bitsetFilterCache().getBitDocIdSetFilter(nestedObjectMapper.nestedTypeFilter()).getDocIdSet(subReaderContext);
             BitSet nestedBits = nestedDocsBitSet.bits();
             int nextParent = parentBits.nextSetBit(currentParent);
             for (int docId = nestedBits.nextSetBit(currentParent + 1); docId < nextParent && docId != -1; docId = nestedBits.nextSetBit(docId + 1)) {

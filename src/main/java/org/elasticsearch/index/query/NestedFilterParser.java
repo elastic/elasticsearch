@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
@@ -131,22 +133,22 @@ public class NestedFilterParser implements FilterParser {
             }
 
             Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter(), null);
-            usAsParentFilter.filter = childFilter;
+            // nocommit: type safety tragedy, childFilter needs to be BitDocIdSetFilter too!
+            usAsParentFilter.filter = (BitDocIdSetFilter) childFilter;
             // wrap the child query to only work on the nested path type
             query = new XFilteredQuery(query, childFilter);
 
-            Filter parentFilter = currentParentFilterContext;
+            BitDocIdSetFilter parentFilter = currentParentFilterContext;
             if (parentFilter == null) {
-                parentFilter = NonNestedDocsFilter.INSTANCE;
+                parentFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
                 // don't do special parent filtering, since we might have same nested mapping on two different types
                 //if (mapper.hasDocMapper()) {
                 //    // filter based on the type...
                 //    parentFilter = mapper.docMapper().typeFilter();
                 //}
+            } else {
+                parentFilter = parseContext.bitsetFilter(parentFilter);
             }
-            // if the filter cache is disabled, then we still have a filter that is not cached while ToParentBlockJoinQuery
-            // expects FixedBitSet instances
-            parentFilter = parseContext.bitsetFilter(parentFilter);
 
             Filter nestedFilter = Queries.wrap(new ToParentBlockJoinQuery(query, parentFilter, ScoreMode.None), parseContext);
 

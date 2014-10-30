@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
@@ -147,7 +147,7 @@ public class HasChildQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "[has_child] 'max_children' is less than 'min_children'");
         }
 
-        BitsetFilter nonNestedDocsFilter = null;
+        BitDocIdSetFilter nonNestedDocsFilter = null;
         if (parentDocMapper.hasNestedObjects()) {
             nonNestedDocsFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
         }
@@ -156,7 +156,7 @@ public class HasChildQueryParser implements QueryParser {
         innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
         Query query;
-        BitsetFilter parentFilter = parseContext.bitsetFilter(parentDocMapper.typeFilter());
+        BitDocIdSetFilter parentFilter = parseContext.bitsetFilter(parentDocMapper.typeFilter());
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
         if (minChildren > 1 || maxChildren > 0 || scoreType != ScoreType.NONE) {
             query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, minChildren,

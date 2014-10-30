@@ -125,7 +125,7 @@ public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest
 
     protected Nested createNested(Filter parentFilter, Filter childFilter) {
         BitsetFilterCache s = indexService.fixedBitSetFilterCache();
-        return new Nested(s.getBitsetFilter(parentFilter), s.getBitsetFilter(childFilter));
+        return new Nested(s.getBitDocIdSetFilter(parentFilter), s.getBitDocIdSetFilter(childFilter));
     }
 
 }

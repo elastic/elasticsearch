@@ -21,7 +21,7 @@ package org.elasticsearch.index.search.nested;
 
 import org.apache.lucene.util.BitDocIdSet;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
@@ -42,7 +42,7 @@ import java.util.Set;
  */
 public class IncludeNestedDocsQuery extends Query {
 
-    private final BitsetFilter parentFilter;
+    private final BitDocIdSetFilter parentFilter;
     private final Query parentQuery;
 
     // If we are rewritten, this is the original childQuery we
@@ -53,7 +53,7 @@ public class IncludeNestedDocsQuery extends Query {
     private final Query origParentQuery;
 
 
-    public IncludeNestedDocsQuery(Query parentQuery, BitsetFilter parentFilter) {
+    public IncludeNestedDocsQuery(Query parentQuery, BitDocIdSetFilter parentFilter) {
         this.origParentQuery = parentQuery;
         this.parentQuery = parentQuery;
         this.parentFilter = parentFilter;
@@ -83,9 +83,9 @@ public class IncludeNestedDocsQuery extends Query {
 
         private final Query parentQuery;
         private final Weight parentWeight;
-        private final BitsetFilter parentsFilter;
+        private final BitDocIdSetFilter parentsFilter;
 
-        IncludeNestedDocsWeight(Query parentQuery, Weight parentWeight, BitsetFilter parentsFilter) {
+        IncludeNestedDocsWeight(Query parentQuery, Weight parentWeight, BitDocIdSetFilter parentsFilter) {
             this.parentQuery = parentQuery;
             this.parentWeight = parentWeight;
             this.parentsFilter = parentsFilter;
@@ -115,7 +115,7 @@ public class IncludeNestedDocsQuery extends Query {
                 return null;
             }
 
-            BitDocIdSet parents = parentsFilter.getDocIdSet(context, acceptDocs);
+            BitDocIdSet parents = parentsFilter.getDocIdSet(context);
             if (parents == null) {
                 // No matches
                 return null;

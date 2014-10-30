@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -251,12 +251,12 @@ public class SortParseElement implements SearchParseElement {
             }
             final Nested nested;
             if (objectMapper != null && objectMapper.nested().isNested()) {
-                BitsetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(NonNestedDocsFilter.INSTANCE);
-                BitsetFilter innerDocumentsFilter;
+                BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
+                BitDocIdSetFilter innerDocumentsFilter;
                 if (nestedFilter != null) {
-                    innerDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(nestedFilter);
+                    innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(nestedFilter);
                 } else {
-                    innerDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(objectMapper.nestedTypeFilter());
+                    innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
                 }
                 nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
             } else {

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.cache.bitset;
 
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+
 import org.apache.lucene.util.BitDocIdSet;
 
 import com.google.common.cache.Cache;
@@ -29,7 +31,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -79,7 +80,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
 
     private final boolean loadRandomAccessFiltersEagerly;
     private final Cache<Object, Cache<Filter, Value>> loadedFilters;
-    private final BitsetFilterWarmer warmer;
+    private final BitDocIdSetFilterWarmer warmer;
 
     private IndexService indexService;
     private IndicesWarmer indicesWarmer;
@@ -89,7 +90,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         super(index, indexSettings);
         this.loadRandomAccessFiltersEagerly = indexSettings.getAsBoolean(LOAD_RANDOM_ACCESS_FILTERS_EAGERLY, true);
         this.loadedFilters = CacheBuilder.newBuilder().removalListener(this).build();
-        this.warmer = new BitsetFilterWarmer();
+        this.warmer = new BitDocIdSetFilterWarmer();
     }
 
     @Inject(optional = true)
@@ -105,10 +106,10 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         indicesWarmer.addListener(warmer);
     }
 
-    public BitsetFilter getBitsetFilter(Filter filter) {
+    public BitDocIdSetFilter getBitDocIdSetFilter(Filter filter) {
         assert filter != null;
         assert !(filter instanceof NoCacheFilter);
-        return new BitsetFilterWrapper(filter);
+        return new BitDocIdSetFilterWrapper(filter);
     }
 
     @Override
@@ -201,16 +202,16 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         }
     }
 
-    final class BitsetFilterWrapper extends BitsetFilter {
+    final class BitDocIdSetFilterWrapper extends BitDocIdSetFilter {
 
         final Filter filter;
 
-        BitsetFilterWrapper(Filter filter) {
+        BitDocIdSetFilterWrapper(Filter filter) {
             this.filter = filter;
         }
 
         @Override
-        public BitDocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
+        public BitDocIdSet getDocIdSet(LeafReaderContext context) throws IOException {
             try {
                 return getAndLoadIfNotPresent(filter, context);
             } catch (ExecutionException e) {
@@ -223,8 +224,8 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         }
 
         public boolean equals(Object o) {
-            if (!(o instanceof BitsetFilterWrapper)) return false;
-            return this.filter.equals(((BitsetFilterWrapper) o).filter);
+            if (!(o instanceof BitDocIdSetFilterWrapper)) return false;
+            return this.filter.equals(((BitDocIdSetFilterWrapper) o).filter);
         }
 
         public int hashCode() {
@@ -232,7 +233,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         }
     }
 
-    final class BitsetFilterWarmer extends IndicesWarmer.Listener {
+    final class BitDocIdSetFilterWarmer extends IndicesWarmer.Listener {
 
         @Override
         public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context, ThreadPool threadPool) {

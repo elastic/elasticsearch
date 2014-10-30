@@ -27,7 +27,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -64,14 +64,14 @@ public class TopChildrenQuery extends Query {
     private final int factor;
     private final int incrementalFactor;
     private Query originalChildQuery;
-    private final BitsetFilter nonNestedDocsFilter;
+    private final BitDocIdSetFilter nonNestedDocsFilter;
 
     // This field will hold the rewritten form of originalChildQuery, so that we can reuse it
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
     // Note, the query is expected to already be filtered to only child type docs
-    public TopChildrenQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, BitsetFilter nonNestedDocsFilter) {
+    public TopChildrenQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor, BitDocIdSetFilter nonNestedDocsFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.originalChildQuery = childQuery;
         this.childType = childType;
@@ -185,7 +185,7 @@ public class TopChildrenQuery extends Query {
                 LeafReader indexReader = atomicReaderContext.reader();
                 BitSet nonNestedDocs = null;
                 if (nonNestedDocsFilter != null) {
-                    BitDocIdSet nonNestedDocIdSet = nonNestedDocsFilter.getDocIdSet(atomicReaderContext, indexReader.getLiveDocs());
+                    BitDocIdSet nonNestedDocIdSet = nonNestedDocsFilter.getDocIdSet(atomicReaderContext);
                     if (nonNestedDocIdSet != null) {
                         nonNestedDocs = nonNestedDocIdSet.bits();
                     }

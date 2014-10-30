@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -184,8 +184,8 @@ public class QueryParseContext {
         return queryParser;
     }
 
-    public BitsetFilter bitsetFilter(Filter filter) {
-        return indexQueryParser.bitsetFilterCache.getBitsetFilter(filter);
+    public BitDocIdSetFilter bitsetFilter(Filter filter) {
+        return indexQueryParser.bitsetFilterCache.getBitDocIdSetFilter(filter);
     }
 
     public Filter cacheFilter(Filter filter, @Nullable CacheKeyFilter.Key cacheKey) {

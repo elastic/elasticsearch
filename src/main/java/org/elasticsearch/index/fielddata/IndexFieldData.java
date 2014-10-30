@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.BitDocIdSet;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
@@ -131,9 +131,9 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
          * parent + 1, or 0 if there is no previous parent, and R (excluded).
          */
         public static class Nested {
-            private final BitsetFilter rootFilter, innerFilter;
+            private final BitDocIdSetFilter rootFilter, innerFilter;
 
-            public Nested(BitsetFilter rootFilter, BitsetFilter innerFilter) {
+            public Nested(BitDocIdSetFilter rootFilter, BitDocIdSetFilter innerFilter) {
                 this.rootFilter = rootFilter;
                 this.innerFilter = innerFilter;
             }
@@ -142,14 +142,14 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
              * Get a {@link BitDocIdSet} that matches the root documents.
              */
             public BitDocIdSet rootDocs(LeafReaderContext ctx) throws IOException {
-                return rootFilter.getDocIdSet(ctx, null);
+                return rootFilter.getDocIdSet(ctx);
             }
 
             /**
              * Get a {@link BitDocIdSet} that matches the inner documents.
              */
             public BitDocIdSet innerDocs(LeafReaderContext ctx) throws IOException {
-                return innerFilter.getDocIdSet(ctx, null);
+                return innerFilter.getDocIdSet(ctx);
             }
         }
 

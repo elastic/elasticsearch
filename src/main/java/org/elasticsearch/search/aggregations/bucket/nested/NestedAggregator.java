@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
@@ -44,8 +44,8 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     private final String nestedPath;
     private final Aggregator parentAggregator;
-    private BitsetFilter parentFilter;
-    private final BitsetFilter childFilter;
+    private BitDocIdSetFilter parentFilter;
+    private final BitDocIdSetFilter childFilter;
 
     private Bits childDocs;
     private FixedBitSet parentDocs;
@@ -66,7 +66,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] is not nested");
         }
 
-        childFilter = aggregationContext.searchContext().bitsetFilterCache().getBitsetFilter(objectMapper.nestedTypeFilter());
+        childFilter = aggregationContext.searchContext().bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
     }
 
     @Override
@@ -80,7 +80,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             if (parentFilterNotCached == null) {
                 parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
             }
-            parentFilter = SearchContext.current().bitsetFilterCache().getBitsetFilter(parentFilterNotCached);
+            parentFilter = SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(parentFilterNotCached);
         }
 
         try {

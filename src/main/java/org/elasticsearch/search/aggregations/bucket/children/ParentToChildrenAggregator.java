@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.children;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
@@ -55,7 +55,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
 
     private final String parentType;
     private final Filter childFilter;
-    private final BitsetFilter parentFilter;
+    private final BitDocIdSetFilter parentFilter;
     private final ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource;
 
     // Maybe use PagedGrowableWriter? This will be less wasteful than LongArray, but then we don't have the reuse feature of BigArrays.
@@ -81,7 +81,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
         // so use the filter cache instead. When the filter cache is smarter with what filter impl to pick we can benefit
         // from it here
         this.childFilter = new ApplyAcceptedDocsFilter(aggregationContext.searchContext().filterCache().cache(childFilter));
-        this.parentFilter = aggregationContext.searchContext().bitsetFilterCache().getBitsetFilter(parentFilter);
+        this.parentFilter = aggregationContext.searchContext().bitsetFilterCache().getBitDocIdSetFilter(parentFilter);
         this.parentOrdToBuckets = aggregationContext.bigArrays().newLongArray(maxOrd, false);
         this.parentOrdToBuckets.fill(0, maxOrd, -1);
         this.parentOrdToOtherBuckets = new LongObjectPagedHashMap<>(aggregationContext.bigArrays());

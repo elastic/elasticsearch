@@ -88,7 +88,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
     }
 
     @Test
-    public void testWithTwoClausesOfEachOccur_allFixedBitsetFilters() throws Exception {
+    public void testWithTwoClausesOfEachOccur_allFixedBitDocIdSetFilters() throws Exception {
         List<XBooleanFilter> booleanFilters = new ArrayList<>();
         booleanFilters.add(createBooleanFilter(
                 newFilterClause(0, 'a', MUST, false), newFilterClause(1, 'b', MUST, false),

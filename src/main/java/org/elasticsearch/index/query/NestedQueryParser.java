@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -139,21 +139,22 @@ public class NestedQueryParser implements QueryParser {
                 throw new QueryParsingException(parseContext.index(), "[nested] nested object under path [" + path + "] is not of nested type");
             }
 
-            BitsetFilter childFilter = parseContext.bitsetFilter(objectMapper.nestedTypeFilter());
+            BitDocIdSetFilter childFilter = parseContext.bitsetFilter(objectMapper.nestedTypeFilter());
             usAsParentFilter.filter = childFilter;
             // wrap the child query to only work on the nested path type
             query = new XFilteredQuery(query, childFilter);
 
-            Filter parentFilter = currentParentFilterContext;
+            BitDocIdSetFilter parentFilter = currentParentFilterContext;
             if (parentFilter == null) {
-                parentFilter = NonNestedDocsFilter.INSTANCE;
+                parentFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
                 // don't do special parent filtering, since we might have same nested mapping on two different types
                 //if (mapper.hasDocMapper()) {
                 //    // filter based on the type...
                 //    parentFilter = mapper.docMapper().typeFilter();
                 //}
+            } else {
+                parentFilter = parseContext.bitsetFilter(parentFilter);
             }
-            parentFilter = parseContext.bitsetFilter(parentFilter);
             ToParentBlockJoinQuery joinQuery = new ToParentBlockJoinQuery(query, parentFilter, scoreMode);
             joinQuery.setBoost(boost);
             if (queryName != null) {
@@ -168,9 +169,9 @@ public class NestedQueryParser implements QueryParser {
 
     static ThreadLocal<LateBindingParentFilter> parentFilterContext = new ThreadLocal<>();
 
-    static class LateBindingParentFilter extends Filter {
+    static class LateBindingParentFilter extends BitDocIdSetFilter {
 
-        Filter filter;
+        BitDocIdSetFilter filter;
 
         @Override
         public int hashCode() {
@@ -188,9 +189,8 @@ public class NestedQueryParser implements QueryParser {
         }
 
         @Override
-        public DocIdSet getDocIdSet(LeafReaderContext ctx, Bits liveDocs) throws IOException {
-            //LUCENE 4 UPGRADE just passing on ctx and live docs here
-            return filter.getDocIdSet(ctx, liveDocs);
+        public BitDocIdSet getDocIdSet(LeafReaderContext ctx) throws IOException {
+            return filter.getDocIdSet(ctx);
         }
     }
 }

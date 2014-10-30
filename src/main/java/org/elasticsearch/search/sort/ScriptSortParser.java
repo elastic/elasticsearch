@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
@@ -138,12 +138,12 @@ public class ScriptSortParser implements SortParser {
                 throw new ElasticsearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
             }
 
-            BitsetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(NonNestedDocsFilter.INSTANCE);
-            BitsetFilter innerDocumentsFilter;
+            BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
+            BitDocIdSetFilter innerDocumentsFilter;
             if (nestedFilter != null) {
-                innerDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(nestedFilter);
+                innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(nestedFilter);
             } else {
-                innerDocumentsFilter = context.bitsetFilterCache().getBitsetFilter(objectMapper.nestedTypeFilter());
+                innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
             }
             nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {

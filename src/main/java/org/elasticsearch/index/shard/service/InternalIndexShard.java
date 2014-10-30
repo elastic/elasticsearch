@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.shard.service;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 
 import com.google.common.base.Charsets;
@@ -468,7 +468,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         query = filterQueryIfNeeded(query, types);
 
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
-        BitsetFilter parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitsetFilter(NonNestedDocsFilter.INSTANCE) : null;
+        BitDocIdSetFilter parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE) : null;
         return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
     }
 

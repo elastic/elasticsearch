@@ -605,7 +605,7 @@ public class DocumentMapper implements ToXContent {
                 continue;
             }
 
-            BitDocIdSet nestedTypeBitSet = cache.getBitsetFilter(objectMapper.nestedTypeFilter()).getDocIdSet(context, null);
+            BitDocIdSet nestedTypeBitSet = cache.getBitDocIdSetFilter(objectMapper.nestedTypeFilter()).getDocIdSet(context);
             if (nestedTypeBitSet != null && nestedTypeBitSet.bits().get(nestedDocId)) {
                 if (nestedObjectMapper == null) {
                     nestedObjectMapper = objectMapper;

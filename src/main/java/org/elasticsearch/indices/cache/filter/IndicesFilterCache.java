@@ -202,12 +202,13 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
                             }
                         }
                         cache.cleanUp();
-                        schedule();
                         keys.clear();
                     }
                 });
             } catch (EsRejectedExecutionException ex) {
                 logger.debug("Can not run ReaderCleaner - execution rejected", ex);
+            } finally {
+                schedule();
             }
         }
 

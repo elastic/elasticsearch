@@ -171,7 +171,11 @@ public class AggregationPath {
         return pathElements.get(pathElements.size() - 1);
     }
 
-    public List<String> getPathElements() {
+    public List<PathElement> getPathElements() {
+        return this.pathElements;
+    }
+
+    public List<String> getPathElementsAsStringList() {
         List<String> stringPathElements = new ArrayList<>();
         for (PathElement pathElement : this.pathElements) {
             stringPathElements.add(pathElement.name);

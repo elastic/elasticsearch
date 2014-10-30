@@ -144,7 +144,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     public Object getProperty(String path) {
         AggregationPath aggPath = AggregationPath.parse(path);
-        return getProperty(aggPath.getPathElements());
+        return getProperty(aggPath.getPathElementsAsStringList());
     }
 
     /**

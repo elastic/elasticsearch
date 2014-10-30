@@ -28,6 +28,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -209,7 +210,8 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
     }
 
-    @Test
+    // nocommit
+    @Test @AwaitsFix(bugUrl = "LUCENE-5692: can we implement this in terms of another set operation with existing formats?")
     public void testShapeRelations() throws Exception {
 
         assertTrue( "Intersect relation is not supported", intersectSupport);
@@ -615,6 +617,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
             strategy.makeFilter(args);
             return true;
         } catch (UnsupportedSpatialOperation e) {
+            e.printStackTrace();
             return false;
         }
     }

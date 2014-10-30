@@ -107,8 +107,10 @@ cat azure-cert.pem azure-pk.pem > azure.pem.txt
 openssl pkcs12 -export -in azure.pem.txt -out azurekeystore.pkcs12 -name azure -noiter -nomaciter
 ```
 
-Upload the generated key to Azure platform. **Important**: when prompted for a password,
-you need to enter a non empty one.
+Upload the `azure-certificate.cer` file both in the elasticsearch Cloud Service (under `Manage Certificates`), 
+and under `Settings -> Manage Certificates`.
+
+**Important**: when prompted for a password, you need to enter a non empty one.
 
 See this [guide](http://www.windowsazure.com/en-us/manage/linux/how-to-guides/ssh-into-linux/) to have
 more details on how to create keys for Azure.

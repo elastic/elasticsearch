@@ -20,13 +20,26 @@ import static org.elasticsearch.license.plugin.core.LicensesService.PutLicenseRe
 @ImplementedBy(LicensesService.class)
 public interface LicensesManagerService {
 
-    //TODO: documentation
-
+    /**
+     * Registers new licenses in the cluster
+     * <p/>
+     * This method can be only called on the master node. It tries to create a new licenses on the master
+     * and if provided license(s) is VALID it is added to cluster state metadata {@link org.elasticsearch.license.plugin.core.LicensesMetaData}
+     */
     public void registerLicenses(final PutLicenseRequestHolder requestHolder, final ActionListener<LicensesUpdateResponse> listener);
 
-    public void unregisterLicenses(final DeleteLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener);
+    /**
+     * Remove only signed license(s) for provided features from the cluster state metadata
+     */
+    public void removeLicenses(final DeleteLicenseRequestHolder requestHolder, final ActionListener<ClusterStateUpdateResponse> listener);
 
+    /**
+     * @return the set of features that are currently enabled
+     */
     public Set<String> enabledFeatures();
 
+    /**
+     * @return a list of licenses, contains one license (with the latest expiryDate) per registered features sorted by latest issueDate
+     */
     public List<ESLicense> getLicenses();
 }

@@ -121,16 +121,17 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                     DocsAndPositionsEnum docsEnum = null;
                     final SuggestPayload spare = new SuggestPayload();
                     int maxAnalyzedPathsForOneInput = 0;
-
+                    final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XAnalyzingSuggester.PAYLOAD_SEP);
+                    int docCount = 0;
                     while (true) {
                         BytesRef term = termsEnum.next();
                         if (term == null) {
                             break;
                         }
-                        final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XAnalyzingSuggester.PAYLOAD_SEP);
                         docsEnum = termsEnum.docsAndPositions(null, docsEnum, DocsAndPositionsEnum.FLAG_PAYLOADS);
                         builder.startTerm(term);
-                        while(docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        int docFreq = 0;
+                        while (docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                             for (int i = 0; i < docsEnum.freq(); i++) {
                                 final int position = docsEnum.nextPosition();
                                 AnalyzingCompletionLookupProvider.this.parsePayload(docsEnum.getPayload(), spare);
@@ -138,37 +139,39 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                                 // multi fields have the same surface form so we sum up here
                                 maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, position + 1);
                             }
+                            docFreq++;
+                            docCount = Math.max(docCount, docsEnum.docID()+1);
                         }
-                        builder.finishTerm(docsEnum.freq());
-                        /*
-                         * Here we are done processing the field and we can
-                         * buid the FST and write it to disk.
-                         */
-                        FST<Pair<Long, BytesRef>> build = builder.build();
-                        assert build != null || terms.getDocCount() == 0 : "the FST is null but docCount is != 0 actual value: [" + terms.getDocCount() + "]";
-                        /*
-                         * it's possible that the FST is null if we have 2 segments that get merged
-                         * and all docs that have a value in this field are deleted. This will cause
-                         * a consumer to be created but it doesn't consume any values causing the FSTBuilder
-                         * to return null.
-                         */
-                        if (build != null) {
-                            fieldOffsets.put(field, output.getFilePointer());
-                            build.save(output);
-                            /* write some more meta-info */
-                            output.writeVInt(maxAnalyzedPathsForOneInput);
-                            output.writeVInt(maxSurfaceFormsPerAnalyzedForm);
-                            output.writeInt(maxGraphExpansions); // can be negative
-                            int options = 0;
-                            options |= preserveSep ? SERIALIZE_PRESERVE_SEPERATORS : 0;
-                            options |= hasPayloads ? SERIALIZE_HAS_PAYLOADS : 0;
-                            options |= preservePositionIncrements ? SERIALIZE_PRESERVE_POSITION_INCREMENTS : 0;
-                            output.writeVInt(options);
-                            output.writeVInt(XAnalyzingSuggester.SEP_LABEL);
-                            output.writeVInt(XAnalyzingSuggester.END_BYTE);
-                            output.writeVInt(XAnalyzingSuggester.PAYLOAD_SEP);
-                            output.writeVInt(XAnalyzingSuggester.HOLE_CHARACTER);
-                        }
+                        builder.finishTerm(docFreq);
+                    }
+                    /*
+                     * Here we are done processing the field and we can
+                     * buid the FST and write it to disk.
+                     */
+                    FST<Pair<Long, BytesRef>> build = builder.build();
+                    assert build != null || docCount == 0: "the FST is null but docCount is != 0 actual value: [" + docCount + "]";
+                    /*
+                     * it's possible that the FST is null if we have 2 segments that get merged
+                     * and all docs that have a value in this field are deleted. This will cause
+                     * a consumer to be created but it doesn't consume any values causing the FSTBuilder
+                     * to return null.
+                     */
+                    if (build != null) {
+                        fieldOffsets.put(field, output.getFilePointer());
+                        build.save(output);
+                        /* write some more meta-info */
+                        output.writeVInt(maxAnalyzedPathsForOneInput);
+                        output.writeVInt(maxSurfaceFormsPerAnalyzedForm);
+                        output.writeInt(maxGraphExpansions); // can be negative
+                        int options = 0;
+                        options |= preserveSep ? SERIALIZE_PRESERVE_SEPERATORS : 0;
+                        options |= hasPayloads ? SERIALIZE_HAS_PAYLOADS : 0;
+                        options |= preservePositionIncrements ? SERIALIZE_PRESERVE_POSITION_INCREMENTS : 0;
+                        output.writeVInt(options);
+                        output.writeVInt(XAnalyzingSuggester.SEP_LABEL);
+                        output.writeVInt(XAnalyzingSuggester.END_BYTE);
+                        output.writeVInt(XAnalyzingSuggester.PAYLOAD_SEP);
+                        output.writeVInt(XAnalyzingSuggester.HOLE_CHARACTER);
                     }
                 }
             }

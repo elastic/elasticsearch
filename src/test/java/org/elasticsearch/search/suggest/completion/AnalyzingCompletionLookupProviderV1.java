@@ -21,7 +21,8 @@ package org.elasticsearch.search.suggest.completion;
 
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.codecs.*;
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.suggest.Lookup;
@@ -33,8 +34,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.fst.*;
+import org.apache.lucene.util.fst.ByteSequenceOutputs;
+import org.apache.lucene.util.fst.FST;
+import org.apache.lucene.util.fst.PairOutputs;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
+import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder;
@@ -43,7 +47,11 @@ import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.L
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
 /**
  * This is an older implementation of the AnalyzingCompletionLookupProvider class
  * We use this to test for backwards compatibility in our tests, namely
@@ -84,7 +92,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
         int options = preserveSep ? XAnalyzingSuggester.PRESERVE_SEP : 0;
         // needs to fixed in the suggester first before it can be supported
         //options |= exactFirst ? XAnalyzingSuggester.EXACT_FIRST : 0;
-        prototype = new XAnalyzingSuggester(null,null, null, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, preservePositionIncrements,
+        prototype = new XAnalyzingSuggester(null, null, null, options, maxSurfaceFormsPerAnalyzedForm, maxGraphExpansions, preservePositionIncrements,
                 null, false, 1, SEP_LABEL, PAYLOAD_SEP, END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
     }
 
@@ -120,7 +128,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
 
             @Override
             public void write(Fields fields) throws IOException {
-                for(String field : fields) {
+                for (String field : fields) {
                     Terms terms = fields.terms(field);
                     if (terms == null) {
                         continue;
@@ -129,16 +137,17 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
                     DocsAndPositionsEnum docsEnum = null;
                     final SuggestPayload spare = new SuggestPayload();
                     int maxAnalyzedPathsForOneInput = 0;
-
+                    final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XAnalyzingSuggester.PAYLOAD_SEP);
+                    int docCount = 0;
                     while (true) {
                         BytesRef term = termsEnum.next();
                         if (term == null) {
                             break;
                         }
-                        final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, PAYLOAD_SEP);
                         docsEnum = termsEnum.docsAndPositions(null, docsEnum, DocsAndPositionsEnum.FLAG_PAYLOADS);
                         builder.startTerm(term);
-                        while(docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        int docFreq = 0;
+                        while (docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                             for (int i = 0; i < docsEnum.freq(); i++) {
                                 final int position = docsEnum.nextPosition();
                                 AnalyzingCompletionLookupProviderV1.this.parsePayload(docsEnum.getPayload(), spare);
@@ -146,33 +155,35 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
                                 // multi fields have the same surface form so we sum up here
                                 maxAnalyzedPathsForOneInput = Math.max(maxAnalyzedPathsForOneInput, position + 1);
                             }
+                            docFreq++;
+                            docCount = Math.max(docCount, docsEnum.docID() + 1);
                         }
-                        builder.finishTerm(docsEnum.freq());
-                        /*
-                         * Here we are done processing the field and we can
-                         * buid the FST and write it to disk.
-                         */
-                        FST<Pair<Long, BytesRef>> build = builder.build();
-                        assert build != null || terms.getDocCount() == 0 : "the FST is null but docCount is != 0 actual value: [" +  terms.getDocCount() + "]";
+                        builder.finishTerm(docFreq);
+                    }
+                    /*
+                     * Here we are done processing the field and we can
+                     * buid the FST and write it to disk.
+                     */
+                    FST<Pair<Long, BytesRef>> build = builder.build();
+                    assert build != null || docCount == 0 : "the FST is null but docCount is != 0 actual value: [" + docCount + "]";
                         /*
                          * it's possible that the FST is null if we have 2 segments that get merged
                          * and all docs that have a value in this field are deleted. This will cause
                          * a consumer to be created but it doesn't consume any values causing the FSTBuilder
                          * to return null.
                          */
-                        if (build != null) {
-                            fieldOffsets.put(field, output.getFilePointer());
-                            build.save(output);
+                    if (build != null) {
+                        fieldOffsets.put(field, output.getFilePointer());
+                        build.save(output);
                             /* write some more meta-info */
-                            output.writeVInt(maxAnalyzedPathsForOneInput);
-                            output.writeVInt(maxSurfaceFormsPerAnalyzedForm);
-                            output.writeInt(maxGraphExpansions); // can be negative
-                            int options = 0;
-                            options |= preserveSep ? SERIALIZE_PRESERVE_SEPERATORS : 0;
-                            options |= hasPayloads ? SERIALIZE_HAS_PAYLOADS : 0;
-                            options |= preservePositionIncrements ? SERIALIZE_PRESERVE_POSITION_INCREMENTS : 0;
-                            output.writeVInt(options);
-                        }
+                        output.writeVInt(maxAnalyzedPathsForOneInput);
+                        output.writeVInt(maxSurfaceFormsPerAnalyzedForm);
+                        output.writeInt(maxGraphExpansions); // can be negative
+                        int options = 0;
+                        options |= preserveSep ? SERIALIZE_PRESERVE_SEPERATORS : 0;
+                        options |= hasPayloads ? SERIALIZE_HAS_PAYLOADS : 0;
+                        options |= preservePositionIncrements ? SERIALIZE_PRESERVE_POSITION_INCREMENTS : 0;
+                        output.writeVInt(options);
                     }
                 }
             }
@@ -224,7 +235,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
 
                 XAnalyzingSuggester suggester;
                 if (suggestionContext.isFuzzy()) {
-                    suggester = new XFuzzySuggester(mapper.indexAnalyzer(),queryPrefix, mapper.searchAnalyzer(), flags,
+                    suggester = new XFuzzySuggester(mapper.indexAnalyzer(), queryPrefix, mapper.searchAnalyzer(), flags,
                             analyzingSuggestHolder.maxSurfaceFormsPerAnalyzedForm, analyzingSuggestHolder.maxGraphExpansions,
                             suggestionContext.getFuzzyEditDistance(), suggestionContext.isFuzzyTranspositions(),
                             suggestionContext.getFuzzyPrefixLength(), suggestionContext.getFuzzyMinLength(), false,
@@ -244,7 +255,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
             public CompletionStats stats(String... fields) {
                 long sizeInBytes = 0;
                 ObjectLongOpenHashMap<String> completionFields = null;
-                if (fields != null  && fields.length > 0) {
+                if (fields != null && fields.length > 0) {
                     completionFields = new ObjectLongOpenHashMap<>(fields.length);
                 }
 
@@ -264,6 +275,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
 
                 return new CompletionStats(sizeInBytes, completionFields);
             }
+
             @Override
             AnalyzingSuggestHolder getAnalyzingSuggestHolder(CompletionFieldMapper mapper) {
                 return lookupMap.get(mapper.names().indexName());

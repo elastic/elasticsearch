@@ -35,8 +35,8 @@ import org.junit.Test;
 
 import java.io.*;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 import static org.hamcrest.Matchers.*;
@@ -60,9 +60,12 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
                 return MetaData.Builder.fromXContent(parser);
             }
         };
-        final URL resource = this.getClass().getResource("global-3.st");
+        Path tmp = newTempDir().toPath();
+        final InputStream resource = this.getClass().getResourceAsStream("global-3.st");
         assertThat(resource, notNullValue());
-        MetaData read = format.read(new File(resource.toURI()), 3);
+        Path dst = tmp.resolve("global-3.st");
+        Files.copy(resource, dst);
+        MetaData read = format.read(dst.toFile(), 3);
         assertThat(read, notNullValue());
         assertThat(read.uuid(), equalTo("3O1tDF1IRB6fSJ-GrTMUtg"));
         // indices are empty since they are serialized separately

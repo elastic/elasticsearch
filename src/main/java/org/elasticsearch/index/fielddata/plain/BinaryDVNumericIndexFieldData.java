@@ -84,7 +84,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
 
                 };
             } else {
-                return new AtomicLongFieldData(-1) {
+                return new AtomicLongFieldData(0) {
 
                     @Override
                     public SortedNumericDocValues getLongValues() {

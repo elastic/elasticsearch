@@ -57,6 +57,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>com.carrotsearch.randomizedtesting</groupId>
+            <artifactId>randomizedtesting-runner</artifactId>
+            <version>2.1.10</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-test-framework</artifactId>
             <version>${lucene.maven.version}</version>

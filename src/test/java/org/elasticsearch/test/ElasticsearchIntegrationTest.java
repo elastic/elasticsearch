@@ -37,6 +37,8 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
@@ -51,6 +53,9 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -59,6 +64,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -86,8 +92,19 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
-import org.elasticsearch.index.mapper.internal.*;
-import org.elasticsearch.index.merge.policy.*;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
+import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
+import org.elasticsearch.index.merge.policy.LogDocMergePolicyProvider;
+import org.elasticsearch.index.merge.policy.MergePolicyModule;
+import org.elasticsearch.index.merge.policy.MergePolicyProvider;
+import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
@@ -103,6 +120,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -110,15 +128,33 @@ import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -126,8 +162,14 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * {@link ElasticsearchIntegrationTest} is an abstract base class to run integration
@@ -204,9 +246,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public static final String TESTS_CLUSTER = "tests.cluster";
 
     /**
-     * Key used to retrieve the index random seed from the index settings on a running node.
-     * The value of this seed can be used to initialize a random context for a specific index.
-     * It's set once per test via a generic index template.
+     * Key used to eventually switch set the base directory where index dumps
+     * should be stored
+     */
+    private static final String INDEX_DUMP_REPO_BASE_LOCATION = "tests.index.dump.location";
+
+    /**
+     * Key used to retrieve the index random seed from the index settings on a
+     * running node. The value of this seed can be used to initialize a random
+     * context for a specific index. It's set once per test via a generic index
+     * template.
      */
     public static final String SETTING_INDEX_SEED = "index.tests.seed";
 
@@ -1345,6 +1394,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     private AtomicInteger dummmyDocIdGenerator = new AtomicInteger();
+    private String indexDumpRepositoryName;
+    private File indexDumpRepositoryLocation;
+    private File indexDumpRepositoryBaseLocation = new File("target/indexDumps");
 
     /** Disables translog flushing for the specified index */
     public static void disableTranslogFlush(String index) {
@@ -1592,6 +1644,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        String indexDumpRepositoryBaseLocation = System.getProperty(INDEX_DUMP_REPO_BASE_LOCATION);
+        if (indexDumpRepositoryBaseLocation != null) {
+            this.indexDumpRepositoryBaseLocation = new File(indexDumpRepositoryBaseLocation);
+        }
         int numClientNodes = InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
         boolean enableRandomBenchNodes = InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES;
         int minNumDataNodes = InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES;
@@ -1751,6 +1807,65 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
         }
         return nodes;
+    }
+
+    public void createIndexDumpSnapshotRepository() {
+        indexDumpRepositoryLocation = new File(indexDumpRepositoryBaseLocation, "/indexDump-" + UUID.randomUUID().toString());
+        indexDumpRepositoryName = "IndexDumpRepository";
+        try {
+            GetRepositoriesResponse repositoriesResponse = client().admin().cluster().prepareGetRepositories(indexDumpRepositoryName).get();
+            boolean found = false;
+            for (RepositoryMetaData repo : repositoriesResponse.repositories()) {
+                if (repo.name().equals(indexDumpRepositoryName)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                PutRepositoryResponse response = client()
+                        .admin()
+                        .cluster()
+                        .preparePutRepository(indexDumpRepositoryName)
+                        .setType("fs")
+                        .setSettings(
+                                ImmutableSettings.builder().put("location", indexDumpRepositoryLocation.getAbsolutePath())
+                                        .put("compress", false)).get();
+                assertAcked(response);
+                logger.info("Created snapshot repository for index dumps called [IndexDumpRepository]");
+            }
+        } catch (RepositoryMissingException e) {
+            PutRepositoryResponse response = client()
+                    .admin()
+                    .cluster()
+                    .preparePutRepository(indexDumpRepositoryName)
+                    .setType("fs")
+                    .setSettings(
+                            ImmutableSettings.builder().put("location", indexDumpRepositoryLocation.getAbsolutePath())
+                                    .put("compress", true)).get();
+            assertAcked(response);
+            logger.info("Created snapshot repository for index dumps called [IndexDumpRepository]");
+        }
+    }
+
+    public SearchResponse assertSearchResponseOrIndexDump(SearchRequestBuilder searchRequestBuilder, String indices) {
+        try {
+            SearchResponse response = searchRequestBuilder.execute().actionGet();
+            assertSearchResponse(response);
+            return response;
+        } catch (AssertionError | SearchPhaseExecutionException e) {
+            logger.info("assertSearchResponse failed, creating index dump");
+            String name = UUID.randomUUID().toString();
+            try {
+                client().admin().cluster().prepareCreateSnapshot(indexDumpRepositoryName, name).setIndices(indices)
+                        .setWaitForCompletion(true).get();
+                logger.info("Created index dump snapshot named [" + name + "] in repository [" + indexDumpRepositoryName + "] in ["
+                        + indexDumpRepositoryLocation.getAbsolutePath() + "]");
+            } catch (Throwable t) {
+                logger.error("Failed to store index dump [" + name + "] in respository [" + indexDumpRepositoryName + "] in ["
+                        + indexDumpRepositoryLocation.getAbsolutePath() + "]", t);
+            }
+            throw e;
+        }
     }
 
     protected static class NumShards {

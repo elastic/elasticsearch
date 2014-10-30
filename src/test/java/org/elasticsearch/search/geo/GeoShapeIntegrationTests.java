@@ -39,9 +39,15 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.geoIntersectionFilter;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
 
@@ -113,7 +119,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testEdgeCases() throws Exception {
-
+        createIndexDumpSnapshotRepository();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
@@ -141,12 +147,8 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
 
         // This search would fail if both geoshape indexing and geoshape filtering
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
-        SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(filteredQuery(matchAllQuery(),
-                        geoIntersectionFilter("location", query)))
-                .execute().actionGet();
-
-        assertSearchResponse(searchResponse);
+        SearchResponse searchResponse = assertSearchResponseOrIndexDump(
+                client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), geoIntersectionFilter("loation", query))), "test");
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("blakely"));

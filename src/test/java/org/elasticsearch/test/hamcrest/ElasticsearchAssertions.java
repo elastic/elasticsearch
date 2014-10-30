@@ -75,14 +75,36 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Predicates.isNull;
-import static org.elasticsearch.test.ElasticsearchTestCase.*;
+import static org.elasticsearch.test.ElasticsearchTestCase.awaitBusy;
+import static org.elasticsearch.test.ElasticsearchTestCase.getPreviousVersion;
+import static org.elasticsearch.test.ElasticsearchTestCase.randomVersion;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  *
@@ -235,6 +257,7 @@ public class ElasticsearchAssertions {
     public static void assertNoFailures(SearchResponse searchResponse) {
         assertThat("Unexpected ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()),
                 searchResponse.getShardFailures().length, equalTo(0));
+
         assertVersionSerializable(searchResponse);
     }
 

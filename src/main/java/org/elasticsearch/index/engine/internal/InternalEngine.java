@@ -272,7 +272,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             try {
                 this.indexWriter = createWriter();
                 mergeScheduler.removeListener(this.throttle);
-                this.throttle = new IndexThrottle(mergeScheduler.getMaxMerges(), logger);
+                this.throttle = new IndexThrottle(mergeScheduler, logger, indexingService);
                 mergeScheduler.addListener(throttle);
             } catch (IOException e) {
                 maybeFailEngine(e, "start");
@@ -297,12 +297,12 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         translogIdGenerator.set(Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY)));
                     } else {
                         translogIdGenerator.set(System.currentTimeMillis());
-                        indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())).map());
+                        indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())));
                         indexWriter.commit();
                     }
                 } else {
                     translogIdGenerator.set(System.currentTimeMillis());
-                    indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())).map());
+                    indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())));
                     indexWriter.commit();
                 }
                 translog.newTranslog(translogIdGenerator.get());
@@ -838,20 +838,23 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     // disable refreshing, not dirty
                     dirty = false;
                     try {
-                        // that's ok if the index writer failed and is in inconsistent state
-                        // we will get an exception on a dirty operation, and will cause the shard
-                        // to be allocated to a different node
-                        currentIndexWriter().close(false);
+                        { // commit and close the current writer - we write the current tanslog ID just in case
+                            final long translogId = translog.currentId();
+                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
+                            indexWriter.commit();
+                            indexWriter.rollback();
+                        }
                         indexWriter = createWriter();
                         mergeScheduler.removeListener(this.throttle);
-                        this.throttle = new IndexThrottle(mergeScheduler.getMaxMerges(), this.logger);
+
+                        this.throttle = new IndexThrottle(mergeScheduler, this.logger, indexingService);
                         mergeScheduler.addListener(throttle);
                         // commit on a just opened writer will commit even if there are no changes done to it
                         // we rely on that for the commit data translog id key
                         if (flushNeeded || flush.force()) {
                             flushNeeded = false;
                             long translogId = translogIdGenerator.incrementAndGet();
-                            indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                             indexWriter.commit();
                             translog.newTranslog(translogId);
                         }
@@ -884,7 +887,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         try {
                             long translogId = translogIdGenerator.incrementAndGet();
                             translog.newTransientTranslog(translogId);
-                            indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                            indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                             indexWriter.commit();
                             // we need to refresh in order to clear older version values
                             refresh(new Refresh("version_table_flush").force(true));
@@ -917,7 +920,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     // other flushes use flushLock
                     try {
                         long translogId = translog.currentId();
-                        indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                        indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
                         indexWriter.commit();
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
@@ -1716,20 +1719,23 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
 
-    private static final class IndexThrottle implements MergeSchedulerProvider.Listener {
+
+    static final class IndexThrottle implements MergeSchedulerProvider.Listener {
 
         private static final InternalLock NOOP_LOCK = new InternalLock(new NoOpLock());
         private final InternalLock lockReference = new InternalLock(new ReentrantLock());
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
-        private final int maxNumMerges;
+        private final MergeSchedulerProvider mergeScheduler;
         private final ESLogger logger;
+        private final ShardIndexingService indexingService;
 
         private volatile InternalLock lock = NOOP_LOCK;
 
-        public IndexThrottle(int maxNumMerges, ESLogger logger) {
-            this.maxNumMerges = maxNumMerges;
+        public IndexThrottle(MergeSchedulerProvider mergeScheduler, ESLogger logger, ShardIndexingService indexingService) {
+            this.mergeScheduler = mergeScheduler;
             this.logger = logger;
+            this.indexingService = indexingService;
         }
 
         public Releasable acquireThrottle() {
@@ -1738,9 +1744,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         @Override
         public synchronized void beforeMerge(OnGoingMerge merge) {
+            int maxNumMerges = mergeScheduler.getMaxMerges();
             if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
                 if (isThrottling.getAndSet(true) == false) {
                     logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                    indexingService.throttlingActivated();
                 }
                 lock = lockReference;
             }
@@ -1748,13 +1756,16 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         @Override
         public synchronized void afterMerge(OnGoingMerge merge) {
+            int maxNumMerges = mergeScheduler.getMaxMerges();
             if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
                 if (isThrottling.getAndSet(false)) {
                     logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                    indexingService.throttlingDeactivated();
                 }
                 lock = NOOP_LOCK;
             }
         }
+
     }
 
     private static final class NoOpLock implements Lock {

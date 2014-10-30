@@ -35,6 +35,6 @@ public class IndexPrimaryShardNotAllocatedException extends IndexException {
 
     @Override
     public RestStatus status() {
-        return RestStatus.CONFLICT;
+        return RestStatus.INTERNAL_SERVER_ERROR;
     }
 }

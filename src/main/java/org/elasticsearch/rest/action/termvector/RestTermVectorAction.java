@@ -84,6 +84,7 @@ public class RestTermVectorAction extends BaseRestHandler {
         termVectorRequest.termStatistics(request.paramAsBoolean("term_statistics", termVectorRequest.termStatistics()));
         termVectorRequest.fieldStatistics(request.paramAsBoolean("fieldStatistics", termVectorRequest.fieldStatistics()));
         termVectorRequest.fieldStatistics(request.paramAsBoolean("field_statistics", termVectorRequest.fieldStatistics()));
+        termVectorRequest.dfs(request.paramAsBoolean("dfs", termVectorRequest.dfs()));
     }
 
     static public void addFieldStringsFromParameter(TermVectorRequest termVectorRequest, String fields) {

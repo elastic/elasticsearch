@@ -145,7 +145,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
             geohashAsLong = in.readLong();
             docCount = in.readVLong();
             aggregations = InternalAggregations.readAggregations(in);
-        }
+    }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {

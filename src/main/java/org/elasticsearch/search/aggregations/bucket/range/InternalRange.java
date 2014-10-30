@@ -187,7 +187,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalMulti
         @Override
         public void writeTo(StreamOutput out) throws IOException {
 
-        }
+    }
     }
 
     public static class Factory<B extends Bucket, R extends InternalRange<B>> {

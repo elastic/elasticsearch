@@ -67,7 +67,7 @@ public final class ExternalTestCluster extends TestCluster {
     private final int numBenchNodes;
 
     public ExternalTestCluster(TransportAddress... transportAddresses) {
-
+        super(0);
         Settings clientSettings = ImmutableSettings.settingsBuilder()
                 .put("config.ignore_system_properties", true) // prevents any settings to be replaced by system properties.
                 .put("client.transport.ignore_cluster_name", true)

@@ -40,6 +40,7 @@ import java.util.*;
 public abstract class InternalTerms extends InternalMultiBucketAggregation implements Terms, ToXContent, Streamable {
 
     protected static final String DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = "doc_count_error_upper_bound";
+    protected static final String SUM_OF_OTHER_DOC_COUNTS = "sum_other_doc_count";
 
     public static abstract class Bucket extends Terms.Bucket {
 
@@ -113,10 +114,11 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
     protected Map<String, Bucket> bucketMap;
     protected long docCountError;
     protected boolean showTermDocCountError;
+    protected long otherDocCount;
 
     protected InternalTerms() {} // for serialization
 
-    protected InternalTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<Bucket> buckets, boolean showTermDocCountError, long docCountError) {
+    protected InternalTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount) {
         super(name);
         this.order = order;
         this.requiredSize = requiredSize;
@@ -125,6 +127,7 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
         this.buckets = buckets;
         this.showTermDocCountError = showTermDocCountError;
         this.docCountError = docCountError;
+        this.otherDocCount = otherDocCount;
     }
 
     @Override
@@ -149,13 +152,20 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
     }
 
     @Override
+    public long getSumOfOtherDocCounts() {
+        return otherDocCount;
+    }
+
+    @Override
     public InternalAggregation reduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
 
         Multimap<Object, InternalTerms.Bucket> buckets = ArrayListMultimap.create();
         long sumDocCountError = 0;
+        long otherDocCount = 0;
         for (InternalAggregation aggregation : aggregations) {
             InternalTerms terms = (InternalTerms) aggregation;
+            otherDocCount += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError;
             if (terms.buckets.size() < this.shardSize || this.order == InternalOrder.TERM_ASC || this.order == InternalOrder.TERM_DESC) {
                 thisAggDocCountError = 0;
@@ -191,7 +201,10 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
                 }
             }
             if (b.docCount >= minDocCount) {
-                ordered.insertWithOverflow(b);
+                Terms.Bucket removed = ordered.insertWithOverflow(b);
+                if (removed != null) {
+                    otherDocCount += removed.getDocCount();
+                }
             }
         }
         Bucket[] list = new Bucket[ordered.size()];
@@ -204,9 +217,9 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
         } else {
             docCountError = aggregations.size() == 1 ? 0 : sumDocCountError;
         }
-        return newAggregation(name, Arrays.asList(list), showTermDocCountError, docCountError);
+        return newAggregation(name, Arrays.asList(list), showTermDocCountError, docCountError, otherDocCount);
     }
 
-    protected abstract InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError);
+    protected abstract InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount);
 
 }

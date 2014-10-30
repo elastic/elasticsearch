@@ -19,7 +19,9 @@
 
 package org.elasticsearch.search.fields;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Base64;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.joda.time.DateTime;
@@ -40,11 +43,13 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
@@ -58,7 +63,10 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                // _timestamp is randomly enabled via templates but we don't want it here to test stored fields behaviour
+                .startObject("_timestamp").field("enabled", false).endObject()
+                .startObject("properties")
                 .startObject("field1").field("type", "string").field("store", "yes").endObject()
                 .startObject("field2").field("type", "string").field("store", "no").endObject()
                 .startObject("field3").field("type", "string").field("store", "yes").endObject()
@@ -317,23 +325,6 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         client().admin().indices().prepareRefresh().execute().actionGet();
-
-        SearchResponse response = client().prepareSearch("test")
-                .addPartialField("partial1", "obj1.arr1.*", null)
-                .addPartialField("partial2", null, "obj1")
-                .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
-
-        Map<String, Object> partial1 = response.getHits().getAt(0).field("partial1").value();
-        assertThat(partial1, notNullValue());
-        assertThat(partial1.containsKey("field1"), equalTo(false));
-        assertThat(partial1.containsKey("obj1"), equalTo(true));
-        assertThat(((Map) partial1.get("obj1")).get("arr1"), instanceOf(List.class));
-
-        Map<String, Object> partial2 = response.getHits().getAt(0).field("partial2").value();
-        assertThat(partial2, notNullValue());
-        assertThat(partial2.containsKey("obj1"), equalTo(false));
-        assertThat(partial2.containsKey("field1"), equalTo(true));
     }
 
     @Test
@@ -488,6 +479,27 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().size(), equalTo(2));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(1).toString(), equalTo("value2"));
+    }
+
+    @Test // see #8203
+    public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
+        createIndex("test");
+        indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
+        refresh();
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": \"test_field\"}"))).get();
+        assertHitCount(searchResponse, 1);
+        Map<String,SearchHitField> fields = searchResponse.getHits().getHits()[0].getFields();
+        assertThat((String)fields.get("test_field").value(), equalTo("foobar"));
+    }
+
+    @Test(expected = SearchPhaseExecutionException.class)
+    public void testInvalidFieldDataField() throws ExecutionException, InterruptedException {
+        createIndex("test");
+        if (randomBoolean()) {
+            client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": {}}"))).get();
+        } else {
+            client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": 1.0}"))).get();
+        }
     }
 
     @Test

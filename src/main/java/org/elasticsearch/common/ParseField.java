@@ -29,6 +29,7 @@ public class ParseField {
     private final String camelCaseName;
     private final String underscoreName;
     private final String[] deprecatedNames;
+    private String allReplacedWith = null;
 
     public static final EnumSet<Flag> EMPTY_FLAGS = EnumSet.noneOf(Flag.class);
 
@@ -50,7 +51,7 @@ public class ParseField {
             this.deprecatedNames = set.toArray(new String[0]);
         }
     }
-    
+
     public String getPreferredName(){
         return underscoreName;
     }
@@ -68,25 +69,38 @@ public class ParseField {
     public ParseField withDeprecation(String... deprecatedNames) {
         return new ParseField(this.underscoreName, deprecatedNames);
     }
-    
+
+    /**
+     * Return a new ParseField where all field names are deprecated and replaced with {@code allReplacedWith}.
+     */
+    public ParseField withAllDeprecated(String allReplacedWith) {
+        ParseField parseField = this.withDeprecation(getAllNamesIncludedDeprecated());
+        parseField.allReplacedWith = allReplacedWith;
+        return parseField;
+    }
+
     public boolean match(String currentFieldName) {
         return match(currentFieldName, EMPTY_FLAGS);
     }
     
     public boolean match(String currentFieldName, EnumSet<Flag> flags) {
-        if (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName)) {
+        if (allReplacedWith == null && (currentFieldName.equals(camelCaseName) || currentFieldName.equals(underscoreName))) {
             return true;
         }
+        String msg;
         for (String depName : deprecatedNames) {
             if (currentFieldName.equals(depName)) {
                 if (flags.contains(Flag.STRICT)) {
-                    throw new ElasticsearchIllegalArgumentException("Deprecated field [" + currentFieldName + "] used expected [" + underscoreName + "] instead");
+                    msg = "Deprecated field [" + currentFieldName + "] used, expected [" + underscoreName + "] instead";
+                    if (allReplacedWith != null) {
+                        msg = "Deprecated field [" + currentFieldName + "] used, replaced by [" + allReplacedWith + "]";
+                    }
+                    throw new ElasticsearchIllegalArgumentException(msg);
                 }
                 return true;
             }
         }
         return false;
     }
-
 
 }

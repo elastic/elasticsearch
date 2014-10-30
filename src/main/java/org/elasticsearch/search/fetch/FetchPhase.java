@@ -47,7 +47,6 @@ import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
-import org.elasticsearch.search.fetch.partial.PartialFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
@@ -72,10 +71,10 @@ public class FetchPhase implements SearchPhase {
     private final FetchSubPhase[] fetchSubPhases;
 
     @Inject
-    public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsFetchSubPhase scriptFieldsPhase, PartialFieldsFetchSubPhase partialFieldsPhase,
+    public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsFetchSubPhase scriptFieldsPhase,
                       MatchedQueriesFetchSubPhase matchedQueriesPhase, ExplainFetchSubPhase explainPhase, VersionFetchSubPhase versionPhase,
                       FetchSourceSubPhase fetchSourceSubPhase, FieldDataFieldsFetchSubPhase fieldDataFieldsFetchSubPhase) {
-        this.fetchSubPhases = new FetchSubPhase[]{scriptFieldsPhase, partialFieldsPhase, matchedQueriesPhase, explainPhase, highlightPhase,
+        this.fetchSubPhases = new FetchSubPhase[]{scriptFieldsPhase, matchedQueriesPhase, explainPhase, highlightPhase,
                 fetchSourceSubPhase, versionPhase, fieldDataFieldsFetchSubPhase};
     }
 
@@ -100,16 +99,11 @@ public class FetchPhase implements SearchPhase {
 
         boolean loadAllStored = false;
         if (!context.hasFieldNames()) {
-            if (context.hasPartialFields()) {
-                // partial fields need the source, so fetch it
-                fieldsVisitor = new UidAndSourceFieldsVisitor();
-            } else {
-                // no fields specified, default to return source if no explicit indication
-                if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
-                    context.fetchSourceContext(new FetchSourceContext(true));
-                }
-                fieldsVisitor = context.sourceRequested() ? new UidAndSourceFieldsVisitor() : new JustUidFieldsVisitor();
+            // no fields specified, default to return source if no explicit indication
+            if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
+                context.fetchSourceContext(new FetchSourceContext(true));
             }
+            fieldsVisitor = context.sourceRequested() ? new UidAndSourceFieldsVisitor() : new JustUidFieldsVisitor();
         } else if (context.fieldNames().isEmpty()) {
             if (context.sourceRequested()) {
                 fieldsVisitor = new UidAndSourceFieldsVisitor();

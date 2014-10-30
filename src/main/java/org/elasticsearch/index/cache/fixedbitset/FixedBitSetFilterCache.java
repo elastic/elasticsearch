@@ -94,6 +94,13 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
     @Inject(optional = true)
     public void setIndicesWarmer(IndicesWarmer indicesWarmer) {
         this.indicesWarmer = indicesWarmer;
+    }
+
+    public void setIndexService(InternalIndexService indexService) {
+        this.indexService = indexService;
+        // First the indicesWarmer is set and then the indexService is set, because of this there is a small window of
+        // time where indexService is null. This is why the warmer should only registered after indexService has been set.
+        // Otherwise there is a small chance of the warmer running into a NPE, since it uses the indexService
         indicesWarmer.addListener(warmer);
     }
 
@@ -162,10 +169,6 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
                 return value;
             }
         }).fixedBitSet;
-    }
-
-    public void setIndexService(InternalIndexService indexService) {
-        this.indexService = indexService;
     }
 
     @Override
@@ -283,10 +286,10 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
                                 final long start = System.nanoTime();
                                 getAndLoadIfNotPresent(filterToWarm, ctx);
                                 if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                    indexShard.warmerService().logger().trace("warmed random access for [{}], took [{}]", filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
+                                    indexShard.warmerService().logger().trace("warmed fixed bitset for [{}], took [{}]", filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
                                 }
                             } catch (Throwable t) {
-                                indexShard.warmerService().logger().warn("failed to load random access for [{}]", t, filterToWarm);
+                                indexShard.warmerService().logger().warn("failed to load fixed bitset for [{}]", t, filterToWarm);
                             } finally {
                                 latch.countDown();
                             }

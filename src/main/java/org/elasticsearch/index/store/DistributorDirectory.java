@@ -19,6 +19,7 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.math.MathUtils;
@@ -103,7 +104,7 @@ public final class DistributorDirectory extends BaseDirectory {
 
     @Override
     public void deleteFile(String name) throws IOException {
-        getDirectory(name, true, true).deleteFile(name);
+        getDirectory(name, true).deleteFile(name);
         Directory remove = nameDirMapping.remove(name);
         assert usePrimary(name) || remove != null : "Tried to delete file " + name + " but couldn't";
     }
@@ -115,7 +116,7 @@ public final class DistributorDirectory extends BaseDirectory {
 
     @Override
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
-        return getDirectory(name, false, false).createOutput(name, context);
+        return getDirectory(name, false).createOutput(name, context);
     }
 
     @Override
@@ -141,37 +142,26 @@ public final class DistributorDirectory extends BaseDirectory {
      * @throws IOException if the name has not yet been associated with any directory ie. fi the file does not exists
      */
     private Directory getDirectory(String name) throws IOException {
-        return getDirectory(name, true, false);
+        return getDirectory(name, true);
     }
 
     /**
      * Returns true if the primary directory should be used for the given file.
      */
     private boolean usePrimary(String name) {
-        return IndexFileNames.SEGMENTS_GEN.equals(name) || Store.isChecksum(name);
+        return IndexFileNames.SEGMENTS_GEN.equals(name) || Store.isChecksum(name) || IndexWriter.WRITE_LOCK_NAME.equals(name);
     }
 
     /**
      * Returns the directory that has previously been associated with this file name or associates the name with a directory
      * if failIfNotAssociated is set to false.
      */
-    private Directory getDirectory(String name, boolean failIfNotAssociated, boolean iterate) throws IOException {
+    private Directory getDirectory(String name, boolean failIfNotAssociated) throws IOException {
         if (usePrimary(name)) {
             return distributor.primary();
         }
         Directory directory = nameDirMapping.get(name);
         if (directory == null) {
-            // name is not yet bound to a directory:
-
-            if (iterate) { // in order to get stuff like "write.lock" that might not be written through this directory
-                for (Directory dir : distributor.all()) {
-                    if (dir.fileExists(name)) {
-                        directory = nameDirMapping.putIfAbsent(name, dir);
-                        return directory == null ? dir : directory;
-                    }
-                }
-            }
-
             if (failIfNotAssociated) {
                 throw new FileNotFoundException("No such file [" + name + "]");
             }

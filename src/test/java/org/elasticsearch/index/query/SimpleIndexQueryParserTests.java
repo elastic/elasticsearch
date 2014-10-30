@@ -251,6 +251,21 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
+    public void testQueryStringTimezone() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/query-timezone.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(TermRangeQuery.class));
+
+        try {
+            queryParser.parse(copyToStringFromClasspath("/org/elasticsearch/index/query/query-timezone-incorrect.json"));
+            fail("we expect a QueryParsingException as we are providing an unknown time_zome");
+        } catch (QueryParsingException e) {
+            // We expect this one
+        }
+    }
+
+    @Test
     public void testMatchAllBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(matchAllQuery().boost(1.2f)).query();
@@ -1800,31 +1815,6 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
 //        FuzzyLikeThisQuery fuzzyLikeThisQuery = (FuzzyLikeThisQuery) parsedQuery;
-    }
-
-    @Test
-    public void testMoreLikeThisFieldBuilder() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(moreLikeThisFieldQuery("name.first").likeText("something").minTermFreq(1).maxQueryTerms(12)).query();
-        assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
-        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
-        assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
-        assertThat(mltQuery.getLikeText(), equalTo("something"));
-        assertThat(mltQuery.getMinTermFrequency(), equalTo(1));
-        assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
-    }
-
-    @Test
-    public void testMoreLikeThisField() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/mltField.json");
-        Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
-        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
-        assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
-        assertThat(mltQuery.getLikeText(), equalTo("something"));
-        assertThat(mltQuery.getMinTermFrequency(), equalTo(1));
-        assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
     }
 
     @Test

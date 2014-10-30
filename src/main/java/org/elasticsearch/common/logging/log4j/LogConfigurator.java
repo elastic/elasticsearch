@@ -67,6 +67,7 @@ public class LogConfigurator {
             .put("html", "org.apache.log4j.HTMLLayout")
             .put("pattern", "org.apache.log4j.PatternLayout")
             .put("consolePattern", "org.apache.log4j.PatternLayout")
+            .put("enhancedPattern", "org.apache.log4j.EnhancedPatternLayout")
             .put("ttcc", "org.apache.log4j.TTCCLayout")
             .put("xml", "org.apache.log4j.XMLLayout")
             .immutableMap();
@@ -99,6 +100,14 @@ public class LogConfigurator {
             }
         }
         PropertyConfigurator.configure(props);
+    }
+
+    /**
+     * sets the loaded flag to false so that logging configuration can be
+     * overridden. Should only be used in tests.
+     */
+    public static void reset() {
+        loaded = false;
     }
 
     public static void resolveConfig(Environment env, final ImmutableSettings.Builder settingsBuilder) {

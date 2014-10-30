@@ -93,6 +93,8 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
 
     private String queryName;
 
+    private String timeZone;
+
     public QueryStringQueryBuilder(String queryString) {
         this.queryString = queryString;
     }
@@ -319,6 +321,14 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         return this;
     }
 
+    /**
+     * In case of date field, we can adjust the from/to fields using a timezone
+     */
+    public QueryStringQueryBuilder timeZone(String timeZone) {
+        this.timeZone = timeZone;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(QueryStringQueryParser.NAME);
@@ -401,6 +411,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         }
         if (locale != null) {
             builder.field("locale", locale.toString());
+        }
+        if (timeZone != null) {
+            builder.field("time_zone", timeZone);
         }
         builder.endObject();
     }

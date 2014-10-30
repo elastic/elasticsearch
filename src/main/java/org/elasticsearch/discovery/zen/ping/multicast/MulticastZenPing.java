@@ -128,10 +128,11 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                     new MulticastChannel.Config(port, group, bufferSize, ttl, networkService.resolvePublishHostAddress(address)),
                     new Receiver());
         } catch (Throwable t) {
+            String msg = "multicast failed to start [{}], disabling. Consider using IPv4 only (by defining env. variable `ES_USE_IPV4`)";
             if (logger.isDebugEnabled()) {
-                logger.debug("multicast failed to start [{}], disabling", t, ExceptionsHelper.detailedMessage(t));
+                logger.debug(msg, t, ExceptionsHelper.detailedMessage(t));
             } else {
-                logger.info("multicast failed to start [{}], disabling", ExceptionsHelper.detailedMessage(t));
+                logger.info(msg, ExceptionsHelper.detailedMessage(t));
             }
         }
     }
@@ -174,7 +175,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     @Override
     public void ping(final PingListener listener, final TimeValue timeout) {
-        if (!pingEnabled) {
+        if (!pingEnabled || multicastChannel == null) {
             threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
@@ -496,7 +497,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         }
 
         private void handleNodePingRequest(int id, DiscoveryNode requestingNodeX, ClusterName requestClusterName) {
-            if (!pingEnabled) {
+            if (!pingEnabled || multicastChannel == null) {
                 return;
             }
             final DiscoveryNodes discoveryNodes = contextProvider.nodes();

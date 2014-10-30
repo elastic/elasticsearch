@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.joda.time.DateTimeZone;
 
 import java.util.Collection;
 import java.util.List;
@@ -61,7 +62,7 @@ public class QueryParserSettings {
     private String minimumShouldMatch;
     private boolean lenient;
     private Locale locale;
-
+    private DateTimeZone timeZone;
 
     List<String> fields = null;
     Collection<String> queryTypes = null;
@@ -306,6 +307,14 @@ public class QueryParserSettings {
         return this.locale;
     }
 
+    public void timeZone(DateTimeZone timeZone) {
+        this.timeZone = timeZone;
+    }
+
+    public DateTimeZone timeZone() {
+        return this.timeZone;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -349,6 +358,9 @@ public class QueryParserSettings {
         if (locale != null ? !locale.equals(that.locale) : that.locale != null) {
             return false;
         }
+        if (timeZone != null ? !timeZone.equals(that.timeZone) : that.timeZone != null) {
+            return false;
+        }
 
         if (Float.compare(that.tieBreaker, tieBreaker) != 0) return false;
         if (useDisMax != that.useDisMax) return false;
@@ -385,6 +397,7 @@ public class QueryParserSettings {
         result = 31 * result + (tieBreaker != +0.0f ? Float.floatToIntBits(tieBreaker) : 0);
         result = 31 * result + (useDisMax ? 1 : 0);
         result = 31 * result + (locale != null ? locale.hashCode() : 0);
+        result = 31 * result + (timeZone != null ? timeZone.hashCode() : 0);
         return result;
     }
 }

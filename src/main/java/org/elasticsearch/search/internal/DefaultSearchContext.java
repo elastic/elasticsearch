@@ -61,7 +61,6 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
-import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
@@ -133,7 +132,6 @@ public class DefaultSearchContext extends SearchContext {
     private List<String> fieldNames;
     private FieldDataFieldsContext fieldDataFields;
     private ScriptFieldsContext scriptFields;
-    private PartialFieldsContext partialFields;
     private FetchSourceContext fetchSourceContext;
 
     private int from = -1;
@@ -392,17 +390,6 @@ public class DefaultSearchContext extends SearchContext {
             scriptFields = new ScriptFieldsContext();
         }
         return this.scriptFields;
-    }
-
-    public boolean hasPartialFields() {
-        return partialFields != null;
-    }
-
-    public PartialFieldsContext partialFields() {
-        if (partialFields == null) {
-            partialFields = new PartialFieldsContext();
-        }
-        return this.partialFields;
     }
 
     /**

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.indices.stats;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.*;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -33,7 +35,10 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
+import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -281,6 +286,86 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         assertThat(client().admin().indices().prepareStats("idx").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
     }
 
+
+    @Test
+    public void nonThrottleStats() throws Exception {
+        assertAcked(prepareCreate("test")
+                .setSettings(ImmutableSettings.builder()
+                                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+                                .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
+                                .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
+                                .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
+                                .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "10000")
+                ));
+        ensureGreen();
+        long termUpto = 0;
+        IndicesStatsResponse stats;
+        // Provoke slowish merging by making many unique terms:
+        for(int i=0; i<100; i++) {
+            StringBuilder sb = new StringBuilder();
+            for(int j=0; j<100; j++) {
+                sb.append(' ');
+                sb.append(termUpto++);
+                sb.append(" some random text that keeps repeating over and over again hambone");
+            }
+            client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
+        }
+        refresh();
+        stats = client().admin().indices().prepareStats().execute().actionGet();
+        //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+
+        stats = client().admin().indices().prepareStats().execute().actionGet();
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0l));
+    }
+
+    @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "This test intermittently fails with no throttling happening.")
+    public void throttleStats() throws Exception {
+        assertAcked(prepareCreate("test")
+                .setSettings(ImmutableSettings.builder()
+                                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+                                .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
+                                .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
+                                .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
+                                .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "1")
+                                .put("index.merge.policy.type", "tiered")
+
+                ));
+        ensureGreen();
+        long termUpto = 0;
+        IndicesStatsResponse stats;
+        // make sure we see throttling kicking in:
+        boolean done = false;
+        long start = System.currentTimeMillis();
+        while (!done) {
+            for(int i=0; i<100; i++) {
+                // Provoke slowish merging by making many unique terms:
+                StringBuilder sb = new StringBuilder();
+                for(int j=0; j<100; j++) {
+                    sb.append(' ');
+                    sb.append(termUpto++);
+                }
+                client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
+                if (i % 2 == 0) {
+                    refresh();
+                }
+            }
+            refresh();
+            stats = client().admin().indices().prepareStats().execute().actionGet();
+            //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+            done = stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis() > 0;
+            if (System.currentTimeMillis() - start > 300*1000) { //Wait 5 minutes for throttling to kick in
+                break;
+            }
+        }
+        stats = client().admin().indices().prepareStats().execute().actionGet();
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), greaterThan(0l));
+    }
+
     @Test
     public void simpleStats() throws Exception {
         createIndex("test1", "test2");
@@ -302,6 +387,8 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         assertThat(stats.getPrimaries().getDocs().getCount(), equalTo(3l));
         assertThat(stats.getTotal().getDocs().getCount(), equalTo(totalExpectedWrites));
         assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexCount(), equalTo(3l));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().isThrottled(), equalTo(false));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0l));
         assertThat(stats.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(totalExpectedWrites));
         assertThat(stats.getTotal().getStore(), notNullValue());
         assertThat(stats.getTotal().getMerge(), notNullValue());

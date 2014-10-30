@@ -143,7 +143,7 @@ public class InternalFilters extends InternalMultiBucketAggregation implements F
             key = in.readOptionalString();
             docCount = in.readVLong();
             aggregations = InternalAggregations.readAggregations(in);
-        }
+    }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {

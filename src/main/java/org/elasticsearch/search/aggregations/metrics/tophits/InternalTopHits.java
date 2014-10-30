@@ -37,7 +37,6 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Queue;
 
 /**
  */
@@ -131,9 +130,10 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
     }
 
     @Override
-    public Object getProperty(Queue<String> path) {
+    public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
-            return this;
+            return this; // NOCOMMIT do we need to support anything other than
+                         // returning the whole aggregation for top_hits?
         } else {
             throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }

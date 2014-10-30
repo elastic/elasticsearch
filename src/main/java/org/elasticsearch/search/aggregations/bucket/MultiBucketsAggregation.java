@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.HasAggregations;
 import org.elasticsearch.search.aggregations.support.OrderPath;
 
 import java.util.List;
-import java.util.Queue;
 
 /**
  * An aggregation that returns multiple buckets
@@ -63,7 +62,7 @@ public interface MultiBucketsAggregation extends Aggregation {
          */
         Aggregations getAggregations();
 
-        Object getProperty(String containingAggName, Queue<String> path);
+        Object getProperty(String containingAggName, List<String> path);
 
         static class SubAggregationComparator<B extends Bucket> implements java.util.Comparator<B> {
 

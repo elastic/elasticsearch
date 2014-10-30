@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
-import java.util.Queue;
+import java.util.List;
 
 /**
  *
@@ -41,8 +41,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
         public abstract double value();
 
         @Override
-        public Object getProperty(Queue<String> path) {
-            if (path.isEmpty() || path.size() == 1 && "value".equals(path.peek())) {
+        public Object getProperty(List<String> path) {
+            if (path.isEmpty() || path.size() == 1 && "value".equals(path.get(0))) {
                 return value();
             } else {
                 throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
@@ -62,11 +62,11 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
         public abstract double value(String name);
 
         @Override
-        public Object getProperty(Queue<String> path) {
+        public Object getProperty(List<String> path) {
             if (path.isEmpty()) {
                 return this;
             } else if (path.size() == 1) {
-                return value(path.poll());
+                return value(path.get(0));
             } else {
                 throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
             }

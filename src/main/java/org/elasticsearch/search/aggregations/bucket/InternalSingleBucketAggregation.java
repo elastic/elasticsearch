@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Queue;
 
 /**
  * A base class for all the single bucket aggregations.
@@ -84,11 +83,11 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     }
 
     @Override
-    public Object getProperty(Queue<String> path) {
+    public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
         } else {
-            String aggName = path.poll();
+            String aggName = path.get(0);
             Aggregation aggregation = aggregations.get(aggName);
             if (aggregation == null) {
                 throw new ElasticsearchIllegalArgumentException("Cannot find an aggregation named [" + aggName + "] in [" + getName() + "]");

@@ -30,7 +30,10 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class InternalScriptedMetric extends InternalMetricsAggregation implements ScriptedMetric {
 
@@ -111,8 +114,8 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     }
 
     @Override
-    public Object getProperty(Queue<String> path) {
-        if (path.isEmpty() || path.size() == 1 && "value".equals(path.peek())) {
+    public Object getProperty(List<String> path) {
+        if (path.isEmpty() || path.size() == 1 && "value".equals(path.get(0))) {
             return aggregation;
         } else {
             throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);

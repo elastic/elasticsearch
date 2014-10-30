@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import java.util.Queue;
+import java.util.List;
 
 /**
  * An aggregation
@@ -30,6 +30,6 @@ public interface Aggregation {
      */
     String getName();
 
-    Object getProperty(Queue<String> path);
+    Object getProperty(List<String> path);
 
 }

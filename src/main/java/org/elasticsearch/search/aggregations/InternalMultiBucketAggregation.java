@@ -23,8 +23,6 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.List;
-import java.util.Queue;
-import java.util.concurrent.LinkedBlockingQueue;
 
 public abstract class InternalMultiBucketAggregation extends InternalAggregation implements MultiBucketsAggregation {
 
@@ -36,28 +34,28 @@ public abstract class InternalMultiBucketAggregation extends InternalAggregation
     }
 
     @Override
-    public Object getProperty(Queue<String> path) {
+    public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
         } else {
             List<? extends Bucket> buckets = getBuckets();
             Object[] propertyArray = new Object[buckets.size()];
             for (int i = 0; i < buckets.size(); i++) {
-                propertyArray[i] = buckets.get(i).getProperty(getName(), new LinkedBlockingQueue<>(path));
+                propertyArray[i] = buckets.get(i).getProperty(getName(), path);
             }
             return propertyArray;
         }
     }
 
     public static abstract class InternalBucket implements Bucket {
-        public Object getProperty(String containingAggName, Queue<String> path) {
+        public Object getProperty(String containingAggName, List<String> path) {
             Aggregations aggregations = getAggregations();
-            String aggName = path.poll();
+            String aggName = path.get(0);
             Aggregation aggregation = aggregations.get(aggName);
             if (aggregation == null) {
                 throw new ElasticsearchIllegalArgumentException("Cannot find an aggregation named [" + aggName + "] in [" + containingAggName + "]");
             }
-            return aggregation.getProperty(path);
+            return aggregation.getProperty(path.subList(1, path.size()));
         }
     }
 }

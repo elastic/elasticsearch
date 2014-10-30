@@ -29,7 +29,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 
 import java.io.IOException;
-import java.util.Queue;
+import java.util.List;
 
 public class InternalGeoBounds extends InternalMetricsAggregation implements GeoBounds {
 
@@ -106,12 +106,12 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
     }
 
     @Override
-    public Object getProperty(Queue<String> path) {
+    public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
         } else if (path.size() == 1) {
             BoundingBox boundingBox = resolveBoundingBox();
-            String bBoxSide = path.poll();
+            String bBoxSide = path.get(0);
             switch (bBoxSide) {
             case "top":
                 return boundingBox.topLeft.lat();
@@ -127,7 +127,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
         } else if (path.size() == 2) {
             BoundingBox boundingBox = resolveBoundingBox();
             GeoPoint cornerPoint = null;
-            String cornerString = path.poll();
+            String cornerString = path.get(0);
             switch (cornerString) {
             case "top_left":
                 cornerPoint = boundingBox.topLeft;
@@ -138,7 +138,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
             default:
                 throw new ElasticsearchIllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
             }
-            String latLonString = path.poll();
+            String latLonString = path.get(0);
             switch (latLonString) {
             case "lat":
                 return cornerPoint.lat();

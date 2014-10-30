@@ -25,11 +25,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.reducers.*;
+import org.elasticsearch.search.reducers.Reducer;
+import org.elasticsearch.search.reducers.ReducerContext;
+import org.elasticsearch.search.reducers.ReducerFactories;
+import org.elasticsearch.search.reducers.ReducerFactory;
+import org.elasticsearch.search.reducers.ReducerFactoryStreams;
+import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 import java.io.IOException;
-import java.util.Queue;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.Collections;
+import java.util.List;
 
 public class DeltaReducer extends Reducer {
 
@@ -57,8 +62,7 @@ public class DeltaReducer extends Reducer {
     @Override
     public InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType,
             BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
-        Queue<String> path = new LinkedBlockingQueue<>(1); // NOCOMMIT using a queue here is clunky. Need to use a better datastructure for paths
-        path.offer(fieldName);
+        List<String> path = Collections.singletonList(fieldName);
         Object[] bucketProperties = (Object[]) aggregation.getProperty(path);
         double firstBucketValue = (double) bucketProperties[0];
         double lastBucketValue = (double) bucketProperties[bucketProperties.length - 1];

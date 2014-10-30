@@ -714,12 +714,15 @@ public class ChildrenQuery extends Query {
         @Override
         protected boolean match(int doc) {
             if (parentWeight.remaining == 0) {
-                try {
-                    advance(DocIdSetIterator.NO_MORE_DOCS);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-                return false;
+                // nocommit - this tires to exhaust the iterator but this causes an assertion error
+                // we should never modify the iterator in this method -- we should put an assertion in lucene to make sure the iterator is not advacned in
+                // this method
+                // another way to do this would be to extend lucene to return an enum here just like FilterTermsEnum#SeekStatus works like found|not_found|end
+//                try {
+//                    advance(DocIdSetIterator.NO_MORE_DOCS);
+//                } catch (IOException e) {
+//                    throw new RuntimeException(e);
+//                }
             }
 
             final long parentOrd = ordinals.getOrd(doc);

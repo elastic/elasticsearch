@@ -43,7 +43,7 @@ public class LicensesServiceClusterRestartTest extends AbstractLicensesIntegrati
 
     private ImmutableSettings.Builder nodeSettingsBuilder(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
-                //.put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal))
                 .put("gateway.type", "local")
                 .put("plugins.load_classpath_plugins", false)
                 .put("node.data", true)
@@ -58,10 +58,10 @@ public class LicensesServiceClusterRestartTest extends AbstractLicensesIntegrati
         wipeAllLicenses();
     }
 
-    @Test @Ignore
+    @Test
     public void testClusterRestart() throws Exception {
         logger.info("--> starting 1 node");
-        internalCluster().startNode(nodeSettingsBuilder(0));
+        internalCluster().startNode();
         ensureGreen();
 
         final List<ESLicense> esLicenses = generateAndPutLicense();

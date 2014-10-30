@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.license.plugin;
 
-import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -15,11 +16,14 @@ import java.util.Collection;
 
 public class TestConsumerPlugin extends AbstractPlugin {
 
+    private final boolean isClient;
+
     private final Settings settings;
 
     @Inject
     public TestConsumerPlugin(Settings settings) {
-    this.settings = settings;
+        this.settings = settings;
+        this.isClient = DiscoveryNode.clientNode(settings);
     }
 
     @Override
@@ -35,6 +39,10 @@ public class TestConsumerPlugin extends AbstractPlugin {
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> services() {
-        return ImmutableSet.<Class<? extends LifecycleComponent>>of(TestPluginService.class);
+        Collection<Class<? extends LifecycleComponent>> services = Lists.newArrayList();
+        if (!isClient) {
+            services.add(TestPluginService.class);
+        }
+        return services;
     }
 }

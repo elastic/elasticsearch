@@ -108,19 +108,30 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         protected Builder(String name, FieldType fieldType) {
             super(name);
             this.fieldType = fieldType;
-            this.defaultOptions = fieldType.indexOptions();
+            this.defaultOptions = fieldType.indexOptions(); // we have to store it the fieldType is mutable
             multiFieldsBuilder = new MultiFields.Builder();
         }
 
         public T index(boolean index) {
             if (index) {
                 if (fieldType.indexOptions() == null) {
-                    fieldType.setIndexOptions(IndexOptions.DOCS_ONLY);
+                    /*
+                     * the logic here is to reset to the default options only if we are not indexed ie. options are null
+                     * if the fieldType has a non-null option we are all good it might have been set through a different
+                     * call.
+                     */
+                    final IndexOptions options = getDefaultIndexOption();
+                    assert options != null : "default IndexOptions is null can't enable indexing";
+                    fieldType.setIndexOptions(options);
                 }
             } else {
                 fieldType.setIndexOptions(null);
             }
             return builder;
+        }
+
+        protected IndexOptions getDefaultIndexOption() {
+            return defaultOptions;
         }
 
         public T store(boolean store) {

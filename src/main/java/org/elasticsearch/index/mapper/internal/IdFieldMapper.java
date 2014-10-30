@@ -93,6 +93,10 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             this.path = path;
             return builder;
         }
+        // if we are indexed we use DOCS_ONLY
+        protected IndexOptions getDefaultIndexOption() {
+            return IndexOptions.DOCS_ONLY;
+        }
 
         @Override
         public IdFieldMapper build(BuilderContext context) {

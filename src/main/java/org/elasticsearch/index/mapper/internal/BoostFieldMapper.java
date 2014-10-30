@@ -88,6 +88,11 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
             return this;
         }
 
+        // if we are indexed we use DOCS_ONLY
+        protected FieldInfo.IndexOptions getDefaultIndexOption() {
+            return FieldInfo.IndexOptions.DOCS_ONLY;
+        }
+
         @Override
         public BoostFieldMapper build(BuilderContext context) {
             return new BoostFieldMapper(name, buildIndexName(context),

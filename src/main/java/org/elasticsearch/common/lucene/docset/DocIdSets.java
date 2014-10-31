@@ -22,11 +22,7 @@ package org.elasticsearch.common.lucene.docset;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.BitDocIdSet;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.*;
 import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
@@ -55,7 +51,7 @@ public class DocIdSets {
      */
     public static boolean isFastIterator(DocIdSet set) {
         // TODO: this is really horrible
-        return set instanceof BitDocIdSet;
+        return set instanceof BitDocIdSet || set instanceof RoaringDocIdSet;
     }
 
     /**
@@ -69,23 +65,25 @@ public class DocIdSets {
         if (set == null || set == DocIdSet.EMPTY) {
             return DocIdSet.EMPTY;
         }
-        DocIdSetIterator it = set.iterator();
+        final DocIdSetIterator it = set.iterator();
         if (it == null) {
             return DocIdSet.EMPTY;
         }
-        int doc = it.nextDoc();
-        if (doc == DocIdSetIterator.NO_MORE_DOCS) {
+        final int firstDoc = it.nextDoc();
+        if (firstDoc == DocIdSetIterator.NO_MORE_DOCS) {
             return DocIdSet.EMPTY;
         }
         if (set instanceof BitDocIdSet) {
             return set;
         }
-        // TODO: should we use RoaringDocIdSet like Lucene?
-        FixedBitSet fixedBitSet = new FixedBitSet(reader.maxDoc());
-        it = set.iterator();
-        long cost = it.cost();
-        fixedBitSet.or(it);
-        return new BitDocIdSet(fixedBitSet, cost);
+
+        final RoaringDocIdSet.Builder builder = new RoaringDocIdSet.Builder(reader.maxDoc());
+        builder.add(firstDoc);
+        for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+           builder.add(doc);
+        }
+
+        return builder.build();
     }
 
     /**

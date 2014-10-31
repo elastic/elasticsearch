@@ -1594,6 +1594,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         int numClientNodes = InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
         boolean enableRandomBenchNodes = InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES;
+        boolean enableHttpPipelining = InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING;
         int minNumDataNodes = InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES;
         int maxNumDataNodes = InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES;
         SettingsSource settingsSource = InternalTestCluster.DEFAULT_SETTINGS_SOURCE;
@@ -1660,7 +1661,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         return new InternalTestCluster(seed, minNumDataNodes, maxNumDataNodes,
                 clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, numClientNodes,
-                enableRandomBenchNodes, CHILD_JVM_ID, nodePrefix);
+                enableRandomBenchNodes, enableHttpPipelining, CHILD_JVM_ID, nodePrefix);
     }
 
     /**

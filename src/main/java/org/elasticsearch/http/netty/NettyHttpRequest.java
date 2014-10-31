@@ -145,6 +145,10 @@ public class NettyHttpRequest extends HttpRequest {
         return channel.getLocalAddress();
     }
 
+    public Channel getChannel() {
+        return channel;
+    }
+
     @Override
     public String header(String name) {
         return request.headers().get(name);

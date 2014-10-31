@@ -35,7 +35,6 @@ public final class DirectoryUtils {
      * Try and extract a store directory out of a directory, tries to take into
      * account the fact that a directory is a filter directory, and/or a compound dir.
      */
-    // nocommit: you cannot do this with compound directories anymore. what calls this code?
     @Nullable
     public static Store.StoreDirectory getStoreDirectory(Directory dir) {
         Directory current = dir;

@@ -15,8 +15,6 @@ when connecting for better performance and try to get your favorite
 client not to do
 http://en.wikipedia.org/wiki/Chunked_transfer_encoding[HTTP chunking].
 
-IMPORTANT: HTTP pipelining is not supported and should be disabled in your HTTP client.
-
 [float]
 === Settings
 
@@ -69,6 +67,9 @@ be cached for. Defaults to `1728000` (20 days)
 header should be returned. Note: This header is only returned, when the setting is
 set to `true`. Defaults to `false`
 
+|`http.pipelining` |Enable or disable HTTP pipelining, defaults to `true`.
+
+|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before a HTTP connection is closed, defaults to `10000`.
 
 |=======================================================================
 

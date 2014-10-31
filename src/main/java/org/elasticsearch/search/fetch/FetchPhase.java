@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitSet;
 
 import org.apache.lucene.util.BitDocIdSet;
@@ -371,7 +372,7 @@ public class FetchPhase implements SearchPhase {
             BitDocIdSet nestedDocsBitSet = context.bitsetFilterCache().getBitDocIdSetFilter(nestedObjectMapper.nestedTypeFilter()).getDocIdSet(subReaderContext);
             BitSet nestedBits = nestedDocsBitSet.bits();
             int nextParent = parentBits.nextSetBit(currentParent);
-            for (int docId = nestedBits.nextSetBit(currentParent + 1); docId < nextParent && docId != -1; docId = nestedBits.nextSetBit(docId + 1)) {
+            for (int docId = nestedBits.nextSetBit(currentParent + 1); docId < nextParent && docId != DocIdSetIterator.NO_MORE_DOCS; docId = nestedBits.nextSetBit(docId + 1)) {
                 offset++;
             }
             currentParent = nextParent;

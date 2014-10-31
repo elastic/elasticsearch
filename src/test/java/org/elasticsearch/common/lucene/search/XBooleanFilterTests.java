@@ -337,7 +337,16 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
         );
 
         DocIdSet docIdSet = booleanFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs());
-        assertThat(docIdSet, equalTo(null));
+        boolean empty = false;
+        if (docIdSet == null) {
+            empty = true;
+        } else {
+            DocIdSetIterator it = docIdSet.iterator();
+            if (it == null || it.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
+                empty = true;
+            }
+        }
+        assertTrue(empty);
     }
 
     @Test

@@ -102,11 +102,12 @@ public class AndDocIdSet extends DocIdSet {
         );
     }
 
-    static class AndBits implements Bits {
+    /** A conjunction between several {@link Bits} instances with short-circuit logic. */
+    public static class AndBits implements Bits {
 
         private final Bits[] bits;
 
-        AndBits(Bits[] bits) {
+        public AndBits(Bits[] bits) {
             this.bits = bits;
         }
 

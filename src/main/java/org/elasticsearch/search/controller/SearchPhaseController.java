@@ -51,7 +51,7 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
-import org.elasticsearch.search.reducers.InternalReductions;
+import org.elasticsearch.search.reducers.InternalCombinedAggregations;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerContext;
 import org.elasticsearch.search.suggest.Suggest;
@@ -391,11 +391,11 @@ public class SearchPhaseController extends AbstractComponent {
             }
         }
 
-        InternalReductions reductions = null;
+        InternalCombinedAggregations reductions = null;
         if (aggregations != null && firstResult.reducerFactories() != null) {
             Reducer[] reducers = firstResult.reducerFactories().createTopLevelReducers(new ReducerContext(bigArrays, scriptService));
             List<InternalAggregation> reductionsList = new ArrayList<>(reducers.length);
-            reductions = new InternalReductions(reductionsList, aggregations);
+            reductions = new InternalCombinedAggregations(reductionsList, aggregations);
             for (Reducer reducer : reducers) {
                 reductions.addReduction(reducer.reduce(reductions));
             }

@@ -94,11 +94,13 @@ public abstract class Reducer {
                     BucketStreamContext bucketStreamContext = BucketStreams.stream(bucketType).getBucketStreamContext(multiBucketsAggregation.getBuckets().get(0)); // NOCOMMIT make this cleaner
                     return doReduce(multiBucketsAggregation, bucketType, bucketStreamContext);
                 } else {
-                    // NOCOMMIT throw exception as path must match a MultiBucketAggregation
+                    throw new ReductionExecutionException("reducers must be configured with a "
+                            + MultiBucketsAggregation.class.getSimpleName() + ". Aggregation [" + aggregation.getName() + "] is of type ["
+                            + aggregation.getClass().getSimpleName() + "]");
                 }
             }
         }
-        return null; // NOCOMMIT throw exception if we can't find the aggregation
+        throw new ReductionExecutionException("Cannot find aggregation for path: " + bucketsPath);
     }
 
     public abstract InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType, BucketStreamContext bucketStreamContext) throws ReductionExecutionException;

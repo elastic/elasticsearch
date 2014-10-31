@@ -32,7 +32,7 @@ import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
 
-public class InternalReductions implements Aggregations {
+public class InternalCombinedAggregations implements Aggregations {
 
     private static final Function<InternalAggregation, Aggregation> SUPERTYPE_CAST = new Function<InternalAggregation, Aggregation>() {
         @Override
@@ -45,7 +45,7 @@ public class InternalReductions implements Aggregations {
     private final InternalAggregations aggregations;
     private Map<String, InternalAggregation> reductionsAsMap;
 
-    public InternalReductions(List<InternalAggregation> reductionsList, InternalAggregations aggregations) {
+    public InternalCombinedAggregations(List<InternalAggregation> reductionsList, InternalAggregations aggregations) {
         this.reductionsList = reductionsList;
         this.aggregations = aggregations;
     }
@@ -87,23 +87,17 @@ public class InternalReductions implements Aggregations {
 
     @Override
     public List<Aggregation> asList() {
-        throw new UnsupportedOperationException("not implemented"); // NOCOMMIT
-                                                                    // implement
-                                                                    // this
+        throw new UnsupportedOperationException("not implemented"); // NOCOMMIT implement this
     }
 
     @Override
     public Map<String, Aggregation> asMap() {
-        throw new UnsupportedOperationException("not implemented"); // NOCOMMIT
-                                                                    // implement
-                                                                    // this
+        return getAsMap();
     }
 
     @Override
     public Map<String, Aggregation> getAsMap() {
-        throw new UnsupportedOperationException("not implemented"); // NOCOMMIT
-                                                                    // implement
-                                                                    // this
+        throw new UnsupportedOperationException("not implemented"); // NOCOMMIT implement this
     }
 
     @SuppressWarnings("unchecked")

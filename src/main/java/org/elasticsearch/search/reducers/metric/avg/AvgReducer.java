@@ -192,7 +192,7 @@ public abstract class AvgReducer extends Reducer {
                 this.avgType = AvgType.EXPONENTIAL;
 
             } else {
-                // NOCOMMIT throw exception if the type cannot be found
+                throw new IOException("Failed to deserialise avgType [" + avgType + "]. Type not found.");
             }
         }
 

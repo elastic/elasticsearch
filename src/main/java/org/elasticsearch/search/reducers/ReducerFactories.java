@@ -63,7 +63,9 @@ public class ReducerFactories implements Streamable {
     }
 
     public void validate() {
-        // NOCOMMIT implement validation of Reducer factories
+        for (ReducerFactory factory : factories) {
+            factory.validate();
+        }
     }
 
     private final static class Empty extends ReducerFactories {

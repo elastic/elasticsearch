@@ -38,15 +38,12 @@ public class TransportReductionModule extends AbstractModule {
     @Override
     protected void configure() {
 
-        // NOCOMMIT register internalAggregation streams for reducers
-//        InternalMetricReduction.registerStreams();
         InternalSlidingWindow.registerStreams();
         InternalDelta.registerStreams();
         InternalAvg.registerStreams();
         InternalMax.registerStreams();
         InternalStats.registerStreams();
         
-        // NOCOMMIT register reducerFactoryStreams
         SlidingWindowReducer.registerStreams();
         DeltaReducer.registerStreams();
         AvgReducer.registerStreams();

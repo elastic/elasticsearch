@@ -361,15 +361,14 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      *      {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK}, calls
      *      {@link #notifyFeaturesAndScheduleNotification(LicensesMetaData)}
      *  - else calls {@link #notifyFeaturesAndScheduleNotificationIfNeeded(LicensesMetaData)}
-     *
-     * clears up any finished notifications on every call
      */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        clearFinishedNotifications();
-        if (!event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            LicensesMetaData oldLicensesMetaData = event.previousState().getMetaData().custom(LicensesMetaData.TYPE);
-            LicensesMetaData currentLicensesMetaData = event.state().getMetaData().custom(LicensesMetaData.TYPE);
+        final ClusterState currentClusterState = event.state();
+        final ClusterState previousClusterState = event.previousState();
+        if (!currentClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            LicensesMetaData oldLicensesMetaData = previousClusterState.getMetaData().custom(LicensesMetaData.TYPE);
+            LicensesMetaData currentLicensesMetaData = currentClusterState.getMetaData().custom(LicensesMetaData.TYPE);
             logLicenseMetaDataStats("old", oldLicensesMetaData);
             logLicenseMetaDataStats("new", currentLicensesMetaData);
 
@@ -396,7 +395,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
             // notify all interested plugins
             // Change to debug
-            if (event.previousState().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) || addedNewRegisteredListener) {
+            if (previousClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) || addedNewRegisteredListener) {
                 logger.info("calling notifyFeaturesAndScheduleNotification from clusterChanged");
                 notifyFeaturesAndScheduleNotification(currentLicensesMetaData);
             } else {
@@ -536,12 +535,13 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      */
     private boolean registerListener(final ListenerHolder listenerHolder) {
         logger.info("Registering listener for " + listenerHolder.feature);
-        if (clusterService.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+        ClusterState currentState = clusterService.state();
+        if (currentState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             logger.info("Store as pendingRegistration [cluster has NOT_RECOVERED_BLOCK]");
             return false;
         }
 
-        LicensesMetaData currentMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
+        LicensesMetaData currentMetaData = currentState.metaData().custom(LicensesMetaData.TYPE);
         if (expiryDateForFeature(listenerHolder.feature, currentMetaData) == -1l) {
             // does not have any license so generate a trial license
             TrialLicenseOptions options = listenerHolder.trialLicenseOptions;
@@ -549,11 +549,11 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                 // Trial license option is provided
                 RegisterTrialLicenseRequest request = new RegisterTrialLicenseRequest(listenerHolder.feature,
                         options.duration, options.maxNodes);
-                if (clusterService.state().nodes().localNodeMaster()) {
+                if (currentState.nodes().localNodeMaster()) {
                     logger.info("Executing trial license request");
                     registerTrialLicense(request);
                 } else {
-                    DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
+                    DiscoveryNode masterNode = currentState.nodes().masterNode();
                     if (masterNode != null) {
                         logger.info("Sending trial license request to master");
                         transportService.sendRequest(masterNode,
@@ -654,10 +654,10 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         public void run() {
             logger.info("Performing LicensingClientNotificationJob");
 
-
             // next clusterChanged event will deal with the missed notifications
-            if (!clusterService.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-                LicensesMetaData currentLicensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
+            ClusterState currentClusterState = clusterService.state();
+            if (!currentClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+                LicensesMetaData currentLicensesMetaData = currentClusterState.metaData().custom(LicensesMetaData.TYPE);
                 long nextScheduleDelay = notifyFeatures(currentLicensesMetaData);
                 if (nextScheduleDelay != -1l) {
                     try {

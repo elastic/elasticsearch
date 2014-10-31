@@ -65,7 +65,7 @@ public enum PreBuiltTokenizers {
     UAX_URL_EMAIL(CachingStrategy.LUCENE) {
         @Override
         protected Tokenizer create(Version version) {
-            // nocommit
+            // nocommit - ths one needs to be exposed in lucene for bwc
             return new UAX29URLEmailTokenizer();
         }
     },

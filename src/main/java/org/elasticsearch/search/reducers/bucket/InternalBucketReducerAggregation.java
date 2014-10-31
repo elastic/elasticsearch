@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -39,12 +40,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public abstract class InternalBucketReducerAggregation extends InternalAggregation implements BucketReducerAggregation {
+public abstract class InternalBucketReducerAggregation extends InternalMultiBucketAggregation implements BucketReducerAggregation {
 
     private List<InternalSelection> selections;
     private Map<String, Selection> selectionMap;
 
-    public static class InternalSelection implements Selection {
+    public static class InternalSelection extends InternalMultiBucketAggregation.InternalBucket implements Selection {
 
         private String key;
         private BytesReference bucketType;
@@ -179,6 +180,11 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
                 bucket.writeTo(out);
             }
         }
+
+        @Override
+        public long getDocCount() {
+            throw new UnsupportedOperationException("Not supported"); // NOCOMMIT fix class hierarchy so we don't need to override this
+        }
     }
 
     protected InternalBucketReducerAggregation() {
@@ -197,12 +203,12 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
     }
 
     @Override
-    public List<? extends Selection> getSelections() {
+    public List<? extends Selection> getBuckets() {
         return selections;
     }
 
     @Override
-    public <B extends Selection> B getSelectionByKey(String key) {
+    public <B extends Bucket> B getBucketByKey(String key) {
         if (selectionMap == null) {
             selectionMap = Maps.newHashMapWithExpectedSize(selections.size());
             for (Selection bucket : selections) {
@@ -222,7 +228,7 @@ public abstract class InternalBucketReducerAggregation extends InternalAggregati
         if (path.isEmpty()) {
             return this;
         } else {
-            List<? extends Selection> selections = getSelections();
+            List<? extends Selection> selections = getBuckets();
             Object[] propertyArray = new Object[selections.size()];
             for (int i = 0; i < selections.size(); i++) {
                 propertyArray[i] = selections.get(i).getProperty(path.subList(1, path.size()));

@@ -51,7 +51,7 @@ public class SlidingWindowTests extends ElasticsearchIntegrationTest {
         Aggregation slidingWindow = reductions.getAsMap().get("two_buckets");
         assertNotNull(slidingWindow);
         assertTrue(slidingWindow instanceof InternalSlidingWindow);
-        for (BucketReducerAggregation.Selection window : ((InternalSlidingWindow)slidingWindow).getSelections()) {
+        for (BucketReducerAggregation.Selection window : ((InternalSlidingWindow) slidingWindow).getBuckets()) {
             assertThat(window.getBuckets().size(), is(5));
         }
     }

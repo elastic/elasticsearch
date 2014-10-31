@@ -22,7 +22,14 @@ package org.elasticsearch.search.controller;
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -44,12 +51,18 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.search.reducers.InternalReductions;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerContext;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -378,19 +391,20 @@ public class SearchPhaseController extends AbstractComponent {
             }
         }
 
-        InternalAggregations reductions = null;
+        InternalReductions reductions = null;
         if (aggregations != null && firstResult.reducerFactories() != null) {
             Reducer[] reducers = firstResult.reducerFactories().createTopLevelReducers(new ReducerContext(bigArrays, scriptService));
             List<InternalAggregation> reductionsList = new ArrayList<>(reducers.length);
+            reductions = new InternalReductions(reductionsList, aggregations);
             for (Reducer reducer : reducers) {
-                reductionsList.add(reducer.reduce(aggregations));
+                reductions.addReduction(reducer.reduce(reductions));
             }
-            reductions = new InternalAggregations(reductionsList);
         }
 
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
 
-        return new InternalSearchResponse(searchHits, aggregations, reductions, suggest, timedOut, terminatedEarly);
+        return new InternalSearchResponse(searchHits, aggregations, reductions == null ? null : reductions.getReductions(), suggest,
+                timedOut, terminatedEarly);
     }
 
 }

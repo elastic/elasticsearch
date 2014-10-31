@@ -22,22 +22,20 @@ package org.elasticsearch.search.reducers.bucket;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.HasAggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 
 import java.util.List;
 
-public interface BucketReducerAggregation extends Aggregation {
+public interface BucketReducerAggregation extends MultiBucketsAggregation {
 
 
     /**
      * A bucket represents a criteria to which all documents that fall in it adhere to. It is also uniquely identified
      * by a key, and can potentially hold sub-aggregations computed over all documents in it.
      */
-    public interface Selection extends MultiBucketsAggregation, HasAggregations, ToXContent, Streamable {
+    public interface Selection extends MultiBucketsAggregation.Bucket, MultiBucketsAggregation, HasAggregations, ToXContent, Streamable {
 
         /**
          * @return  The key associated with the bucket as a string
@@ -70,16 +68,16 @@ public interface BucketReducerAggregation extends Aggregation {
 
     }
 
-    /**
-     * @return  The selections of this reducer.
-     */
-    List<? extends Selection> getSelections();
-
-    /**
-     * The selection that is associated with the given key.
-     *
-     * @param key   The key of the requested selection.
-     * @return      The selection
-     */
-    <B extends Selection> B getSelectionByKey(String key);
+    // /**
+    // * @return The selections of this reducer.
+    // */
+    // List<? extends Selection> getSelections();
+    //
+    // /**
+    // * The selection that is associated with the given key.
+    // *
+    // * @param key The key of the requested selection.
+    // * @return The selection
+    // */
+    // <B extends Selection> B getSelectionByKey(String key);
 }

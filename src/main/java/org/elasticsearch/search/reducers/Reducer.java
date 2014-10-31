@@ -22,8 +22,8 @@ package org.elasticsearch.search.reducers;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -84,7 +84,7 @@ public abstract class Reducer {
         // Default Implementation does nothing
     }
 
-    public final InternalAggregation reduce(InternalAggregations aggregations)
+    public final InternalAggregation reduce(Aggregations aggregations)
             throws ReductionExecutionException {
         for (Aggregation aggregation : aggregations) {
             if (aggregation.getName().equals(bucketsPath)) {
@@ -93,7 +93,6 @@ public abstract class Reducer {
                     BytesReference bucketType = ((InternalAggregation) aggregation).type().stream();
                     BucketStreamContext bucketStreamContext = BucketStreams.stream(bucketType).getBucketStreamContext(multiBucketsAggregation.getBuckets().get(0)); // NOCOMMIT make this cleaner
                     return doReduce(multiBucketsAggregation, bucketType, bucketStreamContext);
-                    
                 } else {
                     // NOCOMMIT throw exception as path must match a MultiBucketAggregation
                 }

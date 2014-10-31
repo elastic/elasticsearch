@@ -20,13 +20,12 @@ package org.elasticsearch.index.search.child;
 
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 
-import org.apache.lucene.util.BitDocIdSet;
-
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.AndFilter;
@@ -142,7 +141,7 @@ final class ParentIdsFilter extends Filter {
         BitSet nonNestedDocs = null;
         if (nonNestedDocsFilter != null) {
             // nocommit: can we remove this cast?
-            nonNestedDocs = ((BitDocIdSet) nonNestedDocsFilter.getDocIdSet(context, acceptDocs)).bits();
+            nonNestedDocs = (((BitDocIdSetFilter) nonNestedDocsFilter).getDocIdSet(context)).bits();
         }
 
         DocsEnum docsEnum = null;

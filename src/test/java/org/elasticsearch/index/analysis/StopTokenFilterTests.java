@@ -47,7 +47,7 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         Builder builder = ImmutableSettings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.enable_position_increments", false);
         if (random().nextBoolean()) {
-            builder.put("index.analysis.filter.my_stop.version", "4.4");
+            builder.put("index.analysis.filter.my_stop.version", "5.0");
         }
         Settings settings = builder.build();
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);

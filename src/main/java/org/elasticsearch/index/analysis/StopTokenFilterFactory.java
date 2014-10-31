@@ -55,11 +55,11 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
         this.stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, ignoreCase);
         this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", true);
-        if (enablePositionIncrements == false) {
-            // nocommit - should we try to emulate this?
+        if (version.onOrAfter(Version.LUCENE_5_0_0) && enablePositionIncrements == false) {
             throw new ElasticsearchIllegalArgumentException("[enable_position_increments: false] is not supported anymore as of Lucene 4.4 as it can create broken token streams."
                     + " Please fix your analysis chain.");
         }
+        // otherwise, old index: best effort
     }
 
     @Override

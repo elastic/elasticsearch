@@ -25,6 +25,8 @@ import org.apache.lucene.analysis.core.LowerCaseTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
+import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenizer;
+import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
 import org.apache.lucene.analysis.pattern.PatternTokenizer;
 import org.apache.lucene.analysis.standard.ClassicTokenizer;
@@ -108,16 +110,28 @@ public enum PreBuiltTokenizers {
     NGRAM(CachingStrategy.LUCENE) {
         @Override
         protected Tokenizer create(Version version) {
-            // nocommit
-            return new NGramTokenizer();
+            // see NGramTokenizerFactory for an explanation of this logic:
+            // 4.4 patch was used before 4.4 was released
+            if (version.onOrAfter(org.elasticsearch.Version.V_0_90_2) && 
+                  version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_3)) {
+                return new NGramTokenizer();
+            } else {
+                return new Lucene43NGramTokenizer();
+            }
         }
     },
 
     EDGE_NGRAM(CachingStrategy.LUCENE) {
         @Override
         protected Tokenizer create(Version version) {
-            // nocommit
-            return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+            // see EdgeNGramTokenizerFactory for an explanation of this logic:
+            // 4.4 patch was used before 4.4 was released
+            if (version.onOrAfter(org.elasticsearch.Version.V_0_90_2) && 
+                  version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_3)) {
+                return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+            } else {
+                return new Lucene43EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
+            }
         }
     },
 

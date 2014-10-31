@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.util.Version;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -28,9 +29,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- *
+ * Only for old indexes
  */
-// nocommit: Just remove this instead?
 public class ChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardAnalyzer> {
 
     private final StandardAnalyzer analyzer;
@@ -38,8 +38,15 @@ public class ChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stand
     @Inject
     public ChineseAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
+        if (version.onOrAfter(Version.LUCENE_5_0_0)) {
+            // nocommit: fix tests or whatever are calling this!
+            // throw new ElasticsearchIllegalArgumentException("[analyzer: chinese] is not supported anymore. Use 'standard' for a unigram approach."
+            //        + " Please fix your analysis chain.");
+        }
+        // otherwise, old index: best effort
         analyzer = new StandardAnalyzer();
         analyzer.setVersion(version);
+        
     }
 
     @Override

@@ -228,7 +228,6 @@ public enum PreBuiltAnalyzers {
     CHINESE(CachingStrategy.ONE) {
         @Override
         protected Analyzer create(Version version) {
-            // nocommit
             Analyzer a = new StandardAnalyzer();
             a.setVersion(version.luceneVersion);
             return a;

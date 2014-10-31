@@ -228,10 +228,11 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
         LicensesManagerService masterLicensesManagerService = masterLicensesManagerService();
         Map<TestTrackingClientListener, List<Action>> clientListenersWithActions = new HashMap<>();
 
+        TimeValue expiryDuration = TimeValue.timeValueSeconds(0);
         for (int i = 0; i < randomIntBetween(3, 10); i++) {
             final TestTrackingClientListener clientListener = new TestTrackingClientListener();
             String feature = randomRealisticUnicodeOfCodepointLengthBetween(2, 10);
-            TimeValue expiryDuration = TimeValue.timeValueSeconds(randomIntBetween(1, 5));
+            expiryDuration = TimeValue.timeValueMillis(randomIntBetween(1, 5) * 1000l + expiryDuration.millis());
             List<Action> actions = new ArrayList<>();
 
             if (randomBoolean()) {

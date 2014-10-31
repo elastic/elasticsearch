@@ -19,11 +19,11 @@ package org.elasticsearch.index.analysis;
  * under the License.
  */
 
-import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.test.ElasticsearchTokenStreamTestCase;
 
-public class SnowballAnalyzerTests extends BaseTokenStreamTestCase {
+public class SnowballAnalyzerTests extends ElasticsearchTokenStreamTestCase {
 
   public void testEnglish() throws Exception {
     Analyzer a = new SnowballAnalyzer("English");

@@ -42,7 +42,6 @@ import org.apache.lucene.util.Version;
  * @deprecated (3.1) Use the language-specific analyzer in modules/analysis instead. 
  * This analyzer WAS removed in Lucene 5.0
  */
-// nocommit: if we are going to keep this, add tests.
 @Deprecated
 public final class SnowballAnalyzer extends Analyzer {
   private String name;

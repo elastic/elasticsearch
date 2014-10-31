@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Tokenizer;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
@@ -29,7 +31,6 @@ import org.apache.lucene.analysis.util.CharArraySet;
 import java.util.regex.Pattern;
 
 /** Simple regex-based analyzer based on PatternTokenizer + lowercase + stopwords */
-// nocommit: does this have tests?
 public final class PatternAnalyzer extends Analyzer {
     private final Pattern pattern;
     private final boolean lowercase;
@@ -43,12 +44,14 @@ public final class PatternAnalyzer extends Analyzer {
 
     @Override
     protected TokenStreamComponents createComponents(String s) {
-        final TokenStreamComponents source = new TokenStreamComponents(new PatternTokenizer(pattern, -1));
-        TokenStream result = null;
+        final Tokenizer tokenizer = new PatternTokenizer(pattern, -1);
+        TokenStream stream = tokenizer;
         if (lowercase) {
-             result = new LowerCaseFilter(source.getTokenStream());
+            stream = new LowerCaseFilter(stream);
         }
-        result = new StopFilter((result == null) ? source.getTokenStream() : result, stopWords);
-        return new TokenStreamComponents(source.getTokenizer(), result);
+        if (stopWords != null) {
+            stream = new StopFilter(stream, stopWords);
+        }
+        return new TokenStreamComponents(tokenizer, stream);
     }
 }

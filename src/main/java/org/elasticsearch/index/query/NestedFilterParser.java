@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -135,7 +136,7 @@ public class NestedFilterParser implements FilterParser {
                 throw new QueryParsingException(parseContext.index(), "[nested] nested object under path [" + path + "] is not of nested type");
             }
 
-            Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter(), null);
+            FixedBitSetFilter childFilter = parseContext.fixedBitSetFilter(objectMapper.nestedTypeFilter());
             usAsParentFilter.filter = childFilter;
             // wrap the child query to only work on the nested path type
             query = new XFilteredQuery(query, childFilter);

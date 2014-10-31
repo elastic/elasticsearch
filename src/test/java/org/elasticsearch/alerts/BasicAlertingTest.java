@@ -8,7 +8,6 @@ package org.elasticsearch.alerts;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.alerts.actions.*;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
-import org.elasticsearch.alerts.scheduler.AlertScheduler;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedAlertTrigger;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -50,9 +49,9 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
     public void testAlerSchedulerStartsProperly() throws Exception {
 
         createIndex("my-index");
-        createIndex(AlertManager.ALERT_INDEX);
+        createIndex(AlertsStore.ALERT_INDEX);
         createIndex(AlertActionManager.ALERT_HISTORY_INDEX);
-        ensureGreen("my-index", AlertManager.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX);
+        ensureGreen("my-index", AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX);
 
         client().preparePutIndexedScript()
                 .setScriptLang("mustache")
@@ -69,9 +68,6 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
         assertThat(templatesResponse.getIndexTemplates().size(), equalTo(1));
         assertThat(templatesResponse.getIndexTemplates().get(0).getName(), equalTo("query"));*/
 
-        AlertScheduler alertScheduler = internalCluster().getInstance(AlertScheduler.class, internalCluster().getMasterName());
-        assertThat(alertScheduler.isRunning(), is(true));
-
         final AlertManager alertManager = internalCluster().getInstance(AlertManager.class, internalCluster().getMasterName());
         assertBusy(new Runnable() {
             @Override
@@ -79,8 +75,6 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
                 assertThat(alertManager.isStarted(), is(true));
             }
         });
-
-
         final AtomicBoolean alertActionInvoked = new AtomicBoolean(false);
         final AlertAction alertAction = new AlertAction() {
             @Override

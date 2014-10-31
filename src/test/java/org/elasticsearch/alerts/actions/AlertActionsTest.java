@@ -54,7 +54,7 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         builder.field(AlertActionState.FIELD_NAME, AlertActionState.ACTION_NEEDED.toString());
         builder.endObject();
         AlertActionRegistry alertActionRegistry = internalCluster().getInstance(AlertActionRegistry.class, internalCluster().getMasterName());
-        AlertActionEntry actionEntry = AlertActionManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry, logger);
+        AlertActionEntry actionEntry = AlertActionManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry);
 
         assertEquals(actionEntry.getVersion(), 0);
         assertEquals(actionEntry.getAlertName(), "testName");

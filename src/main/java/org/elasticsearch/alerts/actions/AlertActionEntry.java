@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.alerts.actions;
 
+import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
+import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,7 +25,7 @@ public class AlertActionEntry implements ToXContent{
     private boolean triggered;
     private DateTime fireTime;
     private AlertTrigger trigger;
-    private String triggeringQuery;
+    private String triggeringSearchRequest;
     private long numberOfResults;
     private List<AlertAction> actions;
     private List<String> indices;
@@ -79,12 +82,12 @@ public class AlertActionEntry implements ToXContent{
         this.trigger = trigger;
     }
 
-    public String getTriggeringQuery() {
-        return triggeringQuery;
+    public String getTriggeringSearchRequest() {
+        return triggeringSearchRequest;
     }
 
-    public void setTriggeringQuery(String triggeringQuery) {
-        this.triggeringQuery = triggeringQuery;
+    public void setTriggeringSearchRequest(String triggeringSearchRequest) {
+        this.triggeringSearchRequest = triggeringSearchRequest;
     }
 
     public long getNumberOfResults() {
@@ -130,20 +133,18 @@ public class AlertActionEntry implements ToXContent{
     protected AlertActionEntry() {
     }
 
-    public AlertActionEntry(String id, long version, String alertName, boolean triggered, DateTime fireTime, DateTime scheduledTime, AlertTrigger trigger,
-                            String queryRan, long numberOfResults, List<AlertAction> actions,
-                            List<String> indices, AlertActionState state) {
-        this.id = id;
-        this.version = version;
-        this.alertName = alertName;
-        this.triggered = triggered;
+    public AlertActionEntry(Alert alert, TriggerResult result, DateTime fireTime, DateTime scheduledTime, AlertActionState state) throws IOException {
+        this.id = alert.alertName() + "#" + scheduledTime.toDateTimeISO();
+        this.version = 1;
+        this.alertName = alert.alertName();
+        this.triggered = result.isTriggered();
         this.fireTime = fireTime;
         this.scheduledTime = scheduledTime;
-        this.trigger = trigger;
-        this.triggeringQuery = queryRan;
-        this.numberOfResults = numberOfResults;
-        this.actions = actions;
-        this.indices = indices;
+        this.trigger = alert.trigger();
+        this.triggeringSearchRequest = XContentHelper.convertToJson(result.getRequest().source(), false, true);
+        this.numberOfResults = result.getResponse().getHits().totalHits();
+        this.actions = alert.actions();
+        this.indices = alert.indices();
         this.entryState = state;
     }
 
@@ -158,7 +159,7 @@ public class AlertActionEntry implements ToXContent{
         historyEntry.field("trigger");
         trigger.toXContent(historyEntry, ToXContent.EMPTY_PARAMS);
         
-        historyEntry.field("queryRan", triggeringQuery);
+        historyEntry.field("queryRan", triggeringSearchRequest);
 
         historyEntry.field("numberOfResults", numberOfResults);
 
@@ -196,7 +197,7 @@ public class AlertActionEntry implements ToXContent{
                 ", triggered=" + triggered +
                 ", fireTime=" + fireTime +
                 ", trigger=" + trigger +
-                ", triggeringQuery='" + triggeringQuery + '\'' +
+                ", triggeringSearchRequest='" + triggeringSearchRequest + '\'' +
                 ", numberOfResults=" + numberOfResults +
                 ", actions=" + actions +
                 ", indices=" + indices +
@@ -225,7 +226,7 @@ public class AlertActionEntry implements ToXContent{
         if (scheduledTime != null ? !scheduledTime.equals(that.scheduledTime) : that.scheduledTime != null)
             return false;
         if (trigger != null ? !trigger.equals(that.trigger) : that.trigger != null) return false;
-        if (triggeringQuery != null ? !triggeringQuery.equals(that.triggeringQuery) : that.triggeringQuery != null)
+        if (triggeringSearchRequest != null ? !triggeringSearchRequest.equals(that.triggeringSearchRequest) : that.triggeringSearchRequest != null)
             return false;
 
         return true;
@@ -238,7 +239,7 @@ public class AlertActionEntry implements ToXContent{
         result = 31 * result + (triggered ? 1 : 0);
         result = 31 * result + (fireTime != null ? fireTime.hashCode() : 0);
         result = 31 * result + (trigger != null ? trigger.hashCode() : 0);
-        result = 31 * result + (triggeringQuery != null ? triggeringQuery.hashCode() : 0);
+        result = 31 * result + (triggeringSearchRequest != null ? triggeringSearchRequest.hashCode() : 0);
         result = 31 * result + (int) (numberOfResults ^ (numberOfResults >>> 32));
         result = 31 * result + (actions != null ? actions.hashCode() : 0);
         result = 31 * result + (indices != null ? indices.hashCode() : 0);

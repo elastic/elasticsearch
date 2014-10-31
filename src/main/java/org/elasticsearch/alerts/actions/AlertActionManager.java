@@ -13,22 +13,24 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.alerts.AlertManager;
-import org.elasticsearch.alerts.triggers.AlertTrigger;
+import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertsStore;
+import org.elasticsearch.alerts.LoadingListener;
 import org.elasticsearch.alerts.triggers.TriggerManager;
+import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -36,13 +38,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  */
-public class AlertActionManager {
+public class AlertActionManager extends AbstractComponent {
 
     public static final String ALERT_NAME_FIELD = "alertName";
     public static final String TRIGGERED_FIELD = "triggered";
@@ -57,23 +58,20 @@ public class AlertActionManager {
     public static final String ALERT_HISTORY_TYPE = "alerthistory";
 
     private final Client client;
-    private final AlertManager alertManager;
-    private final AlertActionRegistry actionRegistry;
     private final ThreadPool threadPool;
+    private final AlertsStore alertsStore;
+    private final AlertActionRegistry actionRegistry;
 
-    private final ESLogger logger = Loggers.getLogger(AlertActionManager.class);
-
-    private BlockingQueue<AlertActionEntry> jobsToBeProcessed = new LinkedBlockingQueue<>();
-
-    public final AtomicBoolean running = new AtomicBoolean(false);
-    private Executor readerExecutor;
+    private final BlockingQueue<AlertActionEntry> jobsToBeProcessed = new LinkedBlockingQueue<>();
+    private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
 
     private static AlertActionEntry END_ENTRY = new AlertActionEntry();
 
-    class AlertHistoryRunnable implements Runnable {
-        AlertActionEntry entry;
+    private class AlertHistoryRunnable implements Runnable {
 
-        AlertHistoryRunnable(AlertActionEntry entry) {
+        private final AlertActionEntry entry;
+
+        private AlertHistoryRunnable(AlertActionEntry entry) {
             this.entry = entry;
         }
 
@@ -81,7 +79,22 @@ public class AlertActionManager {
         public void run() {
             try {
                 if (claimAlertHistoryEntry(entry)) {
-                    alertManager.doAction(alertManager.getAlertForName(entry.getAlertName()), entry, entry.getScheduledTime());
+                    Alert alert = alertsStore.getAlert(entry.getAlertName());
+                    DateTime lastActionFire = alert.lastActionFire();
+                    DateTime scheduledTime = entry.getScheduledTime();
+                    long msSinceLastAction = scheduledTime.getMillis() - lastActionFire.getMillis();
+                    logger.trace("last action fire [{}]", lastActionFire);
+                    logger.trace("msSinceLastAction [{}]", msSinceLastAction);
+
+                    if (alert.timePeriod().getMillis() > msSinceLastAction) {
+                        logger.debug("Not firing action because it was fired in the timePeriod");
+                    } else {
+                        actionRegistry.doAction(alert, entry);
+                        logger.debug("Did action !");
+
+                        alert.lastActionFire(scheduledTime);
+                        alertsStore.updateAlert(alert);
+                    }
                     updateHistoryEntry(entry, AlertActionState.ACTION_PERFORMED);
                 } else {
                     logger.warn("Unable to claim alert history entry" + entry);
@@ -89,53 +102,32 @@ public class AlertActionManager {
             } catch (Throwable t) {
                 logger.error("Failed to execute alert action", t);
             }
-
-
         }
     }
 
-    class QueueLoaderThread implements Runnable {
-        @Override
-        public void run() {
-            boolean success = false;
-            do {
-                try {
-                    success = loadQueue();
-                } catch (Exception e) {
-                    logger.error("Unable to load the job queue", e);
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ie) {
+    private class QueueReaderThread implements Runnable {
 
-                    }
-                }
-            } while (!success);
-        }
-    }
-
-    class QueueReaderThread implements Runnable {
         @Override
         public void run() {
             try {
                 logger.debug("Starting thread to read from the job queue");
-                while (running.get()) {
+                while (started()) {
                     AlertActionEntry entry = null;
                     do {
                         try {
                             entry = jobsToBeProcessed.take();
                         } catch (InterruptedException ie) {
-                            if (!running.get()) {
+                            if (!started()) {
                                 break;
                             }
                         }
                     } while (entry == null);
 
-                    if (!running.get() || entry == END_ENTRY) {
+                    if (!started() || entry == END_ENTRY) {
                         logger.debug("Stopping thread to read from the job queue");
+                        return;
                     }
-
-                    threadPool.executor(ThreadPool.Names.MANAGEMENT)
-                            .execute(new AlertHistoryRunnable(entry));
+                    threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AlertHistoryRunnable(entry));
                 }
             } catch (Throwable t) {
                 logger.error("Error during reader thread", t);
@@ -143,26 +135,66 @@ public class AlertActionManager {
         }
     }
 
-    public AlertActionManager(Client client, AlertManager alertManager,
-                              AlertActionRegistry actionRegistry,
-                              ThreadPool threadPool) {
+    @Inject
+    public AlertActionManager(Settings settings, Client client, AlertActionRegistry actionRegistry, ThreadPool threadPool, AlertsStore alertsStore) {
+        super(settings);
         this.client = client;
-        this.alertManager = alertManager;
         this.actionRegistry = actionRegistry;
         this.threadPool = threadPool;
+        this.alertsStore = alertsStore;
     }
 
-    public void doStart() {
-        if (running.compareAndSet(false, true)) {
-            logger.info("Starting job queue");
-            readerExecutor = threadPool.executor(ThreadPool.Names.GENERIC);
-            readerExecutor.execute(new QueueReaderThread());
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(new QueueLoaderThread());
+    public void start(ClusterState state, final LoadingListener listener) {
+        IndexMetaData indexMetaData = state.getMetaData().index(ALERT_HISTORY_INDEX);
+        if (indexMetaData != null) {
+            if (state.routingTable().index(ALERT_HISTORY_INDEX).allPrimaryShardsActive()) {
+                if (this.state.compareAndSet(State.STOPPED, State.LOADING)) {
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            boolean success = false;
+                            try {
+                                success = loadQueue();
+                            } catch (Exception e) {
+                                logger.error("Unable to load unfinished jobs into the job queue", e);
+                            } finally {
+                                if (success) {
+                                    if (AlertActionManager.this.state.compareAndSet(State.LOADING, State.STARTED)) {
+                                        doStart();
+                                        listener.onSuccess();
+                                    }
+                                } else {
+                                    if (AlertActionManager.this.state.compareAndSet(State.LOADING, State.STOPPED)) {
+                                        listener.onFailure();
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        } else {
+            if (this.state.compareAndSet(State.STOPPED, State.STARTED)) {
+                doStart();
+                listener.onSuccess();
+            }
         }
     }
 
-    public void doStop() {
-        stopIfRunning();
+    public void stop() {
+        if (state.compareAndSet(State.STARTED, State.STOPPED)) {
+            logger.info("Stopping job queue");
+            jobsToBeProcessed.add(END_ENTRY);
+        }
+    }
+
+    public boolean started() {
+        return state.get() == State.STARTED;
+    }
+
+    private void doStart() {
+        logger.info("Starting job queue");
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(new QueueReaderThread());
     }
 
     public boolean loadQueue() {
@@ -196,11 +228,11 @@ public class AlertActionManager {
     }
 
     protected AlertActionEntry parseHistory(String historyId, BytesReference source, long version) {
-        return parseHistory(historyId, source, version, actionRegistry, logger);
+        return parseHistory(historyId, source, version, actionRegistry);
     }
 
     protected static AlertActionEntry parseHistory(String historyId, BytesReference source, long version,
-                                                   AlertActionRegistry actionRegistry, ESLogger logger) {
+                                                   AlertActionRegistry actionRegistry) {
         AlertActionEntry entry = new AlertActionEntry();
         entry.setId(historyId);
         entry.setVersion(version);
@@ -249,7 +281,7 @@ public class AlertActionManager {
                             entry.setScheduledTime(DateTime.parse(parser.text()));
                             break;
                         case QUERY_RAN_FIELD:
-                            entry.setTriggeringQuery(parser.text());
+                            entry.setTriggeringSearchRequest(parser.text());
                             break;
                         case NUMBER_OF_RESULTS_FIELD:
                             entry.setNumberOfResults(parser.longValue());
@@ -261,7 +293,7 @@ public class AlertActionManager {
                             throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else {
-
+                    throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
                 }
             }
         } catch (IOException e) {
@@ -271,24 +303,17 @@ public class AlertActionManager {
     }
 
 
-    public boolean addHistory(String alertName, boolean triggered,
-                              DateTime fireTime, DateTime scheduledFireTime, SearchRequestBuilder triggeringQuery,
-                              AlertTrigger trigger, long numberOfResults,
-                              List<AlertAction> actions,
-                              @Nullable List<String> indices) throws IOException {
-
-        if (!client.admin().indices().prepareExists(ALERT_HISTORY_INDEX).execute().actionGet().isExists()) {
-            ClusterHealthStatus chs = createAlertHistoryIndex();
+    public void addAlertAction(Alert alert, TriggerResult result, DateTime fireTime, DateTime scheduledFireTime) throws IOException {
+        if (!client.admin().indices().prepareExists(ALERT_HISTORY_INDEX).get().isExists()) {
+            createAlertHistoryIndex();
         }
 
         AlertActionState state = AlertActionState.NO_ACTION_NEEDED;
-        if (triggered && !actions.isEmpty()) {
+        if (result.isTriggered() && !alert.actions().isEmpty()) {
             state = AlertActionState.ACTION_NEEDED;
         }
 
-        AlertActionEntry entry = new AlertActionEntry(alertName + " " + scheduledFireTime.toDateTimeISO(), 1, alertName, triggered, fireTime, scheduledFireTime, trigger,
-                triggeringQuery.toString(), numberOfResults, actions, indices, state);
-
+        AlertActionEntry entry = new AlertActionEntry(alert, result, fireTime, scheduledFireTime, state);
         XContentBuilder historyEntry = XContentFactory.jsonBuilder();
         entry.toXContent(historyEntry, ToXContent.EMPTY_PARAMS);
 
@@ -298,29 +323,12 @@ public class AlertActionManager {
         indexRequest.id(entry.getId());
         indexRequest.source(historyEntry);
         indexRequest.listenerThreaded(false);
-        indexRequest.operationThreaded(false);
-        indexRequest.refresh(true); //Always refresh after indexing an alert
         indexRequest.opType(IndexRequest.OpType.CREATE);
-        try {
-            if (client.index(indexRequest).actionGet().isCreated()) {
-                jobsToBeProcessed.add(entry);
-                return true;
-            } else {
-                return false;
-            }
-        } catch (DocumentAlreadyExistsException daee){
-            logger.warn("Someone has already created a history entry for this alert run");
-            return false;
+        client.index(indexRequest).actionGet();
+        if (state != AlertActionState.NO_ACTION_NEEDED) {
+            jobsToBeProcessed.add(entry);
         }
     }
-
-    private void stopIfRunning() {
-        if (running.compareAndSet(true, false)) {
-            logger.info("Stopping job queue");
-            jobsToBeProcessed.add(END_ENTRY);
-        }
-    }
-
 
     private ClusterHealthStatus createAlertHistoryIndex() {
         CreateIndexResponse cir = client.admin().indices().prepareCreate(ALERT_HISTORY_INDEX).addMapping(ALERT_HISTORY_TYPE).execute().actionGet(); //TODO FIX MAPPINGS
@@ -412,6 +420,12 @@ public class AlertActionManager {
         return true;
     }
 
+    private enum State {
 
+        STOPPED,
+        LOADING,
+        STARTED
+
+    }
 
 }

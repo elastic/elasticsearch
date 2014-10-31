@@ -23,10 +23,8 @@ public class Alert implements ToXContent {
     private TimeValue timePeriod;
     private List<AlertAction> actions;
     private String schedule;
-    private DateTime lastRan;
     private DateTime lastActionFire;
     private long version;
-    private DateTime running;
     private boolean enabled;
     private boolean simpleQuery;
     private String timestampString = "@timestamp";
@@ -61,14 +59,6 @@ public class Alert implements ToXContent {
 
     public void enabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public DateTime running() {
-        return running;
-    }
-
-    public void running(DateTime running) {
-        this.running = running;
     }
 
     public long version() {
@@ -137,14 +127,6 @@ public class Alert implements ToXContent {
         this.schedule = schedule;
     }
 
-    public DateTime lastRan() {
-        return lastRan;
-    }
-
-    public void lastRan(DateTime lastRan) {
-        this.lastRan = lastRan;
-    }
-
     public Alert() {
     }
 
@@ -156,11 +138,9 @@ public class Alert implements ToXContent {
         this.trigger = trigger;
         this.timePeriod = timePeriod;
         this.actions = actions;
-        this.lastRan = lastRan;
         this.schedule = schedule;
         this.indices = indices;
         this.version = version;
-        this.running = running;
         this.enabled = enabled;
         this.simpleQuery = simpleQuery;
     }
@@ -178,12 +158,6 @@ public class Alert implements ToXContent {
         }
         if (timePeriod != null) {
             builder.field(AlertsStore.TIMEPERIOD_FIELD.getPreferredName(), timePeriod);
-        }
-        if (lastRan != null) {
-            builder.field(AlertsStore.LASTRAN_FIELD.getPreferredName(), lastRan);
-        }
-        if (running != null) {
-            builder.field(AlertsStore.CURRENTLY_RUNNING.getPreferredName(), running);
         }
         builder.field(AlertsStore.ENABLED.getPreferredName(), enabled);
         builder.field(AlertsStore.SIMPLE_QUERY.getPreferredName(), simpleQuery);

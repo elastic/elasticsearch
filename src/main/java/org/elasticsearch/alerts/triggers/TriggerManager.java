@@ -7,17 +7,26 @@ package org.elasticsearch.alerts.triggers;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.AlertManager;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.index.query.FilteredQueryBuilder;
+import org.elasticsearch.index.query.RangeFilterBuilder;
+import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 
@@ -26,7 +35,7 @@ import java.util.Map;
  */
 public class TriggerManager extends AbstractComponent {
 
-    private final AlertManager alertManager;
+    private final Client client;
     private final ScriptService scriptService;
 
     public static AlertTrigger parseTrigger(XContentParser parser) throws IOException {
@@ -78,13 +87,58 @@ public class TriggerManager extends AbstractComponent {
     }
 
     @Inject
-    public TriggerManager(Settings settings, AlertManager alertManager, ScriptService scriptService) {
+    public TriggerManager(Settings settings, Client client, ScriptService scriptService) {
         super(settings);
-        this.alertManager = alertManager;
+        this.client = client;
         this.scriptService = scriptService;
     }
 
-    public boolean doScriptTrigger(ScriptedAlertTrigger scriptTrigger, SearchResponse response) {
+    public TriggerResult isTriggered(Alert alert, DateTime scheduledFireTime) throws Exception {
+        SearchRequest request = createClampedRequest(scheduledFireTime, alert);
+        if (logger.isTraceEnabled()) {
+            logger.trace("For alert [{}] running query for [{}]", alert.alertName(), XContentHelper.convertToJson(request.source(), false, true));
+        }
+
+        SearchResponse response = client.search(request).get();
+        logger.debug("Ran alert [{}] and got hits : [{}]", alert.alertName(), response.getHits().getTotalHits());
+        switch (alert.trigger().triggerType()) {
+            case NUMBER_OF_EVENTS:
+                return doSimpleTrigger(alert, request, response);
+            case SCRIPT:
+                return doScriptTrigger(alert, request, response);
+            default:
+                throw new ElasticsearchIllegalArgumentException("Bad value for trigger.triggerType [" + alert.trigger().triggerType() + "]");
+        }
+    }
+
+    private TriggerResult doSimpleTrigger(Alert alert, SearchRequest request, SearchResponse response) {
+        boolean triggered = false;
+        long testValue = response.getHits().getTotalHits();
+        int triggerValue = alert.trigger().value();
+        //Move this to SimpleTrigger
+        switch (alert.trigger().trigger()) {
+            case GREATER_THAN:
+                triggered = testValue > triggerValue;
+                break;
+            case LESS_THAN:
+                triggered = testValue < triggerValue;
+                break;
+            case EQUAL:
+                triggered = testValue == triggerValue;
+                break;
+            case NOT_EQUAL:
+                triggered = testValue != triggerValue;
+                break;
+            case RISES_BY:
+            case FALLS_BY:
+                triggered = false; //TODO FIX THESE
+                break;
+        }
+        return new TriggerResult(triggered, request, response);
+    }
+
+    private TriggerResult doScriptTrigger(Alert alert, SearchRequest request, SearchResponse response) {
+        boolean triggered = false;
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
@@ -92,54 +146,45 @@ public class TriggerManager extends AbstractComponent {
             builder.endObject();
             Map<String, Object> responseMap = XContentHelper.convertToMap(builder.bytes(), false).v2();
 
-            ExecutableScript executable = scriptService.executable(scriptTrigger.scriptLang, scriptTrigger.script,
-                    scriptTrigger.scriptType, responseMap);
+            ScriptedAlertTrigger scriptTrigger = alert.trigger().scriptedTrigger();
+            ExecutableScript executable = scriptService.executable(
+                    scriptTrigger.scriptLang, scriptTrigger.script, scriptTrigger.scriptType, responseMap
+            );
 
             Object returnValue = executable.run();
-            logger.warn("Returned [{}] from script", returnValue);
+            logger.trace("Returned [{}] from script", returnValue);
             if (returnValue instanceof Boolean) {
-                return (Boolean) returnValue;
+                triggered = (Boolean) returnValue;
             } else {
-                throw new ElasticsearchIllegalStateException("Trigger script [" + scriptTrigger.script + "] " +
-                        "did not return a Boolean");
+                throw new ElasticsearchIllegalStateException("Trigger script [" + scriptTrigger.script + "] did not return a Boolean");
             }
         } catch (Exception e ){
             logger.error("Failed to execute script trigger", e);
         }
-        return false;
+        return new TriggerResult(triggered, request, response);
     }
 
-    public boolean isTriggered(String alertName, SearchResponse response) {
-        Alert alert = this.alertManager.getAlertForName(alertName);
-        if (alert == null){
-            logger.warn("Could not find alert named [{}] in alert manager perhaps it has been deleted.", alertName);
-            return false;
+    private SearchRequest createClampedRequest(DateTime scheduledFireTime, Alert alert){
+        DateTime clampEnd = new DateTime(scheduledFireTime);
+        DateTime clampStart = clampEnd.minusSeconds((int)alert.timePeriod().seconds());
+        SearchRequest request = new SearchRequest(alert.indices().toArray(new String[0]));
+        if (alert.simpleQuery()) {
+            TemplateQueryBuilder queryBuilder = new TemplateQueryBuilder(alert.queryName(), ScriptService.ScriptType.INDEXED, new HashMap<String, Object>());
+            RangeFilterBuilder filterBuilder = new RangeFilterBuilder(alert.timestampString());
+            filterBuilder.gte(clampStart);
+            filterBuilder.lt(clampEnd);
+            request.source(new SearchSourceBuilder().query(new FilteredQueryBuilder(queryBuilder, filterBuilder)));
+        } else {
+            //We can't just wrap the template here since it probably contains aggs or something else that doesn't play nice with FilteredQuery
+            Map<String,Object> fromToMap = new HashMap<>();
+            fromToMap.put("from", clampStart); //@TODO : make these parameters configurable ? Don't want to bloat the API too much tho
+            fromToMap.put("to", clampEnd);
+            //Go and get the search template from the script service :(
+            ExecutableScript script =  scriptService.executable("mustache", alert.queryName(), ScriptService.ScriptType.INDEXED, fromToMap);
+            BytesReference requestBytes = (BytesReference)(script.run());
+            request.source(requestBytes, false);
         }
-        long testValue;
-        switch (alert.trigger().triggerType()) {
-            case NUMBER_OF_EVENTS:
-                testValue = response.getHits().getTotalHits();
-                break;
-            case SCRIPT:
-                return doScriptTrigger(alert.trigger().scriptedTrigger(), response);
-            default:
-                throw new ElasticsearchIllegalArgumentException("Bad value for trigger.triggerType [" + alert.trigger().triggerType() + "]");
-        }
-        int triggerValue = alert.trigger().value();
-        //Move this to SimpleTrigger
-        switch (alert.trigger().trigger()) {
-            case GREATER_THAN:
-                return testValue > triggerValue;
-            case LESS_THAN:
-                return testValue < triggerValue;
-            case EQUAL:
-                return testValue == triggerValue;
-            case NOT_EQUAL:
-                return testValue != triggerValue;
-            case RISES_BY:
-            case FALLS_BY:
-                return false; //TODO FIX THESE
-        }
-        return false;
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
+        return request;
     }
 }

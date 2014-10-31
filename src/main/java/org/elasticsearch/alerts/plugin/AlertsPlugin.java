@@ -6,9 +6,7 @@
 package org.elasticsearch.alerts.plugin;
 
 import org.elasticsearch.alerts.AlertingModule;
-import org.elasticsearch.alerts.scheduler.AlertScheduler;
 import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
@@ -27,13 +25,6 @@ public class AlertsPlugin extends AbstractPlugin {
 
     @Override public String description() {
         return "Elasticsearch Alerts";
-    }
-
-    @Override
-    public Collection<java.lang.Class<? extends LifecycleComponent>> services() {
-        Collection<java.lang.Class<? extends LifecycleComponent>> services = Lists.newArrayList();
-        services.add(AlertScheduler.class);
-        return services;
     }
 
     @Override

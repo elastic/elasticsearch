@@ -136,12 +136,14 @@ See the {client}/net-api/current/index.html[official Elasticsearch .NET client].
 [[community-go]]
 === Go
 
+* https://github.com/olivere/elastic[elastic]:
+  Elasticsearch client for Google Go.
+
 * https://github.com/mattbaird/elastigo[elastigo]:
   Go client.
 
 * https://github.com/belogik/goes[goes]:
   Go lib.
-
 
 [[community-erlang]]
 === Erlang

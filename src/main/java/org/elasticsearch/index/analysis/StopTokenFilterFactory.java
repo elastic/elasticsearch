@@ -55,21 +55,16 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
         this.stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, ignoreCase);
         this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", true);
-        if (!enablePositionIncrements && version.onOrAfter(Version.LUCENE_4_4)) {
+        if (enablePositionIncrements == false) {
             throw new ElasticsearchIllegalArgumentException("[enable_position_increments: false] is not supported anymore as of Lucene 4.4 as it can create broken token streams."
-                    + " Please fix your analysis chain or use an older compatibility version (<=4.3) but beware that it might cause unexpected behavior.");
+                    + " Please fix your analysis chain.");
         }
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         if (removeTrailing) {
-            StopFilter filter = new StopFilter(tokenStream, stopWords);
-            if (enablePositionIncrements == false) {
-                // nocommit: what happened here? 
-                throw new UnsupportedOperationException();
-            }
-            return filter;
+            return new StopFilter(tokenStream, stopWords);
         } else {
             return new SuggestStopFilter(tokenStream, stopWords);
         }
@@ -83,7 +78,4 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         return ignoreCase;
     }
 
-    public boolean enablePositionIncrements() {
-        return this.enablePositionIncrements;
-    }
 }

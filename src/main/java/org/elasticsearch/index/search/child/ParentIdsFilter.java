@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.elasticsearch.common.lucene.docset.DocIdSets;
-
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.DocIdSet;
@@ -28,6 +26,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
@@ -47,7 +46,7 @@ import java.util.List;
  */
 final class ParentIdsFilter extends Filter {
 
-    static Filter createShortCircuitFilter(Filter nonNestedDocsFilter, SearchContext searchContext,
+    static Filter createShortCircuitFilter(BitDocIdSetFilter nonNestedDocsFilter, SearchContext searchContext,
                                            String parentType, SortedDocValues globalValues,
                                            LongBitSet parentOrds, long numFoundParents) {
         if (numFoundParents == 1) {
@@ -80,7 +79,7 @@ final class ParentIdsFilter extends Filter {
         }
     }
 
-    static Filter createShortCircuitFilter(Filter nonNestedDocsFilter, SearchContext searchContext,
+    static Filter createShortCircuitFilter(BitDocIdSetFilter nonNestedDocsFilter, SearchContext searchContext,
                                            String parentType, SortedDocValues globalValues,
                                            LongHash parentIdxs, long numFoundParents) {
         if (numFoundParents == 1) {
@@ -114,10 +113,10 @@ final class ParentIdsFilter extends Filter {
     }
 
     private final BytesRef parentTypeBr;
-    private final Filter nonNestedDocsFilter;
+    private final BitDocIdSetFilter nonNestedDocsFilter;
     private final BytesRefHash parentIds;
 
-    private ParentIdsFilter(String parentType, Filter nonNestedDocsFilter, BytesRefHash parentIds) {
+    private ParentIdsFilter(String parentType, BitDocIdSetFilter nonNestedDocsFilter, BytesRefHash parentIds) {
         this.nonNestedDocsFilter = nonNestedDocsFilter;
         this.parentTypeBr = new BytesRef(parentType);
         this.parentIds = parentIds;
@@ -140,8 +139,7 @@ final class ParentIdsFilter extends Filter {
 
         BitSet nonNestedDocs = null;
         if (nonNestedDocsFilter != null) {
-            // nocommit: can we remove this cast?
-            nonNestedDocs = (((BitDocIdSetFilter) nonNestedDocsFilter).getDocIdSet(context)).bits();
+            nonNestedDocs = nonNestedDocsFilter.getDocIdSet(context).bits();
         }
 
         DocsEnum docsEnum = null;

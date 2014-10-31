@@ -50,6 +50,30 @@ import static org.elasticsearch.license.core.ESLicenses.reduceAndMap;
  * - LicensesManagerService - responsible for managing signed and one-time-trial licenses
  * - LicensesClientService - responsible for feature registration and notification to consumer plugin(s)
  * <p/>
+ *
+ * Notification Scheme:
+ *
+ *  All registered feature(s) are notified using {@link #notifyFeatures(LicensesMetaData)} (depends on the current
+ *  {@link #registeredListeners}). It is idempotent with respect to all the feature listeners.
+ *
+ *  The notification scheduling is done by {@link #notifyFeaturesAndScheduleNotification(LicensesMetaData)} which does the following:
+ *   - calls {@link #notifyFeatures(LicensesMetaData)} to notify all registered feature(s)
+ *   - if there is any license(s) with a future expiry date in the current cluster state:
+ *      - schedules a delayed {@link LicensingClientNotificationJob} on the MIN of all the expiry dates of all the registered feature(s)
+ *
+ *  The {@link LicensingClientNotificationJob} calls {@link #notifyFeaturesAndScheduleNotification(LicensesMetaData)} to schedule
+ *  another delayed {@link LicensingClientNotificationJob} as stated above. It is a no-op in case of a global block on
+ *  {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK}
+ *
+ *  Upon successful registration of a new feature:
+ *   - {@link #notifyFeaturesAndScheduleNotification(LicensesMetaData)} is called
+ *
+ *  Upon clusterChanged():
+ *   - {@link #notifyFeaturesAndScheduleNotification(LicensesMetaData)} is called if:
+ *    - new trial/signed license(s) are found in the cluster state meta data
+ *    - if new feature(s) are added to the registeredListener
+ *    - if the previous cluster state had a global block on {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK}
+ *   - no-op in case of global block on {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK}
  */
 @Singleton
 public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener, LicensesManagerService, LicensesClientService {
@@ -516,7 +540,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             logger.info("successfully registered listener for: " + listenerHolder.feature);
             registeredListeners.add(listenerHolder);
         } else {
-            logger.info("add listener for: " + listenerHolder.feature + " to pending registration queue");
+           logger.info("add listener for: " + listenerHolder.feature + " to pending registration queue");
             pendingListeners.add(listenerHolder);
         }
     }
@@ -644,7 +668,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      * the notification is not run, instead the feature(s) would be notified on the next
      * {@link #clusterChanged(org.elasticsearch.cluster.ClusterChangedEvent)} with no global block
      */
-    public class LicensingClientNotificationJob implements Runnable {
+    private class LicensingClientNotificationJob implements Runnable {
 
         public LicensingClientNotificationJob() {}
 
@@ -656,14 +680,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             ClusterState currentClusterState = clusterService.state();
             if (!currentClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
                 LicensesMetaData currentLicensesMetaData = currentClusterState.metaData().custom(LicensesMetaData.TYPE);
-                long nextScheduleDelay = notifyFeatures(currentLicensesMetaData);
-                if (nextScheduleDelay != -1l) {
-                    try {
-                        scheduleNextNotification(nextScheduleDelay);
-                    } catch (EsRejectedExecutionException ex) {
-                        logger.info("Reschedule licensing client notification job was rejected", ex);
-                    }
-                }
+                notifyFeaturesAndScheduleNotification(currentLicensesMetaData);
             } else {
                 logger.info("skip notification [STATE_NOT_RECOVERED_BLOCK]");
             }

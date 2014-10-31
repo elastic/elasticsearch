@@ -121,17 +121,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
                                            Collections.<String, String>emptyMap() // attributes
                                            );
         } else {
-            // nocommit: don't clone the fieldinfo, this is way too scary to maintain.
-            newVersionInfo = new FieldInfo(VersionFieldMapper.NAME,               // field name
-                                           versionInfo.number,                    // field number
-                                           versionInfo.hasVectors(),              // store term vectors
-                                           versionInfo.omitsNorms(),              // omit norms
-                                           versionInfo.hasPayloads(),             // store payloads
-                                           versionInfo.getIndexOptions(),         // index options
-                                           versionInfo.getDocValuesType(),        // docvalues
-                                           versionInfo.getDocValuesGen(),         // docvalues generation
-                                           versionInfo.attributes()               // attributes
-                                           );
+            newVersionInfo = versionInfo;
         }
         newVersionInfo.checkConsistency(); // fail merge immediately if above code is wrong
         final ArrayList<FieldInfo> fieldInfoList = new ArrayList<>();

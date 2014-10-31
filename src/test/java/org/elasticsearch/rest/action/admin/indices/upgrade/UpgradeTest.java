@@ -124,8 +124,6 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             ensureGreen(indexName);
         }
         logger.debug("--> Upgrading nodes");
-        logClusterState();
-        logSegmentsState(null);
         backwardsCluster().allowOnAllNodes(indexNames);
         ensureGreen();
         // disable allocation entirely until all nodes are upgraded
@@ -139,18 +137,15 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         builder.put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, EnableAllocationDecider.Allocation.ALL);
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(builder).get();
         ensureGreen();
-        logger.debug("--> Nodes upgrade complete");
-        logClusterState();
-        logSegmentsState(null);
+        logger.info("--> Nodes upgrade complete");
+        logSegmentsState();
         
         final HttpRequestBuilder httpClient = httpClient();
 
         assertNotUpgraded(httpClient, null);
         final String indexToUpgrade = "test" + randomInt(numIndexes - 1);
         
-        logger.debug("--> Running upgrade on index " + indexToUpgrade);
-        logClusterState();
-        logSegmentsState(indexToUpgrade);
+        logger.info("--> Running upgrade on index " + indexToUpgrade);
         runUpgrade(httpClient, indexToUpgrade);
         awaitBusy(new Predicate<Object>() {
             @Override
@@ -162,30 +157,13 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
                 }
             }
         });
-        logger.debug("--> Single index upgrade complete");
-        logClusterState();
-        logSegmentsState(indexToUpgrade);
+        logger.info("--> Single index upgrade complete");
         
-        logger.debug("--> Running upgrade on the rest of the indexes");
-        logClusterState();
-        logSegmentsState(null);
+        logger.info("--> Running upgrade on the rest of the indexes");
         runUpgrade(httpClient, null, "wait_for_completion", "true");
-        logger.debug("--> Full upgrade complete");
-        logClusterState();
-        logSegmentsState(null);
+        logSegmentsState();
+        logger.info("--> Full upgrade complete");
         assertUpgraded(httpClient, null);
-    }
-
-    void logSegmentsState(String index) throws Exception {
-        // double check using the segments api that all segments are actually upgraded
-        IndicesSegmentResponse segsRsp;
-        if (index == null) {
-            segsRsp = client().admin().indices().prepareSegments().get();
-        } else {
-            segsRsp = client().admin().indices().prepareSegments(index).get();
-        }
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        logger.debug("Segments State: \n\n" + segsRsp.toXContent(builder.prettyPrint(), ToXContent.EMPTY_PARAMS).string());
     }
     
     static String upgradePath(String index) {

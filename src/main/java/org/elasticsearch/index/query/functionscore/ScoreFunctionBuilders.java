@@ -80,6 +80,14 @@ public class ScoreFunctionBuilders {
     public static RandomScoreFunctionBuilder randomFunction(int seed) {
         return (new RandomScoreFunctionBuilder()).seed(seed);
     }
+
+    public static RandomScoreFunctionBuilder randomFunction(long seed) {
+        return (new RandomScoreFunctionBuilder()).seed(seed);
+    }
+
+    public static RandomScoreFunctionBuilder randomFunction(String seed) {
+        return (new RandomScoreFunctionBuilder()).seed(seed);
+    }
     
     public static WeightBuilder weightFactorFunction(float weight) {
         return (WeightBuilder)(new WeightBuilder().setWeight(weight));

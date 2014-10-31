@@ -28,7 +28,7 @@ import java.io.IOException;
  */
 public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder {
 
-    private Integer seed = null;
+    private Object seed = null;
 
     public RandomScoreFunctionBuilder() {
     }
@@ -49,11 +49,33 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder {
         return this;
     }
 
+    /**
+     * seed variant taking a long value.
+     * @see {@link #seed(int)}
+     */
+    public RandomScoreFunctionBuilder seed(long seed) {
+        this.seed = seed;
+        return this;
+    }
+
+    /**
+     * seed variant taking a long value.
+     * @see {@link #seed(int)}
+     */
+    public RandomScoreFunctionBuilder seed(String seed) {
+        this.seed = seed;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
-        if (seed != null) {
-            builder.field("seed", seed.intValue());
+        if (seed instanceof Integer) {
+            builder.field("seed", ((Integer)seed).intValue());
+        } else if (seed instanceof Long) {
+            builder.field("seed", ((Long)seed).longValue());
+        } else if (seed instanceof String) {
+            builder.field("seed", (String)seed);
         }
         builder.endObject();
     }

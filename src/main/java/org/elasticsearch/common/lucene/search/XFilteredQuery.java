@@ -234,23 +234,14 @@ public final class XFilteredQuery extends Query {
             return super.filteredScorer(context, weight, docIdSet);
         }
 
-        /**
-         * Expert: decides if a filter should be executed as "random-access" or not.
-         * random-access means the filter "filters" in a similar way as deleted docs are filtered
-         * in Lucene. This is faster when the filter accepts many documents.
-         * However, when the filter is very sparse, it can be faster to execute the query+filter
-         * as a conjunction in some cases.
-         * <p/>
-         * The default implementation returns <code>true</code> if the first document accepted by the
-         * filter is < threshold, if threshold is -1 (the default), then it checks for < 100.
-         */
-        protected boolean useRandomAccess(Bits bits, int firstFilterDoc) {
-            // "default"
-            if (threshold == -1) {
-                return firstFilterDoc < 100;
-            }
-            //TODO once we have a cost API on filters and scorers we should rethink this heuristic
-            return firstFilterDoc < threshold;
+        @Override
+        protected boolean useRandomAccess(Bits bits, long filterCost) {
+          int multiplier = threshold;
+          if (threshold == -1) {
+              // default
+              multiplier = 100;
+          }
+          return filterCost * multiplier > bits.length();
         }
     }
 

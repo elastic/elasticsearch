@@ -3,24 +3,22 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.license.plugin;
+package org.elasticsearch.license.plugin.consumer;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
 
 import java.util.Collection;
 
-public class TestConsumerPlugin extends AbstractPlugin {
+public abstract class TestConsumerPluginBase extends AbstractPlugin {
 
     private final boolean isEnabled;
 
-    @Inject
-    public TestConsumerPlugin(Settings settings) {
+    public TestConsumerPluginBase(Settings settings) {
         if (DiscoveryNode.clientNode(settings)) {
             // Enable plugin only on node clients
             this.isEnabled = "node".equals(settings.get(Client.CLIENT_TYPE_SETTING));
@@ -31,7 +29,7 @@ public class TestConsumerPlugin extends AbstractPlugin {
 
     @Override
     public String name() {
-        return "test_plugin";
+        return pluginName();
     }
 
     @Override
@@ -44,8 +42,12 @@ public class TestConsumerPlugin extends AbstractPlugin {
     public Collection<Class<? extends LifecycleComponent>> services() {
         Collection<Class<? extends LifecycleComponent>> services = Lists.newArrayList();
         if (isEnabled) {
-            services.add(TestPluginService.class);
+            services.add(service());
         }
         return services;
     }
+
+    protected abstract Class<? extends LifecycleComponent> service();
+
+    protected abstract String pluginName();
 }

@@ -8,6 +8,8 @@ package org.elasticsearch.license.plugin;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.consumer.TestConsumerPlugin1;
+import org.elasticsearch.license.plugin.consumer.TestPluginService1;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -27,8 +29,8 @@ public class LicensesServiceNodeTests extends AbstractLicensesIntegrationTests {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("test_consumer_plugin.trial_license_duration_in_seconds", 10)
-                .putArray("plugin.types", LicensePlugin.class.getName(), TestConsumerPlugin.class.getName())
+                .put(TestConsumerPlugin1.NAME + ".trial_license_duration_in_seconds", 5)
+                .putArray("plugin.types", LicensePlugin.class.getName(), TestConsumerPlugin1.class.getName())
                 .put(InternalNode.HTTP_ENABLED, true)
                 .build();
     }
@@ -36,11 +38,11 @@ public class LicensesServiceNodeTests extends AbstractLicensesIntegrationTests {
     @Test
     @TestLogging("_root:DEBUG")
     public void testPluginStatus() throws Exception {
-        final Iterable<TestPluginService> testPluginServices = internalCluster().getDataNodeInstances(TestPluginService.class);
+        final Iterable<TestPluginService1> testPluginServices = internalCluster().getDataNodeInstances(TestPluginService1.class);
         assertThat(awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
-                for (TestPluginService pluginService : testPluginServices) {
+                for (TestPluginService1 pluginService : testPluginServices) {
                     if (!pluginService.enabled()) {
                         return false;
                     }

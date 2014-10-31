@@ -16,12 +16,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
+import org.elasticsearch.license.plugin.consumer.TestPluginService1;
+import org.elasticsearch.license.plugin.consumer.TestPluginService2;
+import org.elasticsearch.license.plugin.consumer.TestPluginServiceBase;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -110,18 +113,37 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
         }, 2, TimeUnit.SECONDS), equalTo(true));
     }
 
-    protected void assertConsumerPluginDisableNotification(int timeoutInSec) throws InterruptedException {
-        assertConsumerPluginNotification(false, timeoutInSec);
-    }
-    protected void assertConsumerPluginEnableNotification(int timeoutInSec) throws InterruptedException {
-        assertConsumerPluginNotification(true, timeoutInSec);
+    protected void assertConsumerPlugin1DisableNotification(int timeoutInSec) throws InterruptedException {
+        assertConsumerPlugin1Notification(false, timeoutInSec);
     }
 
-    protected void assertConsumerPluginNotification(final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
+    protected void assertConsumerPlugin1EnableNotification(int timeoutInSec) throws InterruptedException {
+        assertConsumerPlugin1Notification(true, timeoutInSec);
+    }
+
+    protected void assertConsumerPlugin2DisableNotification(int timeoutInSec) throws InterruptedException {
+        assertConsumerPlugin2Notification(false, timeoutInSec);
+    }
+
+    protected void assertConsumerPlugin2EnableNotification(int timeoutInSec) throws InterruptedException {
+        assertConsumerPlugin2Notification(true, timeoutInSec);
+    }
+
+    protected void assertConsumerPlugin2Notification(final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
+        final Iterable<TestPluginServiceBase> consumerPluginServices = consumerPlugin2Services();
+        assertConsumerPluginNotification(consumerPluginServices, expectedEnabled, timeoutInSec);
+    }
+
+    protected void assertConsumerPlugin1Notification(final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
+        final Iterable<TestPluginServiceBase> consumerPluginServices = consumerPlugin1Services();
+        assertConsumerPluginNotification(consumerPluginServices, expectedEnabled, timeoutInSec);
+    }
+
+    private void assertConsumerPluginNotification(final Iterable<TestPluginServiceBase> consumerPluginServices, final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
         assertThat(awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
-                for (TestPluginService pluginService : consumerPluginServices()) {
+                for (TestPluginServiceBase pluginService : consumerPluginServices) {
                     if (expectedEnabled != pluginService.enabled()) {
                         return false;
                     }
@@ -129,11 +151,25 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
                 return true;
             }
         }, timeoutInSec, TimeUnit.SECONDS), equalTo(true));
+
     }
 
-    private Iterable<TestPluginService> consumerPluginServices() {
+    private Iterable<TestPluginServiceBase> consumerPlugin2Services() {
         final InternalTestCluster clients = internalCluster();
-        return clients.getDataNodeInstances(TestPluginService.class);
+        List<TestPluginServiceBase> consumerPluginServices = new ArrayList<>();
+        for (TestPluginServiceBase service : clients.getDataNodeInstances(TestPluginService2.class)) {
+            consumerPluginServices.add(service);
+        }
+        return consumerPluginServices;
+    }
+
+    private Iterable<TestPluginServiceBase> consumerPlugin1Services() {
+        final InternalTestCluster clients = internalCluster();
+        List<TestPluginServiceBase> consumerPluginServices = new ArrayList<>();
+        for (TestPluginServiceBase service : clients.getDataNodeInstances(TestPluginService1.class)) {
+            consumerPluginServices.add(service);
+        }
+        return consumerPluginServices;
     }
 
     private Iterable<LicensesManagerService> licensesManagerServices() {

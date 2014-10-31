@@ -59,7 +59,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder {
     }
 
     /**
-     * seed variant taking a long value.
+     * seed variant taking a String value.
      * @see {@link #seed(int)}
      */
     public RandomScoreFunctionBuilder seed(String seed) {

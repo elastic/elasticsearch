@@ -1406,17 +1406,18 @@
                                 <include>src/test/java/org/elasticsearch/**/*.java</include>
                             </includes>
                             <excludes>
-                                <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
                                 <!-- Guice -->
+                                <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
                                 <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
                                 <exclude>src/main/java/org/elasticsearch/common/lucene/search/XBooleanFilter.java</exclude>
                                 <exclude>src/main/java/org/elasticsearch/common/lucene/search/XFilteredQuery.java</exclude>
                                 <exclude>src/main/java/org/apache/lucene/queryparser/XSimpleQueryParser.java</exclude>
                                 <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
                                 <!-- t-digest -->
-                                <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java
-                                </exclude>
+                                <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java</exclude>
                                 <exclude>src/test/java/org/elasticsearch/search/aggregations/metrics/GroupTree.java</exclude>
+                                <!-- netty pipelining -->
+                                <exclude>src/main/java/org/elasticsearch/http/netty/pipelining/**</exclude>
                             </excludes>
                         </configuration>
                         <executions>

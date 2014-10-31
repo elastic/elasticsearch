@@ -180,9 +180,9 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
         builder.field(XFields.UID, uid);
         builder.field(XFields.TYPE, type);
         builder.field(XFields.SUBSCRIPTION_TYPE, subscriptionType);
-        builder.field(XFields.ISSUE_DATE, issueDate);
+        builder.dateValueField(XFields.ISSUE_DATE_IN_MILLIS, XFields.ISSUE_DATE, issueDate);
         builder.field(XFields.FEATURE, feature);
-        builder.field(XFields.EXPIRY_DATE, expiryDate);
+        builder.dateValueField(XFields.EXPIRY_DATE_IN_MILLIS, XFields.EXPIRY_DATE, expiryDate);
         builder.field(XFields.MAX_NODES, maxNodes);
         builder.field(XFields.ISSUED_TO, issuedTo);
         builder.field(XFields.ISSUER, issuer);
@@ -199,8 +199,10 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
         static final String UID = "uid";
         static final String TYPE = "type";
         static final String SUBSCRIPTION_TYPE = "subscription_type";
+        static final String ISSUE_DATE_IN_MILLIS = "issue_date_in_millis";
         static final String ISSUE_DATE = "issue_date";
         static final String FEATURE = "feature";
+        static final String EXPIRY_DATE_IN_MILLIS = "expiry_date_in_millis";
         static final String EXPIRY_DATE = "expiry_date";
         static final String MAX_NODES = "max_nodes";
         static final String ISSUED_TO = "issued_to";
@@ -212,8 +214,10 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
         static final XContentBuilderString UID = new XContentBuilderString(Fields.UID);
         static final XContentBuilderString TYPE = new XContentBuilderString(Fields.TYPE);
         static final XContentBuilderString SUBSCRIPTION_TYPE = new XContentBuilderString(Fields.SUBSCRIPTION_TYPE);
+        static final XContentBuilderString ISSUE_DATE_IN_MILLIS = new XContentBuilderString(Fields.ISSUE_DATE_IN_MILLIS);
         static final XContentBuilderString ISSUE_DATE = new XContentBuilderString(Fields.ISSUE_DATE);
         static final XContentBuilderString FEATURE = new XContentBuilderString(Fields.FEATURE);
+        static final XContentBuilderString EXPIRY_DATE_IN_MILLIS = new XContentBuilderString(Fields.EXPIRY_DATE_IN_MILLIS);
         static final XContentBuilderString EXPIRY_DATE = new XContentBuilderString(Fields.EXPIRY_DATE);
         static final XContentBuilderString MAX_NODES = new XContentBuilderString(Fields.MAX_NODES);
         static final XContentBuilderString ISSUED_TO = new XContentBuilderString(Fields.ISSUED_TO);
@@ -221,12 +225,16 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
         static final XContentBuilderString SIGNATURE = new XContentBuilderString(Fields.SIGNATURE);
     }
 
-    private static long parseDate(XContentParser parser, String description) throws IOException {
+    private static long parseDate(XContentParser parser, String description, boolean endOfTheDay) throws IOException {
         if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
             return parser.longValue();
         } else {
             try {
-                return DateUtils.endOfTheDay((parser.text()));
+                if (endOfTheDay) {
+                    return DateUtils.endOfTheDay(parser.text());
+                } else {
+                    return DateUtils.beginningOfTheDay(parser.text());
+                }
             } catch (IllegalArgumentException ex) {
                 throw new ElasticsearchParseException("invalid " + description + " date format " + parser.text());
             }
@@ -330,11 +338,15 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
                             } else if (Fields.SUBSCRIPTION_TYPE.equals(currentFieldName)) {
                                 subscriptionType(parser.text());
                             } else if (Fields.ISSUE_DATE.equals(currentFieldName)) {
-                                issueDate(parseDate(parser, "issue"));
+                                issueDate(parseDate(parser, "issue", false));
+                            } else if (Fields.ISSUE_DATE_IN_MILLIS.equals(currentFieldName)) {
+                                issueDate(parser.longValue());
                             } else if (Fields.FEATURE.equals(currentFieldName)) {
                                 feature(parser.text());
                             } else if (Fields.EXPIRY_DATE.equals(currentFieldName)) {
-                                expiryDate(parseDate(parser, "expiration"));
+                                expiryDate(parseDate(parser, "expiration", true));
+                            } else if (Fields.EXPIRY_DATE_IN_MILLIS.equals(currentFieldName)) {
+                                expiryDate(parser.longValue());
                             } else if (Fields.MAX_NODES.equals(currentFieldName)) {
                                 maxNodes(parser.intValue());
                             } else if (Fields.ISSUED_TO.equals(currentFieldName)) {

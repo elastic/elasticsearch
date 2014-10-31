@@ -9,20 +9,36 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.joda.time.MutableDateTime;
 import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
+import org.elasticsearch.common.joda.time.format.ISODateTimeFormat;
 
 public class DateUtils {
 
-    private final static FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
+    private final static FormatDateTimeFormatter formatDateOnlyFormatter = Joda.forPattern("yyyy-MM-dd");
 
-    private final static DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.parser().withZoneUTC();
+    private final static DateTimeFormatter dateOnlyFormatter = formatDateOnlyFormatter.parser().withZoneUTC();
+
+    private final static DateTimeFormatter dateTimeFormatter = ISODateTimeFormat.dateTime().withZoneUTC();
 
     public static long endOfTheDay(String date) {
-        MutableDateTime dateTime = dateTimeFormatter.parseMutableDateTime(date);
-        dateTime.dayOfMonth().roundCeiling();
-        return dateTime.getMillis();
+        try {
+            // Try parsing using complete date/time format
+            return dateTimeFormatter.parseDateTime(date).getMillis();
+        } catch (IllegalArgumentException ex) {
+            // Fall back to the date only format
+            MutableDateTime dateTime = dateOnlyFormatter.parseMutableDateTime(date);
+            dateTime.millisOfDay().set(dateTime.millisOfDay().getMaximumValue());
+            return dateTime.getMillis();
+        }
     }
 
     public static long beginningOfTheDay(String date) {
-        return dateTimeFormatter.parseDateTime(date).getMillis();
+        try {
+            // Try parsing using complete date/time format
+            return dateTimeFormatter.parseDateTime(date).getMillis();
+        } catch (IllegalArgumentException ex) {
+            // Fall back to the date only format
+            return dateOnlyFormatter.parseDateTime(date).getMillis();
+        }
+
     }
 }

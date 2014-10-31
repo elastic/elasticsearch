@@ -321,9 +321,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     protected void doStart() throws ElasticsearchException {
         //Change to debug
         logger.info("Started LicensesService");
-//        if (DiscoveryNode.dataNode(settings) || DiscoveryNode.masterNode(settings)) {
-            clusterService.add(this);
-//        }
+        clusterService.add(this);
     }
 
     @Override

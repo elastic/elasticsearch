@@ -18,15 +18,26 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LongBitSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
@@ -143,9 +154,8 @@ final class ParentIdsFilter extends Filter {
         }
 
         DocsEnum docsEnum = null;
-        // TODO: should this just use DocIdSetBuilder? 
         BitSet result = null;
-        long size = parentIds.size();
+        int size = (int) parentIds.size();
         for (int i = 0; i < size; i++) {
             parentIds.get(i, idSpare);
             BytesRef uid = Uid.createUidAsBytes(parentTypeBr, idSpare, uidSpare);
@@ -155,7 +165,15 @@ final class ParentIdsFilter extends Filter {
                 if (result == null) {
                     docId = docsEnum.nextDoc();
                     if (docId != DocIdSetIterator.NO_MORE_DOCS) {
-                        result = new FixedBitSet(context.reader().maxDoc());
+                        // very rough heuristic that tries to get an idea of the number of documents
+                        // in the set based on the number of parent ids that we didn't find in this segment
+                        final int expectedCardinality = size / (i + 1);
+                        // similar heuristic to BitDocIdSet.Builder
+                        if (expectedCardinality >= (context.reader().maxDoc() >>> 10)) {
+                            result = new FixedBitSet(context.reader().maxDoc());
+                        } else {
+                            result = new SparseFixedBitSet(context.reader().maxDoc());
+                        }
                     } else {
                         continue;
                     }
@@ -165,13 +183,13 @@ final class ParentIdsFilter extends Filter {
                         continue;
                     }
                 }
-                if (nonNestedDocs != null && !nonNestedDocs.get(docId)) {
+                if (nonNestedDocs != null) {
                     docId = nonNestedDocs.nextSetBit(docId);
                 }
                 result.set(docId);
                 assert docsEnum.advance(docId + 1) == DocIdSetIterator.NO_MORE_DOCS : "DocId " + docId + " should have been the last one but docId " + docsEnum.docID() + " exists.";
             }
         }
-        return DocIdSets.newDocIDSet(result);
+        return result == null ? null : new BitDocIdSet(result);
     }
 }

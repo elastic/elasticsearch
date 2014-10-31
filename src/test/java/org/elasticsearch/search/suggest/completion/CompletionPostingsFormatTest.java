@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest.completion;
 
 import com.google.common.collect.Lists;
-import com.sun.xml.internal.xsom.impl.scd.Iterators;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldsConsumer;

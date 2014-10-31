@@ -163,40 +163,42 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
                 // yet BooleanFilter requires that at least one clause matches
                 // so it means we do not match anything
                 return null;
-            }
-
-            // apply high-cardinality should clauses first
-            CollectionUtil.timSort(shouldIterators, COST_DESCENDING);
-
-            BitDocIdSet.Builder shouldBuilder = null;
-            for (DocIdSetIterator it : shouldIterators) {
-                if (shouldBuilder == null) {
-                    shouldBuilder = new BitDocIdSet.Builder(maxDoc);
-                }
-                shouldBuilder.or(it);
-            }
-
-            if (shouldBuilder != null && shouldBits.isEmpty() == false) {
-                // we have both iterators and bits, there is no way to compute
-                // the union efficiently, so we just transform the iterators into
-                // bits
-                // add first since these are fast bits
-                shouldBits.add(0, shouldBuilder.build().bits());
-                shouldBuilder = null;
-            }
-
-            if (shouldBuilder == null) {
-                // only bits
-                assert shouldBits.size() >= 1;
-                if (shouldBits.size() == 1) {
-                    requiredBits.add(shouldBits.get(0));
-                } else {
-                    requiredBits.add(new OrBits(shouldBits.toArray(new Bits[shouldBits.size()])));
-                }
+            } else if (shouldIterators.size() == 1 && shouldBits.isEmpty()) {
+                requiredIterators.add(shouldIterators.get(0));
             } else {
-                assert shouldBits.isEmpty();
-                // only iterators, we can add the merged iterator to the list of required iterators
-                requiredIterators.add(shouldBuilder.build().iterator());
+                // apply high-cardinality should clauses first
+                CollectionUtil.timSort(shouldIterators, COST_DESCENDING);
+
+                BitDocIdSet.Builder shouldBuilder = null;
+                for (DocIdSetIterator it : shouldIterators) {
+                    if (shouldBuilder == null) {
+                        shouldBuilder = new BitDocIdSet.Builder(maxDoc);
+                    }
+                    shouldBuilder.or(it);
+                }
+
+                if (shouldBuilder != null && shouldBits.isEmpty() == false) {
+                    // we have both iterators and bits, there is no way to compute
+                    // the union efficiently, so we just transform the iterators into
+                    // bits
+                    // add first since these are fast bits
+                    shouldBits.add(0, shouldBuilder.build().bits());
+                    shouldBuilder = null;
+                }
+
+                if (shouldBuilder == null) {
+                    // only bits
+                    assert shouldBits.size() >= 1;
+                    if (shouldBits.size() == 1) {
+                        requiredBits.add(shouldBits.get(0));
+                    } else {
+                        requiredBits.add(new OrBits(shouldBits.toArray(new Bits[shouldBits.size()])));
+                    }
+                } else {
+                    assert shouldBits.isEmpty();
+                    // only iterators, we can add the merged iterator to the list of required iterators
+                    requiredIterators.add(shouldBuilder.build().iterator());
+                }
             }
         } else {
             assert shouldIterators.isEmpty();

@@ -60,6 +60,7 @@ import static org.elasticsearch.license.core.ESLicenses.reduceAndMap;
  *   - calls {@link #notifyFeatures(LicensesMetaData)} to notify all registered feature(s)
  *   - if there is any license(s) with a future expiry date in the current cluster state:
  *      - schedules a delayed {@link LicensingClientNotificationJob} on the MIN of all the expiry dates of all the registered feature(s)
+ *      - 100ms is added to the delay to make sure that the expiring license has actually expired
  *
  *  The {@link LicensingClientNotificationJob} calls {@link #notifyFeaturesAndScheduleNotification(LicensesMetaData)} to schedule
  *  another delayed {@link LicensingClientNotificationJob} as stated above. It is a no-op in case of a global block on
@@ -444,7 +445,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     /**
      * Calls {@link #notifyFeatures(LicensesMetaData)} with <code>currentLicensesMetaData</code>
-     * if needed, also schedules the earliest expiry notification for registered feature(s)
+     * and schedules the earliest expiry (if any) notification for registered feature(s)
      */
     private void notifyFeaturesAndScheduleNotification(LicensesMetaData currentLicensesMetaData) {
         long nextScheduleFrequency = notifyFeatures(currentLicensesMetaData);

@@ -57,9 +57,7 @@ public class DocIdSets {
     /**
      * Converts to a cacheable {@link DocIdSet}
      * <p/>
-     * Note, we don't use {@link org.apache.lucene.search.DocIdSet#isCacheable()} because execution
-     * might be expensive even if its cacheable (i.e. not going back to the reader to execute). We effectively
-     * always either return an empty {@link DocIdSet} or {@link FixedBitSet} but never <code>null</code>.
+     * This never returns <code>null</code>.
      */
     public static DocIdSet toCacheable(LeafReader reader, @Nullable DocIdSet set) throws IOException {
         if (set == null || set == DocIdSet.EMPTY) {

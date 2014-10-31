@@ -80,7 +80,7 @@ public class DocIdSets {
         if (set instanceof BitDocIdSet) {
             return set;
         }
-        // TODO: should we use WAH8DocIdSet like Lucene?
+        // TODO: should we use RoaringDocIdSet like Lucene?
         it = set.iterator();
         if (it == null) {
             return DocIdSet.EMPTY;

@@ -299,7 +299,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         consumer.write(new Fields() {
             @Override
             public Iterator<String> iterator() {
-                return Iterators.singleton("foo");
+                return Arrays.asList("foo").iterator();
             }
 
             @Override

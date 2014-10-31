@@ -209,12 +209,19 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
 
+    /** A weigher for the Guava filter cache that uses a minimum entry size */
     public static class FilterCacheValueWeigher implements Weigher<WeightedFilterCache.FilterCacheKey, DocIdSet> {
+
+        private final int minimumEntrySize;
+
+        public FilterCacheValueWeigher(int minimumEntrySize) {
+            this.minimumEntrySize = minimumEntrySize;
+        }
 
         @Override
         public int weigh(FilterCacheKey key, DocIdSet value) {
             int weight = (int) Math.min(DocIdSets.sizeInBytes(value), Integer.MAX_VALUE);
-            return weight == 0 ? 1 : weight;
+            return Math.max(weight, this.minimumEntrySize);
         }
     }
 

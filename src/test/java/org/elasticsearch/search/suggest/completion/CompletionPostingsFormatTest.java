@@ -333,7 +333,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         Fields fields = new Fields() {
             @Override
             public Iterator<String> iterator() {
-                return Iterators.singleton("foo");
+                return Arrays.asList("foo").iterator();
             }
 
             @Override

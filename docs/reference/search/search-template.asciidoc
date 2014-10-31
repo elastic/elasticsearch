@@ -179,7 +179,7 @@ We could write the query as:
               {{/start}} <3>
               {{#end}} <6>
                 "lte": "{{end}}" <7>
-              {{/end}} </6>
+              {{/end}} <6>
             }
           }
         {{/line_no}} <2>

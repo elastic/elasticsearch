@@ -24,7 +24,6 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -71,7 +70,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
 
             final Weight weight = searcher.createNormalizedWeight(query);
             for (final LeafReaderContext leaf : searcher.getTopReaderContext().leaves()) {
-                final DocIdSet set = DocIdSets.toCacheable(leaf.reader(), new DocIdSet() {
+                final DocIdSet set = new DocIdSet() {
                     @Override
                     public DocIdSetIterator iterator() throws IOException {
                         return weight.scorer(leaf, null);
@@ -83,7 +82,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
                     public long ramBytesUsed() {
                         return 0;
                     }
-                });
+                };
                 docIdSets.put(leaf.reader(), set);
             }
         } else {

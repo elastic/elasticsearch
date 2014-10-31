@@ -81,13 +81,13 @@ public class DocIdSets {
             return set;
         }
         // TODO: should we use RoaringDocIdSet like Lucene?
-        final FixedBitSet fixedBitSet = new FixedBitSet(reader.maxDoc());
-        // nocommit - this is fucked up due to ParentChild - we can't to a simple or here since we can't pull the set.iterator() twice
+        it = set.iterator();
+        if (it == null) {
+            return DocIdSet.EMPTY;
+        }
+        FixedBitSet fixedBitSet = new FixedBitSet(reader.maxDoc());
         long cost = it.cost();
-        do {
-            fixedBitSet.set(doc);
-            doc = it.nextDoc();
-        } while (doc != DocIdSetIterator.NO_MORE_DOCS);
+        fixedBitSet.or(it);
         return new BitDocIdSet(fixedBitSet, cost);
     }
 

@@ -20,8 +20,10 @@
 package org.elasticsearch.search.suggest.completion;
 
 import com.google.common.collect.Lists;
+import com.sun.xml.internal.xsom.impl.scd.Iterators;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.Document;
@@ -31,10 +33,8 @@ import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.Lookup.LookupResult;
 import org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.store.*;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
@@ -53,13 +53,11 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "this test has compile errors that need to be fixed")
 public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
     @Test
@@ -293,51 +291,236 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         dir.close();
         return lookup;
     }
-  // nocommit - fix this test
     @Test
     public void testNoDocs() throws IOException {
-//        AnalyzingCompletionLookupProvider provider = new AnalyzingCompletionLookupProvider(true, false, true, true);
-//        RAMDirectory dir = new RAMDirectory();
-//        IndexOutput output = dir.createOutput("foo.txt", IOContext.DEFAULT);
-//        FieldsConsumer consumer = provider.consumer(state, output);
-//        FieldInfo fieldInfo = new FieldInfo("foo", true, 1, false, true, true, IndexOptions.DOCS_AND_FREQS_AND_POSITIONS,
-//                DocValuesType.SORTED, DocValuesType.BINARY, -1, new HashMap<String, String>());
-//        TermsConsumer addField = consumer.addField(fieldInfo);
-//        addField.finish(0, 0, 0);
-//        consumer.close();
-//        output.close();
-//
-//        IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
-//        LookupFactory load = provider.load(input);
-//        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
-//        NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer());
-//        assertNull(load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING), new CompletionSuggestionContext(null)));
-//        dir.close();
+        AnalyzingCompletionLookupProvider provider = new AnalyzingCompletionLookupProvider(true, false, true, true);
+        RAMDirectory dir = new RAMDirectory();
+        IndexOutput output = dir.createOutput("foo.txt", IOContext.DEFAULT);
+        FieldsConsumer consumer = provider.consumer(output);
+        consumer.write(new Fields() {
+            @Override
+            public Iterator<String> iterator() {
+                return Iterators.singleton("foo");
+            }
+
+            @Override
+            public Terms terms(String field) throws IOException {
+                return null;
+            }
+
+            @Override
+            public int size() {
+                return 1;
+            }
+        });
+        consumer.close();
+        output.close();
+
+        IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
+        LookupFactory load = provider.load(input);
+        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
+        NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer());
+        assertNull(load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING), new CompletionSuggestionContext(null)));
+        dir.close();
     }
 
     // TODO ADD more unittests
     private void writeData(Directory dir, Completion090PostingsFormat.CompletionLookupProvider provider) throws IOException {
-//        IndexOutput output = dir.createOutput("foo.txt", IOContext.DEFAULT);
-//        FieldsConsumer consumer = provider.consumer(state, output);
-//        FieldInfo fieldInfo = new FieldInfo("foo", true, 1, false, true, true, IndexOptions.DOCS_AND_FREQS_AND_POSITIONS,
-//                DocValuesType.SORTED, DocValuesType.BINARY, -1, new HashMap<String, String>());
-//        TermsConsumer addField = consumer.addField(fieldInfo);
-//
-//        PostingsConsumer postingsConsumer = addField.startTerm(new BytesRef("foofightersgenerator"));
-//        postingsConsumer.startDoc(0, 1);
-//        postingsConsumer.addPosition(256 - 2, provider.buildPayload(new BytesRef("Generator - Foo Fighters"), 9, new BytesRef("id:10")), 0,
-//                1);
-//        postingsConsumer.finishDoc();
-//        addField.finishTerm(new BytesRef("foofightersgenerator"), new TermStats(1, 1));
-//        addField.startTerm(new BytesRef("generator"));
-//        postingsConsumer.startDoc(0, 1);
-//        postingsConsumer.addPosition(256 - 1, provider.buildPayload(new BytesRef("Generator - Foo Fighters"), 9, new BytesRef("id:10")), 0,
-//                1);
-//        postingsConsumer.finishDoc();
-//        addField.finishTerm(new BytesRef("generator"), new TermStats(1, 1));
-//        addField.finish(1, 1, 1);
-//        consumer.close();
-//        output.close();
+        IndexOutput output = dir.createOutput("foo.txt", IOContext.DEFAULT);
+        FieldsConsumer consumer = provider.consumer(output);
+        final List<TermPosAndPayload> terms = new ArrayList<>();
+        terms.add(new TermPosAndPayload("foofightersgenerator", 256 - 2, provider.buildPayload(new BytesRef("Generator - Foo Fighters"), 9, new BytesRef("id:10"))));
+        terms.add(new TermPosAndPayload("generator", 256 - 1, provider.buildPayload(new BytesRef("Generator - Foo Fighters"), 9, new BytesRef("id:10"))));
+        Fields fields = new Fields() {
+            @Override
+            public Iterator<String> iterator() {
+                return Iterators.singleton("foo");
+            }
 
+            @Override
+            public Terms terms(String field) throws IOException {
+                if (field.equals("foo")) {
+                    return new Terms() {
+                        @Override
+                        public TermsEnum iterator(TermsEnum reuse) throws IOException {
+                            final Iterator<TermPosAndPayload> iterator = terms.iterator();
+                            return new TermsEnum() {
+                                private TermPosAndPayload current = null;
+                                @Override
+                                public SeekStatus seekCeil(BytesRef text) throws IOException {
+                                    throw new UnsupportedOperationException();
+                                }
+
+                                @Override
+                                public void seekExact(long ord) throws IOException {
+                                    throw new UnsupportedOperationException();
+                                }
+
+                                @Override
+                                public BytesRef term() throws IOException {
+                                    return current == null ? null : current.term;
+                                }
+
+                                @Override
+                                public long ord() throws IOException {
+                                    throw new UnsupportedOperationException();
+                                }
+
+                                @Override
+                                public int docFreq() throws IOException {
+                                    return current == null ? 0 : 1;
+                                }
+
+                                @Override
+                                public long totalTermFreq() throws IOException {
+                                    throw new UnsupportedOperationException();
+                                }
+
+                                @Override
+                                public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
+                                    throw new UnsupportedOperationException();
+                                }
+
+                                @Override
+                                public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
+                                    final TermPosAndPayload data = current;
+                                    return new DocsAndPositionsEnum() {
+                                        boolean done = false;
+                                        @Override
+                                        public int nextPosition() throws IOException {
+                                            return current.pos;
+                                        }
+
+                                        @Override
+                                        public int startOffset() throws IOException {
+                                            return 0;
+                                        }
+
+                                        @Override
+                                        public int endOffset() throws IOException {
+                                            return 0;
+                                        }
+
+                                        @Override
+                                        public BytesRef getPayload() throws IOException {
+                                            return current.payload;
+                                        }
+
+                                        @Override
+                                        public int freq() throws IOException {
+                                            return 1;
+                                        }
+
+                                        @Override
+                                        public int docID() {
+                                            if (done) {
+                                                return NO_MORE_DOCS;
+                                            }
+                                            return 0;
+                                        }
+
+                                        @Override
+                                        public int nextDoc() throws IOException {
+                                            if (done) {
+                                                return NO_MORE_DOCS;
+                                            }
+                                            done = true;
+                                            return 0;
+                                        }
+
+                                        @Override
+                                        public int advance(int target) throws IOException {
+                                            if (done) {
+                                                return NO_MORE_DOCS;
+                                            }
+                                            done = true;
+                                            return 0;
+                                        }
+
+                                        @Override
+                                        public long cost() {
+                                            return 0;
+                                        }
+                                    };
+                                }
+
+                                @Override
+                                public BytesRef next() throws IOException {
+                                    if (iterator.hasNext()) {
+                                        current = iterator.next();
+                                        return current.term;
+                                    }
+                                    current = null;
+                                    return null;
+                                }
+                            };
+                        }
+
+                        @Override
+                        public long size() throws IOException {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public long getSumTotalTermFreq() throws IOException {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public long getSumDocFreq() throws IOException {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public int getDocCount() throws IOException {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public boolean hasFreqs() {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public boolean hasOffsets() {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public boolean hasPositions() {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public boolean hasPayloads() {
+                            throw new UnsupportedOperationException();
+                        }
+                    };
+                }
+                return null;
+            }
+
+            @Override
+            public int size() {
+                return 0;
+            }
+        };
+        consumer.write(fields);
+        consumer.close();
+        output.close();
+
+    }
+
+    private static class TermPosAndPayload {
+        final BytesRef term;
+        final int pos;
+        final BytesRef payload;
+
+
+        private TermPosAndPayload(String term, int pos, BytesRef payload) {
+            this.term = new BytesRef(term);
+            this.pos = pos;
+            this.payload = payload;
+        }
     }
 }

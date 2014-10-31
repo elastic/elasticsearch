@@ -102,7 +102,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
     }
 
     @Override
-    public FieldsConsumer consumer(final SegmentWriteState state, final IndexOutput output) throws IOException {
+    public FieldsConsumer consumer(final IndexOutput output) throws IOException {
         // TODO write index header?
         CodecUtil.writeHeader(output, CODEC_NAME, CODEC_VERSION);
         return new FieldsConsumer() {

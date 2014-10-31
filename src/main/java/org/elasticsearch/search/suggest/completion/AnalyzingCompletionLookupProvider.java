@@ -85,7 +85,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     }
 
     @Override
-    public FieldsConsumer consumer(SegmentWriteState state, final IndexOutput output) throws IOException {
+    public FieldsConsumer consumer(final IndexOutput output) throws IOException {
         CodecUtil.writeHeader(output, CODEC_NAME, CODEC_VERSION_LATEST);
         return new FieldsConsumer() {
             private Map<String, Long> fieldOffsets = new HashMap<>();

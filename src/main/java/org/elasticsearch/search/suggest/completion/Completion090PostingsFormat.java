@@ -32,14 +32,12 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.util.BloomFilter;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ToFiniteStrings;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -120,7 +118,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
                  */
                 output.writeString(delegatePostingsFormat.getName());
                 output.writeString(writeProvider.getName());
-                this.suggestFieldsConsumer = writeProvider.consumer(state, output);
+                this.suggestFieldsConsumer = writeProvider.consumer(output);
                 success = true;
             } finally {
                 if (!success) {
@@ -253,7 +251,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
 
         public static final char UNIT_SEPARATOR = '\u001f';
 
-        public abstract FieldsConsumer consumer(SegmentWriteState state, IndexOutput output) throws IOException;
+        public abstract FieldsConsumer consumer(IndexOutput output) throws IOException;
 
         public abstract String getName();
 

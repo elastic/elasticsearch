@@ -132,9 +132,8 @@ public class NestedFilterParser implements FilterParser {
                 throw new QueryParsingException(parseContext.index(), "[nested] nested object under path [" + path + "] is not of nested type");
             }
 
-            Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter(), null);
-            // nocommit: type safety tragedy, childFilter needs to be BitDocIdSetFilter too!
-            usAsParentFilter.filter = (BitDocIdSetFilter) childFilter;
+            BitDocIdSetFilter childFilter = parseContext.bitsetFilter(objectMapper.nestedTypeFilter());
+            usAsParentFilter.filter = childFilter;
             // wrap the child query to only work on the nested path type
             query = new XFilteredQuery(query, childFilter);
 

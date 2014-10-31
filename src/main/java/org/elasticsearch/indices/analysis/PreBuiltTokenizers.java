@@ -30,6 +30,7 @@ import org.apache.lucene.analysis.pattern.PatternTokenizer;
 import org.apache.lucene.analysis.standard.ClassicTokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
+import org.apache.lucene.analysis.standard.std40.StandardTokenizer40;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
@@ -46,8 +47,11 @@ public enum PreBuiltTokenizers {
     STANDARD(CachingStrategy.LUCENE) {
         @Override
         protected Tokenizer create(Version version) {
-            // nocommit
-            return new StandardTokenizer();
+            if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_7_0)) {
+                return new StandardTokenizer();
+            } else {
+                return new StandardTokenizer40();
+            }
         }
     },
 

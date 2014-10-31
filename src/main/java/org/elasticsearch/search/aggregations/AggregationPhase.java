@@ -20,7 +20,9 @@ package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SimpleCollector;
@@ -28,8 +30,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XCollector;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
@@ -117,10 +117,10 @@ public class AggregationPhase implements SearchPhase {
         // optimize the global collector based execution
         if (!globals.isEmpty()) {
             AggregationsCollector collector = new AggregationsCollector(globals, context.aggregations().aggregationContext());
-            Query query = new XConstantScoreQuery(Queries.MATCH_ALL_FILTER);
+            Query query = new ConstantScoreQuery(Queries.MATCH_ALL_FILTER);
             Filter searchFilter = context.searchFilter(context.types());
             if (searchFilter != null) {
-                query = new XFilteredQuery(query, searchFilter);
+                query = new FilteredQuery(query, searchFilter);
             }
             try {
                 context.searcher().search(query, collector);

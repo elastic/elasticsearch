@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -35,12 +35,11 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -234,11 +233,11 @@ public class DefaultSearchContext extends SearchContext {
         Filter searchFilter = searchFilter(types());
         if (searchFilter != null) {
             if (Queries.isConstantMatchAllQuery(query())) {
-                Query q = new XConstantScoreQuery(searchFilter);
+                Query q = new ConstantScoreQuery(searchFilter);
                 q.setBoost(query().getBoost());
                 parsedQuery(new ParsedQuery(q, parsedQuery()));
             } else {
-                parsedQuery(new ParsedQuery(new XFilteredQuery(query(), searchFilter), parsedQuery()));
+                parsedQuery(new ParsedQuery(new FilteredQuery(query(), searchFilter), parsedQuery()));
             }
         }
     }

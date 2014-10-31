@@ -19,12 +19,19 @@
 
 package org.elasticsearch.search.scan;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.AllDocIdSet;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -47,7 +54,7 @@ public class ScanContext {
 
     public TopDocs execute(SearchContext context) throws IOException {
         ScanCollector collector = new ScanCollector(readerStates, context.from(), context.size(), context.trackScores());
-        Query query = new XFilteredQuery(context.query(), new ScanFilter(readerStates, collector));
+        Query query = new FilteredQuery(context.query(), new ScanFilter(readerStates, collector));
         try {
             context.searcher().search(query, collector);
         } catch (ScanCollector.StopCollectingException e) {
@@ -158,7 +165,7 @@ public class ScanContext {
                 scanCollector.incCounter(readerState.count);
                 return null;
             }
-            return new AllDocIdSet(context.reader().maxDoc());
+            return BitsFilteredDocIdSet.wrap(new AllDocIdSet(context.reader().maxDoc()), acceptedDocs);
         }
     }
 

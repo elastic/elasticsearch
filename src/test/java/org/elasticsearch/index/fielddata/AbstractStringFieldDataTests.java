@@ -19,22 +19,33 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.FixedBitSet;
-
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.lucene.search.NotFilter;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -47,7 +58,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  */
@@ -383,7 +399,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         Filter childFilter = new NotFilter(parentFilter);
         Nested nested = createNested(parentFilter, childFilter);
         BytesRefFieldComparatorSource nestedComparatorSource = new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode, nested);
-        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new BitDocIdSetCachingWrapperFilter(parentFilter), ScoreMode.None);
+        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(new FilteredQuery(new MatchAllDocsQuery(), childFilter), new BitDocIdSetCachingWrapperFilter(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("text", nestedComparatorSource));
         TopFieldDocs topDocs = searcher.search(query, randomIntBetween(1, numParents), sort);
         assertTrue(topDocs.scoreDocs.length > 0);

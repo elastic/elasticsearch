@@ -18,17 +18,23 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredDocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;
@@ -163,7 +169,7 @@ public class ParentConstantScoreQuery extends Query {
 
         private ChildrenWeight(Filter childrenFilter, ParentOrdsCollector collector, IndexParentChildFieldData globalIfd) {
             this.globalIfd = globalIfd;
-            this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
+            this.childrenFilter = childrenFilter;
             this.parentOrds = collector.parentOrds;
         }
 

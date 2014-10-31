@@ -19,17 +19,16 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
@@ -115,7 +114,7 @@ public class NestedFilterParser implements FilterParser {
             }
 
             if (filter != null) {
-                query = new XConstantScoreQuery(filter);
+                query = new ConstantScoreQuery(filter);
             }
 
             query.setBoost(boost);
@@ -135,7 +134,7 @@ public class NestedFilterParser implements FilterParser {
             BitDocIdSetFilter childFilter = parseContext.bitsetFilter(objectMapper.nestedTypeFilter());
             usAsParentFilter.filter = childFilter;
             // wrap the child query to only work on the nested path type
-            query = new XFilteredQuery(query, childFilter);
+            query = new FilteredQuery(query, childFilter);
 
             BitDocIdSetFilter parentFilter = currentParentFilterContext;
             if (parentFilter == null) {

@@ -116,7 +116,7 @@ public class GeoDistanceRangeFilter extends Filter {
     public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptedDocs) throws IOException {
         DocIdSet boundingBoxDocSet = null;
         if (boundingBoxFilter != null) {
-            boundingBoxDocSet = boundingBoxFilter.getDocIdSet(context, acceptedDocs);
+            boundingBoxDocSet = boundingBoxFilter.getDocIdSet(context, null);
             if (DocIdSets.isEmpty(boundingBoxDocSet)) {
                 return null;
             }

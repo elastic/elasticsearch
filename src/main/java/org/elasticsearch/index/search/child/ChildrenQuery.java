@@ -18,20 +18,27 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredDocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
@@ -225,7 +232,7 @@ public class ChildrenQuery extends Query {
             parentFilter = ParentIdsFilter.createShortCircuitFilter(nonNestedDocsFilter, sc, parentType, collector.values,
                     collector.parentIdxs, numFoundParents);
         } else {
-            parentFilter = new ApplyAcceptedDocsFilter(this.parentFilter);
+            parentFilter = this.parentFilter;
         }
         return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, numFoundParents, collector, minChildren,
                 maxChildren);

@@ -19,14 +19,13 @@
 
 package org.elasticsearch.index.shard.service;
 
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
-
 import com.google.common.base.Charsets;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
@@ -42,20 +41,26 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineClosedException;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
+import org.elasticsearch.index.engine.OptimizeFailedEngineException;
+import org.elasticsearch.index.engine.RefreshFailedEngineException;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
@@ -64,7 +69,11 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
@@ -78,7 +87,18 @@ import org.elasticsearch.index.search.stats.ShardSearchService;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardException;
+import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
+import org.elasticsearch.index.shard.IndexShardNotStartedException;
+import org.elasticsearch.index.shard.IndexShardRecoveringException;
+import org.elasticsearch.index.shard.IndexShardRelocatedException;
+import org.elasticsearch.index.shard.IndexShardStartedException;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestService;
@@ -913,7 +933,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private Query filterQueryIfNeeded(Query query, String[] types) {
         Filter searchFilter = mapperService.searchFilter(types);
         if (searchFilter != null) {
-            query = new XFilteredQuery(query, indexCache.filter().cache(searchFilter));
+            query = new FilteredQuery(query, indexCache.filter().cache(searchFilter));
         }
         return query;
     }

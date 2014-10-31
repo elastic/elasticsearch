@@ -89,10 +89,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
             assert searcher == SearchContext.current().searcher();
         }
         final DocIdSet set = docIdSets.get(context.reader());
-        if (set != null && acceptDocs != null) {
-            return BitsFilteredDocIdSet.wrap(set, acceptDocs);
-        }
-        return set;
+        return BitsFilteredDocIdSet.wrap(set, acceptDocs);
     }
 
     @Override

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.search.BitsFilteredDocIdSet;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
@@ -46,11 +48,14 @@ public class NotFilter extends Filter {
 
     @Override
     public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
-        DocIdSet set = filter.getDocIdSet(context, acceptDocs);
+        DocIdSet set = filter.getDocIdSet(context, null);
+        DocIdSet notSet;
         if (DocIdSets.isEmpty(set)) {
-            return new AllDocIdSet(context.reader().maxDoc());
+            notSet = new AllDocIdSet(context.reader().maxDoc());
+        } else {
+            notSet = new NotDocIdSet(set, context.reader().maxDoc());
         }
-        return new NotDocIdSet(set, context.reader().maxDoc());
+        return BitsFilteredDocIdSet.wrap(notSet, acceptDocs);
     }
 
     @Override

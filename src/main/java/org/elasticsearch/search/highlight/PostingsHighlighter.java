@@ -23,7 +23,14 @@ import com.google.common.collect.Maps;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoringRewrite;
+import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.postingshighlight.CustomPassageFormatter;
 import org.apache.lucene.search.postingshighlight.CustomPostingsHighlighter;
@@ -35,7 +42,6 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
@@ -44,7 +50,13 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.text.BreakIterator;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 public class PostingsHighlighter implements Highlighter {
 
@@ -192,10 +204,6 @@ public class PostingsHighlighter implements Highlighter {
             for (BooleanClause booleanClause : booleanQuery) {
                 overrideMultiTermRewriteMethod(booleanClause.getQuery(), modifiedMultiTermQueries);
             }
-        }
-
-        if (query instanceof XFilteredQuery) {
-            overrideMultiTermRewriteMethod(((XFilteredQuery) query).getQuery(), modifiedMultiTermQueries);
         }
 
         if (query instanceof FilteredQuery) {

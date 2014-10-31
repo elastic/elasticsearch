@@ -22,8 +22,9 @@ package org.elasticsearch.common.lucene.docset;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
@@ -50,8 +51,8 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
     public DocIdSetIterator iterator() throws IOException {
         if (acceptDocs == null) {
             return new NoAcceptDocsIterator(maxDoc);
-        } else if (acceptDocs instanceof FixedBitSet) {
-            return new FixedBitSetIterator(((DocIdSet) acceptDocs).iterator());
+        } else if (acceptDocs instanceof BitSet) {
+            return new BitSetIterator((BitSet) acceptDocs);
         } else {
             return new BothIterator(maxDoc, acceptDocs);
         }
@@ -119,10 +120,10 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
 
     }
 
-    final class FixedBitSetIterator extends FilteredDocIdSetIterator {
+    final class BitSetIterator extends FilteredDocIdSetIterator {
 
-        FixedBitSetIterator(DocIdSetIterator innerIter) {
-            super(innerIter);
+        BitSetIterator(BitSet bitSet) {
+            super(new BitDocIdSet(bitSet).iterator());
         }
 
         @Override

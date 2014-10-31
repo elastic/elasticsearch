@@ -20,8 +20,21 @@
 package org.elasticsearch.index.engine.internal;
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherFactory;
@@ -36,7 +49,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -44,7 +56,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -58,7 +69,25 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.engine.CreateFailedEngineException;
+import org.elasticsearch.index.engine.DeleteByQueryFailedEngineException;
+import org.elasticsearch.index.engine.DeleteFailedEngineException;
+import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineAlreadyStartedException;
+import org.elasticsearch.index.engine.EngineClosedException;
+import org.elasticsearch.index.engine.EngineCreationFailureException;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.FlushFailedEngineException;
+import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
+import org.elasticsearch.index.engine.IndexFailedEngineException;
+import org.elasticsearch.index.engine.OptimizeFailedEngineException;
+import org.elasticsearch.index.engine.RecoveryEngineException;
+import org.elasticsearch.index.engine.RefreshFailedEngineException;
+import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.engine.SnapshotFailedEngineException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -78,7 +107,13 @@ import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -667,11 +702,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
             Query query;
             if (delete.nested() && delete.aliasFilter() != null) {
-                query = new IncludeNestedDocsQuery(new XFilteredQuery(delete.query(), delete.aliasFilter()), delete.parentFilter());
+                query = new IncludeNestedDocsQuery(new FilteredQuery(delete.query(), delete.aliasFilter()), delete.parentFilter());
             } else if (delete.nested()) {
                 query = new IncludeNestedDocsQuery(delete.query(), delete.parentFilter());
             } else if (delete.aliasFilter() != null) {
-                query = new XFilteredQuery(delete.query(), delete.aliasFilter());
+                query = new FilteredQuery(delete.query(), delete.aliasFilter());
             } else {
                 query = delete.query();
             }

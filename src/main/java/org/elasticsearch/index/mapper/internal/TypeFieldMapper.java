@@ -25,6 +25,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PrefixFilter;
 import org.apache.lucene.search.Query;
@@ -32,14 +33,20 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
@@ -136,7 +143,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        return new XConstantScoreQuery(context.cacheFilter(termFilter(value, context), null));
+        return new ConstantScoreQuery(context.cacheFilter(termFilter(value, context), null));
     }
 
     @Override

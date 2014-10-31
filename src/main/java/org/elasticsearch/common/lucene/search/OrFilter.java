@@ -20,6 +20,7 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
@@ -52,7 +53,7 @@ public class OrFilter extends Filter {
         }
         List<DocIdSet> sets = new ArrayList<>(filters.size());
         for (int i = 0; i < filters.size(); i++) {
-            DocIdSet set = filters.get(i).getDocIdSet(context, acceptDocs);
+            DocIdSet set = filters.get(i).getDocIdSet(context, null);
             if (DocIdSets.isEmpty(set)) { // none matching for this filter, continue
                 continue;
             }
@@ -61,10 +62,13 @@ public class OrFilter extends Filter {
         if (sets.size() == 0) {
             return null;
         }
+        DocIdSet set;
         if (sets.size() == 1) {
-            return sets.get(0);
+            set = sets.get(0);
+        } else {
+            set = new OrDocIdSet(sets.toArray(new DocIdSet[sets.size()]));
         }
-        return new OrDocIdSet(sets.toArray(new DocIdSet[sets.size()]));
+        return BitsFilteredDocIdSet.wrap(set, acceptDocs);
     }
 
     @Override

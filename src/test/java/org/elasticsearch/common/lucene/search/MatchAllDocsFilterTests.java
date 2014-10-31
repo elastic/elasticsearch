@@ -26,6 +26,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -59,7 +59,7 @@ public class MatchAllDocsFilterTests extends ElasticsearchTestCase {
         IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        XConstantScoreQuery query = new XConstantScoreQuery(Queries.MATCH_ALL_FILTER);
+        ConstantScoreQuery query = new ConstantScoreQuery(Queries.MATCH_ALL_FILTER);
         long count = Lucene.count(searcher, query);
         assertThat(count, equalTo(2l));
 

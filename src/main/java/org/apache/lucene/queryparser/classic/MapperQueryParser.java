@@ -25,11 +25,16 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -854,8 +859,8 @@ public class MapperQueryParser extends QueryParser {
     }
 
     private void applySlop(Query q, int slop) {
-        if (q instanceof XFilteredQuery) {
-            applySlop(((XFilteredQuery)q).getQuery(), slop);
+        if (q instanceof FilteredQuery) {
+            applySlop(((FilteredQuery)q).getQuery(), slop);
         }
         if (q instanceof PhraseQuery) {
             ((PhraseQuery) q).setSlop(slop);

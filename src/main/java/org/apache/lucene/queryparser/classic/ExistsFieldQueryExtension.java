@@ -19,8 +19,8 @@
 
 package org.apache.lucene.queryparser.classic;
 
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.index.query.ExistsFilterParser;
 import org.elasticsearch.index.query.QueryParseContext;
 
@@ -33,6 +33,6 @@ public class ExistsFieldQueryExtension implements FieldQueryExtension {
 
     @Override
     public Query query(QueryParseContext parseContext, String queryText) {
-        return new XConstantScoreQuery(ExistsFilterParser.newFilter(parseContext, queryText, null));
+        return new ConstantScoreQuery(ExistsFilterParser.newFilter(parseContext, queryText, null));
     }
 }

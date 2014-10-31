@@ -23,13 +23,18 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.RAMDirectory;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -67,11 +72,11 @@ public class BitSetFilterCacheTest extends ElasticsearchTestCase {
 
         BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), ImmutableSettings.EMPTY);
         BitDocIdSetFilter filter = cache.getBitDocIdSetFilter(new TermFilter(new Term("field", "value")));
-        TopDocs docs = searcher.search(new XConstantScoreQuery(filter), 1);
+        TopDocs docs = searcher.search(new ConstantScoreQuery(filter), 1);
         assertThat(docs.totalHits, equalTo(3));
 
         // now cached
-        docs = searcher.search(new XConstantScoreQuery(filter), 1);
+        docs = searcher.search(new ConstantScoreQuery(filter), 1);
         assertThat(docs.totalHits, equalTo(3));
         // There are 3 segments
         assertThat(cache.getLoadedFilters().size(), equalTo(3l));
@@ -81,11 +86,11 @@ public class BitSetFilterCacheTest extends ElasticsearchTestCase {
         reader = DirectoryReader.open(writer, false);
         searcher = new IndexSearcher(reader);
 
-        docs = searcher.search(new XConstantScoreQuery(filter), 1);
+        docs = searcher.search(new ConstantScoreQuery(filter), 1);
         assertThat(docs.totalHits, equalTo(3));
 
         // now cached
-        docs = searcher.search(new XConstantScoreQuery(filter), 1);
+        docs = searcher.search(new ConstantScoreQuery(filter), 1);
         assertThat(docs.totalHits, equalTo(3));
         // Only one segment now, so the size must be 1
         assertThat(cache.getLoadedFilters().size(), equalTo(1l));

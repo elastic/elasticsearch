@@ -18,16 +18,15 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -182,7 +181,7 @@ public class HasParentQueryParser implements QueryParser {
         }
 
         // wrap the query with type query
-        innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
+        innerQuery = new FilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
         BitDocIdSetFilter childrenFilter = parseContext.bitsetFilter(new NotFilter(parentFilter));
         if (score) {
             return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);

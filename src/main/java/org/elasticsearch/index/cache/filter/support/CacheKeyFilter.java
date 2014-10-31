@@ -98,7 +98,10 @@ public interface CacheKeyFilter {
 
         @Override
         public boolean equals(Object obj) {
-            return filter.equals(obj);
+            if (obj instanceof Wrapper == false) {
+                return false;
+            }
+            return filter.equals(((Wrapper) obj).filter);
         }
 
         @Override

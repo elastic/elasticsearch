@@ -36,10 +36,11 @@ import org.apache.lucene.util.fst.Util.Result;
 import org.apache.lucene.util.fst.Util.TopResults;
 import org.elasticsearch.common.collect.HppcMaps;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 /**
@@ -443,15 +444,14 @@ public class XAnalyzingSuggester extends Lookup {
 
   @Override
   public void build(InputIterator iterator) throws IOException {
-    // nocommit: sync up with lucene one, it has more safety here
     String prefix = getClass().getSimpleName();
-    File directory = OfflineSorter.defaultTempDir().toFile();
-    File tempInput = File.createTempFile(prefix, ".input", directory);
-    File tempSorted = File.createTempFile(prefix, ".sorted", directory);
+    Path directory = OfflineSorter.defaultTempDir();
+    Path tempInput = Files.createTempFile(directory, prefix, ".input");
+    Path tempSorted = Files.createTempFile(directory, prefix, ".sorted");
 
     hasPayloads = iterator.hasPayloads();
 
-    OfflineSorter.ByteSequencesWriter writer = new OfflineSorter.ByteSequencesWriter(tempInput.toPath());
+    OfflineSorter.ByteSequencesWriter writer = new OfflineSorter.ByteSequencesWriter(tempInput);
     OfflineSorter.ByteSequencesReader reader = null;
     BytesRefBuilder scratch = new BytesRefBuilder();
 
@@ -528,12 +528,12 @@ public class XAnalyzingSuggester extends Lookup {
       writer.close();
 
       // Sort all input/output pairs (required by FST.Builder):
-      new OfflineSorter(new AnalyzingComparator(hasPayloads)).sort(tempInput.toPath(), tempSorted.toPath());
+      new OfflineSorter(new AnalyzingComparator(hasPayloads)).sort(tempInput, tempSorted);
 
       // Free disk space:
-      tempInput.delete();
+      Files.delete(tempInput);
 
-      reader = new OfflineSorter.ByteSequencesReader(tempSorted.toPath());
+      reader = new OfflineSorter.ByteSequencesReader(tempSorted);
      
       PairOutputs<Long,BytesRef> outputs = new PairOutputs<>(PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton());
       Builder<Pair<Long,BytesRef>> builder = new Builder<>(FST.INPUT_TYPE.BYTE1, outputs);
@@ -626,14 +626,13 @@ public class XAnalyzingSuggester extends Lookup {
 
       success = true;
     } finally {
+      IOUtils.closeWhileHandlingException(reader, writer);
+        
       if (success) {
-        IOUtils.close(reader, writer);
+        IOUtils.deleteFilesIfExist(tempInput, tempSorted);
       } else {
-        IOUtils.closeWhileHandlingException(reader, writer);
+        IOUtils.deleteFilesIgnoringExceptions(tempInput, tempSorted);
       }
-      
-      tempInput.delete();
-      tempSorted.delete();
     }
   }
 

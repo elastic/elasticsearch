@@ -97,9 +97,8 @@ public class NettyHttpServerPipeliningTest extends ElasticsearchTestCase {
         InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().boundAddress();
 
         List<String> requests = Arrays.asList("/firstfast", "/slow?sleep=500", "/secondfast", "/slow?sleep=1000", "/thirdfast");
-        long maxdurationInMilliSeconds = 1200;
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
-            Collection<HttpResponse> responses = nettyHttpClient.sendRequests(transportAddress.address(), maxdurationInMilliSeconds, requests.toArray(new String[]{}));
+            Collection<HttpResponse> responses = nettyHttpClient.sendRequests(transportAddress.address(), requests.toArray(new String[]{}));
             Collection<String> responseBodies = returnHttpResponseBodies(responses);
             assertThat(responseBodies, contains("/firstfast", "/slow?sleep=500", "/secondfast", "/slow?sleep=1000", "/thirdfast"));
         }
@@ -114,9 +113,8 @@ public class NettyHttpServerPipeliningTest extends ElasticsearchTestCase {
         InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().boundAddress();
 
         List<String> requests = Arrays.asList("/slow?sleep=1000", "/firstfast", "/secondfast", "/thirdfast", "/slow?sleep=500");
-        long maxdurationInMilliSeconds = 1200;
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
-            Collection<HttpResponse> responses = nettyHttpClient.sendRequests(transportAddress.address(), maxdurationInMilliSeconds, requests.toArray(new String[]{}));
+            Collection<HttpResponse> responses = nettyHttpClient.sendRequests(transportAddress.address(), requests.toArray(new String[]{}));
             List<String> responseBodies = Lists.newArrayList(returnHttpResponseBodies(responses));
             // we cannot be sure about the order of the fast requests, but the slow ones should have to be last
             assertThat(responseBodies, hasSize(5));

@@ -38,6 +38,8 @@
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
         <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
+        <tests.locale>random</tests.locale>
+        <tests.timezone>random</tests.timezone>
         <es.logger.level>INFO</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
         <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
@@ -541,6 +543,8 @@
                                 <tests.heap.size>${tests.heap.size}</tests.heap.size>
                                 <tests.filter>${tests.filter}</tests.filter>
                                 <tests.version>${project.version}</tests.version>
+                                <tests.locale>${tests.locale}</tests.locale>
+                                <tests.timezone>${tests.timezone}</tests.timezone>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>

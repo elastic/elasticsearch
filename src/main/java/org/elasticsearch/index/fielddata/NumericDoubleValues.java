@@ -38,7 +38,7 @@ public abstract class NumericDoubleValues {
    */
   public abstract double get(int docID);
   
-  // nocommit: this interaction with sort comparators is really ugly...
+  // TODO: this interaction with sort comparators is really ugly...
   /** Returns numeric docvalues view of raw double bits */
   public NumericDocValues getRawDoubleValues() {
       return new NumericDocValues() {

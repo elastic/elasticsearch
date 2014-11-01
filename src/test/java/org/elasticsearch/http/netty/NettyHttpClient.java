@@ -74,11 +74,7 @@ public class NettyHttpClient implements Closeable {
         clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory());;
     }
 
-    public Collection<HttpResponse> sendRequests(SocketAddress remoteAddress, String... uris) throws InterruptedException {
-        return sendRequests(remoteAddress, -1, uris);
-    }
-
-    public synchronized Collection<HttpResponse> sendRequests(SocketAddress remoteAddress, long expectedMaxDuration, String... uris) throws InterruptedException {
+    public synchronized Collection<HttpResponse> sendRequests(SocketAddress remoteAddress, String... uris) throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(uris.length);
         final Collection<HttpResponse> content = Collections.synchronizedList(new ArrayList<HttpResponse>(uris.length));
 
@@ -89,8 +85,6 @@ public class NettyHttpClient implements Closeable {
             channelFuture = clientBootstrap.connect(remoteAddress);
             channelFuture.await(1000);
 
-            long startTime = System.currentTimeMillis();
-
             for (int i = 0; i < uris.length; i++) {
                 final HttpRequest httpRequest = new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, uris[i]);
                 httpRequest.headers().add(HOST, "localhost");
@@ -99,17 +93,11 @@ public class NettyHttpClient implements Closeable {
             }
             latch.await();
 
-            long duration = System.currentTimeMillis() - startTime;
-            // make sure the request were executed in parallel
-            if (expectedMaxDuration > 0) {
-                assertThat(duration, is(lessThan(expectedMaxDuration)));
-            }
         } finally {
             if (channelFuture != null) {
                 channelFuture.getChannel().close();
             }
         }
-
 
         return content;
     }

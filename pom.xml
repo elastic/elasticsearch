@@ -523,6 +523,7 @@
                                 <tests.heap.size>${tests.heap.size}</tests.heap.size>
                                 <tests.filter>${tests.filter}</tests.filter>
                                 <tests.version>${project.version}</tests.version>
+                                <tests.locale>en_US</tests.locale>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>

@@ -561,7 +561,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         // now index a document without a color field
         try {
             index(INDEX, "service", "2", jsonBuilder().startObject().startObject("suggest").field("input", "backback").endObject().endObject());
-            fail("index operation was not supposed to be succesful");
+            fail("index operation was not supposed to be successful");
         } catch (ElasticsearchIllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("one or more prefixes needed"));
         }

@@ -440,7 +440,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     /**
      * Returns status of shards  currently finished snapshots
      * <p>
-     * This method is executed on master node and it's complimentary to the {@link #currentSnapshotShards(SnapshotId)} becuase it
+     * This method is executed on master node and it's complimentary to the {@link #currentSnapshotShards(SnapshotId)} because it
      * returns simliar information but for already finished snapshots.
      * </p>
      *

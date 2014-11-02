@@ -208,7 +208,7 @@ As many elasticsearch tests are checking for a similar output, like the amount o
 `assertSecondHit()`::       Asserts the second hit hits the specified matcher
 `assertThirdHit()`::        Asserts the third hits hits the specified matcher
 `assertSearchHit()`::       Assert a certain element in a search response hits the specified matcher
-`assertNoFailures()`::      Asserts that no shard failures have occured in the response
+`assertNoFailures()`::      Asserts that no shard failures have occurred in the response
 `assertFailures()`::        Asserts that shard failures have happened during a search request
 `assertHighlight()`::       Assert specific highlights matched
 `assertSuggestion()`::      Assert for specific suggestions

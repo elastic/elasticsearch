@@ -500,18 +500,18 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
      * Retruns the tests compatibility version.
      */
     public Version compatibilityVersion() {
-        return compatibiltyVersion(getClass());
+        return compatibilityVersion(getClass());
     }
 
-    private Version compatibiltyVersion(Class<?> clazz) {
+    private Version compatibilityVersion(Class<?> clazz) {
         if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
             return globalCompatibilityVersion();
         }
         CompatibilityVersion annotation = clazz.getAnnotation(CompatibilityVersion.class);
         if (annotation != null) {
-            return  Version.smallest(Version.fromId(annotation.version()), compatibiltyVersion(clazz.getSuperclass()));
+            return  Version.smallest(Version.fromId(annotation.version()), compatibilityVersion(clazz.getSuperclass()));
         }
-        return compatibiltyVersion(clazz.getSuperclass());
+        return compatibilityVersion(clazz.getSuperclass());
     }
 
     private static String compatibilityVersionProperty() {

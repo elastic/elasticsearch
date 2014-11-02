@@ -131,7 +131,7 @@ class BindingProcessor extends AbstractProcessor {
                     return null;
                 }
 
-                // This cast is safe after the preceeding check.
+                // This cast is safe after the preceding check.
                 final BindingImpl<T> binding;
                 try {
                     binding = injector.createUnitializedBinding(key, scoping, source, errors);

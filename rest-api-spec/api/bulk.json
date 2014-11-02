@@ -29,7 +29,7 @@
           "type" : "enum",
           "options" : ["sync","async"],
           "default" : "sync",
-          "description" : "Explicitely set the replication type"
+          "description" : "Explicitly set the replication type"
         },
         "routing": {
           "type" : "string",

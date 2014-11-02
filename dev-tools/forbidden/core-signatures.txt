@@ -23,7 +23,7 @@ org.apache.lucene.index.IndexReader#decRef()
 org.apache.lucene.index.IndexReader#incRef()
 org.apache.lucene.index.IndexReader#tryIncRef()
 
-@defaultMessage QueryWrapperFilter is cachable by default - use Queries#wrap instead
+@defaultMessage QueryWrapperFilter is cacheable by default - use Queries#wrap instead
 org.apache.lucene.search.QueryWrapperFilter#<init>(org.apache.lucene.search.Query)
 
 @defaultMessage Pass the precision step from the mappings explicitly instead

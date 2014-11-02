@@ -2477,7 +2477,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testWeight1fStillProducesWeighFuction() throws IOException {
+    public void testWeight1fStillProducesWeighFunction() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String queryString = jsonBuilder().startObject()
                 .startObject("function_score")

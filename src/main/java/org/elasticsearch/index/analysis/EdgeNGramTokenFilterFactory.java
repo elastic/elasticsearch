@@ -79,9 +79,9 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
              * We added this in 0.90.2 but 0.90.1 used LUCENE_43 already so we can not rely on the lucene version.
              * Yet if somebody uses 0.90.2 or higher with a prev. lucene version we should also use the deprecated version.
              */
-            result = new Lucene43EdgeNGramTokenFilter(result, minGram, maxGram);
-        } else {
             result = new EdgeNGramTokenFilter(result, minGram, maxGram);
+        } else {
+            result = new Lucene43EdgeNGramTokenFilter(result, minGram, maxGram);
         }
         
         // side=BACK is not supported anymore but applying ReverseStringFilter up-front and after the token filter has the same effect

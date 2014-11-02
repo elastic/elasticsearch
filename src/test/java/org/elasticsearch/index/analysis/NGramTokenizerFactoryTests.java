@@ -192,7 +192,7 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
     }
     
     // nocommit
-    @Test @AwaitsFix(bugUrl = "decide what to do about ancient analyzers")
+    @Test// @AwaitsFix(bugUrl = "decide what to do about ancient analyzers")
     public void testBackwardsCompatibilityEdgeNgramTokenFilter() throws Exception {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
@@ -214,10 +214,10 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
                 Tokenizer tokenizer = new MockTokenizer();
                 tokenizer.setReader(new StringReader("foo bar"));
                 TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(index, indexSettings, name, settings).create(tokenizer);
-                if (compatVersion) { 
-                    assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
-                } else if (reverse && !compatVersion){
+                if (reverse) {
                     assertThat(edgeNGramTokenFilter, instanceOf(ReverseStringFilter.class));
+                } else if (compatVersion) { 
+                    assertThat(edgeNGramTokenFilter, instanceOf(Lucene43EdgeNGramTokenFilter.class));
                 } else {
                     assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
                 }
@@ -233,7 +233,11 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
                 Tokenizer tokenizer = new MockTokenizer();
                 tokenizer.setReader(new StringReader("foo bar"));
                 TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(index, indexSettings, name, settings).create(tokenizer);
-                assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
+                if (reverse) {
+                    assertThat(edgeNGramTokenFilter, instanceOf(ReverseStringFilter.class));
+                } else {
+                    assertThat(edgeNGramTokenFilter, instanceOf(Lucene43EdgeNGramTokenFilter.class));
+                }
             }
         }
     }

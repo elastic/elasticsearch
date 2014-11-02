@@ -59,8 +59,7 @@ public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinal
 
     @Override
     public long ramBytesUsed() {
-        // nocommit: negative values are illegal.
-        return -1; // unknown
+        return 0; // unknown
     }
     
     @Override

@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.queries.TermsFilter;
@@ -69,7 +69,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);

@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -73,7 +73,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
@@ -148,7 +148,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() == null) {
+        if (fieldType.indexOptions() == IndexOptions.NONE) {
             return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(BytesRefs.toBytesRef(value))));
         }
         return new TermFilter(names().createIndexNameTerm(BytesRefs.toBytesRef(value)));
@@ -180,7 +180,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (fieldType.indexOptions() == null && !fieldType.stored()) {
+        if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
             return;
         }
         fields.add(new Field(names.indexName(), context.type(), fieldType));
@@ -199,8 +199,8 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all are defaults, no sense to write it at all
-        boolean indexed = fieldType.indexOptions() != null;
-        boolean defaultIndexed = Defaults.FIELD_TYPE.indexOptions() != null;
+        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
+        boolean defaultIndexed = Defaults.FIELD_TYPE.indexOptions() != IndexOptions.NONE;
         if (!includeDefaults && fieldType.stored() == Defaults.FIELD_TYPE.stored() && indexed == defaultIndexed) {
             return builder;
         }

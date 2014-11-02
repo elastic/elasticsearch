@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.ttl;
 
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedString;
@@ -67,7 +68,7 @@ public class TTLMappingTests extends ElasticsearchSingleNodeTest {
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").ttl(Long.MAX_VALUE));
 
         assertThat(doc.rootDoc().getField("_ttl").fieldType().stored(), equalTo(true));
-        assertNotNull(doc.rootDoc().getField("_ttl").fieldType().indexOptions());
+        assertNotSame(IndexOptions.NONE, doc.rootDoc().getField("_ttl").fieldType().indexOptions());
         assertThat(doc.rootDoc().getField("_ttl").tokenStream(docMapper.indexAnalyzer(), null), notNullValue());
     }
 
@@ -91,7 +92,7 @@ public class TTLMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(true));
         assertThat(docMapper.TTLFieldMapper().fieldType().stored(), equalTo(false));
-        assertNull(docMapper.TTLFieldMapper().fieldType().indexOptions());
+        assertEquals(IndexOptions.NONE, docMapper.TTLFieldMapper().fieldType().indexOptions());
     }
 
     @Test

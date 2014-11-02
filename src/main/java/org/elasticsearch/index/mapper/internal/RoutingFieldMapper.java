@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -57,7 +57,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
@@ -195,7 +195,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         if (context.sourceToParse().routing() != null) {
             String routing = context.sourceToParse().routing();
             if (routing != null) {
-                if (fieldType.indexOptions() == null && !fieldType.stored()) {
+                if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
                     context.ignoredValue(names.indexName(), routing);
                     return;
                 }
@@ -214,8 +214,8 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all are defaults, no sense to write it at all
-        boolean indexed = fieldType.indexOptions() != null;
-        boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != null;
+        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != IndexOptions.NONE;
         if (!includeDefaults && indexed == indexedDefault &&
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() && required == Defaults.REQUIRED && path == Defaults.PATH) {
             return builder;

@@ -20,7 +20,7 @@ package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -72,7 +72,7 @@ public class PostingsHighlighter implements Highlighter {
 
         FieldMapper<?> fieldMapper = highlighterContext.mapper;
         SearchContextHighlight.Field field = highlighterContext.field;
-        if (fieldMapper.fieldType().indexOptions() != FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
+        if (fieldMapper.fieldType().indexOptions() != IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
             throw new ElasticsearchIllegalArgumentException("the field [" + highlighterContext.fieldName + "] should be indexed with positions and offsets in the postings list to be used with postings highlighter");
         }
 

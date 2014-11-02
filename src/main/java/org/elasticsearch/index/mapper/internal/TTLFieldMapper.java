@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -58,7 +58,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         public static final FieldType TTL_FIELD_TYPE = new FieldType(LongFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            TTL_FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
+            TTL_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             TTL_FIELD_TYPE.setStored(true);
             TTL_FIELD_TYPE.setTokenized(false);
             TTL_FIELD_TYPE.freeze();

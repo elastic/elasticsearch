@@ -79,7 +79,7 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
 
     MemoryIndex indexDoc(ParseContext.Document d, Analyzer analyzer, MemoryIndex memoryIndex) {
         for (IndexableField field : d.getFields()) {
-            if (field.fieldType().indexOptions() == null && field.name().equals(UidFieldMapper.NAME)) {
+            if (field.fieldType().indexOptions() == IndexOptions.NONE && field.name().equals(UidFieldMapper.NAME)) {
                 continue;
             }
             try {

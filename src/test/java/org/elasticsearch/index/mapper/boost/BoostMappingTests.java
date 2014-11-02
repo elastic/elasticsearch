@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.boost;
 
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -93,10 +94,10 @@ public class BoostMappingTests extends ElasticsearchSingleNodeTest {
         IndexService indexServices = createIndex("test");
         DocumentMapper docMapper = indexServices.mapperService().documentMapperParser().parse("type", mapping);
         assertThat(docMapper.boostFieldMapper().fieldType().stored(), equalTo(true));
-        assertNotNull(docMapper.boostFieldMapper().fieldType().indexOptions());
+        assertEquals(IndexOptions.DOCS, docMapper.boostFieldMapper().fieldType().indexOptions());
         docMapper.refreshSource();
         docMapper = indexServices.mapperService().documentMapperParser().parse("type", docMapper.mappingSource().string());
         assertThat(docMapper.boostFieldMapper().fieldType().stored(), equalTo(true));
-        assertNotNull(docMapper.boostFieldMapper().fieldType().indexOptions());
+        assertEquals(IndexOptions.DOCS, docMapper.boostFieldMapper().fieldType().indexOptions());
     }
 }

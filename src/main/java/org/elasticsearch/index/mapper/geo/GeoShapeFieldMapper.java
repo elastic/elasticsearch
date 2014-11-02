@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.geo;
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
@@ -91,7 +91,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
-            FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setStoreTermVectors(false);

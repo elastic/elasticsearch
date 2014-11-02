@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -237,10 +238,10 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (enabledState.enabled) {
             long timestamp = context.sourceToParse().timestamp();
-            if (fieldType.indexOptions() == null && !fieldType.stored() && !hasDocValues()) {
+            if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored() && !hasDocValues()) {
                 context.ignoredValue(names.indexName(), String.valueOf(timestamp));
             }
-            if (fieldType.indexOptions() != null || fieldType.stored()) {
+            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
                 fields.add(new LongFieldMapper.CustomLongNumericField(this, timestamp, fieldType));
             }
             if (hasDocValues()) {
@@ -257,8 +258,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        boolean indexed = fieldType.indexOptions() != null;
-        boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != null;
+        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != IndexOptions.NONE;
 
         // if all are defaults, no sense to write it at all
         if (!includeDefaults && indexed == indexedDefault && customFieldDataSettings == null &&

@@ -215,7 +215,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
         doc.add(field);
 
         type = new FieldType(IntField.TYPE_NOT_STORED);
-        type.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS);
+        type.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
         type.freeze();
 
         field = new IntField("int1", 1, type);

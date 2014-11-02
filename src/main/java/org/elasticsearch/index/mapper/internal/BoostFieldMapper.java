@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -70,7 +70,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
         static {
             FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setIndexOptions(null); // not indexed
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE); // not indexed
         }
     }
 
@@ -89,8 +89,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         }
 
         // if we are indexed we use DOCS_ONLY
-        protected FieldInfo.IndexOptions getDefaultIndexOption() {
-            return FieldInfo.IndexOptions.DOCS_ONLY;
+        protected IndexOptions getDefaultIndexOption() {
+            return IndexOptions.DOCS;
         }
 
         @Override
@@ -287,8 +287,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        boolean indexed = fieldType.indexOptions() != null;
-        boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != null;
+        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != IndexOptions.NONE;
 
         // all are defaults, don't write it at all
         if (!includeDefaults && name().equals(Defaults.NAME) && nullValue == null &&

@@ -25,6 +25,7 @@ import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
@@ -578,7 +579,7 @@ public class DocumentMapper implements ToXContent {
             for (ParseContext.Document doc : context.docs()) {
                 encounteredFields.clear();
                 for (IndexableField field : doc) {
-                    if (field.fieldType().indexOptions() != null && !field.fieldType().omitNorms()) {
+                    if (field.fieldType().indexOptions() != IndexOptions.NONE && !field.fieldType().omitNorms()) {
                         if (!encounteredFields.contains(field.name())) {
                             ((Field) field).setBoost(context.docBoost() * field.boost());
                             encounteredFields.add(field.name());

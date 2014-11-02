@@ -22,8 +22,6 @@ package org.elasticsearch.index.merge.policy;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
-import org.apache.lucene.index.FieldInfo.DocValuesType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -115,7 +113,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
                                            false,                                 // store term vectors
                                            false,                                 // omit norms
                                            false,                                 // store payloads
-                                           null,                                  // index options
+                                           IndexOptions.NONE,                     // index options
                                            DocValuesType.NUMERIC,                 // docvalues
                                            -1,                                    // docvalues generation
                                            Collections.<String, String>emptyMap() // attributes

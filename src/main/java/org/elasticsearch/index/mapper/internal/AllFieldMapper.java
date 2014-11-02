@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -107,7 +107,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         public AllFieldMapper build(BuilderContext context) {
             // In case the mapping overrides these
             // nocommit - this used to setIndex(true) but now we adding back positions, should we set DOCS_ONLY?
-            if (fieldType.indexOptions() == null) {
+            if (fieldType.indexOptions() == IndexOptions.NONE) {
                 fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             }
             fieldType.setTokenized(true);

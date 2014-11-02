@@ -23,6 +23,7 @@ import com.google.common.net.InetAddresses;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -299,7 +300,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         }
 
         final long value = ipToLong(ipAsString);
-        if (fieldType.indexOptions() != null || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType);
             field.setBoost(boost);
             fields.add(field);

@@ -23,7 +23,7 @@ import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
@@ -73,7 +73,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexOptions(null); // not indexed
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE); // not indexed
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();

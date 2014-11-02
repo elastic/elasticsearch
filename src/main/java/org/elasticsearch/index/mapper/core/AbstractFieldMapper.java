@@ -27,7 +27,7 @@ import com.google.common.collect.ImmutableList;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.queries.TermsFilter;
@@ -114,18 +114,18 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
         public T index(boolean index) {
             if (index) {
-                if (fieldType.indexOptions() == null) {
+                if (fieldType.indexOptions() == IndexOptions.NONE) {
                     /*
                      * the logic here is to reset to the default options only if we are not indexed ie. options are null
                      * if the fieldType has a non-null option we are all good it might have been set through a different
                      * call.
                      */
                     final IndexOptions options = getDefaultIndexOption();
-                    assert options != null : "default IndexOptions is null can't enable indexing";
+                    assert options != IndexOptions.NONE : "default IndexOptions is NONE can't enable indexing";
                     fieldType.setIndexOptions(options);
                 }
             } else {
-                fieldType.setIndexOptions(null);
+                fieldType.setIndexOptions(IndexOptions.NONE);
             }
             return builder;
         }
@@ -310,13 +310,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         this.fieldType.freeze();
 
         // automatically set to keyword analyzer if its indexed and not analyzed
-        if (indexAnalyzer == null && !this.fieldType.tokenized() && this.fieldType.indexOptions() != null) {
+        if (indexAnalyzer == null && !this.fieldType.tokenized() && this.fieldType.indexOptions() != IndexOptions.NONE) {
             this.indexAnalyzer = Lucene.KEYWORD_ANALYZER;
         } else {
             this.indexAnalyzer = indexAnalyzer;
         }
         // automatically set to keyword analyzer if its indexed and not analyzed
-        if (searchAnalyzer == null && !this.fieldType.tokenized() && this.fieldType.indexOptions() != null) {
+        if (searchAnalyzer == null && !this.fieldType.tokenized() && this.fieldType.indexOptions() != IndexOptions.NONE) {
             this.searchAnalyzer = Lucene.KEYWORD_ANALYZER;
         } else {
             this.searchAnalyzer = searchAnalyzer;
@@ -583,8 +583,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             return;
         }
         AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
-        boolean indexed =  fieldType.indexOptions() != null;
-        boolean mergeWithIndexed = fieldMergeWith.fieldType().indexOptions() != null;
+        boolean indexed =  fieldType.indexOptions() != IndexOptions.NONE;
+        boolean mergeWithIndexed = fieldMergeWith.fieldType().indexOptions() != IndexOptions.NONE;
         if (indexed != mergeWithIndexed || this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index values");
         }
@@ -696,8 +696,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         FieldType defaultFieldType = defaultFieldType();
-        boolean indexed =  fieldType.indexOptions() != null;
-        boolean defaultIndexed = defaultFieldType.indexOptions() != null;
+        boolean indexed =  fieldType.indexOptions() != IndexOptions.NONE;
+        boolean defaultIndexed = defaultFieldType.indexOptions() != IndexOptions.NONE;
         if (includeDefaults || indexed != defaultIndexed ||
                 fieldType.tokenized() != defaultFieldType.tokenized()) {
             builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
@@ -721,8 +721,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             }
             builder.endObject();
         }
-        //nocommit - what should we put here if indexOptions are null?
-        if (includeDefaults || fieldType.indexOptions() != defaultFieldType.indexOptions() && fieldType.indexOptions() != null) {
+        //nocommit - what should we put here if indexOptions are NONE?
+        if (includeDefaults || fieldType.indexOptions() != defaultFieldType.indexOptions() && fieldType.indexOptions() != IndexOptions.NONE) {
             builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
         }
 
@@ -805,7 +805,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 return TypeParsers.INDEX_OPTIONS_FREQS;
             case DOCS_AND_FREQS_AND_POSITIONS:
                 return TypeParsers.INDEX_OPTIONS_POSITIONS;
-            case DOCS_ONLY:
+            case DOCS:
                 return TypeParsers.INDEX_OPTIONS_DOCS;
             default:
                 throw new ElasticsearchIllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");

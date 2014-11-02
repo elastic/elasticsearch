@@ -24,6 +24,8 @@ import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
@@ -762,7 +764,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper<?> fieldMapper : docMapper.mappers()) {
                     final String indexName = fieldMapper.names().indexName();
-                    if (fieldMapper.fieldType().indexOptions() != null && !fieldMapper.fieldType().omitNorms() && fieldMapper.normsLoading(defaultLoading) == Loading.EAGER) {
+                    if (fieldMapper.fieldType().indexOptions() != IndexOptions.NONE && !fieldMapper.fieldType().omitNorms() && fieldMapper.normsLoading(defaultLoading) == Loading.EAGER) {
                         warmUp.add(indexName);
                     }
                 }

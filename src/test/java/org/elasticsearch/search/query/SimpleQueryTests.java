@@ -475,7 +475,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 cluster().wipeIndices("test");
             } catch (MapperParsingException ex) {
                 assertThat(version.toString(), version.onOrAfter(Version.V_1_0_0_RC2), equalTo(true));
-                assertThat(ex.getCause().getMessage(), equalTo("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'DOCS_ONLY']  instead"));
+                assertThat(ex.getCause().getMessage(), equalTo("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'docs']  instead"));
             }
             version = randomVersion();
         }

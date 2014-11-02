@@ -23,7 +23,7 @@ import com.google.common.collect.Iterables;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
@@ -71,7 +71,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexOptions(null);
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
@@ -93,9 +93,9 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             this.path = path;
             return builder;
         }
-        // if we are indexed we use DOCS_ONLY
+        // if we are indexed we use DOCS
         protected IndexOptions getDefaultIndexOption() {
-            return IndexOptions.DOCS_ONLY;
+            return IndexOptions.DOCS;
         }
 
         @Override
@@ -171,7 +171,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != null || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termQuery(value, context);
         }
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
@@ -180,7 +180,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != null || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termFilter(value, context);
         }
         return new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), value));
@@ -188,7 +188,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Filter termsFilter(List values, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != null || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termsFilter(values, context);
         }
         return new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), values));
@@ -196,7 +196,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != null || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.prefixQuery(value, method, context);
         }
         Collection<String> queryTypes = context.queryTypes();
@@ -220,7 +220,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Filter prefixFilter(Object value, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != null || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.prefixFilter(value, context);
         }
         Collection<String> queryTypes = context.queryTypes();
@@ -236,7 +236,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Query regexpQuery(Object value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != null || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.regexpQuery(value, flags, method, context);
         }
         Collection<String> queryTypes = context.queryTypes();
@@ -259,7 +259,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     public Filter regexpFilter(Object value, int flags, @Nullable QueryParseContext context) {
-        if (fieldType.indexOptions() != null || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.regexpFilter(value, flags, context);
         }
         Collection<String> queryTypes = context.queryTypes();
@@ -311,7 +311,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             context.id(id);
         } // else we are in the pre/post parse phase
 
-        if (fieldType.indexOptions() != null || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             fields.add(new Field(names.indexName(), context.id(), fieldType));
         }
         if (hasDocValues()) {
@@ -342,7 +342,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             builder.field("store", fieldType.stored());
         }
         if (includeDefaults || fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions()) {
-            builder.field("index", indexTokenizeOptionToString(fieldType.indexOptions() != null, fieldType.tokenized()));
+            builder.field("index", indexTokenizeOptionToString(fieldType.indexOptions() != IndexOptions.NONE, fieldType.tokenized()));
         }
         if (includeDefaults || path != Defaults.PATH) {
             builder.field("path", path);

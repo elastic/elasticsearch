@@ -30,6 +30,7 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -69,8 +70,12 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
 
     private Map<String, String> perFieldAnalyzer;
 
+    private Boolean cache;
+
     private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
             Flag.FieldStatistics);
+
+    long startTime;
 
     public TermVectorRequest() {
     }
@@ -95,6 +100,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         super(other.index());
         this.id = other.id();
         this.type = other.type();
+        this.doc = other.doc();
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
         this.routing = other.routing();
@@ -102,6 +108,9 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
             this.selectedFields = new HashSet<>(other.selectedFields);
         }
         this.realtime = other.realtime();
+        this.perFieldAnalyzer = perFieldAnalyzer();
+        this.cache = other.cache;
+        this.startTime = other.startTime;
     }
 
     public TermVectorRequest(MultiGetRequest.Item item) {
@@ -355,6 +364,15 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         return this;
     }
 
+    public Boolean cache() {
+        return cache;
+    }
+
+    public TermVectorRequest cache(Boolean cache) {
+        this.cache = cache;
+        return this;
+    }
+
     private void setFlag(Flag flag, boolean set) {
         if (set && !flagsEnum.contains(flag)) {
             flagsEnum.add(flag);
@@ -362,6 +380,10 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
             flagsEnum.remove(flag);
             assert (!flagsEnum.contains(flag));
         }
+    }
+
+    public long startTime() {
+        return this.startTime;
     }
 
     @Override
@@ -381,7 +403,6 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         termVectorRequest.readFrom(in);
         return termVectorRequest;
     }
-
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
@@ -421,10 +442,18 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
             }
             this.realtime = in.readBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            startTime = in.readVLong();
+            cache = in.readOptionalBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        writeTo(out, false);
+    }
+
+    public void writeTo(StreamOutput out, boolean asKey) throws IOException {
         super.writeTo(out);
         if (out.getVersion().before(Version.V_1_4_0_Beta1)) {
             //term vector used to read & write the index twice, here and in the parent class
@@ -460,6 +489,10 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                 out.writeGenericValue(perFieldAnalyzer);
             }
             out.writeBoolean(realtime());
+        }
+        if (!asKey && out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            out.writeVLong(startTime);
+            out.writeOptionalBoolean(cache);
         }
     }
 
@@ -503,6 +536,8 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
                     termVectorRequest.dfs(parser.booleanValue());
                 } else if (currentFieldName.equals("per_field_analyzer") || currentFieldName.equals("perFieldAnalyzer")) {
                     termVectorRequest.perFieldAnalyzer(readPerFieldAnalyzer(parser.map()));
+                } else if (currentFieldName.equals("_cache")) {
+                    termVectorRequest.cache(parser.booleanValue());
                 } else if ("_index".equals(currentFieldName)) { // the following is important for multi request parsing.
                     termVectorRequest.index = parser.text();
                 } else if ("_type".equals(currentFieldName)) {
@@ -542,5 +577,13 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
             }
         }
         return mapStrStr;
+    }
+
+    public BytesReference cacheKey() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        this.writeTo(out, true);
+        // copy it over, most requests are small, we might as well copy to make sure we are not sliced...
+        // we could potentially keep it without copying, but then pay the price of extra unused bytes up to a page
+        return out.bytes().copyBytesArray();
     }
 }

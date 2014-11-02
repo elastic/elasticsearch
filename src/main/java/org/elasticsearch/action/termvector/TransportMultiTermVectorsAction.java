@@ -62,6 +62,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         Map<ShardId, MultiTermVectorsShardRequest> shardRequests = new HashMap<>();
         for (int i = 0; i < request.requests.size(); i++) {
             TermVectorRequest termVectorRequest = request.requests.get(i);
+            termVectorRequest.startTime = System.currentTimeMillis();
             termVectorRequest.routing(clusterState.metaData().resolveIndexRouting(termVectorRequest.routing(), termVectorRequest.index()));
             if (!clusterState.metaData().hasConcreteIndex(termVectorRequest.index())) {
                 responses.set(i, new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(termVectorRequest.index(),

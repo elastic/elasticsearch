@@ -182,6 +182,11 @@ public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorReq
         return this;
     }
 
+    public TermVectorRequestBuilder setCache(boolean cache) {
+        request.cache(cache);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<TermVectorResponse> listener) {
         client.termVector(request, listener);

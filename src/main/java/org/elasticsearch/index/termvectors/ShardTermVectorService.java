@@ -47,6 +47,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.indices.cache.termvectors.IndicesTermVectorsCache;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
@@ -62,12 +63,14 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
     private IndexShard indexShard;
     private final MappingUpdatedAction mappingUpdatedAction;
     private final TransportDfsOnlyAction dfsAction;
+    private final IndicesTermVectorsCache indicesQueryCache;
 
     @Inject
-    public ShardTermVectorService(ShardId shardId, @IndexSettings Settings indexSettings, MappingUpdatedAction mappingUpdatedAction, TransportDfsOnlyAction dfsAction) {
+    public ShardTermVectorService(ShardId shardId, @IndexSettings Settings indexSettings, MappingUpdatedAction mappingUpdatedAction, TransportDfsOnlyAction dfsAction, IndicesTermVectorsCache indicesQueryCache) {
         super(shardId, indexSettings);
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.dfsAction = dfsAction;
+        this.indicesQueryCache = indicesQueryCache;
     }
 
     // sadly, to overcome cyclic dep, we need to do this and inject it ourselves...
@@ -76,8 +79,30 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return this;
     }
 
-    public TermVectorResponse getTermVector(TermVectorRequest request, String concreteIndex) {
+    public IndexShard getIndexShard() {
+        return indexShard;
+    }
+
+    public TermVectorResponse getTermVector(TermVectorRequest request) {
         final Engine.Searcher searcher = indexShard.acquireSearcher("term_vector");
+        try {
+            TermVectorResponse result;
+            boolean canCache = indicesQueryCache.canCache(request, searcher.reader());
+            if (canCache) {
+                result = indicesQueryCache.load(request, indexShard, searcher);
+            } else {
+                result = getTermVector(request, searcher);
+            }
+            return result;
+        } catch (Throwable ex) {
+            throw new ElasticsearchException("failed to load term vectors from cache", ex);
+        } finally {
+            searcher.close();
+        }
+    }
+
+    public TermVectorResponse getTermVector(TermVectorRequest request, Engine.Searcher searcher) {
+        String concreteIndex = indexShard.shardId().getIndex();
         IndexReader topLevelReader = searcher.reader();
         final TermVectorResponse termVectorResponse = new TermVectorResponse(concreteIndex, request.type(), request.id());
 
@@ -139,7 +164,6 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         } catch (Throwable ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
         } finally {
-            searcher.close();
             get.release();
         }
         return termVectorResponse;

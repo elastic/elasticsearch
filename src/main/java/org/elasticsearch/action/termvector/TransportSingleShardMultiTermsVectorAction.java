@@ -88,7 +88,8 @@ public class TransportSingleShardMultiTermsVectorAction extends TransportShardSi
             try {
                 IndexService indexService = indicesService.indexServiceSafe(request.index());
                 IndexShard indexShard = indexService.shardSafe(shardId.id());
-                TermVectorResponse termVectorResponse = indexShard.termVectorService().getTermVector(termVectorRequest, shardId.getIndex());
+                TermVectorResponse termVectorResponse = indexShard.termVectorService().getTermVector(termVectorRequest);
+                termVectorResponse.updateTookInMillis(termVectorRequest.startTime());
                 response.add(request.locations.get(i), termVectorResponse);
             } catch (Throwable t) {
                 if (TransportActions.isShardNotAvailableException(t)) {
@@ -100,7 +101,6 @@ public class TransportSingleShardMultiTermsVectorAction extends TransportShardSi
                 }
             }
         }
-
         return response;
     }
 }

@@ -84,6 +84,18 @@ or the field statistics of the entire index, and not just at the shard. Use it
 with caution as distributed frequencies can have a serious performance impact.
 
 [float]
+==== Caching coming[2.0]
+
+Setting `_cache` to `true` (default is `false`) will enable caching. This is
+handy when the same request is performed multiple times, as it is the case
+with the <<query-dsl-mlt-query,More Like This>> query, or when the cost of
+performing the same request is expensive, as it is the case when term vectors
+are generated on the fly possibly asking for term statistics or distributed
+frequencies. The parameters of the cache are controlled by the shard query
+cache <<index-modules-shard-query-cache-cache-settings,settings>>. Note that
+caching is a near real-time feature, and not real-time.
+
+[float]
 === Behaviour
 
 The term and field statistics are not accurate. Deleted documents

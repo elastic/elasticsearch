@@ -140,6 +140,10 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         cache = cacheBuilder.build();
     }
 
+    public Cache<Key, BytesReference> getCache() {
+        return cache;
+    }
+
     private static class QueryCacheWeigher implements Weigher<Key, BytesReference> {
 
         @Override
@@ -220,19 +224,23 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         if (loader.isLoaded()) {
             key.shard.queryCache().onMiss();
             // see if its the first time we see this reader, and make sure to register a cleanup key
-            CleanupKey cleanupKey = new CleanupKey(context.indexShard(), ((DirectoryReader) context.searcher().getIndexReader()).getVersion());
-            if (!registeredClosedListeners.containsKey(cleanupKey)) {
-                Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
-                if (previous == null) {
-                    context.searcher().getIndexReader().addReaderClosedListener(cleanupKey);
-                }
-            }
+            registerCleanupKey(context.indexShard(), context.searcher().getIndexReader());
         } else {
             key.shard.queryCache().onHit();
         }
 
         // try and be smart, and reuse an already loaded and constructed QueryResult of in VM execution
         return new BytesQuerySearchResult(context.id(), context.shardTarget(), value, loader.isLoaded() ? context.queryResult() : null);
+    }
+
+    public void registerCleanupKey(IndexShard indexShard, IndexReader reader) {
+        CleanupKey cleanupKey = new CleanupKey(indexShard, ((DirectoryReader) reader).getVersion());
+        if (!registeredClosedListeners.containsKey(cleanupKey)) {
+            Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
+            if (previous == null) {
+                reader.addReaderClosedListener(cleanupKey);
+            }
+        }
     }
 
     private static class Loader implements Callable<BytesReference> {
@@ -272,7 +280,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         public final long readerVersion; // use the reader version to now keep a reference to a "short" lived reader until its reaped
         public final BytesReference value;
 
-        Key(IndexShard shard, long readerVersion, BytesReference value) {
+        public Key(IndexShard shard, long readerVersion, BytesReference value) {
             this.shard = shard;
             this.readerVersion = readerVersion;
             this.value = value;

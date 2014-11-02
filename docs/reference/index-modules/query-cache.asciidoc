@@ -109,6 +109,7 @@ keys are always emitted in the same order. This canonical mode can be used in
 the application to ensure that a request is always serialized in the same way.
 
 [float]
+[[index-modules-shard-query-cache-cache-settings]]
 === Cache settings
 
 The cache is managed at the node level, and has a default maximum size of `1%`

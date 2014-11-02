@@ -20,7 +20,9 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -30,6 +32,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.List;
@@ -70,11 +73,13 @@ public class DiskThresholdDecider extends AllocationDecider {
     private volatile ByteSizeValue freeBytesThresholdHigh;
     private volatile boolean includeRelocations;
     private volatile boolean enabled;
+    private volatile TimeValue rerouteInterval;
 
     public static final String CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED = "cluster.routing.allocation.disk.threshold_enabled";
     public static final String CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK = "cluster.routing.allocation.disk.watermark.low";
     public static final String CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK = "cluster.routing.allocation.disk.watermark.high";
     public static final String CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS = "cluster.routing.allocation.disk.include_relocations";
+    public static final String CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL = "cluster.routing.allocation.disk.reroute_interval";
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
@@ -83,6 +88,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             String newHighWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, null);
             Boolean newRelocationsSetting = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS, null);
             Boolean newEnableSetting =  settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, null);
+            TimeValue newRerouteInterval = settings.getAsTime(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL, null);
 
             if (newEnableSetting != null) {
                 logger.info("updating [{}] from [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED,
@@ -110,15 +116,59 @@ public class DiskThresholdDecider extends AllocationDecider {
                 DiskThresholdDecider.this.freeDiskThresholdHigh = 100.0 - thresholdPercentageFromWatermark(newHighWatermark);
                 DiskThresholdDecider.this.freeBytesThresholdHigh = thresholdBytesFromWatermark(newHighWatermark);
             }
+            if (newRerouteInterval != null) {
+                logger.info("updating [{}] to [{}]", CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL, newRerouteInterval);
+                DiskThresholdDecider.this.rerouteInterval = newRerouteInterval;
+            }
+        }
+    }
+
+    /**
+     * Listens for a node to go over the high watermark and kicks off an empty
+     * reroute if it does
+     */
+    class DiskListener implements ClusterInfoService.Listener {
+        private final Client client;
+        private long lastRun;
+
+        DiskListener(Client client) {
+            this.client = client;
+        }
+
+        @Override
+        public void onNewInfo(ClusterInfo info) {
+            Map<String, DiskUsage> usages = info.getNodeDiskUsages();
+            if (usages != null) {
+                for (DiskUsage entry : usages.values()) {
+                    if (entry.getFreeBytes() < DiskThresholdDecider.this.freeBytesThresholdHigh.bytes()) {
+                        if ((System.currentTimeMillis() - lastRun) > DiskThresholdDecider.this.rerouteInterval.millis()) {
+                            lastRun = System.currentTimeMillis();
+                            logger.info("high watermark [{}/{}%] exceeded on {}, rerouting shards",
+                                    DiskThresholdDecider.this.freeBytesThresholdHigh, DiskThresholdDecider.this.freeDiskThresholdHigh, entry);
+                            // Execute an empty reroute, but don't block on the response
+                            client.admin().cluster().prepareReroute().execute();
+                            // Only one reroute is required, short circuit
+                            return;
+                        } else {
+                            logger.debug("high watermark exceeded on {} but an automatic reroute has occurred in the last [{}], skipping reroute",
+                                    entry, DiskThresholdDecider.this.rerouteInterval);
+                            return;
+                        }
+                    }
+                }
+            }
         }
     }
 
     public DiskThresholdDecider(Settings settings) {
-        this(settings, new NodeSettingsService(settings));
+        // It's okay the Client is null here, because the empty cluster info
+        // service will never actually call the listener where the client is
+        // needed. Also this constructor is only used for tests
+        this(settings, new NodeSettingsService(settings), ClusterInfoService.EMPTY, null);
     }
 
     @Inject
-    public DiskThresholdDecider(Settings settings, NodeSettingsService nodeSettingsService) {
+    public DiskThresholdDecider(Settings settings, NodeSettingsService nodeSettingsService, ClusterInfoService infoService, Client client) {
         super(settings);
         String lowWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "85%");
         String highWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "90%");
@@ -136,9 +186,11 @@ public class DiskThresholdDecider extends AllocationDecider {
         this.freeBytesThresholdLow = thresholdBytesFromWatermark(lowWatermark);
         this.freeBytesThresholdHigh = thresholdBytesFromWatermark(highWatermark);
         this.includeRelocations = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS, true);
+        this.rerouteInterval = settings.getAsTime(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL, TimeValue.timeValueSeconds(60));
 
         this.enabled = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true);
         nodeSettingsService.addListener(new ApplySettings());
+        infoService.addListener(new DiskListener(client));
     }
 
     /**
@@ -206,9 +258,9 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (includeRelocations) {
             long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, shardSizes);
             DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
-            if (logger.isDebugEnabled()) {
-                logger.debug("usage without relocations: {}", usage);
-                logger.debug("usage with relocations: [{} bytes] {}", relocatingShardsSize, usageIncludingRelocations);
+            if (logger.isTraceEnabled()) {
+                logger.trace("usage without relocations: {}", usage);
+                logger.trace("usage with relocations: [{} bytes] {}", relocatingShardsSize, usageIncludingRelocations);
             }
             usage = usageIncludingRelocations;
         }
@@ -348,9 +400,9 @@ public class DiskThresholdDecider extends AllocationDecider {
             Map<String, Long> shardSizes = clusterInfo.getShardSizes();
             long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, shardSizes);
             DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
-            if (logger.isDebugEnabled()) {
-                logger.debug("usage without relocations: {}", usage);
-                logger.debug("usage with relocations: [{} bytes] {}", relocatingShardsSize, usageIncludingRelocations);
+            if (logger.isTraceEnabled()) {
+                logger.trace("usage without relocations: {}", usage);
+                logger.trace("usage with relocations: [{} bytes] {}", relocatingShardsSize, usageIncludingRelocations);
             }
             usage = usageIncludingRelocations;
         }

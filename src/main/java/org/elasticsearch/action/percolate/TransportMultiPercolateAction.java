@@ -244,7 +244,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
 
         @SuppressWarnings("unchecked")
         void onShardResponse(ShardId shardId, TransportShardMultiPercolateAction.Response response) {
-            logger.debug("{} Percolate shard response", shardId);
+            logger.trace("{} Percolate shard response", shardId);
             try {
                 for (TransportShardMultiPercolateAction.Response.Item item : response.items()) {
                     AtomicReferenceArray shardResults = responsesByItemAndShard.get(item.slot());

@@ -35,7 +35,7 @@ import java.util.*;
 
 /**
  * A collection of error messages. If this type is passed as a method parameter, the method is
- * considered to have executed succesfully only if new errors were not added to this collection.
+ * considered to have executed successfully only if new errors were not added to this collection.
  * <p/>
  * <p>Errors can be chained to provide additional context. To add context, call {@link #withSource}
  * to create a new Errors instance that contains additional context. All messages added to the

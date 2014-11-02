@@ -238,7 +238,7 @@ public class RecoverySource extends AbstractComponent {
                                            }
 
                                        } else { // corruption has happened on the way to replica
-                                           RemoteTransportException exception = new RemoteTransportException("File corruption occured on recovery but checksums are ok", null);
+                                           RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but checksums are ok", null);
                                            exception.addSuppressed(e);
                                            exceptions.add(0, exception); // last exception first
                                            logger.warn("{} File corruption on recovery {} local checksum OK", corruptIndexException, shard.shardId(), md);

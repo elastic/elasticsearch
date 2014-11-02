@@ -294,7 +294,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
                 assert startOfThrottleMillis > 0 : "Bad state of startOfThrottleMillis";
                 long throttleTimeMillis = System.currentTimeMillis() - startOfThrottleMillis;
                 if (throttleTimeMillis >= 0) {
-                    //A timeslip may have occured but never want to add a negative number
+                    //A timeslip may have occurred but never want to add a negative number
                     throttleTimeMillisMetric.inc(throttleTimeMillis);
                 }
             }

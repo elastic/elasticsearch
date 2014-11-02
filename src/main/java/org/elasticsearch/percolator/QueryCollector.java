@@ -226,7 +226,7 @@ abstract class QueryCollector extends Collector {
 
         MatchAndSort(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
             super(logger, context, isNestedDoc);
-            // TODO: Use TopFieldCollector.create(...) for ascending and decending scoring?
+            // TODO: Use TopFieldCollector.create(...) for ascending and descending scoring?
             topDocsCollector = TopScoreDocCollector.create(context.size(), false);
         }
 

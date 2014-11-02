@@ -692,7 +692,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                 long start = System.currentTimeMillis();
                 do {
                     long msRemaining = timeOut.getMillis() - (System.currentTimeMillis() - start);
-                    logger.info("[{}] going to try and aquire [{}] in [{}]ms [{}] available to aquire right now",name, maxRequests,msRemaining, requestsOutstanding.availablePermits());
+                    logger.info("[{}] going to try and acquire [{}] in [{}]ms [{}] available to acquire right now",name, maxRequests,msRemaining, requestsOutstanding.availablePermits());
                     try {
                         requestsOutstanding.tryAcquire(maxRequests, msRemaining, TimeUnit.MILLISECONDS );
                         return;
@@ -718,7 +718,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
             ut.join(); //Threads should have finished because of the latch.await
         }
 
-        //If are no errors every request recieved a response otherwise the test would have timedout
+        //If are no errors every request received a response otherwise the test would have timedout
         //aquiring the request outstanding semaphores.
         for (Throwable throwable : failures) {
             logger.info("Captured failure on concurrent update:", throwable);

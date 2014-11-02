@@ -82,7 +82,7 @@ if not errorlevel 1 goto managed
 echo Failed starting service manager for '%SERVICE_ID%'
 goto:eof
 :managed
-echo Succesfully started service manager for '%SERVICE_ID%'.
+echo Successfully started service manager for '%SERVICE_ID%'.
 goto:eof
 
 :doRemove

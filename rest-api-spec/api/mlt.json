@@ -45,7 +45,7 @@
         },
         "min_term_freq": {
           "type" : "number",
-          "description" : "The term frequency as percent: terms with lower occurence in the source document will be ignored"
+          "description" : "The term frequency as percent: terms with lower occurrence in the source document will be ignored"
         },
         "min_word_length": {
           "type" : "number",

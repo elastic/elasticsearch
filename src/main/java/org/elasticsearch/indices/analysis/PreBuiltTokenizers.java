@@ -33,6 +33,7 @@ import org.apache.lucene.analysis.standard.ClassicTokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
 import org.apache.lucene.analysis.standard.std40.StandardTokenizer40;
+import org.apache.lucene.analysis.standard.std40.UAX29URLEmailTokenizer40;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
@@ -67,8 +68,11 @@ public enum PreBuiltTokenizers {
     UAX_URL_EMAIL(CachingStrategy.LUCENE) {
         @Override
         protected Tokenizer create(Version version) {
-            // nocommit - ths one needs to be exposed in lucene for bwc
-            return new UAX29URLEmailTokenizer();
+            if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_7_0)) {
+                return new UAX29URLEmailTokenizer();
+            } else {
+                return new UAX29URLEmailTokenizer40();
+            }
         }
     },
 

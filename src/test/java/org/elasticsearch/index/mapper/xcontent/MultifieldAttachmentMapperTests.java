@@ -29,6 +29,8 @@ import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -41,11 +43,18 @@ import static org.hamcrest.Matchers.*;
 public class MultifieldAttachmentMapperTests extends ElasticsearchTestCase {
 
     private DocumentMapperParser mapperParser;
+    private ThreadPool threadPool;
 
     @Before
     public void setupMapperParser() {
         mapperParser = MapperTestUtils.newMapperParser();
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
+
+    }
+
+    @After
+    public void cleanup() throws InterruptedException {
+        terminate(threadPool);
     }
 
     @Test
@@ -83,8 +92,9 @@ public class MultifieldAttachmentMapperTests extends ElasticsearchTestCase {
         String forcedName = "dummyname.txt";
 
         String bytes = Base64.encodeBytes(originalText.getBytes());
+        threadPool = new ThreadPool("testing-only");
 
-        MapperService mapperService = MapperTestUtils.newMapperService();
+        MapperService mapperService = MapperTestUtils.newMapperService(threadPool);
         mapperService.documentMapperParser().putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/multifield-mapping.json");

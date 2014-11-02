@@ -226,6 +226,7 @@
                             <excludes>
                                 <exclude>**/Abstract*.class</exclude>
                                 <exclude>**/*StressTest.class</exclude>
+                                <exclude>**/*StandaloneTest*.class</exclude>
                             </excludes>
                             <jvmArgs>
                                 <param>-Xmx512m</param>

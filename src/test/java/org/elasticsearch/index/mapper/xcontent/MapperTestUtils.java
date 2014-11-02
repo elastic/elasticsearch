@@ -48,16 +48,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 public class MapperTestUtils {
 
-    public static MapperService newMapperService() {
+    public static MapperService newMapperService(ThreadPool testingThreadPool) {
         return newMapperService(new Index("test"), ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build());
+                .build(), testingThreadPool);
     }
 
-    public static MapperService newMapperService(Index index, Settings indexSettings) {
+    public static MapperService newMapperService(Index index, Settings indexSettings, ThreadPool testingThreadPool) {
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         return new MapperService(index, indexSettings, new Environment(), newAnalysisService(), new IndexFieldDataService(index, ImmutableSettings.Builder.EMPTY_SETTINGS,
-                new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCacheListener(circuitBreakerService), new ThreadPool("testing-only")),
+                new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCacheListener(circuitBreakerService), testingThreadPool),
                 circuitBreakerService),
                 new PostingsFormatService(index), new DocValuesFormatService(index), newSimilarityLookupService(), null);
     }

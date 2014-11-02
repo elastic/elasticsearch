@@ -85,7 +85,7 @@ import java.util.Locale;
  * parameters origin and scale.
  * <p>
  * To write a new scoring function, create a new class that inherits from this
- * one and implement the getDistanceFuntion(). Furthermore, to create a builder,
+ * one and implement the getDistanceFunction(). Furthermore, to create a builder,
  * override the getName() in {@link DecayFunctionBuilder}.
  * <p>
  * See {@link GaussDecayFunctionBuilder} and {@link GaussDecayFunctionParser}

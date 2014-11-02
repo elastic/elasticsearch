@@ -339,7 +339,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
         defaultMapping = getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
         assertThat(defaultMapping, not(hasKey("date_detection")));
 
-        // now test you can change stuff that are normally unchangable
+        // now test you can change stuff that are normally unchangeable
         logger.info("Creating _default_ mappings with an analyzed field");
         putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)

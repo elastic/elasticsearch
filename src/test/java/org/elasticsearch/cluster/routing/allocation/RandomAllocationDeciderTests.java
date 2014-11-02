@@ -128,7 +128,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
         }
 
 
-        randomAllocationDecider.allwaysSayYes = true;
+        randomAllocationDecider.alwaysSayYes = true;
         logger.info("now say YES to everything");
         int iterations = 0;
         do {
@@ -172,7 +172,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
             this.random = random;
         }
 
-        public boolean allwaysSayYes = false;
+        public boolean alwaysSayYes = false;
 
         @Override
         public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
@@ -180,7 +180,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
         }
 
         private Decision getRandomDecision() {
-            if (allwaysSayYes) {
+            if (alwaysSayYes) {
                 return Decision.YES;
             }
             switch (random.nextInt(10)) {

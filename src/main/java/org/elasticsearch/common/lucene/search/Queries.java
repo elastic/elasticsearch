@@ -124,7 +124,7 @@ public class Queries {
             return result;
         }
 
-        /* otherwise, simple expresion */
+        /* otherwise, simple expression */
 
         if (-1 < spec.indexOf('%')) {
             /* percentage - assume the % was the last char.  If not, let Integer.parseInt fail. */

@@ -30,4 +30,4 @@ The `include` and `exclude` clauses can be any span type query. The
 `exclude` clause is the span query whose matches must not overlap those
 returned.
 
-In the above example all documents with the term hoya are filtered except the ones that have 'la' preceeding them.
+In the above example all documents with the term hoya are filtered except the ones that have 'la' preceding them.

@@ -17,7 +17,7 @@
 package org.elasticsearch.common.inject.internal;
 
 /**
- * Wraps an exception that occured during a computation in a different thread.
+ * Wraps an exception that occurred during a computation in a different thread.
  *
  * @author Bob Lee
  */

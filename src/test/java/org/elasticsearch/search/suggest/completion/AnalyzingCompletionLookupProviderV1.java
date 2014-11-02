@@ -63,7 +63,7 @@ import java.util.TreeMap;
 public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvider {
 
     // for serialization
-    public static final int SERIALIZE_PRESERVE_SEPERATORS = 1;
+    public static final int SERIALIZE_PRESERVE_SEPARATORS = 1;
     public static final int SERIALIZE_HAS_PAYLOADS = 2;
     public static final int SERIALIZE_PRESERVE_POSITION_INCREMENTS = 4;
 
@@ -182,7 +182,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
                         output.writeVInt(maxSurfaceFormsPerAnalyzedForm);
                         output.writeInt(maxGraphExpansions); // can be negative
                         int options = 0;
-                        options |= preserveSep ? SERIALIZE_PRESERVE_SEPERATORS : 0;
+                        options |= preserveSep ? SERIALIZE_PRESERVE_SEPARATORS : 0;
                         options |= hasPayloads ? SERIALIZE_HAS_PAYLOADS : 0;
                         options |= preservePositionIncrements ? SERIALIZE_PRESERVE_POSITION_INCREMENTS : 0;
                         output.writeVInt(options);
@@ -216,7 +216,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
             int maxSurfaceFormsPerAnalyzedForm = input.readVInt();
             int maxGraphExpansions = input.readInt();
             int options = input.readVInt();
-            boolean preserveSep = (options & SERIALIZE_PRESERVE_SEPERATORS) != 0;
+            boolean preserveSep = (options & SERIALIZE_PRESERVE_SEPARATORS) != 0;
             boolean hasPayloads = (options & SERIALIZE_HAS_PAYLOADS) != 0;
             boolean preservePositionIncrements = (options & SERIALIZE_PRESERVE_POSITION_INCREMENTS) != 0;
             sizeInBytes += fst.ramBytesUsed();

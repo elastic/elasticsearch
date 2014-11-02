@@ -242,7 +242,7 @@ def build_release(run_tests=False, dry_run=True, cpus=1, bwc_version=None):
             'test -Dtests.jvms=%s -Des.node.mode=local' % (cpus),
             'test -Dtests.jvms=%s -Des.node.mode=network' % (cpus))
   if bwc_version:
-      print('Running Backwards compatibilty tests against version [%s]' % (bwc_version))
+      print('Running Backwards compatibility tests against version [%s]' % (bwc_version))
       run_mvn('clean', 'test -Dtests.filter=@backwards -Dtests.bwc.version=%s -Dtests.bwc=true -Dtests.jvms=1' % bwc_version)
   run_mvn('clean test-compile -Dforbidden.test.signatures="org.apache.lucene.util.LuceneTestCase\$AwaitsFix @ Please fix all bugs before release"')
   run_mvn('clean %s -DskipTests' % (target))

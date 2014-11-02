@@ -517,7 +517,7 @@ public class Base64 {
      * anywhere along their length by specifying
      * <var>srcOffset</var> and <var>destOffset</var>.
      * This method does not check to make sure your arrays
-     * are large enough to accomodate <var>srcOffset</var> + 3 for
+     * are large enough to accommodate <var>srcOffset</var> + 3 for
      * the <var>source</var> array or <var>destOffset</var> + 4 for
      * the <var>destination</var> array.
      * The actual number of significant bytes in your array is
@@ -1038,7 +1038,7 @@ public class Base64 {
      * anywhere along their length by specifying
      * <var>srcOffset</var> and <var>destOffset</var>.
      * This method does not check to make sure your arrays
-     * are large enough to accomodate <var>srcOffset</var> + 4 for
+     * are large enough to accommodate <var>srcOffset</var> + 4 for
      * the <var>source</var> array or <var>destOffset</var> + 3 for
      * the <var>destination</var> array.
      * This method returns the actual number of bytes that

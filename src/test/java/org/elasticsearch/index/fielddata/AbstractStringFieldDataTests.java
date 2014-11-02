@@ -578,14 +578,14 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         // 3 b/c 1 segment level caches and 1 top level cache
         assertThat(indicesFieldDataCache.getCache().size(), equalTo(4l));
 
-        IndexOrdinalsFieldData cachedInstace = null;
+        IndexOrdinalsFieldData cachedInstance = null;
         for (Accountable ramUsage : indicesFieldDataCache.getCache().asMap().values()) {
             if (ramUsage instanceof IndexOrdinalsFieldData) {
-                cachedInstace = (IndexOrdinalsFieldData) ramUsage;
+                cachedInstance = (IndexOrdinalsFieldData) ramUsage;
                 break;
             }
         }
-        assertThat(cachedInstace, sameInstance(globalOrdinals));
+        assertThat(cachedInstance, sameInstance(globalOrdinals));
         topLevelReader.close();
         // Now only 3 segment level entries, only the toplevel reader has been closed, but the segment readers are still used by IW
         assertThat(indicesFieldDataCache.getCache().size(), equalTo(3l));

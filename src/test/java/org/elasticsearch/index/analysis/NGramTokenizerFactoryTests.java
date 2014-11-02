@@ -191,8 +191,7 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
         }
     }
     
-    // nocommit
-    @Test// @AwaitsFix(bugUrl = "decide what to do about ancient analyzers")
+    @Test
     public void testBackwardsCompatibilityEdgeNgramTokenFilter() throws Exception {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {

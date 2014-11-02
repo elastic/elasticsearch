@@ -201,7 +201,6 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                             }
                         }
                         long ramBytesUsed = values.ramBytesUsed() + (docsWithValues == null ? 0 : docsWithValues.ramBytesUsed());
-                        // nocommit: how exactly is this class using 'docsWithValues' ?
                         data = new AtomicLongFieldData(ramBytesUsed) {
 
                             @Override
@@ -237,10 +236,11 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                             }
                             dpValues.add(lastValue);
                         }
-                        ramBytesUsed = dpValues.ramBytesUsed();
                         final PackedLongValues pagedValues = dpValues.build();
-                        // nocommit: why doesnt ramBytesUsed include docsWithValues?
-                        // why isnt it computed from 'pagedValues' instead of 'dpValues' ?
+                        ramBytesUsed = pagedValues.ramBytesUsed();
+                        if (docsWithValues != null) {
+                            ramBytesUsed += docsWithValues.ramBytesUsed();
+                        }
                         data = new AtomicLongFieldData(ramBytesUsed) {
 
                             @Override

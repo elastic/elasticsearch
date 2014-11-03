@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.RestStatus;
@@ -183,5 +184,19 @@ public final class ExceptionsHelper {
                         && t.getMessage().contains("OutOfMemoryError")
                         )
                     );
+    }
+
+    /**
+     * Throws the specified exception. If null if specified then <code>true</code> is returned.
+     */
+    public static boolean reThrowIfNotNull(@Nullable Throwable e) {
+        if (e != null) {
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+        return true;
     }
 }

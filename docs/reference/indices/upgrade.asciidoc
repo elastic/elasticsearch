@@ -24,7 +24,7 @@ time as optimize.
 The `upgrade` API accepts the following request parameters:
 
 [horizontal]
-`wait_for_completion`:: Should the request wait the upgrade to complete. Defaults
+`wait_for_completion`:: Should the request wait for the upgrade to complete. Defaults
 to `false`.
 
 [float]

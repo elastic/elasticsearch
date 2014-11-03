@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
@@ -35,14 +36,17 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes =0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -98,7 +102,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         internalCluster().stopCurrentMasterNode();
         awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
-                ClusterState  state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
                 return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         });
@@ -187,7 +191,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         });
-        
+
         awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
@@ -307,5 +311,41 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 return success;
             }
         }, 20, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    @Test
+    public void testCanNotBringClusterDown() throws ExecutionException, InterruptedException {
+        int nodeCount = scaledRandomIntBetween(1, 10);
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put("discovery.type", "zen")
+                .put("discovery.zen.ping_timeout", "200ms")
+                .put("discovery.initial_state_timeout", "500ms")
+                .put("gateway.type", "local");
+
+        if (randomBoolean()) {
+            // sometime set an initial value
+            settings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, randomIntBetween(1, nodeCount));
+        }
+
+        internalCluster().startNodesAsync(nodeCount, settings.build()).get();
+
+        client().admin().cluster().prepareHealth().setWaitForNodes("=" + nodeCount);
+
+        int updateCount = randomIntBetween(1, nodeCount);
+
+        logger.info("--> updating [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount);
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount)));
+
+        client().admin().cluster().prepareHealth().setWaitForNodes("=" + nodeCount);
+
+        updateCount = nodeCount + randomIntBetween(1, 2000);
+        logger.info("--> trying to updating [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount);
+        assertThat(client().admin().cluster().prepareUpdateSettings()
+                        .setPersistentSettings(settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount))
+                        .get().getPersistentSettings().getAsMap().keySet(),
+                empty());
+
+        client().admin().cluster().prepareHealth().setWaitForNodes("=" + nodeCount);
     }
 }

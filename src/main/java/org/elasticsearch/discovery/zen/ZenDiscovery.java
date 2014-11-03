@@ -36,6 +36,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
+import org.elasticsearch.cluster.settings.DynamicSettings;
+import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -144,9 +147,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                        TransportService transportService, ClusterService clusterService, NodeSettingsService nodeSettingsService,
+                        TransportService transportService, final ClusterService clusterService, NodeSettingsService nodeSettingsService,
                         DiscoveryNodeService discoveryNodeService, ZenPingService pingService, ElectMasterService electMasterService,
-                        DiscoverySettings discoverySettings) {
+                        DiscoverySettings discoverySettings, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
         super(settings);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
@@ -196,6 +199,24 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.joinThreadControl = new JoinThreadControl(threadPool);
 
         transportService.registerHandler(DISCOVERY_REJOIN_ACTION_NAME, new RejoinClusterRequestHandler());
+
+        dynamicSettings.addDynamicSetting(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, new Validator() {
+            @Override
+            public String validate(String setting, String value) {
+                int intValue;
+                try {
+                    intValue = Integer.parseInt(value);
+                } catch (NumberFormatException ex) {
+                    return "cannot parse value [" + value + "] as an integer";
+                }
+                int masterNodes = clusterService.state().nodes().masterNodes().size();
+                if (intValue > masterNodes) {
+                    return "cannot set " + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES + " to more than the current master nodes count [" + masterNodes + "]";
+                }
+                return null;
+            }
+        });
+
     }
 
     @Override

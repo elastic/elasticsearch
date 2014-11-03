@@ -19,10 +19,6 @@
 
 package org.elasticsearch.common.logging.support;
 
-import java.io.ByteArrayOutputStream;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-
 import org.elasticsearch.common.logging.ESLogger;
 
 /**
@@ -52,7 +48,6 @@ public abstract class AbstractESLogger implements ESLogger {
 
     @Override
     public void trace(String msg, Throwable cause, Object... params) {
-        checkThrowable(cause); // nocommit
         if (isTraceEnabled()) {
             internalTrace(LoggerMessageFormat.format(prefix, msg, params), cause);
         }
@@ -72,7 +67,6 @@ public abstract class AbstractESLogger implements ESLogger {
 
     @Override
     public void debug(String msg, Throwable cause, Object... params) {
-        checkThrowable(cause); // nocommit
         if (isDebugEnabled()) {
             internalDebug(LoggerMessageFormat.format(prefix, msg, params), cause);
         }
@@ -92,7 +86,6 @@ public abstract class AbstractESLogger implements ESLogger {
 
     @Override
     public void info(String msg, Throwable cause, Object... params) {
-        checkThrowable(cause); // nocommit
         if (isInfoEnabled()) {
             internalInfo(LoggerMessageFormat.format(prefix, msg, params), cause);
         }
@@ -112,7 +105,6 @@ public abstract class AbstractESLogger implements ESLogger {
 
     @Override
     public void warn(String msg, Throwable cause, Object... params) {
-        checkThrowable(cause); // nocommit
         if (isWarnEnabled()) {
             internalWarn(LoggerMessageFormat.format(prefix, msg, params), cause);
         }
@@ -132,27 +124,10 @@ public abstract class AbstractESLogger implements ESLogger {
 
     @Override
     public void error(String msg, Throwable cause, Object... params) {
-        checkThrowable(cause); // nocommit
         if (isErrorEnabled()) {
             internalError(LoggerMessageFormat.format(prefix, msg, params), cause);
         }
     }
 
     protected abstract void internalError(String msg, Throwable cause);
-    
-    // nocommit: remove this
-    static void checkThrowable(Throwable t) {
-        try {
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            PrintWriter writer = new PrintWriter(new OutputStreamWriter(bos, "UTF-8"));
-            t.printStackTrace(writer);
-            writer.close();
-            String toString = bos.toString("UTF-8");
-            if (toString.contains("CIRCULAR REFERENCE:")) {
-                throw new Error("seriously screwed up");
-            }
-        } catch (Exception e) {
-            throw new Error("even worse");
-        }
-    }
 }

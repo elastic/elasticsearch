@@ -721,8 +721,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             }
             builder.endObject();
         }
-        //nocommit - what should we put here if indexOptions are NONE?
-        if (includeDefaults || fieldType.indexOptions() != defaultFieldType.indexOptions() && fieldType.indexOptions() != IndexOptions.NONE) {
+        if (indexed && (includeDefaults || fieldType.indexOptions() != defaultFieldType.indexOptions())) {
             builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
         }
 

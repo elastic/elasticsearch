@@ -231,8 +231,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     @Override
     protected void doStart() throws ElasticsearchException {
-
         nodesFD.setLocalNode(clusterService.localNode());
+        joinThreadControl.start();
         pingService.start();
 
         // start the join thread from a cluster state update. See {@link JoinThreadControl} for details.
@@ -249,7 +249,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 logger.warn("failed to start initial join process", t);
             }
         });
-
     }
 
     @Override
@@ -344,8 +343,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     /**
-     * returns true if there is a currently a background thread active for (re)joining the cluster
-     * used for testing.
+     * returns true if zen discovery is started and there is a currently a background thread active for (re)joining
+     * the cluster used for testing.
      */
     public boolean joiningCluster() {
         return joinThreadControl.joinThreadActive();
@@ -1278,21 +1277,22 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private class JoinThreadControl {
 
         private final ThreadPool threadPool;
+        private final AtomicBoolean running = new AtomicBoolean(false);
         private final AtomicReference<Thread> currentJoinThread = new AtomicReference<>();
 
         public JoinThreadControl(ThreadPool threadPool) {
             this.threadPool = threadPool;
         }
 
-        /** returns true if there is currently an active join thread */
+        /** returns true if join thread control is started and there is currently an active join thread */
         public boolean joinThreadActive() {
             Thread currentThread = currentJoinThread.get();
-            return currentThread != null && currentThread.isAlive();
+            return running.get() && currentThread != null && currentThread.isAlive();
         }
 
-        /** returns true if the supplied thread is the currently active joinThread */
+        /** returns true if join thread control is started and the supplied thread is the currently active joinThread */
         public boolean joinThreadActive(Thread joinThread) {
-            return joinThread.equals(currentJoinThread.get());
+            return running.get() && joinThread.equals(currentJoinThread.get());
         }
 
         /** cleans any running joining thread and calls {@link #rejoin} */
@@ -1302,7 +1302,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return rejoin(clusterState, reason);
         }
 
-        /** starts a new joining thread if there is no currently active one */
+        /** starts a new joining thread if there is no currently active one and join thread controlling is started */
         public void startNewThreadIfNotRunning() {
             assertClusterStateThread();
             if (joinThreadActive()) {
@@ -1315,15 +1315,18 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     if (!currentJoinThread.compareAndSet(null, currentThread)) {
                         return;
                     }
-                    while (joinThreadActive(currentThread)) {
+                    while (running.get() && joinThreadActive(currentThread)) {
                         try {
                             innerJoinCluster();
                             return;
-                        } catch (Throwable t) {
-                            logger.error("unexpected error while joining cluster, trying again", t);
+                        } catch (Exception e) {
+                            logger.error("unexpected error while joining cluster, trying again", e);
+                            // Because we catch any exception here, we want to know in
+                            // tests if an uncaught exception got to this point and the test infra uncaught exception
+                            // leak detection can catch this. In practise no uncaught exception should leak
+                            assert ExceptionsHelper.reThrowIfNotNull(e);
                         }
                     }
-
                     // cleaning the current thread from currentJoinThread is done by explicit calls.
                 }
             });
@@ -1348,6 +1351,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
 
         public void stop() {
+            running.set(false);
             Thread joinThread = currentJoinThread.getAndSet(null);
             if (joinThread != null) {
                 try {
@@ -1355,7 +1359,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 } catch (Exception e) {
                     // ignore
                 }
+                try {
+                    joinThread.join(10000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
+        }
+
+        public void start() {
+            running.set(true);
         }
 
         private void assertClusterStateThread() {

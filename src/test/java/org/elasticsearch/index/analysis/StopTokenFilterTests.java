@@ -58,14 +58,14 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
     @Test
     public void testCorrectPositionIncrementSetting() throws IOException {
         Builder builder = ImmutableSettings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop");
-        if (random().nextBoolean()) {
-            builder.put("index.analysis.filter.my_stop.enable_position_increments", true);
-        }
         int thingToDo = random().nextInt(3);
         if (thingToDo == 0) {
             builder.put("index.analysis.filter.my_stop.version", Version.LATEST);
         } else if (thingToDo == 1) {
             builder.put("index.analysis.filter.my_stop.version", Version.LUCENE_4_0);
+            if (random().nextBoolean()) {
+                builder.put("index.analysis.filter.my_stop.enable_position_increments", true);
+            }
         } else {
             // don't specify
         }
@@ -75,11 +75,15 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("foo bar"));
         TokenStream create = tokenFilter.create(tokenizer);
-        assertThat(create, instanceOf(StopFilter.class));
+        if (thingToDo == 1) {
+            assertThat(create, instanceOf(Lucene43StopFilter.class));
+        } else {
+            assertThat(create, instanceOf(StopFilter.class));
+        }
     }
 
     @Test
-    public void testDeprecatedPositionIncrementSettingWithVerions() throws IOException {
+    public void testDeprecatedPositionIncrementSettingWithVersions() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.enable_position_increments", false).put("index.analysis.filter.my_stop.version", "4.3")
                 .build();

@@ -232,9 +232,13 @@ public class RecoverySource extends AbstractComponent {
                                            logger.warn("{} Corrupted file detected {} checksum mismatch", shard.shardId(), md);
                                            CorruptIndexException current = corruptedEngine.get();
                                            if (current != null || corruptedEngine.compareAndSet(null, corruptIndexException)) {
-                                               current = corruptedEngine.get();
-                                               assert current != null;
-                                               current.addSuppressed(e);
+                                               if (current == null) {
+                                                   current = corruptedEngine.get();
+                                                   // important, we "unwrapped" current, which may be the root cause of e,
+                                                   // so we can't add e as a suppressed exception, or it creates a cycle
+                                               } else {
+                                                   current.addSuppressed(e);
+                                               }
                                            }
 
                                        } else { // corruption has happened on the way to replica

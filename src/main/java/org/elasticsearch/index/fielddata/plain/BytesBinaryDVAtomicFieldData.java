@@ -44,7 +44,7 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
 
     @Override
     public long ramBytesUsed() {
-        return -1; // not exposed by Lucene
+        return 0; // not exposed by Lucene
     }
 
     @Override

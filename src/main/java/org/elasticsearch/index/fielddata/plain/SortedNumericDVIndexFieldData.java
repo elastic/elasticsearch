@@ -106,7 +106,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         final String field;
 
         SortedNumericLongFieldData(LeafReader reader, String field) {
-            super(-1L);
+            super(0L);
             this.reader = reader;
             this.field = field;
         }
@@ -148,7 +148,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         final String field;
         
         SortedNumericFloatFieldData(LeafReader reader, String field) {
-            super(-1L);
+            super(0L);
             this.reader = reader;
             this.field = field;
         }
@@ -239,7 +239,7 @@ public class SortedNumericDVIndexFieldData extends DocValuesIndexFieldData imple
         final String field;
         
         SortedNumericDoubleFieldData(LeafReader reader, String field) {
-            super(-1L);
+            super(0L);
             this.reader = reader;
             this.field = field;
         }

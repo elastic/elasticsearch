@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.miscellaneous.Lucene43LengthFilter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import org.apache.lucene.util.Version;
@@ -58,8 +59,9 @@ public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
         if (version.onOrAfter(Version.LUCENE_4_4)) {
             return new LengthFilter(tokenStream, min, max);
         } else {
-            // nocommit: what happened here? 
-            throw new UnsupportedOperationException();
+            @SuppressWarnings("deprecated")
+            final TokenStream filter = new Lucene43LengthFilter(enablePositionIncrements, tokenStream, min, max);
+            return filter;
         }
     }
 }

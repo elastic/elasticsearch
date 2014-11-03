@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.miscellaneous.Lucene43TrimFilter;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
@@ -53,9 +54,10 @@ public class TrimTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         if (version.onOrAfter(Version.LUCENE_4_4_0)) {
             return new TrimFilter(tokenStream);
+        } else {
+            @SuppressWarnings("deprecated")
+            final TokenStream filter = new Lucene43TrimFilter(tokenStream, updateOffsets);
+            return filter;
         }
-        // nocommit: thats broken
-        // return new Lucene40TrimFilter(tokenStream, updateOffsets);
-        throw new UnsupportedOperationException();
     }
 }

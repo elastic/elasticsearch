@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.core.Lucene43StopFilter;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
@@ -77,8 +78,7 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         assertThat(create, instanceOf(StopFilter.class));
     }
 
-    // nocommit
-    @Test @AwaitsFix(bugUrl = "decide what to do about ancient analyzers")
+    @Test
     public void testDeprecatedPositionIncrementSettingWithVerions() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.enable_position_increments", false).put("index.analysis.filter.my_stop.version", "4.3")
@@ -89,9 +89,7 @@ public class StopTokenFilterTests extends ElasticsearchTokenStreamTestCase {
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("foo bar"));
         TokenStream create = tokenFilter.create(tokenizer);
-        assertThat(create, instanceOf(StopFilter.class));
-        // nocommit: was posInc=false actually supported in 4.3 in lucene (other than for ancient back compat?)
-        fail("what happened here, and what to do about it");
+        assertThat(create, instanceOf(Lucene43StopFilter.class));
     }
 
     @Test

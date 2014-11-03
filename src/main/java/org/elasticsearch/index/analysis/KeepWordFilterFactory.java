@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.KeepWordFilter;
+import org.apache.lucene.analysis.miscellaneous.Lucene43KeepWordFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -92,8 +93,9 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
         if (version.onOrAfter(Version.LUCENE_4_4)) {
             return new KeepWordFilter(tokenStream, keepWords);
         } else {
-            // nocommit: what happened here? 
-            throw new UnsupportedOperationException();
+            @SuppressWarnings("deprecated")
+            final TokenStream filter = new Lucene43KeepWordFilter(enablePositionIncrements, tokenStream, keepWords);
+            return filter;
         }
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.core.Lucene43StopFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
@@ -54,18 +55,21 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
         this.stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, ignoreCase);
-        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", true);
-        if (version.onOrAfter(Version.LUCENE_5_0_0) && enablePositionIncrements == false) {
-            throw new ElasticsearchIllegalArgumentException("[enable_position_increments: false] is not supported anymore as of Lucene 4.4 as it can create broken token streams."
-                    + " Please fix your analysis chain.");
+        if (version.onOrAfter(Version.LUCENE_4_4) && settings.get("enable_position_increments") != null) {
+            throw new ElasticsearchIllegalArgumentException("enable_position_increments is not supported anymore as of Lucene 4.4 as it can create broken token streams."
+                    + " Please fix your analysis chain or use an older compatibility version (<= 4.3).");
         }
-        // otherwise, old index: best effort
+        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", true);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         if (removeTrailing) {
-            return new StopFilter(tokenStream, stopWords);
+            if (version.onOrAfter(Version.LUCENE_4_4)) {
+                return new StopFilter(tokenStream, stopWords);
+            } else {
+                return new Lucene43StopFilter(enablePositionIncrements, tokenStream, stopWords);
+            }
         } else {
             return new SuggestStopFilter(tokenStream, stopWords);
         }

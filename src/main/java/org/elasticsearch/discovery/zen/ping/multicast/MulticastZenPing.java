@@ -184,45 +184,49 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             return;
         }
         final int id = pingIdGenerator.incrementAndGet();
-        receivedResponses.put(id, new PingCollection());
-        sendPingRequest(id);
-        // try and send another ping request halfway through (just in case someone woke up during it...)
-        // this can be a good trade-off to nailing the initial lookup or un-delivered messages
-        threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new Runnable() {
-            public void run() {
-                try {
-                    sendPingRequest(id);
-                    threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new Runnable() {
-                        public void run() {
-                            try {
-                                // make one last ping, but finalize as soon as all nodes have responded or a timeout has past
-                                PingCollection collection = receivedResponses.get(id);
-                                FinalizingPingCollection finalizingPingCollection = new FinalizingPingCollection(id, collection, collection.size(), listener);
-                                receivedResponses.put(id, finalizingPingCollection);
-                                logger.trace("[{}] sending last pings", id);
-                                sendPingRequest(id);
-                                threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 4), ThreadPool.Names.GENERIC, new Runnable() {
-                                    public void run() {
-                                        try {
-                                            finalizePingCycle(id, listener);
-                                        } catch (Throwable t) {
-                                            logger.warn("[{}] failed to finalize ping", t, id);
+        try {
+            receivedResponses.put(id, new PingCollection());
+            sendPingRequest(id);
+            // try and send another ping request halfway through (just in case someone woke up during it...)
+            // this can be a good trade-off to nailing the initial lookup or un-delivered messages
+            threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new Runnable() {
+                public void run() {
+                    try {
+                        sendPingRequest(id);
+                        threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new Runnable() {
+                            public void run() {
+                                try {
+                                    // make one last ping, but finalize as soon as all nodes have responded or a timeout has past
+                                    PingCollection collection = receivedResponses.get(id);
+                                    FinalizingPingCollection finalizingPingCollection = new FinalizingPingCollection(id, collection, collection.size(), listener);
+                                    receivedResponses.put(id, finalizingPingCollection);
+                                    logger.trace("[{}] sending last pings", id);
+                                    sendPingRequest(id);
+                                    threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 4), ThreadPool.Names.GENERIC, new Runnable() {
+                                        public void run() {
+                                            try {
+                                                finalizePingCycle(id, listener);
+                                            } catch (Throwable t) {
+                                                logger.warn("[{}] failed to finalize ping", t, id);
+                                            }
                                         }
-                                    }
-                                });
-                            } catch (Throwable t) {
-                                logger.warn("[{}] failed to send third ping request", t, id);
-                                finalizePingCycle(id, listener);
+                                    });
+                                } catch (Throwable t) {
+                                    logger.warn("[{}] failed to send third ping request", t, id);
+                                    finalizePingCycle(id, listener);
+                                }
                             }
-                        }
-                    });
-                } catch (Throwable t) {
-                    logger.warn("[{}] failed to send second ping request", t, id);
-                    finalizePingCycle(id, listener);
+                        });
+                    } catch (Throwable t) {
+                        logger.warn("[{}] failed to send second ping request", t, id);
+                        finalizePingCycle(id, listener);
+                    }
                 }
-            }
-        });
-
+            });
+        } catch (Exception e) {
+            logger.warn("failed to ping", e);
+            finalizePingCycle(id, listener);
+        }
     }
 
     /**

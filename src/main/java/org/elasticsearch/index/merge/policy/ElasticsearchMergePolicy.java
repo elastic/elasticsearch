@@ -69,7 +69,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     static LeafReader filter(LeafReader reader) throws IOException {
         final FieldInfos fieldInfos = reader.getFieldInfos();
         final FieldInfo versionInfo = fieldInfos.fieldInfo(VersionFieldMapper.NAME);
-        if (versionInfo != null && versionInfo.hasDocValues()) {
+        if (versionInfo != null && versionInfo.getDocValuesType() != DocValuesType.NONE) {
             // the reader is a recent one, it has versions and they are stored
             // in a numeric doc values field
             return reader;

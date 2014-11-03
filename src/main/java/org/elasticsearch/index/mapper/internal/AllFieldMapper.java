@@ -106,9 +106,9 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         @Override
         public AllFieldMapper build(BuilderContext context) {
             // In case the mapping overrides these
-            // nocommit - this used to setIndex(true) but now we adding back positions, should we set DOCS_ONLY?
+            // TODO: this should be an exception! it doesnt make sense to not index this field
             if (fieldType.indexOptions() == IndexOptions.NONE) {
-                fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+                fieldType.setIndexOptions(Defaults.FIELD_TYPE.indexOptions());
             }
             fieldType.setTokenized(true);
 

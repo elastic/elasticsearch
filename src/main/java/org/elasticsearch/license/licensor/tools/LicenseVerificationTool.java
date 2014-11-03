@@ -25,17 +25,14 @@ public class LicenseVerificationTool {
 
     static class Options {
         private final Set<ESLicense> licenses;
-        private final String publicKeyFilePath;
 
-        Options(Set<ESLicense> licenses, String publicKeyFilePath) {
+        Options(Set<ESLicense> licenses) {
             this.licenses = licenses;
-            this.publicKeyFilePath = publicKeyFilePath;
         }
     }
 
     private static Options parse(String[] args) throws IOException {
         Set<ESLicense> licenses = new HashSet<>();
-        String publicKeyPath = null;
 
         for (int i = 0; i < args.length; i++) {
             String command = args[i];
@@ -53,18 +50,12 @@ public class LicenseVerificationTool {
                 case "--licenses":
                     licenses.addAll(ESLicenses.fromSource(args[++i]));
                     break;
-                case "--publicKeyPath":
-                    publicKeyPath = args[++i];
-                    break;
             }
         }
         if (licenses.size() == 0) {
             throw new IllegalArgumentException("mandatory option '--licensesFiles' or '--licenses' is missing");
         }
-        if (publicKeyPath == null) {
-            throw new IllegalArgumentException("mandatory option '--publicKeyPath' is missing");
-        }
-        return new Options(licenses, publicKeyPath);
+        return new Options(licenses);
     }
 
     public static void main(String[] args) throws IOException {

@@ -24,7 +24,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-@ClusterScope(scope = TEST, numDataNodes = 10, numClientNodes = 0)
+@ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0)
 public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegrationTests {
 
     private final int trialLicenseDurationInSeconds = 2;
@@ -41,13 +41,72 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
                 .build();
     }
 
+    private Settings nodeSettingsWithConsumerPlugin(int consumer1TrialLicenseDuration, int consumer2TrialLicenseDuration) {
+        return ImmutableSettings.settingsBuilder()
+                .put(super.nodeSettings(0))
+                .put(TestConsumerPlugin1.NAME + ".trial_license_duration_in_seconds", consumer1TrialLicenseDuration)
+                .put(TestConsumerPlugin2.NAME + ".trial_license_duration_in_seconds", consumer2TrialLicenseDuration)
+                .putArray("plugin.types", LicensePlugin.class.getName(), TestConsumerPlugin1.class.getName(), TestConsumerPlugin2.class.getName())
+                .build();
+
+    }
+
     @After
     public void beforeTest() throws Exception {
         wipeAllLicenses();
     }
 
     @Test
+    public void testWithNoTrialLicense() throws Exception {
+        int nNodes = randomIntBetween(2, 10);
+        String[] nodes = startNodesWithConsumerPlugins(nNodes, -1, -1);
+
+        assertConsumerPlugin1DisableNotification(trialLicenseDurationInSeconds * 2);
+        assertConsumerPlugin2DisableNotification(trialLicenseDurationInSeconds * 2);
+        assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_1);
+        assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_2);
+    }
+
+    @Test
+    public void testOneTrialAndNonTrialConsumer() throws Exception {
+        int nNodes = randomIntBetween(2, 10);
+        int consumer2TrialLicenseDuration = 2;
+        String[] nodes = startNodesWithConsumerPlugins(nNodes, -1, consumer2TrialLicenseDuration);
+
+        logger.info(" --> trial license generated for " + FEATURE_NAME_2 + " no trial license for " + FEATURE_NAME_1);
+        // managerService should report feature to be enabled on all data nodes
+        assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_1);
+        assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_2);
+        // consumer plugin service should return enabled on all data nodes
+        assertConsumerPlugin1DisableNotification(1);
+        assertConsumerPlugin2EnableNotification(1);
+
+        logger.info(" --> put signed license for " + FEATURE_NAME_1);
+        ESLicense license1 = generateSignedLicense(FEATURE_NAME_1, TimeValue.timeValueSeconds(consumer2TrialLicenseDuration));
+        final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster()).setLicense(Lists.newArrayList(license1)).get();
+        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+
+        logger.info(" --> check that both " + FEATURE_NAME_1 + " and " + FEATURE_NAME_2 + " are enabled");
+        assertConsumerPlugin1EnableNotification(1);
+        assertConsumerPlugin2EnableNotification(1);
+        assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_1);
+        assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_2);
+
+        logger.info(" --> check signed license expiry notification");
+        // consumer plugin should notify onDisabled on all data nodes (expired signed license)
+        assertConsumerPlugin1DisableNotification(consumer2TrialLicenseDuration * 2);
+        assertConsumerPlugin2DisableNotification(consumer2TrialLicenseDuration * 2);
+        assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_1);
+        assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_2);
+    }
+
+    @Test
     public void testMultipleConsumerPlugins() throws Exception {
+
+        int nNodes = randomIntBetween(2, 10);
+        String[] nodes = startNodesWithConsumerPlugins(nNodes, trialLicenseDurationInSeconds, trialLicenseDurationInSeconds);
+
         logger.info(" --> trial license generated");
         // managerService should report feature to be enabled on all data nodes
         assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_1);
@@ -64,11 +123,8 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_2);
 
         logger.info(" --> put signed license");
-        ESLicense license1 = generateSignedLicense(FEATURE_NAME_1, TimeValue.timeValueSeconds(trialLicenseDurationInSeconds));
-        ESLicense license2 = generateSignedLicense(FEATURE_NAME_2, TimeValue.timeValueSeconds(trialLicenseDurationInSeconds));
-        final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster()).setLicense(Lists.newArrayList(license1, license2)).get();
-        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
-        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+        putLicense(FEATURE_NAME_1, TimeValue.timeValueSeconds(trialLicenseDurationInSeconds));
+        putLicense(FEATURE_NAME_2, TimeValue.timeValueSeconds(trialLicenseDurationInSeconds));
 
         logger.info(" --> check signed license enabled notification");
         // consumer plugin should notify onEnabled on all data nodes (signed license)
@@ -83,5 +139,61 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
         assertConsumerPlugin2DisableNotification(trialLicenseDurationInSeconds * 2);
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_1);
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_2);
+    }
+
+    @Test
+    public void testRandomFeatureLicensesActions() throws Exception {
+        int nNodes = randomIntBetween(2, 10);
+        int trialLicenseDuration1 = rarely() ? -1 : randomIntBetween(1, 2);
+        int trialLicenseDuration2 = rarely() ? -1 : randomIntBetween(1, 2);
+
+        String[] nodes = startNodesWithConsumerPlugins(nNodes, trialLicenseDuration1, trialLicenseDuration2);
+
+        if (trialLicenseDuration1 != -1) {
+            assertConsumerPlugin1EnableNotification(1);
+            assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_1);
+        } else {
+            assertConsumerPlugin1DisableNotification(1);
+            assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_1);
+            putLicense(FEATURE_NAME_1, TimeValue.timeValueMillis(300 * 2));
+        }
+
+        if (trialLicenseDuration2 != -1) {
+            assertConsumerPlugin2EnableNotification(1);
+            assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_2);
+        } else {
+            assertConsumerPlugin2DisableNotification(1);
+            assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_2);
+            putLicense(FEATURE_NAME_2, TimeValue.timeValueMillis(300 * 2));
+        }
+
+        logger.info(" --> check license enabled notification");
+        assertConsumerPlugin1EnableNotification(1);
+        assertConsumerPlugin2EnableNotification(1);
+        assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_1);
+        assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_2);
+
+        logger.info(" --> check license expiry notification");
+        // consumer plugin should notify onDisabled on all data nodes (expired signed license)
+        assertConsumerPlugin1DisableNotification(2 * 2);
+        assertConsumerPlugin2DisableNotification(2 * 2);
+        assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_1);
+        assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_2);
+
+    }
+
+    private String[] startNodesWithConsumerPlugins(int nNodes, int consumer1TrialLicenseDuration, int consumer2TrialLicenseDuration) {
+        String[] nodes = new String[nNodes];
+        for (int i = 0; i < nNodes; i++) {
+            nodes[i] = internalCluster().startNode(nodeSettingsWithConsumerPlugin(consumer1TrialLicenseDuration, consumer2TrialLicenseDuration));
+        }
+        return nodes;
+    }
+
+    private void putLicense(String feature, TimeValue expiryDuration) throws Exception {
+        ESLicense license1 = generateSignedLicense(feature, expiryDuration);
+        final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster()).setLicense(Lists.newArrayList(license1)).get();
+        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
     }
 }

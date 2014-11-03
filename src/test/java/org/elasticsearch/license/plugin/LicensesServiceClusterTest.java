@@ -6,9 +6,11 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.plugin.action.get.GetLicenseRequestBuilder;
@@ -25,11 +27,13 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
-@ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0)
+@ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0)
 public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests {
 
     private final String FEATURE_NAME = TestPluginService1.FEATURE_NAME;
@@ -44,7 +48,7 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
     }
 
     private ImmutableSettings.Builder nodeSettingsBuilder(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder()
+        return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("gateway.type", "local")
                 .put("plugins.load_classpath_plugins", false)
@@ -84,9 +88,13 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
     @Test
     public void testClusterNotRecovered() throws Exception {
 
-
         logger.info("--> start first node (should not recover)");
-        internalCluster().startNode(nodeSettingsBuilder(0).put("gateway.recover_after_master_nodes", 2).put("node.master", true));
+        String name = internalCluster().startNode(nodeSettingsBuilder(0).put("gateway.recover_after_master_nodes", 2).put("node.master", true));
+        /* TODO: figure out why STATE_NOT_RECOVERED_BLOCK is not on
+        assertThat(internalCluster().client(name).admin().cluster().prepareState().setLocal(true).execute().actionGet()
+                        .getState().blocks().global(ClusterBlockLevel.METADATA),
+                hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
+        */
         assertLicenseManagerEnabledFeatureFor(FEATURE_NAME);
         assertConsumerPlugin1EnableNotification(1);
 

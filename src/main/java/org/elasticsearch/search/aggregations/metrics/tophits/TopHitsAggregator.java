@@ -109,7 +109,7 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
                     bucketOrdinal,
                     topDocsCollector = sort != null ? TopFieldCollector.create(sort, topN, true, topHitsContext.trackScores(), topHitsContext.trackScores(), false) : TopScoreDocCollector.create(topN, false)
             );
-            // nocommit: this is bogus, it only works because TopDocsCollector subclasses SimpleCollector,
+            // TODO: this is bogus, it only works because TopDocsCollector subclasses SimpleCollector,
             // we should not be ignoring the return value: instead make it work properly per-segment
             LeafCollector ignoredReturnValue = topDocsCollector.getLeafCollector(currentContext);
             assert ignoredReturnValue == topDocsCollector;
@@ -123,7 +123,7 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
         this.currentContext = context;
         for (LongObjectPagedHashMap.Cursor<TopDocsCollector> cursor : topDocsCollectors) {
             try {
-                // nocommit: this is bogus, it only works because TopDocsCollector subclasses SimpleCollector,
+                // TODO: this is bogus, it only works because TopDocsCollector subclasses SimpleCollector,
                 // we should not be ignoring the return value: instead make it work properly per-segment
                 LeafCollector ignoredReturnValue = cursor.value.getLeafCollector(context);
                 assert ignoredReturnValue == cursor.value;

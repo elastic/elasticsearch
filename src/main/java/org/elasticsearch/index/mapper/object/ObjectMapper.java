@@ -739,11 +739,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         }
                     }
 
-                    if (!resolved && context.parser().textLength() == 0) {
-                        // empty string with no mapping, treat it like null value
-                        return;
-                    }
-
                     if (!resolved && context.root().dateDetection()) {
                         String text = context.parser().text();
                         // a safe check since "1" gets parsed as well

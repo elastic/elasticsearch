@@ -144,7 +144,7 @@ public abstract class InternalBucketReducerAggregation extends InternalMultiBuck
                 bucket.toXContent(builder, params);
             }
             builder.endArray();
-            if (aggregations != null) {
+            if (aggregations.asList().isEmpty() == false) {
                 builder.startObject("reductions");
                 aggregations.toXContentInternal(builder, params);
                 builder.endObject();

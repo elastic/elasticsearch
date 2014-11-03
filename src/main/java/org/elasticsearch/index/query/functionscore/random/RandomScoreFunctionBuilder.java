@@ -70,12 +70,10 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder {
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
-        if (seed instanceof Integer) {
-            builder.field("seed", ((Integer)seed).intValue());
-        } else if (seed instanceof Long) {
-            builder.field("seed", ((Long)seed).longValue());
-        } else if (seed instanceof String) {
-            builder.field("seed", (String)seed);
+        if (seed instanceof Number) {
+            builder.field("seed", ((Number)seed).longValue());
+        } else if (seed != null) {
+            builder.field("seed", seed.toString());
         }
         builder.endObject();
     }

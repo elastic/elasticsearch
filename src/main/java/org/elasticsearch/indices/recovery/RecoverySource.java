@@ -232,13 +232,10 @@ public class RecoverySource extends AbstractComponent {
                                     if ((corruptIndexException = ExceptionsHelper.unwrap(e, CorruptIndexException.class)) != null) {
                                        if (store.checkIntegrity(md) == false) { // we are corrupted on the primary -- fail!
                                            logger.warn("{} Corrupted file detected {} checksum mismatch", shard.shardId(), md);
-                                           CorruptIndexException current = corruptedEngine.get();
-                                           if (current != null || corruptedEngine.compareAndSet(null, corruptIndexException)) {
-                                               current = corruptedEngine.get();
-                                               assert current != null;
-                                               current.addSuppressed(e);
+                                           if (corruptedEngine.compareAndSet(null, corruptIndexException) == false) {
+                                               // if we are not the first exception, add ourselves as suppressed to the main one:
+                                               corruptedEngine.get().addSuppressed(e);
                                            }
-
                                        } else { // corruption has happened on the way to replica
                                            RemoteTransportException exception = new RemoteTransportException("File corruption occured on recovery but checksums are ok", null);
                                            exception.addSuppressed(e);

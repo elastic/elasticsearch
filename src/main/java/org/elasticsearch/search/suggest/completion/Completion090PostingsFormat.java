@@ -27,6 +27,7 @@ import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.IOContext.Context;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -38,7 +39,10 @@ import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ToFinit
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -140,7 +144,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
     }
 
     private static class CompletionFieldsProducer extends FieldsProducer {
-        //nocommit make this class lazyload all the things in order to take advanage of the new merge instance API
+        // TODO make this class lazyload all the things in order to take advantage of the new merge instance API
         // today we just load everything up-front
         private final FieldsProducer delegateProducer;
         private final LookupFactory lookupFactory;
@@ -215,8 +219,12 @@ public class Completion090PostingsFormat extends PostingsFormat {
 
         @Override
         public Iterable<? extends Accountable> getChildResources() {
-            //NOCOMMIT - implement this
-            return delegateProducer.getChildResources();
+            List<Accountable> resources = new ArrayList<>();
+            if (lookupFactory != null) {
+                resources.add(Accountables.namedAccountable("lookup", lookupFactory));
+            }
+            resources.add(Accountables.namedAccountable("delegate", delegateProducer));
+            return Collections.unmodifiableList(resources);
         }
 
         @Override
@@ -317,10 +325,9 @@ public class Completion090PostingsFormat extends PostingsFormat {
         return completionStats;
     }
 
-    public static abstract class LookupFactory {
+    public static abstract class LookupFactory implements Accountable {
         public abstract Lookup getLookup(CompletionFieldMapper mapper, CompletionSuggestionContext suggestionContext);
         public abstract CompletionStats stats(String ... fields);
         abstract AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder getAnalyzingSuggestHolder(CompletionFieldMapper mapper);
-        public abstract long ramBytesUsed();
     }
 }

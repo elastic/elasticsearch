@@ -30,6 +30,8 @@ import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
@@ -284,6 +286,11 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
             @Override
             public long ramBytesUsed() {
                 return ramBytesUsed;
+            }
+
+            @Override
+            public Iterable<? extends Accountable> getChildResources() {
+                return Accountables.namedAccountables("field", lookupMap);
             }
         };
     }

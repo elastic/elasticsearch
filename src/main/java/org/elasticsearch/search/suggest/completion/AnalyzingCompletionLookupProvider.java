@@ -29,6 +29,8 @@ import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
@@ -296,10 +298,15 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             public long ramBytesUsed() {
                 return ramBytesUsed;
             }
+
+            @Override
+            public Iterable<? extends Accountable> getChildResources() {
+                return Accountables.namedAccountables("field", lookupMap);
+            }
         };
     }
 
-    static class AnalyzingSuggestHolder {
+    static class AnalyzingSuggestHolder implements Accountable {
         final boolean preserveSep;
         final boolean preservePositionIncrements;
         final int maxSurfaceFormsPerAnalyzedForm;
@@ -341,6 +348,24 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
         public boolean hasPayloads() {
             return hasPayloads;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            if (fst != null) {
+                return fst.ramBytesUsed();
+            } else {
+                return 0;
+            }
+        }
+
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            if (fst != null) {
+                return Collections.singleton(Accountables.namedAccountable("fst", fst));
+            } else {
+                return Collections.emptyList();
+            }
         }
     }
 

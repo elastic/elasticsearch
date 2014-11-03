@@ -85,6 +85,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
+// nocommit: this test currently exposes a bug where on corruption, exceptions with *CIRCULAR REFERENCES* are created.
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 

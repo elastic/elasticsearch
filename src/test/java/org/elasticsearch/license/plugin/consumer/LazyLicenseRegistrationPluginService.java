@@ -5,19 +5,21 @@
  */
 package org.elasticsearch.license.plugin.consumer;
 
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Singleton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
 
 @Singleton
-public class TestPluginService1 extends TestPluginServiceBase {
+public class LazyLicenseRegistrationPluginService extends TestPluginServiceBase {
 
-    public static String FEATURE_NAME = "feature1";
+
+    public static String FEATURE_NAME = "feature2";
 
     @Inject
-    public TestPluginService1(Settings settings, LicensesClientService licensesClientService) {
-        super(settings, licensesClientService);
+    public LazyLicenseRegistrationPluginService(Settings settings, LicensesClientService licensesClientService, ClusterService clusterService) {
+        super(false, settings, licensesClientService, clusterService);
     }
 
     @Override
@@ -27,6 +29,6 @@ public class TestPluginService1 extends TestPluginServiceBase {
 
     @Override
     public String settingPrefix() {
-        return TestConsumerPlugin1.NAME;
+        return LazyLicenseRegistrationConsumerPlugin.NAME;
     }
 }

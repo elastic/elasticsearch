@@ -5,17 +5,19 @@
  */
 package org.elasticsearch.license.plugin;
 
+import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
-import org.elasticsearch.license.plugin.consumer.TestConsumerPlugin1;
-import org.elasticsearch.license.plugin.consumer.TestConsumerPlugin2;
-import org.elasticsearch.license.plugin.consumer.TestPluginService1;
-import org.elasticsearch.license.plugin.consumer.TestPluginService2;
+import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationConsumerPlugin;
+import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginService;
+import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationConsumerPlugin;
+import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationPluginService;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.junit.After;
 import org.junit.Test;
@@ -24,29 +26,30 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
 
+//@Ignore
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0)
 public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegrationTests {
 
     private final int trialLicenseDurationInSeconds = 2;
     
-    private final String FEATURE_NAME_1 = TestPluginService1.FEATURE_NAME;
-    private final String FEATURE_NAME_2 = TestPluginService2.FEATURE_NAME;
+    private final String FEATURE_NAME_1 = EagerLicenseRegistrationPluginService.FEATURE_NAME;
+    private final String FEATURE_NAME_2 = LazyLicenseRegistrationPluginService.FEATURE_NAME;
 
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(TestConsumerPlugin1.NAME + ".trial_license_duration_in_seconds", trialLicenseDurationInSeconds)
-                .put(TestConsumerPlugin2.NAME + ".trial_license_duration_in_seconds", trialLicenseDurationInSeconds)
-                .putArray("plugin.types", LicensePlugin.class.getName(), TestConsumerPlugin1.class.getName(), TestConsumerPlugin2.class.getName())
+                .put(EagerLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", trialLicenseDurationInSeconds)
+                .put(LazyLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", trialLicenseDurationInSeconds)
+                .putArray("plugin.types", LicensePlugin.class.getName(), EagerLicenseRegistrationConsumerPlugin.class.getName(), LazyLicenseRegistrationConsumerPlugin.class.getName())
                 .build();
     }
 
     private Settings nodeSettingsWithConsumerPlugin(int consumer1TrialLicenseDuration, int consumer2TrialLicenseDuration) {
         return ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(0))
-                .put(TestConsumerPlugin1.NAME + ".trial_license_duration_in_seconds", consumer1TrialLicenseDuration)
-                .put(TestConsumerPlugin2.NAME + ".trial_license_duration_in_seconds", consumer2TrialLicenseDuration)
-                .putArray("plugin.types", LicensePlugin.class.getName(), TestConsumerPlugin1.class.getName(), TestConsumerPlugin2.class.getName())
+                .put(EagerLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", consumer1TrialLicenseDuration)
+                .put(LazyLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", consumer2TrialLicenseDuration)
+                .putArray("plugin.types", LicensePlugin.class.getName(), EagerLicenseRegistrationConsumerPlugin.class.getName(), LazyLicenseRegistrationConsumerPlugin.class.getName())
                 .build();
 
     }
@@ -61,8 +64,8 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
         int nNodes = randomIntBetween(2, 10);
         String[] nodes = startNodesWithConsumerPlugins(nNodes, -1, -1);
 
-        assertConsumerPlugin1DisableNotification(trialLicenseDurationInSeconds * 2);
-        assertConsumerPlugin2DisableNotification(trialLicenseDurationInSeconds * 2);
+        assertEagerConsumerPluginDisableNotification(trialLicenseDurationInSeconds * 2);
+        assertLazyConsumerPluginDisableNotification(trialLicenseDurationInSeconds * 2);
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_1);
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_2);
     }
@@ -78,8 +81,8 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_1);
         assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_2);
         // consumer plugin service should return enabled on all data nodes
-        assertConsumerPlugin1DisableNotification(1);
-        assertConsumerPlugin2EnableNotification(1);
+        assertEagerConsumerPluginDisableNotification(1);
+        assertLazyConsumerPluginEnableNotification(1);
 
         logger.info(" --> put signed license for " + FEATURE_NAME_1);
         ESLicense license1 = generateSignedLicense(FEATURE_NAME_1, TimeValue.timeValueSeconds(consumer2TrialLicenseDuration));
@@ -88,15 +91,15 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
 
         logger.info(" --> check that both " + FEATURE_NAME_1 + " and " + FEATURE_NAME_2 + " are enabled");
-        assertConsumerPlugin1EnableNotification(1);
-        assertConsumerPlugin2EnableNotification(1);
+        assertEagerConsumerPluginEnableNotification(1);
+        assertLazyConsumerPluginEnableNotification(1);
         assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_1);
         assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_2);
 
         logger.info(" --> check signed license expiry notification");
         // consumer plugin should notify onDisabled on all data nodes (expired signed license)
-        assertConsumerPlugin1DisableNotification(consumer2TrialLicenseDuration * 2);
-        assertConsumerPlugin2DisableNotification(consumer2TrialLicenseDuration * 2);
+        assertEagerConsumerPluginDisableNotification(consumer2TrialLicenseDuration * 2);
+        assertLazyConsumerPluginDisableNotification(consumer2TrialLicenseDuration * 2);
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_1);
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_2);
     }
@@ -106,19 +109,30 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
 
         int nNodes = randomIntBetween(2, 10);
         String[] nodes = startNodesWithConsumerPlugins(nNodes, trialLicenseDurationInSeconds, trialLicenseDurationInSeconds);
-
+        waitUntilClusterRecovered();
+        assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                for (LazyLicenseRegistrationPluginService service : internalCluster().getDataNodeInstances(LazyLicenseRegistrationPluginService.class)) {
+                    if (!service.registered.get()) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }), equalTo(true));
         logger.info(" --> trial license generated");
         // managerService should report feature to be enabled on all data nodes
         assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_1);
         assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_2);
         // consumer plugin service should return enabled on all data nodes
-        assertConsumerPlugin1EnableNotification(1);
-        assertConsumerPlugin2EnableNotification(1);
+        assertEagerConsumerPluginEnableNotification(1);
+        assertLazyConsumerPluginEnableNotification(1);
 
         logger.info(" --> check trial license expiry notification");
         // consumer plugin should notify onDisabled on all data nodes (expired trial license)
-        assertConsumerPlugin1DisableNotification(trialLicenseDurationInSeconds * 2);
-        assertConsumerPlugin2DisableNotification(trialLicenseDurationInSeconds * 2);
+        assertEagerConsumerPluginDisableNotification(trialLicenseDurationInSeconds * 2);
+        assertLazyConsumerPluginDisableNotification(trialLicenseDurationInSeconds * 2);
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_1);
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_2);
 
@@ -128,15 +142,15 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
 
         logger.info(" --> check signed license enabled notification");
         // consumer plugin should notify onEnabled on all data nodes (signed license)
-        assertConsumerPlugin1EnableNotification(1);
-        assertConsumerPlugin2EnableNotification(1);
+        assertEagerConsumerPluginEnableNotification(1);
+        assertLazyConsumerPluginEnableNotification(1);
         assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_1);
         assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_2);
 
         logger.info(" --> check signed license expiry notification");
         // consumer plugin should notify onDisabled on all data nodes (expired signed license)
-        assertConsumerPlugin1DisableNotification(trialLicenseDurationInSeconds * 2);
-        assertConsumerPlugin2DisableNotification(trialLicenseDurationInSeconds * 2);
+        assertEagerConsumerPluginDisableNotification(trialLicenseDurationInSeconds * 2);
+        assertLazyConsumerPluginDisableNotification(trialLicenseDurationInSeconds * 2);
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_1);
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_2);
     }
@@ -150,33 +164,33 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
         String[] nodes = startNodesWithConsumerPlugins(nNodes, trialLicenseDuration1, trialLicenseDuration2);
 
         if (trialLicenseDuration1 != -1) {
-            assertConsumerPlugin1EnableNotification(1);
+            assertEagerConsumerPluginEnableNotification(1);
             assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_1);
         } else {
-            assertConsumerPlugin1DisableNotification(1);
+            assertEagerConsumerPluginDisableNotification(1);
             assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_1);
             putLicense(FEATURE_NAME_1, TimeValue.timeValueMillis(300 * 2));
         }
 
         if (trialLicenseDuration2 != -1) {
-            assertConsumerPlugin2EnableNotification(1);
+            assertLazyConsumerPluginEnableNotification(1);
             assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_2);
         } else {
-            assertConsumerPlugin2DisableNotification(1);
+            assertLazyConsumerPluginDisableNotification(1);
             assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_2);
             putLicense(FEATURE_NAME_2, TimeValue.timeValueMillis(300 * 2));
         }
 
         logger.info(" --> check license enabled notification");
-        assertConsumerPlugin1EnableNotification(1);
-        assertConsumerPlugin2EnableNotification(1);
+        assertEagerConsumerPluginEnableNotification(1);
+        assertLazyConsumerPluginEnableNotification(1);
         assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_1);
         assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_2);
 
         logger.info(" --> check license expiry notification");
         // consumer plugin should notify onDisabled on all data nodes (expired signed license)
-        assertConsumerPlugin1DisableNotification(2 * 2);
-        assertConsumerPlugin2DisableNotification(2 * 2);
+        assertEagerConsumerPluginDisableNotification(2 * 2);
+        assertLazyConsumerPluginDisableNotification(2 * 2);
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_1);
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME_2);
 
@@ -195,5 +209,14 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
         final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster()).setLicense(Lists.newArrayList(license1)).get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+    }
+
+    private void waitUntilClusterRecovered() throws InterruptedException {
+        assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                return !clusterService().state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+            }
+        }), equalTo(true));
     }
 }

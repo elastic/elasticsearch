@@ -9,18 +9,24 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
-public class TestConsumerPlugin1 extends TestConsumerPluginBase {
+/**
+ * Registers licenses upon the start of the service lifecycle
+ * see {@link org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginService}
+ *
+ * License registration might happen before clusterService start()
+ */
+public class EagerLicenseRegistrationConsumerPlugin extends TestConsumerPluginBase {
 
     public final static String NAME = "test_consumer_plugin_1";
 
     @Inject
-    public TestConsumerPlugin1(Settings settings) {
+    public EagerLicenseRegistrationConsumerPlugin(Settings settings) {
         super(settings);
     }
 
     @Override
     protected Class<? extends LifecycleComponent> service() {
-        return TestPluginService1.class;
+        return EagerLicenseRegistrationPluginService.class;
     }
 
     @Override

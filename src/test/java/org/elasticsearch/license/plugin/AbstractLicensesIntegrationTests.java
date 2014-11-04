@@ -16,14 +16,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
-import org.elasticsearch.license.plugin.consumer.TestPluginService1;
-import org.elasticsearch.license.plugin.consumer.TestPluginService2;
+import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginService;
+import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationPluginService;
 import org.elasticsearch.license.plugin.consumer.TestPluginServiceBase;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
-import org.hamcrest.Matchers;
 
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -115,30 +114,30 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
         }, 2, TimeUnit.SECONDS), equalTo(true));
     }
 
-    protected void assertConsumerPlugin1DisableNotification(int timeoutInSec) throws InterruptedException {
-        assertConsumerPlugin1Notification(false, timeoutInSec);
+    protected void assertEagerConsumerPluginDisableNotification(int timeoutInSec) throws InterruptedException {
+        assertEagerConsumerPluginNotification(false, timeoutInSec);
     }
 
-    protected void assertConsumerPlugin1EnableNotification(int timeoutInSec) throws InterruptedException {
-        assertConsumerPlugin1Notification(true, timeoutInSec);
+    protected void assertEagerConsumerPluginEnableNotification(int timeoutInSec) throws InterruptedException {
+        assertEagerConsumerPluginNotification(true, timeoutInSec);
     }
 
-    protected void assertConsumerPlugin2DisableNotification(int timeoutInSec) throws InterruptedException {
-        assertConsumerPlugin2Notification(false, timeoutInSec);
+    protected void assertLazyConsumerPluginDisableNotification(int timeoutInSec) throws InterruptedException {
+        assertLazyConsumerPluginNotification(false, timeoutInSec);
     }
 
-    protected void assertConsumerPlugin2EnableNotification(int timeoutInSec) throws InterruptedException {
-        assertConsumerPlugin2Notification(true, timeoutInSec);
+    protected void assertLazyConsumerPluginEnableNotification(int timeoutInSec) throws InterruptedException {
+        assertLazyConsumerPluginNotification(true, timeoutInSec);
     }
 
-    protected void assertConsumerPlugin2Notification(final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
-        final List<TestPluginServiceBase> consumerPluginServices = consumerPlugin2Services();
+    protected void assertLazyConsumerPluginNotification(final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
+        final List<TestPluginServiceBase> consumerPluginServices = consumerLazyPluginServices();
         assertThat("At least one instance has to be present", consumerPluginServices.size(), greaterThan(0));
         assertConsumerPluginNotification(consumerPluginServices, expectedEnabled, timeoutInSec);
     }
 
-    protected void assertConsumerPlugin1Notification(final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
-        final List<TestPluginServiceBase> consumerPluginServices = consumerPlugin1Services();
+    protected void assertEagerConsumerPluginNotification(final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
+        final List<TestPluginServiceBase> consumerPluginServices = consumerEagerPluginServices();
         assertThat("At least one instance has to be present", consumerPluginServices.size(), greaterThan(0));
         assertConsumerPluginNotification(consumerPluginServices, expectedEnabled, timeoutInSec);
     }
@@ -158,19 +157,19 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
 
     }
 
-    private List<TestPluginServiceBase> consumerPlugin2Services() {
+    private List<TestPluginServiceBase> consumerLazyPluginServices() {
         final InternalTestCluster clients = internalCluster();
         List<TestPluginServiceBase> consumerPluginServices = new ArrayList<>();
-        for (TestPluginServiceBase service : clients.getDataNodeInstances(TestPluginService2.class)) {
+        for (TestPluginServiceBase service : clients.getDataNodeInstances(LazyLicenseRegistrationPluginService.class)) {
             consumerPluginServices.add(service);
         }
         return consumerPluginServices;
     }
 
-    private List<TestPluginServiceBase> consumerPlugin1Services() {
+    private List<TestPluginServiceBase> consumerEagerPluginServices() {
         final InternalTestCluster clients = internalCluster();
         List<TestPluginServiceBase> consumerPluginServices = new ArrayList<>();
-        for (TestPluginServiceBase service : clients.getDataNodeInstances(TestPluginService1.class)) {
+        for (TestPluginServiceBase service : clients.getDataNodeInstances(EagerLicenseRegistrationPluginService.class)) {
             consumerPluginServices.add(service);
         }
         return consumerPluginServices;

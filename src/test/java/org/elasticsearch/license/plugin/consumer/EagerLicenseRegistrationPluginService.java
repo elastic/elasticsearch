@@ -11,14 +11,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
 
 @Singleton
-public class TestPluginService2 extends TestPluginServiceBase {
+public class EagerLicenseRegistrationPluginService extends TestPluginServiceBase {
 
-
-    public static String FEATURE_NAME = "feature2";
+    public static String FEATURE_NAME = "feature1";
 
     @Inject
-    public TestPluginService2(Settings settings, LicensesClientService licensesClientService) {
-        super(settings, licensesClientService);
+    public EagerLicenseRegistrationPluginService(Settings settings, LicensesClientService licensesClientService) {
+        super(true, settings, licensesClientService, null);
     }
 
     @Override
@@ -28,6 +27,6 @@ public class TestPluginService2 extends TestPluginServiceBase {
 
     @Override
     public String settingPrefix() {
-        return TestConsumerPlugin2.NAME;
+        return EagerLicenseRegistrationConsumerPlugin.NAME;
     }
 }

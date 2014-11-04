@@ -6,22 +6,17 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.plugin.action.get.GetLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
-import org.elasticsearch.license.plugin.consumer.TestConsumerPlugin1;
-import org.elasticsearch.license.plugin.consumer.TestPluginService1;
+import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationConsumerPlugin;
+import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginService;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.node.internal.InternalNode;
 import org.junit.Test;
@@ -37,7 +32,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0)
 public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests {
 
-    private final String FEATURE_NAME = TestPluginService1.FEATURE_NAME;
+    private final String FEATURE_NAME = EagerLicenseRegistrationPluginService.FEATURE_NAME;
 
     private final int trialLicenseDurationInSeconds = 2;
     
@@ -57,8 +52,8 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
                 .put("plugins.load_classpath_plugins", false)
                 .put("node.data", true)
                 .put("format", "json")
-                .put(TestConsumerPlugin1.NAME + ".trial_license_duration_in_seconds", trialLicenseDurationInSeconds)
-                .putArray("plugin.types", LicensePlugin.class.getName(), TestConsumerPlugin1.class.getName())
+                .put(EagerLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", trialLicenseDurationInSeconds)
+                .putArray("plugin.types", LicensePlugin.class.getName(), EagerLicenseRegistrationConsumerPlugin.class.getName())
                 .put(InternalNode.HTTP_ENABLED, true);
     }
 
@@ -91,12 +86,12 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
         logger.info("--> start one master out of two [recovery state]");
         internalCluster().startNode(nodeSettingsBuilder(0).put("discovery.zen.minimum_master_nodes", 2).put("node.master", true));
         assertLicenseManagerDisabledFeatureFor(FEATURE_NAME);
-        assertConsumerPlugin1DisableNotification(1);
+        assertEagerConsumerPluginDisableNotification(1);
 
         logger.info("--> start second master out of two [recovered state]");
         internalCluster().startNode(nodeSettingsBuilder(1).put("discovery.zen.minimum_master_nodes", 2).put("node.master", true));
         assertLicenseManagerEnabledFeatureFor(FEATURE_NAME);
-        assertConsumerPlugin1EnableNotification(1);
+        assertEagerConsumerPluginEnableNotification(1);
     }
 
     private List<ESLicense> generateAndPutLicense() throws Exception {

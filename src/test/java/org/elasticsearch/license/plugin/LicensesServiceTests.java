@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.manager.ESLicenseManager;
@@ -224,13 +225,13 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
     }
 
     @Test
-    public void testRandomMultipleClientMultipleFeature() throws Exception {
+    public void testRandomActionSequenceMultipleFeature() throws Exception {
         LicensesService licensesService = randomLicensesService();
         LicensesManagerService masterLicensesManagerService = masterLicensesManagerService();
         Map<TestTrackingClientListener, List<Action>> clientListenersWithActions = new HashMap<>();
 
         TimeValue expiryDuration = TimeValue.timeValueSeconds(0);
-        for (int i = 0; i < randomIntBetween(3, 10); i++) {
+        for (int i = 0; i < randomIntBetween(10, 20); i++) {
             final TestTrackingClientListener clientListener = new TestTrackingClientListener();
             String feature = randomRealisticUnicodeOfCodepointLengthBetween(2, 10);
             expiryDuration = TimeValue.timeValueMillis(randomIntBetween(1, 5) * 100l + expiryDuration.millis());
@@ -313,6 +314,17 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
 
                 // invoke clusterChanged event to flush out pendingRegistration
                 LicensesService licensesService = (LicensesService) clientService;
+                /*
+                try {
+                    assertThat(awaitBusy(new Predicate<Object>() {
+                                  @Override
+                                  public boolean apply(Object o) {
+                                      return !clusterService().state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+                                  }
+                              }), equalTo(true));
+                } catch (InterruptedException e) {
+                    logger.error("Exception while trying to registerWithTrialLicense", e);
+                }*/
                 ClusterChangedEvent event = new ClusterChangedEvent("", clusterService().state(), clusterService().state());
                 licensesService.clusterChanged(event);
             }

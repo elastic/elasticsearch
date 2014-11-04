@@ -59,7 +59,7 @@ public class RangeAggregator extends BucketsAggregator {
             this.toAsStr = toAsStr;
         }
 
-        boolean matches(double value) {
+        public boolean matches(double value) {
             return value >= from && value < to;
         }
 
@@ -221,7 +221,7 @@ public class RangeAggregator extends BucketsAggregator {
         return rangeFactory.create(name, buckets, formatter, keyed);
     }
 
-    private static final void sortRanges(final Range[] ranges) {
+    public static final void sortRanges(final Range[] ranges) {
         new InPlaceMergeSorter() {
 
             @Override

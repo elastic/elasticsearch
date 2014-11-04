@@ -21,6 +21,8 @@ package org.elasticsearch.search.reducers;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
+import org.elasticsearch.search.reducers.bucket.range.InternalRange;
+import org.elasticsearch.search.reducers.bucket.range.RangeReducer;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.InternalSlidingWindow;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowReducer;
 import org.elasticsearch.search.reducers.metric.avg.AvgReducer;
@@ -43,11 +45,13 @@ public class TransportReductionModule extends AbstractModule {
         InternalAvg.registerStreams();
         InternalMax.registerStreams();
         InternalStats.registerStreams();
+        InternalRange.registerStreams();
         
         SlidingWindowReducer.registerStreams();
         DeltaReducer.registerStreams();
         AvgReducer.registerStreams();
         MaxReducer.registerStreams();
         StatsReducer.registerStreams();
+        RangeReducer.registerStreams();
     }
 }

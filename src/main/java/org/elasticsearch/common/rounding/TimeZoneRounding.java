@@ -153,14 +153,13 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long time = utcMillis + preTz.getOffset(utcMillis);
-            return field.roundFloor(time);
+            long offset = preTz.getOffset(utcMillis);
+            long time = utcMillis + offset;
+            return field.roundFloor(time) - offset;
         }
 
         @Override
         public long valueForKey(long time) {
-            // now, time is still in local, move it to UTC (or the adjustLargeInterval flag is set)
-            time = time - preTz.getOffset(time);
             // now apply post Tz
             time = time + postTz.getOffset(time);
             return time;

@@ -31,10 +31,14 @@ import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -119,7 +123,7 @@ public class GroovyScriptTests extends ElasticsearchIntegrationTest {
                 .boostMode(CombineFunction.REPLACE)).get();
 
         assertNoFailures(resp);
-        assertOrderedSearchHits(resp, "3", "1");
+        assertSearchHits(resp, "3", "1");
 
         // doc[] access
         resp = client().prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery())

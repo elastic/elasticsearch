@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.discovery;
+package org.elasticsearch.test.discovery;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.google.common.primitives.Ints;
@@ -107,13 +107,12 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
             this.basePort = calcBasePort();
         }
 
-        private final static int calcBasePort() {
+        private static int calcBasePort() {
             // note that this has properly co-exist with the port logic at InternalTestCluster's constructor
             return 30000 +
                     1000 * (ElasticsearchIntegrationTest.CHILD_JVM_ID % 60) + // up to 60 jvms
                     100 * portRangeCounter.incrementAndGet(); // up to 100 nodes
         }
-
 
         @Override
         public Settings node(int nodeOrdinal) {

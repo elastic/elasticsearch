@@ -159,39 +159,47 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
             // check if the counts meets the minimum set
             int requiredAllocation = 1;
-            try {
-                IndexMetaData indexMetaData = routingNodes.metaData().index(shard.index());
-                String initialShards = indexMetaData.settings().get(INDEX_RECOVERY_INITIAL_SHARDS, settings.get(INDEX_RECOVERY_INITIAL_SHARDS, this.initialShards));
-                if ("quorum".equals(initialShards)) {
-                    if (indexMetaData.numberOfReplicas() > 1) {
-                        requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2) + 1;
+            // if we restore from a repository one copy is more then enough
+            if (shard.restoreSource() == null) {
+                try {
+                    IndexMetaData indexMetaData = routingNodes.metaData().index(shard.index());
+                    String initialShards = indexMetaData.settings().get(INDEX_RECOVERY_INITIAL_SHARDS, settings.get(INDEX_RECOVERY_INITIAL_SHARDS, this.initialShards));
+                    if ("quorum".equals(initialShards)) {
+                        if (indexMetaData.numberOfReplicas() > 1) {
+                            requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2) + 1;
+                        }
+                    } else if ("quorum-1".equals(initialShards) || "half".equals(initialShards)) {
+                        if (indexMetaData.numberOfReplicas() > 2) {
+                            requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2);
+                        }
+                    } else if ("one".equals(initialShards)) {
+                        requiredAllocation = 1;
+                    } else if ("full".equals(initialShards) || "all".equals(initialShards)) {
+                        requiredAllocation = indexMetaData.numberOfReplicas() + 1;
+                    } else if ("full-1".equals(initialShards) || "all-1".equals(initialShards)) {
+                        if (indexMetaData.numberOfReplicas() > 1) {
+                            requiredAllocation = indexMetaData.numberOfReplicas();
+                        }
+                    } else {
+                        requiredAllocation = Integer.parseInt(initialShards);
                     }
-                } else if ("quorum-1".equals(initialShards) || "half".equals(initialShards)) {
-                    if (indexMetaData.numberOfReplicas() > 2) {
-                        requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2);
-                    }
-                } else if ("one".equals(initialShards)) {
-                    requiredAllocation = 1;
-                } else if ("full".equals(initialShards) || "all".equals(initialShards)) {
-                    requiredAllocation = indexMetaData.numberOfReplicas() + 1;
-                } else if ("full-1".equals(initialShards) || "all-1".equals(initialShards)) {
-                    if (indexMetaData.numberOfReplicas() > 1) {
-                        requiredAllocation = indexMetaData.numberOfReplicas();
-                    }
-                } else {
-                    requiredAllocation = Integer.parseInt(initialShards);
+                } catch (Exception e) {
+                    logger.warn("[{}][{}] failed to derived initial_shards from value {}, ignore allocation for {}", shard.index(), shard.id(), initialShards, shard);
                 }
-            } catch (Exception e) {
-                logger.warn("[{}][{}] failed to derived initial_shards from value {}, ignore allocation for {}", shard.index(), shard.id(), initialShards, shard);
             }
 
             // not enough found for this shard, continue...
             if (numberOfAllocationsFound < requiredAllocation) {
-                // we can't really allocate, so ignore it and continue
-                unassignedIterator.remove();
-                routingNodes.ignoredUnassigned().add(shard);
-                if (logger.isDebugEnabled()) {
-                    logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}], required_number [{}]", shard.index(), shard.id(), numberOfAllocationsFound, requiredAllocation);
+                // if we are restoring this shard we still can allocate
+                if (shard.restoreSource() == null) {
+                    // we can't really allocate, so ignore it and continue
+                    unassignedIterator.remove();
+                    routingNodes.ignoredUnassigned().add(shard);
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}], required_number [{}]", shard.index(), shard.id(), numberOfAllocationsFound, requiredAllocation);
+                    }
+                } else if (logger.isDebugEnabled()) {
+                    logger.debug("[{}][{}]: missing local data, will restore from [{}]", shard.index(), shard.id(), shard.restoreSource());
                 }
                 continue;
             }

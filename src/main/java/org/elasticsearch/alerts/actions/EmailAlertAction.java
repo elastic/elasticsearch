@@ -7,6 +7,8 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import javax.mail.*;
@@ -66,6 +68,30 @@ public class EmailAlertAction implements AlertAction {
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(displayField);
+        out.writeInt(emailAddresses.size());
+        for (Address emailAddress : emailAddresses) {
+            out.writeString(emailAddress.toString());
+        }
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        displayField = in.readOptionalString();
+        int numberOfEmails = in.readInt();
+        emailAddresses = new ArrayList<>(numberOfEmails);
+        for (int i=0; i<numberOfEmails; ++i) {
+            String address = in.readString();
+            try {
+                emailAddresses.add(InternetAddress.parse(address)[0]);
+            } catch (AddressException ae) {
+                throw new IOException("Unable to parse [" + address + "] as an email adderss", ae);
+            }
+        }
     }
 
     @Override

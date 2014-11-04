@@ -5,12 +5,16 @@
  */
 package org.elasticsearch.alerts;
 
+
 import org.elasticsearch.alerts.actions.AlertActionManager;
+
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
+import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.rest.AlertRestHandler;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.common.inject.AbstractModule;
+
 
 public class AlertingModule extends AbstractModule {
 
@@ -23,6 +27,8 @@ public class AlertingModule extends AbstractModule {
         bind(AlertScheduler.class).asEagerSingleton();
         bind(AlertActionRegistry.class).asEagerSingleton();
         bind(AlertRestHandler.class).asEagerSingleton();
+        //bind(AlertsClientInterface.class).to(AlertsClient.class).asEagerSingleton();
+        bind(AlertsClient.class).asEagerSingleton();
     }
 
 }

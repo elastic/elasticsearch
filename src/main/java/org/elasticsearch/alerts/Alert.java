@@ -7,15 +7,22 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.actions.AlertAction;
+import org.elasticsearch.alerts.actions.AlertActionFactory;
+import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.common.io.stream.DataOutputStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.omg.CORBA.portable.Streamable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class Alert implements ToXContent {
@@ -71,6 +78,47 @@ public class Alert implements ToXContent {
         builder.endObject();
         return builder;
     }
+
+    public void readFrom(StreamInput in) throws IOException {
+        alertName = in.readString();
+        searchRequest = new SearchRequest();
+        searchRequest.readFrom(in);
+        trigger = AlertTrigger.readFrom(in);
+        int numActions = in.readInt();
+        actions = new ArrayList<>(numActions);
+        for (int i=0; i<numActions; ++i) {
+            actions.add(AlertActionRegistry.readFrom(in));
+        }
+        schedule = in.readOptionalString();
+        if (in.readBoolean()) {
+            lastActionFire = new DateTime(in.readLong(), DateTimeZone.UTC);
+        }
+        version = in.readLong();
+        enabled = in.readBoolean();
+    }
+
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(alertName);
+        searchRequest.writeTo(out);
+        AlertTrigger.writeTo(trigger, out);
+        if (actions == null) {
+            out.writeInt(0);
+        } else {
+            out.writeInt(actions.size());
+            for (AlertAction action : actions) {
+                action.writeTo(out);
+            }
+        }
+        out.writeOptionalString(schedule);
+        if (lastActionFire == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeLong(lastActionFire.toDateTime(DateTimeZone.UTC).getMillis());
+        }
+        out.writeLong(version);
+        out.writeBoolean(enabled);
+    }
+
 
     /**
      * @return The last time this alert ran.

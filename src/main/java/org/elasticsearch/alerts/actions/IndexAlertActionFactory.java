@@ -8,11 +8,10 @@ package org.elasticsearch.alerts.actions;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentParser;
-
 import java.io.IOException;
+import org.elasticsearch.common.io.stream.StreamInput;
 
 /**
- * Created by brian on 8/17/14.
  */
 public class IndexAlertActionFactory implements AlertActionFactory {
 
@@ -48,5 +47,10 @@ public class IndexAlertActionFactory implements AlertActionFactory {
             }
         }
         return new IndexAlertAction(index, type, client);
+    }
+
+    @Override
+    public AlertAction readFrom(StreamInput in) throws IOException {
+        return new IndexAlertAction(in.readString(), in.readString(), client);
     }
 }

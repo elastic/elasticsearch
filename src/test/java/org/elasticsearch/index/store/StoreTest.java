@@ -131,7 +131,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         try {
             Store.verify(verifyingOutput);
             fail("should be a corrupted index");
-        } catch (CorruptIndexException ex) {
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             // ok
         }
         IOUtils.close(indexInput, verifyingOutput, dir);
@@ -148,7 +148,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                 length--;
             }
             fail("should be a corrupted index");
-        } catch (CorruptIndexException ex) {
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             // ok
         }
         IOUtils.close(verifyingOutput, dir);
@@ -333,7 +333,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                     try {
                         CodecUtil.retrieveChecksum(input);
                         fail("expected a corrupt index - posting format has not checksums");
-                    } catch (CorruptIndexException ex) {
+                    } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                         try (ChecksumIndexInput checksumIndexInput = store.directory().openChecksumInput(meta.name(), IOContext.DEFAULT)) {
                             checksumIndexInput.seek(meta.length());
                             checksum = Store.digestToString(checksumIndexInput.getChecksum());
@@ -457,7 +457,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         try {
             Store.verify(verifyingIndexInput);
             fail("should be a corrupted index");
-        } catch (CorruptIndexException ex) {
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             // ok
         }
         IOUtils.close(verifyingIndexInput);

@@ -543,10 +543,11 @@ public class Lucene {
 
     /**
      * Returns <tt>true</tt> iff the given exception or
-     * one of it's causes is an instance of {@link CorruptIndexException} otherwise <tt>false</tt>.
+     * one of it's causes is an instance of {@link CorruptIndexException}, 
+     * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise <tt>false</tt>.
      */
     public static boolean isCorruptionException(Throwable t) {
-        return ExceptionsHelper.unwrap(t, CorruptIndexException.class) != null;
+        return ExceptionsHelper.unwrapCorruption(t) != null;
     }
 
     /**

@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -569,9 +571,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         }
 
         private void failStoreIfCorrupted(Throwable t) {
-            if (t instanceof CorruptIndexException) {
+            if (t instanceof CorruptIndexException || t instanceof IndexFormatTooOldException || t instanceof IndexFormatTooNewException) {
                 try {
-                    store.markStoreCorrupted((CorruptIndexException) t);
+                    store.markStoreCorrupted((IOException) t);
                 } catch (IOException e) {
                     logger.warn("store cannot be marked as corrupted", e);
                 }
@@ -718,7 +720,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 final Store.MetadataSnapshot recoveryTargetMetadata;
                 try {
                     recoveryTargetMetadata = store.getMetadataOrEmpty();
-                } catch (CorruptIndexException e) {
+                } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
                     logger.warn("{} Can't read metadata from store", e, shardId);
                     throw new IndexShardRestoreFailedException(shardId, "Can't restore corrupted shard", e);
                 }
@@ -853,7 +855,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     store.directory().sync(Collections.singleton(fileInfo.physicalName()));
                     recoveryState.getIndex().addRecoveredFileCount(1);
                     success = true;
-                } catch (CorruptIndexException ex) {
+                } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                     try {
                         store.markStoreCorrupted(ex);
                     } catch (IOException e) {

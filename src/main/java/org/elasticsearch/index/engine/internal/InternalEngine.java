@@ -1374,7 +1374,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 // the shard is initializing
                 if (Lucene.isCorruptionException(failure)) {
                     try {
-                        store.markStoreCorrupted(ExceptionsHelper.unwrap(failure, CorruptIndexException.class));
+                        store.markStoreCorrupted(ExceptionsHelper.unwrapCorruption(failure));
                     } catch (IOException e) {
                         logger.warn("Couldn't marks store corrupted", e);
                     }

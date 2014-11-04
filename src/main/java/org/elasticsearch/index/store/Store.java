@@ -190,7 +190,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         failIfCorrupted();
         try {
             return new MetadataSnapshot(commit, distributorDirectory, logger);
-        } catch (CorruptIndexException ex) {
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
         }
@@ -540,7 +540,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 } else {
                     builder.put(segmentsFile, new StoreFileMetaData(segmentsFile, directory.fileLength(segmentsFile), legacyChecksum, null));
                 }
-            } catch (CorruptIndexException ex) {
+            } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 throw ex;
             } catch (Throwable ex) {
                 try {
@@ -548,7 +548,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     // in that case we might get only IAE or similar exceptions while we are really corrupt...
                     // TODO we should check the checksum in lucene if we hit an exception
                     Lucene.checkSegmentInfoIntegrity(directory);
-                } catch (CorruptIndexException cex) {
+                } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException cex) {
                   cex.addSuppressed(ex);
                   throw cex;
                 } catch (Throwable e) {
@@ -1042,7 +1042,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * Marks this store as corrupted. This method writes a <tt>corrupted_${uuid}</tt> file containing the given exception
      * message. If a store contains a <tt>corrupted_${uuid}</tt> file {@link #isMarkedCorrupted()} will return <code>true</code>.
      */
-    public void markStoreCorrupted(CorruptIndexException exception) throws IOException {
+    public void markStoreCorrupted(IOException exception) throws IOException {
         ensureOpen();
         if (!isMarkedCorrupted()) {
             String uuid = CORRUPTED + Strings.randomBase64UUID();

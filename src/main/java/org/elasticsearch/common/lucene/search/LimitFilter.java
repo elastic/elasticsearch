@@ -19,14 +19,14 @@
 
 package org.elasticsearch.common.lucene.search;
 
+import java.io.IOException;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
-
-import java.io.IOException;
 
 public class LimitFilter extends NoCacheFilter {
 
@@ -49,7 +49,7 @@ public class LimitFilter extends NoCacheFilter {
         return new LimitDocIdSet(context.reader().maxDoc(), acceptDocs, limit);
     }
 
-    public class LimitDocIdSet extends MatchDocIdSet {
+    public class LimitDocIdSet extends DocValuesDocIdSet {
 
         private final int limit;
 

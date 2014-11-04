@@ -19,18 +19,18 @@
 
 package org.elasticsearch.index.search.geo;
 
+import java.io.IOException;
+import java.util.Arrays;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-
-import java.io.IOException;
-import java.util.Arrays;
 
 /**
  *
@@ -68,7 +68,7 @@ public class GeoPolygonFilter extends Filter {
         return sb.toString();
     }
 
-    public static class GeoPolygonDocIdSet extends MatchDocIdSet {
+    public static class GeoPolygonDocIdSet extends DocValuesDocIdSet {
         private final MultiGeoPointValues values;
         private final GeoPoint[] points;
 

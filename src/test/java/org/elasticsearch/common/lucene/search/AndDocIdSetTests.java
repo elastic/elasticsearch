@@ -23,11 +23,11 @@ import java.io.IOException;
 
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.docset.AndDocIdSet;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 
 public class AndDocIdSetTests extends ElasticsearchLuceneTestCase {
@@ -59,7 +59,7 @@ public class AndDocIdSetTests extends ElasticsearchLuceneTestCase {
                     sets[i] = new BitDocIdSet(randomSet);
                 } else {
                     // will be considered 'slow' by AndDocIdSet
-                    sets[i] = new MatchDocIdSet(numDocs, null) {
+                    sets[i] = new DocValuesDocIdSet(numDocs, null) {
                         @Override
                         protected boolean matchDoc(int doc) {
                             return randomSet.get(doc);

@@ -19,15 +19,18 @@
 
 package org.elasticsearch.index.query;
 
+import java.io.IOException;
+import java.util.Map;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.script.ScriptParameterParser;
@@ -35,9 +38,6 @@ import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
-
-import java.io.IOException;
-import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -174,7 +174,7 @@ public class ScriptFilterParser implements FilterParser {
             return BitsFilteredDocIdSet.wrap(new ScriptDocSet(context.reader().maxDoc(), acceptDocs, searchScript), acceptDocs);
         }
 
-        static class ScriptDocSet extends MatchDocIdSet {
+        static class ScriptDocSet extends DocValuesDocIdSet {
 
             private final SearchScript searchScript;
 

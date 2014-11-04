@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index.search;
 
+import java.io.IOException;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-
-import java.io.IOException;
 
 /**
  * A numeric filter that can be much faster than {@link org.apache.lucene.search.NumericRangeFilter} at the
@@ -305,7 +305,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
         };
     }
     
-    private static final class DoubleRangeMatchDocIdSet extends MatchDocIdSet {
+    private static final class DoubleRangeMatchDocIdSet extends DocValuesDocIdSet {
         private final SortedNumericDoubleValues values;
         private final double inclusiveLowerPoint;
         private final double inclusiveUpperPoint;
@@ -332,7 +332,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
         
     }
     
-    private static final class LongRangeMatchDocIdSet extends MatchDocIdSet {
+    private static final class LongRangeMatchDocIdSet extends DocValuesDocIdSet {
         private final SortedNumericDocValues values;
         private final long inclusiveLowerPoint;
         private final long inclusiveUpperPoint;

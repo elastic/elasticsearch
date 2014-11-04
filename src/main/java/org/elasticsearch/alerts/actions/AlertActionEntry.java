@@ -10,11 +10,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.TriggerResult;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.DataOutputStreamOutput;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.List;
 
@@ -178,12 +180,13 @@ public class AlertActionEntry implements ToXContent{
         historyEntry.field("fireTime", fireTime.toDateTimeISO());
         historyEntry.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, scheduledTime.toDateTimeISO());
         historyEntry.field("trigger", trigger, params);
-        BytesStreamOutput out = new BytesStreamOutput();
-        searchRequest.writeTo(out);
-        historyEntry.field("request_binary", out.bytes());
-        out = new BytesStreamOutput();
-        searchResponse.writeTo(out);
-        historyEntry.field("response_binary", out.bytes());
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        searchRequest.writeTo(new DataOutputStreamOutput(new DataOutputStream(out)));
+        historyEntry.field("request_binary", out.toByteArray());
+        out = new ByteArrayOutputStream();
+        searchResponse.writeTo(new DataOutputStreamOutput(new DataOutputStream(out)));
+        historyEntry.field("response_binary", out.toByteArray());
         // Serializing it as xcontent allows the search response to be encapsulated in a doc as a json object
         historyEntry.startObject("response");
         searchResponse.toXContent(historyEntry, params);

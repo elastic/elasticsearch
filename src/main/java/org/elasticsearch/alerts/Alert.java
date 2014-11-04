@@ -8,11 +8,13 @@ package org.elasticsearch.alerts;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.DataOutputStreamOutput;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.List;
 
@@ -44,9 +46,9 @@ public class Alert implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        BytesStreamOutput out = new BytesStreamOutput();
-        searchRequest.writeTo(out);
-        builder.field(AlertsStore.SEARCH_REQUEST_FIELD.getPreferredName(), out.bytes());
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        searchRequest.writeTo(new DataOutputStreamOutput(new DataOutputStream(out)));
+        builder.field(AlertsStore.SEARCH_REQUEST_FIELD.getPreferredName(), out.toByteArray());
         if (schedule != null) {
             builder.field(AlertsStore.SCHEDULE_FIELD.getPreferredName(), schedule);
         }

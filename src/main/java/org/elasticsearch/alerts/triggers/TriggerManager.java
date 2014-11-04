@@ -171,7 +171,7 @@ public class TriggerManager extends AbstractComponent {
     private SearchRequest prepareTriggerSearch(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
         SearchRequest request = alert.getSearchRequest();
         if (Strings.hasLength(request.source())) {
-            String requestSource = request.source().toUtf8();
+            String requestSource = XContentHelper.convertToJson(request.source(), false);
             if (requestSource.contains(fireTimePlaceHolder)) {
                 requestSource = requestSource.replace(fireTimePlaceHolder, dateTimeFormatter.printer().print(fireTime));
             }

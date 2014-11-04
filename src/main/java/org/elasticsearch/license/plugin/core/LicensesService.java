@@ -392,6 +392,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             logLicenseMetaDataStats("old", oldLicensesMetaData);
             logLicenseMetaDataStats("new", currentLicensesMetaData);
 
+            // register any pending listeners
             if (!pendingListeners.isEmpty()) {
                 ListenerHolder pendingRegistrationListener;
                 while ((pendingRegistrationListener = pendingListeners.poll()) != null) {
@@ -563,21 +564,18 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                         return false;
                     }
                 }
-                registeredListeners.add(listenerHolder);
             } else {
                 // notify feature as clusterChangedEvent may not happen
                 // as no trial or signed license has been found for feature
                 logger.debug("Calling notifyFeaturesAndScheduleNotification [no trial license spec provided]");
-                registeredListeners.add(listenerHolder);
-                notifyFeaturesAndScheduleNotification(currentMetaData);
             }
         } else {
             // signed license already found for the new registered
             // feature, notify feature on registration
             logger.debug("Calling notifyFeaturesAndScheduleNotification [signed/trial license available]");
-            registeredListeners.add(listenerHolder);
-            notifyFeaturesAndScheduleNotification(currentMetaData);
         }
+        registeredListeners.add(listenerHolder);
+        notifyFeaturesAndScheduleNotification(currentMetaData);
         return true;
     }
 

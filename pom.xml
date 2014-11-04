@@ -51,9 +51,8 @@
             <url>http://repository.codehaus.org/</url>
         </repository>
         <repository>
-            <!-- nocommit: put up on s3 once things are really working -->
-            <id>Temporary Location</id>
-            <url>http://people.apache.org/~rmuir/fake_staging_area/lucene-5.0.0-snapshot-1636426/maven</url>
+            <id>Lucene snapshots</id>
+            <url>http://download.elasticsearch.org/lucenesnapshots/maven/</url>
         </repository>
     </repositories>
 

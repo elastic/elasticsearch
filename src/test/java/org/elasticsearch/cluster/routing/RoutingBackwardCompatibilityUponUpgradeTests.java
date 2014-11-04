@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.junit.Ignore;
+
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -38,6 +40,7 @@ import java.io.File;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
+@Ignore
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
 public class RoutingBackwardCompatibilityUponUpgradeTests extends ElasticsearchIntegrationTest {
 

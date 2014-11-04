@@ -23,6 +23,7 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -39,6 +40,7 @@ public class AlertManager extends AbstractComponent {
     private final ClusterService clusterService;
     private final AlertActionManager actionManager;
     private final AtomicBoolean started = new AtomicBoolean(false);
+
 
     @Inject
     public AlertManager(Settings settings, ClusterService clusterService, AlertsStore alertsStore,
@@ -92,6 +94,18 @@ public class AlertManager extends AbstractComponent {
         return alert;
     }
 
+    public Alert addAlert(Alert alert) {
+        ensureStarted();
+        try {
+            alertsStore.createAlert(alert);
+        } catch (IOException ioe) {
+            throw new ElasticsearchException("Failed to create alert [" + alert +  "]", ioe);
+        }
+        scheduler.add(alert.alertName(), alert);
+        return alert;
+    }
+
+
     public List<Alert> getAllAlerts() {
         ensureStarted();
         return ImmutableList.copyOf(alertsStore.getAlerts().values());
@@ -104,6 +118,10 @@ public class AlertManager extends AbstractComponent {
     public void executeAlert(String alertName, DateTime scheduledFireTime, DateTime fireTime){
         ensureStarted();
         Alert alert = alertsStore.getAlert(alertName);
+        if (alert == null) {
+            logger.warn("Unable to find [{}] in the alert store, perhaps it has been deleted", alertName);
+            return;
+        }
         if (!alert.enabled()) {
             logger.debug("Alert [{}] is not enabled", alert.alertName());
             return;
@@ -134,6 +152,18 @@ public class AlertManager extends AbstractComponent {
         for (Map.Entry<String, Alert> entry : alertsStore.getAlerts().entrySet()) {
             scheduler.add(entry.getKey(), entry.getValue());
         }
+    }
+
+    public Alert getAlert(String alertName) {
+        return alertsStore.getAlert(alertName);
+    }
+
+    public boolean updateAlert(Alert alert) {
+        if (!alertsStore.hasAlert(alert.alertName())) {
+            return false;
+        }
+        return alertsStore.updateAlert(alert);
+
     }
 
     private final class AlertsClusterStateListener implements ClusterStateListener {

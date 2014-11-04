@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,5 +48,21 @@ public class EmailAlertActionFactory implements AlertActionFactory {
             }
         }
         return new EmailAlertAction(display, addresses.toArray(new String[addresses.size()]));
+    }
+
+    @Override
+    public AlertAction readFrom(StreamInput in) throws IOException{
+
+        String displayField = in.readOptionalString();
+
+        int numberOfEmails = in.readInt();
+        String[] emailAddresses = new String[numberOfEmails];
+        for (int i=0; i<numberOfEmails; ++i) {
+            String address = in.readString();
+            emailAddresses[i] = address;
+        }
+
+        EmailAlertAction emailAction = new EmailAlertAction(displayField, emailAddresses);
+        return emailAction;
     }
 }

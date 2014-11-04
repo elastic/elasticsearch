@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.DataOutputStreamOutput;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,6 +34,8 @@ import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
@@ -100,9 +103,27 @@ public class AlertsStore extends AbstractComponent {
     }
 
     /**
+     * Creates an alert with the specified and fails if an alert with the name already exists.
+     */
+    public Alert createAlert(Alert alert) throws IOException {
+        if (alertMap.putIfAbsent(alert.alertName(), alert) == null) {
+            XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+            alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+            persistAlert(alert.alertName(), jsonBuilder.bytes(), IndexRequest.OpType.CREATE);
+        } else {
+            throw new ElasticsearchIllegalArgumentException("There is already an alert named [" + alert.alertName() + "]");
+        }
+        return alert;
+    }
+
+    public boolean updateAlert(Alert alert) {
+        return updateAlert(alert, false);
+    }
+
+    /**
      * Updates the specified alert by making sure that the made changes are persisted.
      */
-    public void updateAlert(Alert alert) {
+    public boolean updateAlert(Alert alert, boolean updateMap) {
         IndexRequest updateRequest = new IndexRequest();
         updateRequest.index(ALERT_INDEX);
         updateRequest.type(ALERT_TYPE);
@@ -120,8 +141,13 @@ public class AlertsStore extends AbstractComponent {
         IndexResponse response = client.index(updateRequest).actionGet();
         alert.version(response.getVersion());
 
-        // Don't need to update the alertMap, since we are working on an instance from it.
-        assert alertMap.get(alert.alertName()) == alert;
+        if (updateMap) {
+            alertMap.put(alert.alertName(), alert);
+        } else {
+            // Don'<></> need to update the alertMap, since we are working on an instance from it.
+            assert alertMap.get(alert.alertName()) == alert;
+        }
+        return true;
     }
 
     /**

@@ -10,6 +10,8 @@ import org.elasticsearch.alerts.actions.*;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedAlertTrigger;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -75,6 +77,16 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
             }
 
             @Override
+            public void writeTo(StreamOutput out) throws IOException {
+
+            }
+
+            @Override
+            public void readFrom(StreamInput in) throws IOException {
+
+            }
+
+            @Override
             public boolean doAction(Alert alert, AlertActionEntry actionEntry) {
                 logger.info("Alert {} invoked: {}", alert.alertName(), actionEntry);
                 alertActionInvoked.set(true);
@@ -86,6 +98,11 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
             @Override
             public AlertAction createAction(XContentParser parser) throws IOException {
                 parser.nextToken();
+                return alertAction;
+            }
+
+            @Override
+            public AlertAction readFrom(StreamInput in) throws IOException {
                 return alertAction;
             }
         });

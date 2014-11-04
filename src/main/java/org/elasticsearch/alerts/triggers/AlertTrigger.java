@@ -6,8 +6,11 @@
 package org.elasticsearch.alerts.triggers;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 
@@ -16,6 +19,7 @@ public class AlertTrigger implements ToXContent {
     private SimpleTrigger trigger;
     private TriggerType triggerType;
     private int value;
+    private ScriptedAlertTrigger scriptedTrigger;
 
     public ScriptedAlertTrigger scriptedTrigger() {
         return scriptedTrigger;
@@ -24,8 +28,6 @@ public class AlertTrigger implements ToXContent {
     public void scriptedTrigger(ScriptedAlertTrigger scriptedTrigger) {
         this.scriptedTrigger = scriptedTrigger;
     }
-
-    private ScriptedAlertTrigger scriptedTrigger;
 
     public SimpleTrigger trigger() {
         return trigger;
@@ -192,5 +194,34 @@ public class AlertTrigger implements ToXContent {
         result = 31 * result + (scriptedTrigger != null ? scriptedTrigger.hashCode() : 0);
         return result;
     }
+
+
+    public static void writeTo(AlertTrigger trigger, StreamOutput out) throws IOException {
+        out.writeString(trigger.triggerType.toString());
+        if (trigger.triggerType.equals(TriggerType.NUMBER_OF_EVENTS)) {
+            out.writeString(trigger.toString());
+            out.writeInt(trigger.value);
+        } else {
+            out.writeString(trigger.scriptedTrigger.scriptLang);
+            ScriptService.ScriptType.writeTo(trigger.scriptedTrigger.scriptType, out);
+            out.writeString(trigger.scriptedTrigger.script);
+        }
+    }
+
+    public static AlertTrigger readFrom(StreamInput in) throws IOException {
+        TriggerType triggerType = TriggerType.fromString(in.readString());
+        if (triggerType.equals(TriggerType.NUMBER_OF_EVENTS)) {
+            SimpleTrigger trigger = SimpleTrigger.fromString(in.readString());
+            int value = in.readInt();
+            return new AlertTrigger(trigger, triggerType, value);
+        } else {
+            String scriptLang = in.readString();
+            ScriptService.ScriptType scriptType = ScriptService.ScriptType.readFrom(in);
+            String script = in.readString();
+            ScriptedAlertTrigger scriptedTrigger = new ScriptedAlertTrigger(script, scriptType, scriptLang);
+            return new AlertTrigger(scriptedTrigger);
+        }
+    }
+
 
 }

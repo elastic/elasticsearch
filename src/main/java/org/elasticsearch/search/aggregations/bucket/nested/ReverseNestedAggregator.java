@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -48,8 +49,8 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
     // TODO: Add LongIntPagedHashMap?
     private final LongIntOpenHashMap bucketOrdToLastCollectedParentDoc;
 
-    public ReverseNestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, factories, aggregationContext, parent);
+    public ReverseNestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) {
+        super(name, factories, aggregationContext, parent, metaData);
 
         // Early validation
         NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parent);
@@ -134,12 +135,12 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
+        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), getMetaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalReverseNested(name, 0, buildEmptySubAggregations());
+        return new InternalReverseNested(name, 0, buildEmptySubAggregations(), getMetaData());
     }
 
     Filter getParentFilter() {
@@ -156,8 +157,8 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
         }
 
         @Override
-        public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
-            return new ReverseNestedAggregator(name, factories, path, context, parent);
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
+            return new ReverseNestedAggregator(name, factories, path, context, parent, metaData);
         }
     }
 }

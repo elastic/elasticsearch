@@ -197,14 +197,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     /**
-     * Creates an IndexOutput for the given temporary file name and ensures that files that need to be placed in a primary
-     * directory can be successfully renamed.
-     */
-    public IndexOutput createTempOutput(String tempFilename, String origFileName, IOContext context) throws IOException {
-        return distributorDirectory.createTempOutput(tempFilename, origFileName, context);
-    }
-
-    /**
      * Deletes the content of a shard store. Be careful calling this!.
      */
     public void deleteContent() throws IOException {
@@ -334,26 +326,24 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * Note: Checksums are calculated nevertheless since lucene does it by default sicne version 4.8.0. This method only adds the
      * verification against the checksum in the given metadata and does not add any significant overhead.
      */
-    public IndexOutput createVerifyingOutput(final String filename, final IOContext context, final StoreFileMetaData metadata) throws IOException {
-       return createVerifyingOutput(directory().createOutput(filename, context), metadata);
-    }
-
-    /**
-     * The returned IndexOutput might validate the files checksum if the file has been written with a newer lucene version
-     * and the metadata holds the necessary information to detect that it was been written by Lucene 4.8 or newer. If it has only
-     * a legacy checksum, returned IndexOutput will not verify the checksum.
-     *
-     * Note: Checksums are calculated nevertheless since lucene does it by default sicne version 4.8.0. This method only adds the
-     * verification against the checksum in the given metadata and does not add any significant overhead.
-     */
-    public IndexOutput createVerifyingOutput(IndexOutput output, final StoreFileMetaData metadata) throws IOException {
-        if (metadata.hasLegacyChecksum() || metadata.checksum() == null) {
-            logger.debug("create legacy output for {}", metadata.name());
-            return output;
+    public IndexOutput createVerifyingOutput(String fileName, final StoreFileMetaData metadata, final IOContext context) throws IOException {
+        IndexOutput output = directory().createOutput(fileName, context);
+        boolean success = false;
+        try {
+            if (metadata.hasLegacyChecksum() || metadata.checksum() == null) {
+                logger.debug("create legacy output for {}", fileName);
+            } else {
+                assert metadata.writtenBy() != null;
+                assert metadata.writtenBy().onOrAfter(Version.LUCENE_4_8_0);
+                output = new VerifyingIndexOutput(metadata, output);
+            }
+            success = true;
+        } finally {
+           if (success == false) {
+               IOUtils.closeWhileHandlingException(output);
+           }
         }
-        assert metadata.writtenBy() != null;
-        assert metadata.writtenBy().onOrAfter(Version.LUCENE_4_8_0);
-        return new VerifyingIndexOutput(metadata, output);
+        return output;
     }
 
     public static void verify(IndexOutput output) throws IOException {
@@ -437,7 +427,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     /**
      * This exists so {@link org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat} can load its boolean setting; can we find a more straightforward way?
      */
-    public class StoreDirectory extends FilterDirectory {
+    public final class StoreDirectory extends FilterDirectory {
 
         StoreDirectory(Directory delegateDirectory) throws IOException {
             super(delegateDirectory);
@@ -481,6 +471,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
 
         private void innerClose() throws IOException {
+            assert DistributorDirectory.assertConsistency(logger, distributorDirectory);
             super.close();
         }
 

@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
+import java.util.Map;
 
 public abstract class AbstractPercentilesAggregator extends NumericMetricsAggregator.MultiValue {
 
@@ -46,8 +47,8 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
     protected final boolean keyed;
 
     public AbstractPercentilesAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context,
-                                 Aggregator parent, double[] keys, double compression, boolean keyed) {
-        super(name, estimatedBucketsCount, context, parent);
+                                 Aggregator parent, double[] keys, double compression, boolean keyed, Map<String, Object> metaData) {
+        super(name, estimatedBucketsCount, context, parent, metaData);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
         this.states = bigArrays.newObjectArray(estimatedBucketsCount);

@@ -201,44 +201,49 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     @Override
     public void ping(final PingListener listener, final TimeValue timeout) throws ElasticsearchException {
         final SendPingsHandler sendPingsHandler = new SendPingsHandler(pingHandlerIdGenerator.incrementAndGet());
-        receivedResponses.put(sendPingsHandler.id(), sendPingsHandler);
         try {
-            sendPings(timeout, null, sendPingsHandler);
-        } catch (RejectedExecutionException e) {
-            logger.debug("Ping execution rejected", e);
-            // The RejectedExecutionException can come from the fact unicastConnectExecutor is at its max down in sendPings
-            // But don't bail here, we can retry later on after the send ping has been scheduled.
-        }
-        threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
-            @Override
-            protected void doRun() {
+            receivedResponses.put(sendPingsHandler.id(), sendPingsHandler);
+            try {
                 sendPings(timeout, null, sendPingsHandler);
-                threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
-                    @Override
-                    protected void doRun() throws Exception {
-                        sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
-                        sendPingsHandler.close();
-                        for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
-                            logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
-                            transportService.disconnectFromNode(node);
+            } catch (RejectedExecutionException e) {
+                logger.debug("Ping execution rejected", e);
+                // The RejectedExecutionException can come from the fact unicastConnectExecutor is at its max down in sendPings
+                // But don't bail here, we can retry later on after the send ping has been scheduled.
+            }
+            threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
+                @Override
+                protected void doRun() {
+                    sendPings(timeout, null, sendPingsHandler);
+                    threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
+                        @Override
+                        protected void doRun() throws Exception {
+                            sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
+                            sendPingsHandler.close();
+                            for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
+                                logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
+                                transportService.disconnectFromNode(node);
+                            }
+                            listener.onPing(sendPingsHandler.pingCollection().toArray());
                         }
-                        listener.onPing(sendPingsHandler.pingCollection().toArray());
-                    }
 
-                    @Override
-                    public void onFailure(Throwable t) {
-                        logger.debug("Ping execution failed", t);
-                        sendPingsHandler.close();
-                    }
-                });
-            }
+                        @Override
+                        public void onFailure(Throwable t) {
+                            logger.debug("Ping execution failed", t);
+                            sendPingsHandler.close();
+                        }
+                    });
+                }
 
-            @Override
-            public void onFailure(Throwable t) {
-                logger.debug("Ping execution failed", t);
-                sendPingsHandler.close();
-            }
-        });
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.debug("Ping execution failed", t);
+                    sendPingsHandler.close();
+                }
+            });
+        } catch (Exception e) {
+            sendPingsHandler.close();
+            throw new ElasticsearchException("Ping execution failed", e);
+        }
     }
 
     class SendPingsHandler implements Closeable {

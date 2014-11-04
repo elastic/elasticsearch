@@ -199,8 +199,8 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
             return TYPE.name();
         }
 
-        public R create(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed) {
-            return (R) new InternalRange<>(name, ranges, formatter, keyed);
+        public R create(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
+            return (R) new InternalRange<>(name, ranges, formatter, keyed, metaData);
         }
 
 
@@ -216,8 +216,8 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
 
     public InternalRange() {} // for serialization
 
-    public InternalRange(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed) {
-        super(name);
+    public InternalRange(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
+        super(name, metaData);
         this.ranges = ranges;
         this.formatter = formatter;
         this.keyed = keyed;
@@ -268,12 +268,11 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
         for (int i = 0; i < this.ranges.size(); ++i) {
             ranges.add((B) rangeList[i].get(0).reduce(rangeList[i], reduceContext));
         }
-        return getFactory().create(name, ranges, formatter, keyed);
+        return getFactory().create(name, ranges, formatter, keyed, getMetaData());
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         formatter = ValueFormatterStreams.readOptional(in);
         keyed = in.readBoolean();
         int size = in.readVInt();
@@ -287,8 +286,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(formatter, out);
         out.writeBoolean(keyed);
         out.writeVInt(ranges.size());

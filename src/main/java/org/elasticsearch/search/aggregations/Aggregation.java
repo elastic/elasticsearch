@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import java.util.Map;
+
 /**
  * An aggregation
  */
@@ -28,4 +30,8 @@ public interface Aggregation {
      */
     String getName();
 
+    /**
+     * Get the optional byte array metadata that was set on the aggregation
+     */
+    Map<String, Object> getMetaData();
 }

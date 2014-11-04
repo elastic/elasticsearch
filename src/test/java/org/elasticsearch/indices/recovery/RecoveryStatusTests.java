@@ -70,6 +70,7 @@ public class RecoveryStatusTests extends ElasticsearchSingleNodeTest {
         status.renameAllTempFiles();
         strings = Sets.newHashSet(status.store().directory().listAll());
         assertTrue(strings.toString(), strings.contains("foo.bar"));
+        assertFalse(strings.toString(), strings.contains(expectedFile));
         status.markAsDone();
     }
 }

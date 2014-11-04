@@ -75,7 +75,7 @@ public class AggregatorFactories {
                 continue;
             }
             // the aggregator doesn't support multiple ordinals, let's wrap it so that it does.
-            aggregators[i] = new Aggregator(first.name(), BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, 1, first.context(), first.parent()) {
+            aggregators[i] = new Aggregator(first.name(), BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, 1, first.context(), first.parent(), first.getMetaData()) {
 
                 ObjectArray<Aggregator> aggregators;
 

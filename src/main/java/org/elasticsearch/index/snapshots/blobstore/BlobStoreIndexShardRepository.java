@@ -829,7 +829,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             boolean success = false;
             RecoveryState.File file = recoveryState.getIndex().file(fileInfo.name());
             try (InputStream stream = new PartSliceStream(blobContainer, fileInfo)) {
-                try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), IOContext.DEFAULT, fileInfo.metadata())) {
+                try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
                     final byte[] buffer = new byte[BUFFER_SIZE];
                     int length;
                     while((length=stream.read(buffer))>0){

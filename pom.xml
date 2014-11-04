@@ -53,8 +53,8 @@
         <repository>
             <id>Lucene snapshots</id>
             <!-- nocommit -->
-            <!-- <url>https://download.elasticsearch.org/lucenesnapshots/maven/</url> -->
-            <url>http://people.apache.org/~rmuir/fake_staging_area/lucene-5.0.0-snapshot-1636426/maven/</url>
+            <url>https://download.elasticsearch.org/lucenesnapshots/maven/</url> 
+            <!-- <url>http://people.apache.org/~rmuir/fake_staging_area/lucene-5.0.0-snapshot-1636426/maven/</url> -->
         </repository>
     </repositories>
 

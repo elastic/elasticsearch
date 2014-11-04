@@ -6,14 +6,12 @@
 package org.elasticsearch.alerts.actions;
 
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.AlertsStore;
-import org.elasticsearch.alerts.BasicAlertingTest;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
@@ -52,6 +50,10 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.core.Is.is;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -84,7 +86,6 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
     public void testAlertActionParser() throws Exception {
         DateTime fireTime = new DateTime(DateTimeZone.UTC);
         DateTime scheduledFireTime = new DateTime(DateTimeZone.UTC);
-
 
         Map<String, Object> triggerMap = new HashMap<>();
         triggerMap.put("numberOfEvents", ">1");
@@ -144,7 +145,6 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
                 .setId("query")
                 .setSource(jsonBuilder().startObject().startObject("template").startObject("match_all").endObject().endObject().endObject())
                 .get();
-
 
         final AlertManager alertManager = internalCluster().getInstance(AlertManager.class, internalCluster().getMasterName());
         assertBusy(new Runnable() {
@@ -211,9 +211,10 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
                 true
         );
 
-        CreateAlertRequest alertRequest = new CreateAlertRequest(alert);
 
         AlertsClientInterface alertsClient = internalCluster().getInstance(AlertsClient.class, internalCluster().getMasterName());
+
+        CreateAlertRequest alertRequest = new CreateAlertRequest(alert);
         CreateAlertResponse alertsResponse = alertsClient.createAlert(alertRequest).actionGet();
         assertTrue(alertsResponse.success());
 
@@ -237,7 +238,6 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
 
         updateAlertResponse = alertsClient.updateAlert(updateAlertRequest).actionGet();
         assertFalse(updateAlertResponse.success());
-
     }
 
 }

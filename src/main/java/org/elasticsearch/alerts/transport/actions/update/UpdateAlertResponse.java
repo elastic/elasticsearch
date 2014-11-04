@@ -44,5 +44,4 @@ public class UpdateAlertResponse extends ActionResponse {
         out.writeBoolean(success);
     }
 
-
 }

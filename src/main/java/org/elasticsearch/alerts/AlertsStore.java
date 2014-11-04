@@ -116,7 +116,6 @@ public class AlertsStore extends AbstractComponent {
         return alert;
     }
 
-
     public boolean updateAlert(Alert alert) {
         return updateAlert(alert, false);
     }

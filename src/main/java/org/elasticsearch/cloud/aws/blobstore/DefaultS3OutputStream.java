@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cloud.aws.blobstore;
 
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.*;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -96,12 +97,12 @@ public class DefaultS3OutputStream extends S3OutputStream {
     private void upload(byte[] bytes, int off, int len) throws IOException {
         try (ByteArrayInputStream is = new ByteArrayInputStream(bytes, off, len)) {
             int retry = 0;
-            while (retry < getNumberOfRetries()) {
+            while (retry <= getNumberOfRetries()) {
                 try {
                     doUpload(getBlobStore(), getBucketName(), getBlobName(), is, len, isServerSideEncryption());
                     break;
-                } catch (AmazonS3Exception e) {
-                    if (shouldRetry(e)) {
+                } catch (AmazonClientException e) {
+                    if (getBlobStore().shouldRetry(e) && retry < getNumberOfRetries()) {
                         is.reset();
                         retry++;
                     } else {
@@ -123,11 +124,20 @@ public class DefaultS3OutputStream extends S3OutputStream {
     }
 
     private void initializeMultipart() {
-        if (multipartId == null) {
-            multipartId = doInitialize(getBlobStore(), getBucketName(), getBlobName(), isServerSideEncryption());
-            if (multipartId != null) {
-                multipartChunks = 1;
-                multiparts = new ArrayList<>();
+        int retry = 0;
+        while ((retry <= getNumberOfRetries()) && (multipartId == null)) {
+            try {
+                multipartId = doInitialize(getBlobStore(), getBucketName(), getBlobName(), isServerSideEncryption());
+                if (multipartId != null) {
+                    multipartChunks = 1;
+                    multiparts = new ArrayList<>();
+                }
+            } catch (AmazonClientException e) {
+                if (getBlobStore().shouldRetry(e) && retry < getNumberOfRetries()) {
+                    retry++;
+                } else {
+                    throw e;
+                }
             }
         }
     }
@@ -145,14 +155,14 @@ public class DefaultS3OutputStream extends S3OutputStream {
     private void uploadMultipart(byte[] bytes, int off, int len, boolean lastPart) throws IOException {
         try (ByteArrayInputStream is = new ByteArrayInputStream(bytes, off, len)) {
             int retry = 0;
-            while (retry < getNumberOfRetries()) {
+            while (retry <= getNumberOfRetries()) {
                 try {
                     PartETag partETag = doUploadMultipart(getBlobStore(), getBucketName(), getBlobName(), multipartId, is, len, lastPart);
                     multiparts.add(partETag);
                     multipartChunks++;
                     return;
-                } catch (AmazonS3Exception e) {
-                    if (shouldRetry(e) && retry < getNumberOfRetries()) {
+                } catch (AmazonClientException e) {
+                    if (getBlobStore().shouldRetry(e) && retry < getNumberOfRetries()) {
                         is.reset();
                         retry++;
                     } else {
@@ -182,13 +192,13 @@ public class DefaultS3OutputStream extends S3OutputStream {
 
     private void completeMultipart() {
         int retry = 0;
-        while (retry < getNumberOfRetries()) {
+        while (retry <= getNumberOfRetries()) {
             try {
                 doCompleteMultipart(getBlobStore(), getBucketName(), getBlobName(), multipartId, multiparts);
                 multipartId = null;
                 return;
-            } catch (AmazonS3Exception e) {
-                if (shouldRetry(e) && retry < getNumberOfRetries()) {
+            } catch (AmazonClientException e) {
+                if (getBlobStore().shouldRetry(e) && retry < getNumberOfRetries()) {
                     retry++;
                 } else {
                     abortMultipart();
@@ -217,9 +227,5 @@ public class DefaultS3OutputStream extends S3OutputStream {
     protected void doAbortMultipart(S3BlobStore blobStore, String bucketName, String blobName, String uploadId)
             throws AmazonS3Exception {
         blobStore.client().abortMultipartUpload(new AbortMultipartUploadRequest(bucketName, blobName, uploadId));
-    }
-
-    protected boolean shouldRetry(AmazonS3Exception e) {
-        return e.getStatusCode() == 400 && "RequestTimeout".equals(e.getErrorCode());
     }
 }

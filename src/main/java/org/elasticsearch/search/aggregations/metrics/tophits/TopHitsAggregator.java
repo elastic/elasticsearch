@@ -40,9 +40,19 @@ import java.io.IOException;
  */
 public class TopHitsAggregator extends MetricsAggregator implements ScorerAware {
 
+    /** Simple wrapper around a top-level collector and the current leaf collector. */
+    private static class TopDocsAndLeafCollector {
+        final TopDocsCollector<?> topLevelCollector;
+        LeafCollector leafCollector;
+
+        TopDocsAndLeafCollector(TopDocsCollector<?> topLevelCollector) {
+            this.topLevelCollector = topLevelCollector;
+        }
+    }
+
     private final FetchPhase fetchPhase;
     private final TopHitsContext topHitsContext;
-    private final LongObjectPagedHashMap<TopDocsCollector> topDocsCollectors;
+    private final LongObjectPagedHashMap<TopDocsAndLeafCollector> topDocsCollectors;
 
     private Scorer currentScorer;
     private LeafReaderContext currentContext;
@@ -62,11 +72,11 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        TopDocsCollector topDocsCollector = topDocsCollectors.get(owningBucketOrdinal);
+        TopDocsAndLeafCollector topDocsCollector = topDocsCollectors.get(owningBucketOrdinal);
         if (topDocsCollector == null) {
             return buildEmptyAggregation();
         } else {
-            TopDocs topDocs = topDocsCollector.topDocs();
+            TopDocs topDocs = topDocsCollector.topLevelCollector.topDocs();
             if (topDocs.totalHits == 0) {
                 return buildEmptyAggregation();
             }
@@ -101,32 +111,25 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
 
     @Override
     public void collect(int docId, long bucketOrdinal) throws IOException {
-        TopDocsCollector topDocsCollector = topDocsCollectors.get(bucketOrdinal);
-        if (topDocsCollector == null) {
+        TopDocsAndLeafCollector collectors = topDocsCollectors.get(bucketOrdinal);
+        if (collectors == null) {
             Sort sort = topHitsContext.sort();
             int topN = topHitsContext.from() + topHitsContext.size();
-            topDocsCollectors.put(
-                    bucketOrdinal,
-                    topDocsCollector = sort != null ? TopFieldCollector.create(sort, topN, true, topHitsContext.trackScores(), topHitsContext.trackScores(), false) : TopScoreDocCollector.create(topN, false)
-            );
-            // TODO: this is bogus, it only works because TopDocsCollector subclasses SimpleCollector,
-            // we should not be ignoring the return value: instead make it work properly per-segment
-            LeafCollector ignoredReturnValue = topDocsCollector.getLeafCollector(currentContext);
-            assert ignoredReturnValue == topDocsCollector;
-            topDocsCollector.setScorer(currentScorer);
+            TopDocsCollector<?> topLevelCollector = sort != null ? TopFieldCollector.create(sort, topN, true, topHitsContext.trackScores(), topHitsContext.trackScores(), false) : TopScoreDocCollector.create(topN, false);
+            collectors = new TopDocsAndLeafCollector(topLevelCollector);
+            collectors.leafCollector = collectors.topLevelCollector.getLeafCollector(currentContext);
+            collectors.leafCollector.setScorer(currentScorer);
+            topDocsCollectors.put(bucketOrdinal, collectors);
         }
-        topDocsCollector.collect(docId);
+        collectors.leafCollector.collect(docId);
     }
 
     @Override
     public void setNextReader(LeafReaderContext context) {
         this.currentContext = context;
-        for (LongObjectPagedHashMap.Cursor<TopDocsCollector> cursor : topDocsCollectors) {
+        for (LongObjectPagedHashMap.Cursor<TopDocsAndLeafCollector> cursor : topDocsCollectors) {
             try {
-                // TODO: this is bogus, it only works because TopDocsCollector subclasses SimpleCollector,
-                // we should not be ignoring the return value: instead make it work properly per-segment
-                LeafCollector ignoredReturnValue = cursor.value.getLeafCollector(context);
-                assert ignoredReturnValue == cursor.value;
+                cursor.value.leafCollector = cursor.value.topLevelCollector.getLeafCollector(currentContext);
             } catch (IOException e) {
                 throw ExceptionsHelper.convertToElastic(e);
             }
@@ -136,9 +139,9 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
     @Override
     public void setScorer(Scorer scorer) {
         this.currentScorer = scorer;
-        for (LongObjectPagedHashMap.Cursor<TopDocsCollector> cursor : topDocsCollectors) {
+        for (LongObjectPagedHashMap.Cursor<TopDocsAndLeafCollector> cursor : topDocsCollectors) {
             try {
-                cursor.value.setScorer(scorer);
+                cursor.value.leafCollector.setScorer(scorer);
             } catch (IOException e) {
                 throw ExceptionsHelper.convertToElastic(e);
             }

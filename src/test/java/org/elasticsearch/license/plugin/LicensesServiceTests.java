@@ -293,7 +293,7 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
                 }
                 putAndCheckSignedLicensesAction(masterLicensesManagerService, Arrays.asList(license), LicensesStatus.VALID);
             }
-        }, 0, 1, "should trigger onEnable once [signed license]");
+        }, 0, 1, "should trigger onEnable for " + feature + " once [signed license]");
     }
 
     private Action registerWithoutTrialLicense(final LicensesClientService clientService, final LicensesClientService.Listener clientListener, final String feature) {
@@ -317,7 +317,7 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
                 ClusterChangedEvent event = new ClusterChangedEvent("", clusterService().state(), clusterService().state());
                 licensesService.clusterChanged(event);
             }
-        }, 0, 1, "should trigger onEnable once [trial license]");
+        }, 0, 1, "should trigger onEnable for " + feature + " once [trial license]");
     }
 
     private Action assertExpiryAction(String licenseType, TimeValue expiryDuration) {

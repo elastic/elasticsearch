@@ -315,7 +315,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testCanNotBringClusterDown() throws ExecutionException, InterruptedException {
-        int nodeCount = scaledRandomIntBetween(1, 10);
+        int nodeCount = scaledRandomIntBetween(1, 5);
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.ping_timeout", "200ms")
@@ -327,9 +327,12 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
             settings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, randomIntBetween(1, nodeCount));
         }
 
+
+        logger.info("--> starting [{}] nodes", nodeCount);
         internalCluster().startNodesAsync(nodeCount, settings.build()).get();
 
-        client().admin().cluster().prepareHealth().setWaitForNodes("=" + nodeCount);
+        logger.info("--> waiting for nodes to join");
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
 
         int updateCount = randomIntBetween(1, nodeCount);
 
@@ -337,7 +340,8 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().cluster().prepareUpdateSettings()
                 .setPersistentSettings(settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount)));
 
-        client().admin().cluster().prepareHealth().setWaitForNodes("=" + nodeCount);
+        logger.info("--> verifying no node left and master is up");
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
 
         updateCount = nodeCount + randomIntBetween(1, 2000);
         logger.info("--> trying to updating [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount);
@@ -346,6 +350,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                         .get().getPersistentSettings().getAsMap().keySet(),
                 empty());
 
-        client().admin().cluster().prepareHealth().setWaitForNodes("=" + nodeCount);
+        logger.info("--> verifying no node left and master is up");
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
     }
 }

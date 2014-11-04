@@ -83,6 +83,45 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
         assertThat(tzRounding.round(utc("2009-02-03T01:01:01")), equalTo(time("2009-02-03T01:00:00", DateTimeZone.forOffsetHours(+2))));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-03T01:00:00", DateTimeZone.forOffsetHours(+2))), equalTo(time("2009-02-03T02:00:00", DateTimeZone.forOffsetHours(+2))));
     }
+    
+    @Test
+    public void testTimeTimeZoneRoundingDST() {
+        Rounding tzRounding;
+        // testing savings to non savings switch 
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forID("UTC")).build();
+        assertThat(tzRounding.round(time("2014-10-26T01:01:01", DateTimeZone.forID("CET"))), equalTo(time("2014-10-26T01:00:00", DateTimeZone.forID("CET"))));
+        
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forID("CET")).build();
+        assertThat(tzRounding.round(time("2014-10-26T01:01:01", DateTimeZone.forID("CET"))), equalTo(time("2014-10-26T01:00:00", DateTimeZone.forID("CET"))));
+        
+        // testing non savings to savings switch
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forID("UTC")).build();
+        assertThat(tzRounding.round(time("2014-03-30T01:01:01", DateTimeZone.forID("CET"))), equalTo(time("2014-03-30T01:00:00", DateTimeZone.forID("CET"))));
+        
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forID("CET")).build();
+        assertThat(tzRounding.round(time("2014-03-30T01:01:01", DateTimeZone.forID("CET"))), equalTo(time("2014-03-30T01:00:00", DateTimeZone.forID("CET"))));
+        
+        // testing non savings to savings switch (America/Chicago)
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forID("UTC")).build();
+        assertThat(tzRounding.round(time("2014-03-09T03:01:01", DateTimeZone.forID("America/Chicago"))), equalTo(time("2014-03-09T03:00:00", DateTimeZone.forID("America/Chicago"))));
+        
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forID("America/Chicago")).build();
+        assertThat(tzRounding.round(time("2014-03-09T03:01:01", DateTimeZone.forID("America/Chicago"))), equalTo(time("2014-03-09T03:00:00", DateTimeZone.forID("America/Chicago"))));
+        
+        // testing savings to non savings switch 2013 (America/Chicago)
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forID("UTC")).build();
+        assertThat(tzRounding.round(time("2013-11-03T06:01:01", DateTimeZone.forID("America/Chicago"))), equalTo(time("2013-11-03T06:00:00", DateTimeZone.forID("America/Chicago"))));
+        
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forID("America/Chicago")).build();
+        assertThat(tzRounding.round(time("2013-11-03T06:01:01", DateTimeZone.forID("America/Chicago"))), equalTo(time("2013-11-03T06:00:00", DateTimeZone.forID("America/Chicago"))));
+        
+        // testing savings to non savings switch 2014 (America/Chicago)
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forID("UTC")).build();
+        assertThat(tzRounding.round(time("2014-11-02T06:01:01", DateTimeZone.forID("America/Chicago"))), equalTo(time("2014-11-02T06:00:00", DateTimeZone.forID("America/Chicago"))));
+        
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forID("America/Chicago")).build();
+        assertThat(tzRounding.round(time("2014-11-02T06:01:01", DateTimeZone.forID("America/Chicago"))), equalTo(time("2014-11-02T06:00:00", DateTimeZone.forID("America/Chicago"))));
+    }
 
     private long utc(String time) {
         return time(time, DateTimeZone.UTC);

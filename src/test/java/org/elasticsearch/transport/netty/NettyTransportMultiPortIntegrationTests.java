@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.transport;
+package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -25,9 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportModule;
-import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.Test;
 
 import java.util.Locale;
@@ -64,7 +62,6 @@ public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegr
 
     @Test
     @Network
-    @TestLogging("transport.netty:DEBUG")
     public void testThatTransportClientCanConnect() throws Exception {
         Settings settings = settingsBuilder()
                 .put("cluster.name", internalCluster().getClusterName())
@@ -76,5 +73,4 @@ public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegr
             assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));
         }
     }
-
 }

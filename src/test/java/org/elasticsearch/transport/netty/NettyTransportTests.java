@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.transport;
+package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -38,9 +38,6 @@ import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.netty.MessageChannelHandler;
-import org.elasticsearch.transport.netty.NettyTransport;
-import org.elasticsearch.transport.netty.NettyTransportChannel;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;

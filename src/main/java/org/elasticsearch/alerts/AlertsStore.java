@@ -7,9 +7,6 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -21,11 +18,9 @@ import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -95,10 +90,6 @@ public class AlertsStore extends AbstractComponent {
      * Creates an alert with the specified and fails if an alert with the name already exists.
      */
     public Alert createAlert(String name, BytesReference alertSource) {
-        if (!client.admin().indices().prepareExists(ALERT_INDEX).execute().actionGet().isExists()) {
-            createAlertsIndex();
-        }
-
         Alert alert = parseAlert(name, alertSource, 1);
         if (alertMap.putIfAbsent(name, alert) == null) {
             persistAlert(name, alertSource, IndexRequest.OpType.CREATE);
@@ -222,10 +213,6 @@ public class AlertsStore extends AbstractComponent {
     }
 
     private void loadAlerts() {
-        if (!client.admin().indices().prepareExists(ALERT_INDEX).execute().actionGet().isExists()) {
-            createAlertsIndex();
-        }
-
         SearchResponse response = client.prepareSearch()
                 .setSearchType(SearchType.SCAN)
                 .setScroll(scrollTimeout)
@@ -297,13 +284,6 @@ public class AlertsStore extends AbstractComponent {
             alert.lastActionFire(new DateTime(0));
         }
         return alert;
-    }
-
-    private ClusterHealthStatus createAlertsIndex() {
-        CreateIndexResponse cir = client.admin().indices().prepareCreate(ALERT_INDEX).addMapping(ALERT_TYPE).execute().actionGet(); //TODO FIX MAPPINGS
-        ClusterHealthResponse actionGet = client.admin().cluster()
-                .health(Requests.clusterHealthRequest(ALERT_INDEX).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
-        return actionGet.getStatus();
     }
 
     private enum State {

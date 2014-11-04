@@ -19,7 +19,7 @@ public enum AlertActionState implements ToXContent {
     ACTION_UNDERWAY,
     ACTION_PERFORMED;
 
-    public static final String FIELD_NAME = "AlertHistoryState";
+    public static final String FIELD_NAME = "state";
 
 
     @Override

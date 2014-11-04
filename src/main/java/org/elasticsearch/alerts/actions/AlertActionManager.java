@@ -7,9 +7,6 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -25,7 +22,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -45,10 +41,10 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class AlertActionManager extends AbstractComponent {
 
-    public static final String ALERT_NAME_FIELD = "alertName";
+    public static final String ALERT_NAME_FIELD = "alert_name";
     public static final String TRIGGERED_FIELD = "triggered";
-    public static final String FIRE_TIME_FIELD = "fireTime";
-    public static final String SCHEDULED_FIRE_TIME_FIELD = "scheduledFireTime";
+    public static final String FIRE_TIME_FIELD = "fire_time";
+    public static final String SCHEDULED_FIRE_TIME_FIELD = "scheduled_fire_time";
     public static final String TRIGGER_FIELD = "trigger";
     public static final String REQUEST = "request_binary";
     public static final String RESPONSE = "response_binary";
@@ -194,10 +190,6 @@ public class AlertActionManager extends AbstractComponent {
     }
 
     public boolean loadQueue() {
-        if (!client.admin().indices().prepareExists(ALERT_HISTORY_INDEX).execute().actionGet().isExists()) {
-            createAlertHistoryIndex();
-        }
-
         //@TODO: change to scan/scroll if we get back over 100
         SearchResponse searchResponse = client.prepareSearch().setSource(
                 "{ \"query\" : " +
@@ -216,8 +208,6 @@ public class AlertActionManager extends AbstractComponent {
 
         return true;
     }
-
-
 
     protected AlertActionEntry parseHistory(String historyId, SearchHit sh, long version) {
         return parseHistory(historyId, sh.getSourceRef(), version);
@@ -294,12 +284,7 @@ public class AlertActionManager extends AbstractComponent {
         return entry;
     }
 
-
     public void addAlertAction(Alert alert, TriggerResult result, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
-        if (!client.admin().indices().prepareExists(ALERT_HISTORY_INDEX).get().isExists()) {
-            createAlertHistoryIndex();
-        }
-
         AlertActionState state = AlertActionState.NO_ACTION_NEEDED;
         if (result.isTriggered() && !alert.actions().isEmpty()) {
             state = AlertActionState.ACTION_NEEDED;
@@ -321,19 +306,6 @@ public class AlertActionManager extends AbstractComponent {
             jobsToBeProcessed.add(entry);
         }
     }
-
-    private ClusterHealthStatus createAlertHistoryIndex() {
-        CreateIndexResponse cir = client.admin().indices().prepareCreate(ALERT_HISTORY_INDEX).addMapping(ALERT_HISTORY_TYPE).execute().actionGet(); //TODO FIX MAPPINGS
-        if (!cir.isAcknowledged()) {
-            logger.error("Create [{}] was not acknowledged", ALERT_HISTORY_INDEX);
-        }
-        ClusterHealthResponse actionGet = client.admin().cluster()
-                .health(Requests.clusterHealthRequest(ALERT_HISTORY_INDEX).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
-
-        return actionGet.getStatus();
-    }
-
-
 
     private AlertActionEntry getHistoryEntryFromIndex(String entryId) {
         GetRequest getRequest = Requests.getRequest(ALERT_HISTORY_INDEX);

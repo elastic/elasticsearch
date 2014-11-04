@@ -175,9 +175,9 @@ public class AlertActionEntry implements ToXContent{
     @Override
     public XContentBuilder toXContent(XContentBuilder historyEntry, Params params) throws IOException {
         historyEntry.startObject();
-        historyEntry.field("alertName", alertName);
+        historyEntry.field("alert_name", alertName);
         historyEntry.field("triggered", triggered);
-        historyEntry.field("fireTime", fireTime.toDateTimeISO());
+        historyEntry.field("fire_time", fireTime.toDateTimeISO());
         historyEntry.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, scheduledTime.toDateTimeISO());
         historyEntry.field("trigger", trigger, params);
 

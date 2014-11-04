@@ -24,15 +24,16 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.XFilteredDocIdSetIterator;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.LongBitSet;
@@ -293,7 +294,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
     }
 
-    private final static class ParentOrdIterator extends FilteredDocIdSetIterator {
+    private final static class ParentOrdIterator extends XFilteredDocIdSetIterator {
 
         private final LongBitSet parentOrds;
         private final SortedDocValues ordinals;
@@ -309,16 +310,7 @@ public class ChildrenConstantScoreQuery extends Query {
         @Override
         protected boolean match(int doc) {
             if (parentWeight.remaining == 0) {
-                // nocommit - this tires to exhaust the iterator but this causes an assertion error
-                // we should never modify the iterator in this method -- we should put an assertion in lucene to make sure the iterator is not advacned in
-                // this method
-                // another way to do this would be to extend lucene to return an enum here just like FilterTermsEnum#SeekStatus works like found|not_found|end
-//                try {
-//                    advance(DocIdSetIterator.NO_MORE_DOCS);
-//                } catch (IOException e) {
-//                    throw new RuntimeException(e);
-//                }
-                return false;
+                throw new CollectionTerminatedException();
             }
 
             long parentOrd = ordinals.getOrd(doc);

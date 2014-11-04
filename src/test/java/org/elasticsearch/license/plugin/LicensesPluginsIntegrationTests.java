@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.license.plugin;
 
-import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
@@ -26,7 +24,6 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-//@Ignore
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0)
 public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegrationTests {
 
@@ -109,18 +106,6 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
 
         int nNodes = randomIntBetween(2, 10);
         String[] nodes = startNodesWithConsumerPlugins(nNodes, trialLicenseDurationInSeconds, trialLicenseDurationInSeconds);
-        waitUntilClusterRecovered();
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                for (LazyLicenseRegistrationPluginService service : internalCluster().getDataNodeInstances(LazyLicenseRegistrationPluginService.class)) {
-                    if (!service.registered.get()) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-        }), equalTo(true));
         logger.info(" --> trial license generated");
         // managerService should report feature to be enabled on all data nodes
         assertLicenseManagerEnabledFeatureFor(FEATURE_NAME_1);
@@ -209,14 +194,5 @@ public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegration
         final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster()).setLicense(Lists.newArrayList(license1)).get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
-    }
-
-    private void waitUntilClusterRecovered() throws InterruptedException {
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                return !clusterService().state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
-            }
-        }), equalTo(true));
     }
 }

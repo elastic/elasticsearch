@@ -314,17 +314,6 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
 
                 // invoke clusterChanged event to flush out pendingRegistration
                 LicensesService licensesService = (LicensesService) clientService;
-                /*
-                try {
-                    assertThat(awaitBusy(new Predicate<Object>() {
-                                  @Override
-                                  public boolean apply(Object o) {
-                                      return !clusterService().state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
-                                  }
-                              }), equalTo(true));
-                } catch (InterruptedException e) {
-                    logger.error("Exception while trying to registerWithTrialLicense", e);
-                }*/
                 ClusterChangedEvent event = new ClusterChangedEvent("", clusterService().state(), clusterService().state());
                 licensesService.clusterChanged(event);
             }

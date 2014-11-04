@@ -210,29 +210,34 @@ public final class DistributorDirectory extends BaseDirectory {
     static boolean assertConsistency(ESLogger logger, DistributorDirectory dir) throws IOException {
         boolean consistent = true;
         StringBuilder builder = new StringBuilder();
-        Directory[] all = dir.distributor.all();
-        for (Directory d : all) {
-            for (String file : d.listAll()) {
-            final Directory directory = dir.nameDirMapping.get(file);
-                if (directory == null) {
-                    consistent = false;
-                    builder.append("File ").append(file)
-                            .append(" was not mapped to a directory but exists in one of the distributors directories")
-                            .append(System.lineSeparator());
-                }
-                if (directory != d) {
-                    consistent = false;
-                    builder.append("File ").append(file).append(" was  mapped to a directory ").append(directory)
-                            .append(" but exists in another distributor directory").append(d)
-                            .append(System.lineSeparator());
-                }
+        try {
+            Directory[] all = dir.distributor.all();
+            for (Directory d : all) {
+                for (String file : d.listAll()) {
+                final Directory directory = dir.nameDirMapping.get(file);
+                    if (directory == null) {
+                        consistent = false;
+                        builder.append("File ").append(file)
+                                .append(" was not mapped to a directory but exists in one of the distributors directories")
+                                .append(System.lineSeparator());
+                    }
+                    if (directory != d) {
+                        consistent = false;
+                        builder.append("File ").append(file).append(" was  mapped to a directory ").append(directory)
+                                .append(" but exists in another distributor directory").append(d)
+                                .append(System.lineSeparator());
+                    }
 
+                }
             }
+            if (consistent == false) {
+                logger.info(builder.toString());
+            }
+            assert consistent: builder.toString();
+        } catch (NoSuchDirectoryException ex) {
+            // that's fine - we can't check the directory since we might have already been wiped by a shutdown or
+            // a test cleanup ie the directory is not there anymore.
         }
-        if (consistent == false) {
-            logger.info(builder.toString());
-        }
-        assert consistent: builder.toString();
         return consistent; // return boolean so it can be easily be used in asserts
     }
 

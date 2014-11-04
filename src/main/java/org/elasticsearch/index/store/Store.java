@@ -473,8 +473,12 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
 
         private void innerClose() throws IOException {
-            assert DistributorDirectory.assertConsistency(logger, distributorDirectory);
-            super.close();
+            try {
+                assert DistributorDirectory.assertConsistency(logger, distributorDirectory);
+            } finally {
+                super.close();
+            }
+
         }
 
         @Override

@@ -50,7 +50,12 @@ public class TransportUpdateAlertAction extends TransportMasterNodeOperationActi
 
     @Override
     protected void masterOperation(UpdateAlertRequest request, ClusterState state, ActionListener<UpdateAlertResponse> listener) throws ElasticsearchException {
-
+        try {
+            boolean success = alertManager.updateAlert(request.alert());
+            listener.onResponse(new UpdateAlertResponse(success));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     @Override

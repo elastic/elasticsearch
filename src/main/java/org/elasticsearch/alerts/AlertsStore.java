@@ -121,10 +121,14 @@ public class AlertsStore extends AbstractComponent {
     }
 
 
+    public boolean updateAlert(Alert alert) {
+        return updateAlert(alert, false);
+    }
+
     /**
      * Updates the specified alert by making sure that the made changes are persisted.
      */
-    public void updateAlert(Alert alert) {
+    public boolean updateAlert(Alert alert, boolean updateMap) {
         IndexRequest updateRequest = new IndexRequest();
         updateRequest.index(ALERT_INDEX);
         updateRequest.type(ALERT_TYPE);
@@ -142,8 +146,13 @@ public class AlertsStore extends AbstractComponent {
         IndexResponse response = client.index(updateRequest).actionGet();
         alert.version(response.getVersion());
 
-        // Don't need to update the alertMap, since we are working on an instance from it.
-        assert alertMap.get(alert.alertName()) == alert;
+        if (updateMap) {
+            alertMap.put(alert.alertName(), alert);
+        } else {
+            // Don'<></> need to update the alertMap, since we are working on an instance from it.
+            assert alertMap.get(alert.alertName()) == alert;
+        }
+        return true;
     }
 
     /**

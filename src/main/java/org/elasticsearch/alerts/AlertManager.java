@@ -154,6 +154,14 @@ public class AlertManager extends AbstractComponent {
         return alertsStore.getAlert(alertName);
     }
 
+    public boolean updateAlert(Alert alert) {
+        if (!alertsStore.hasAlert(alert.alertName())) {
+            return false;
+        }
+        return alertsStore.updateAlert(alert);
+
+    }
+
     private final class AlertsClusterStateListener implements ClusterStateListener {
 
         @Override

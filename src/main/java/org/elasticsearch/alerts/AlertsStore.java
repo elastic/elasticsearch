@@ -106,10 +106,6 @@ public class AlertsStore extends AbstractComponent {
      * Creates an alert with the specified and fails if an alert with the name already exists.
      */
     public Alert createAlert(Alert alert) throws IOException {
-        if (!client.admin().indices().prepareExists(ALERT_INDEX).execute().actionGet().isExists()) {
-            createAlertsIndex();
-        }
-
         if (alertMap.putIfAbsent(alert.alertName(), alert) == null) {
             XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
             alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);

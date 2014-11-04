@@ -118,6 +118,10 @@ public class AlertManager extends AbstractComponent {
     public void executeAlert(String alertName, DateTime scheduledFireTime, DateTime fireTime){
         ensureStarted();
         Alert alert = alertsStore.getAlert(alertName);
+        if (alert == null) {
+            logger.warn("Unable to find [{}] in the alert store, perhaps it has been deleted", alertName);
+            return;
+        }
         if (!alert.enabled()) {
             logger.debug("Alert [{}] is not enabled", alert.alertName());
             return;

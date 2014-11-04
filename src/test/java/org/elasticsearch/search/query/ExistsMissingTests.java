@@ -91,7 +91,10 @@ public class ExistsMissingTests extends ElasticsearchIntegrationTest {
         for (Map<String, Object> source : sources) {
             reqs.add(client().prepareIndex("idx", "type").setSource(source));
         }
-        indexRandom(true, reqs);
+        // We do NOT index dummy documents, otherwise the type for these dummy documents
+        // would have _field_names indexed while the current type might not which might
+        // confuse the exists/missing parser at query time
+        indexRandom(true, false, reqs);
 
         final Map<String, Integer> expected = new LinkedHashMap<String, Integer>();
         expected.put("foo", 1);

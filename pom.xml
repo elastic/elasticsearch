@@ -52,7 +52,7 @@
         </repository>
         <repository>
             <id>Lucene snapshots</id>
-            <url>http://download.elasticsearch.org/lucenesnapshots/maven/</url>
+            <url>https://download.elasticsearch.org/lucenesnapshots/maven/</url>
         </repository>
     </repositories>
 

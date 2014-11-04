@@ -25,6 +25,7 @@ import com.google.common.collect.Iterables;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
@@ -54,6 +55,7 @@ import java.io.*;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -90,6 +92,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
     private final DistributorDirectory distributorDirectory;
+    private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
+
     private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
         @Override
         protected void closeInternal() {
@@ -188,12 +192,64 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     public MetadataSnapshot getMetadata(IndexCommit commit) throws IOException {
         ensureOpen();
         failIfCorrupted();
+        metadataLock.readLock().lock();
         try {
             return new MetadataSnapshot(commit, distributorDirectory, logger);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
+        } finally {
+            metadataLock.readLock().unlock();
         }
+    }
+
+
+    /**
+     * Renames all the given files form the key of the map to the
+     * value of the map. All successfully renamed files are removed from the map in-place.
+     */
+    public void renameFilesSafe(Map<String, String> tempFileMap) throws IOException {
+        // this works just like a lucene commit - we rename all temp files and once we successfully
+        // renamed all the segments we rename the commit to ensure we don't leave half baked commits behind.
+        final Map.Entry<String, String>[] entries = tempFileMap.entrySet().toArray(new Map.Entry[tempFileMap.size()]);
+        ArrayUtil.timSort(entries, new Comparator<Map.Entry<String, String>>() {
+            @Override
+            public int compare(Map.Entry<String, String> o1, Map.Entry<String, String> o2) {
+                String left = o1.getValue();
+                String right = o2.getValue();
+                if (left.startsWith(IndexFileNames.SEGMENTS) || right.startsWith(IndexFileNames.SEGMENTS)) {
+                    if (left.startsWith(IndexFileNames.SEGMENTS) == false) {
+                        return -1;
+                    } else if (right.startsWith(IndexFileNames.SEGMENTS) == false) {
+                        return 1;
+                    }
+                }
+                return left.compareTo(right);
+            }
+        });
+        metadataLock.writeLock().lock();
+        // we make sure that nobody fetches the metadata while we do this rename operation here to ensure we don't
+        // get exceptions if files are still open.
+        try {
+            for (Map.Entry<String, String> entry : entries) {
+                String tempFile = entry.getKey();
+                String origFile = entry.getValue();
+                // first, go and delete the existing ones
+                try {
+                    directory.deleteFile(origFile);
+                } catch (FileNotFoundException | NoSuchFileException e) {
+                } catch (Throwable ex) {
+                    logger.debug("failed to delete file [{}]", ex, origFile);
+                }
+                // now, rename the files... and fail it it won't work
+                this.renameFile(tempFile, origFile);
+                final String remove = tempFileMap.remove(tempFile);
+                assert remove != null;
+            }
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+
     }
 
     /**

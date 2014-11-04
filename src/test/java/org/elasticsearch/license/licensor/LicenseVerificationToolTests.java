@@ -6,6 +6,11 @@
 package org.elasticsearch.license.licensor;
 
 import org.apache.commons.io.FileUtils;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.AbstractLicensingTestBase;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
@@ -16,113 +21,112 @@ import org.junit.Test;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.text.ParseException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
+
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomRealisticUnicodeOfCodepointLengthBetween;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.core.IsEqual.equalTo;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
 
     @Test
-    public void testEffectiveLicenseGeneration() throws Exception {
-        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
-        TestUtils.FeatureAttributes featureWithLongerExpiryDate =
-                new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 10, "2014-12-13", "2015-12-13");
-        map.put(TestUtils.SHIELD, featureWithLongerExpiryDate);
+    public void testMissingCLTArgs() throws Exception {
+        ESLicense singedLicense = generateSignedLicense(randomRealisticUnicodeOfCodepointLengthBetween(5, 15),
+                TimeValue.timeValueHours(1));
 
-        String signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
-        String firstLicenseFile = getAsFilePath(signedLicense);
+        String[] args = new String[2];
+        args[0] = "--licenssFiles";
+        args[1] = dumpLicense(singedLicense);
 
-        TestUtils.FeatureAttributes featureWithShorterExpiryDate =
-                new TestUtils.FeatureAttributes("shield", "trial", "none", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-01-13");
-        map.put(TestUtils.SHIELD, featureWithShorterExpiryDate);
-
-        signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
-        String secondLicenseFile = getAsFilePath(signedLicense);
-
-        String effectiveLicenseStr = runLicenseVerificationTool(new String[]{firstLicenseFile, secondLicenseFile});
-
-        Set<ESLicense> esLicensesOutput = new HashSet<>(ESLicenses.fromSource(effectiveLicenseStr));
-        map.put(TestUtils.SHIELD, featureWithLongerExpiryDate);
-
-        // verify that the effective license strips out license for the same feature with earlier expiry dates
-        TestUtils.verifyESLicenses(esLicensesOutput, map);
+        try {
+            runLicenseVerificationTool(args);
+            fail("mandatory param '--licensesFiles' should throw an exception");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("--licensesFiles"));
+        }
     }
 
     @Test
-    public void testEffectiveLicenseForMultiFeatures() throws Exception {
-        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
-        TestUtils.FeatureAttributes shieldFeatureWithLongerExpiryDate =
-                new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 10, "2014-12-13", "2015-12-13");
-        map.put(TestUtils.SHIELD, shieldFeatureWithLongerExpiryDate);
+    public void testSimple() throws Exception {
+        ESLicense singedLicense = generateSignedLicense(randomRealisticUnicodeOfCodepointLengthBetween(5, 15),
+                TimeValue.timeValueHours(1));
 
-        String signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
-        String firstLicenseFile = getAsFilePath(signedLicense);
+        String[] args = new String[2];
+        args[0] = "--licensesFiles";
+        args[1] = dumpLicense(singedLicense);
 
-        TestUtils.FeatureAttributes marvelFeatureWithShorterExpiryDate =
-                new TestUtils.FeatureAttributes("marvel", "trial", "none", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-01-13");
-        map.put(TestUtils.MARVEL, marvelFeatureWithShorterExpiryDate);
+        String licenseOutput = runLicenseVerificationTool(args);
+        List<ESLicense> licensesOutput = ESLicenses.fromSource(licenseOutput);
 
-        signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
-        String secondLicenseFile = getAsFilePath(signedLicense);
+        assertThat(licensesOutput.size(), equalTo(1));
 
-        String effectiveLicenseStr = runLicenseVerificationTool(new String[]{firstLicenseFile, secondLicenseFile});
-        Set<ESLicense> esLicensesOutput = new HashSet<>(ESLicenses.fromSource(effectiveLicenseStr));
+        ESLicense expectedLicense = ESLicense.builder()
+                .fromLicenseSpec(singedLicense, licensesOutput.get(0).signature())
+                .build();
 
-        // verify that the effective license contains both feature licenses
-        TestUtils.verifyESLicenses(esLicensesOutput, map);
+        TestUtils.isSame(expectedLicense, licensesOutput.get(0));
     }
 
     @Test
-    public void testEffectiveLicenseForMultiFeatures2() throws Exception {
-        Map<String, TestUtils.FeatureAttributes> map = new HashMap<>();
+    public void testWithLicenseFiles() throws Exception {
+        int n = randomIntBetween(3, 10);
+        Set<ESLicense> signedLicenses = new HashSet<>();
+        for (int i = 0; i < n; i++) {
+            signedLicenses.add(generateSignedLicense(randomRealisticUnicodeOfCodepointLengthBetween(5, 15),
+                    TimeValue.timeValueHours(1)));
+        }
 
-        TestUtils.FeatureAttributes shieldFeatureWithLongerExpiryDate =
-                new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 10, "2014-12-13", "2015-12-13");
-        TestUtils.FeatureAttributes marvelFeatureWithShorterExpiryDate =
-                new TestUtils.FeatureAttributes("marvel", "trial", "none", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-01-13");
-
-        map.put(TestUtils.SHIELD, shieldFeatureWithLongerExpiryDate);
-        map.put(TestUtils.MARVEL, marvelFeatureWithShorterExpiryDate);
-
-        String signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
-        String firstLicenseFile = getAsFilePath(signedLicense);
-
-        TestUtils.FeatureAttributes shieldFeatureWithShorterExpiryDate =
-                new TestUtils.FeatureAttributes("shield", "subscription", "platinum", "foo bar Inc.", "elasticsearch", 10, "2014-12-13", "2015-11-13");
-        TestUtils.FeatureAttributes marvelFeatureWithLongerExpiryDate =
-                new TestUtils.FeatureAttributes("marvel", "trial", "none", "foo bar Inc.", "elasticsearch", 2, "2014-12-13", "2015-11-13");
-
-        map.put(TestUtils.SHIELD, shieldFeatureWithShorterExpiryDate);
-        map.put(TestUtils.MARVEL, marvelFeatureWithLongerExpiryDate);
-
-        signedLicense = runLicenseGenerationTool(TestUtils.generateESLicenses(map));
-        String secondLicenseFile = getAsFilePath(signedLicense);
-
-        String effectiveLicenseStr = runLicenseVerificationTool(new String[]{firstLicenseFile, secondLicenseFile});
-        Set<ESLicense> esLicensesOutput = new HashSet<>(ESLicenses.fromSource(effectiveLicenseStr));
-
-        map.put(TestUtils.SHIELD, shieldFeatureWithLongerExpiryDate);
-        map.put(TestUtils.MARVEL, marvelFeatureWithLongerExpiryDate);
-
-        // verify that the generated effective license is generated from choosing individual licences from multiple files
-        TestUtils.verifyESLicenses(esLicensesOutput, map);
-    }
-
-    public static String runLicenseVerificationTool(String[] licenseFiles) throws IOException {
         StringBuilder licenseFilePathString = new StringBuilder();
-        for (int i = 0; i < licenseFiles.length; i++) {
-            licenseFilePathString.append(licenseFiles[i]);
-            if (i != licenseFiles.length - 1) {
+        ESLicense[] esLicenses = signedLicenses.toArray(new ESLicense[n]);
+        for (int i = 0; i < n; i++) {
+            licenseFilePathString.append(dumpLicense(esLicenses[i]));
+            if (i != esLicenses.length - 1) {
                 licenseFilePathString.append(":");
             }
         }
-        String[] args = new String[4];
+
+        String[] args = new String[2];
         args[0] = "--licensesFiles";
         args[1] = licenseFilePathString.toString();
-        args[2] = "--publicKeyPath";
-        args[3] = pubKeyPath;
+
+        String licenseOutput = runLicenseVerificationTool(args);
+        List<ESLicense> output = ESLicenses.fromSource(licenseOutput);
+
+        assertThat(output.size(), equalTo(n));
+
+        Set<ESLicense> licensesOutput = new HashSet<>();
+        Map<String, ESLicense> expectedLicenses = ESLicenses.reduceAndMap(signedLicenses);
+        for (ESLicense license : output) {
+            licensesOutput.add(
+                    ESLicense.builder()
+                    .fromLicenseSpec(license, expectedLicenses.get(license.feature()).signature())
+                    .build()
+            );
+        }
+
+        TestUtils.isSame(signedLicenses, licensesOutput);
+
+    }
+
+    private String dumpLicense(ESLicense license) throws Exception {
+        Path tempFilePath = Files.createTempFile("license_spec", "json");
+        File tempFile = tempFilePath.toFile();
+        tempFile.deleteOnExit();
+        try (FileOutputStream outputStream = new FileOutputStream(tempFile)) {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, outputStream);
+            ESLicenses.toXContent(Collections.singletonList(license), builder, ToXContent.EMPTY_PARAMS);
+            builder.flush();
+        }
+        return tempFile.getAbsolutePath();
+    }
+
+
+    private static String runLicenseVerificationTool(String[] args) throws IOException {
         File temp = File.createTempFile("temp", ".out");
         temp.deleteOnExit();
         try (FileOutputStream outputStream = new FileOutputStream(temp)) {
@@ -130,21 +134,4 @@ public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
         }
         return FileUtils.readFileToString(temp);
     }
-
-    public String runLicenseGenerationTool(String licenseInput) throws IOException, ParseException {
-        return TestUtils.runLicenseGenerationTool(licenseInput, pubKeyPath, priKeyPath);
-    }
-
-    private static String getAsFilePath(String content) throws IOException {
-        File temp = File.createTempFile("license", ".out");
-        temp.deleteOnExit();
-        FileUtils.write(temp, content);
-        String tempFilePath = temp.getAbsolutePath();
-        while (tempFilePath.contains(":")) {
-            assert temp.delete();
-            tempFilePath = getAsFilePath(content);
-        }
-        return tempFilePath;
-    }
-
 }

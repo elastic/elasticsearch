@@ -6,7 +6,6 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
@@ -44,7 +43,7 @@ public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
 
     @Test
     public void testPutLicense() throws Exception {
-        ESLicense signedLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(2));
+        ESLicense signedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
         List<ESLicense> actualLicenses = Collections.singletonList(signedLicense);
 
         // put license
@@ -64,7 +63,7 @@ public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
 
     @Test
     public void testPutInvalidLicense() throws Exception {
-        ESLicense signedLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(2));
+        ESLicense signedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
 
         // modify content of signed license
         ESLicense tamperedLicense = ESLicense.builder()
@@ -88,8 +87,8 @@ public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
 
     @Test
     public void testPutLicensesForSameFeature() throws Exception {
-        ESLicense shortedSignedLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(2));
-        ESLicense longerSignedLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(5));
+        ESLicense shortedSignedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        ESLicense longerSignedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(5));
         List<ESLicense> actualLicenses = Arrays.asList(longerSignedLicense, shortedSignedLicense);
 
         // put license
@@ -109,8 +108,8 @@ public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
 
     @Test
     public void testPutLicensesForMultipleFeatures() throws Exception {
-        ESLicense shieldLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(2));
-        ESLicense marvelLicense = generateSignedLicense(TestUtils.MARVEL, TimeValue.timeValueMinutes(5));
+        ESLicense shieldLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        ESLicense marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueMinutes(5));
         List<ESLicense> actualLicenses = Arrays.asList(marvelLicense, shieldLicense);
 
         // put license
@@ -130,9 +129,9 @@ public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
 
     @Test
     public void testPutMultipleLicensesForMultipleFeatures() throws Exception {
-        ESLicense shortedSignedLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(2));
-        ESLicense longerSignedLicense = generateSignedLicense(TestUtils.SHIELD, TimeValue.timeValueMinutes(5));
-        ESLicense marvelLicense = generateSignedLicense(TestUtils.MARVEL, TimeValue.timeValueMinutes(5));
+        ESLicense shortedSignedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        ESLicense longerSignedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(5));
+        ESLicense marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueMinutes(5));
         List<ESLicense> actualLicenses = Arrays.asList(marvelLicense, shortedSignedLicense, longerSignedLicense);
 
         // put license

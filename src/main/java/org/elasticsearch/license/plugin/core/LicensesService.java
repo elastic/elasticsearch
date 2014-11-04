@@ -483,9 +483,9 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             if (logger.isDebugEnabled()) {
                 String status;
                 if (expiryDate != -1l) {
-                    status = "license expires in : " + TimeValue.timeValueMillis(expiryDate - System.currentTimeMillis());
+                    status = " status: license expires in : " + TimeValue.timeValueMillis(expiryDate - System.currentTimeMillis());
                 } else {
-                    status = "no trial/signed license found";
+                    status = " status: no trial/signed license found";
                 }
                 if (expiryDuration > 0l) {
                     status += " action: enableFeatureIfNeeded";
@@ -496,13 +496,15 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             }
         }
 
-        logLicenseMetaDataStats("Setting last observed metaData", currentLicensesMetaData);
         lastObservedLicensesState.set(currentLicensesMetaData);
 
-        if (nextScheduleFrequency == -1l) {
-            logger.debug("no need to schedule next notification");
-        } else {
-            logger.debug("next notification time: " + TimeValue.timeValueMillis(nextScheduleFrequency).toString());
+        if (logger.isDebugEnabled()) {
+            logLicenseMetaDataStats("Setting last observed metaData", currentLicensesMetaData);
+            if (nextScheduleFrequency == -1l) {
+                logger.debug("no need to schedule next notification");
+            } else {
+                logger.debug("next notification time: " + TimeValue.timeValueMillis(nextScheduleFrequency).toString());
+            }
         }
 
         return nextScheduleFrequency;
@@ -531,19 +533,14 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      * if new feature has a non-null trial license option, a master node request is made to generate the trial license
      * if no trial license option is specified for the feature and no signed license is found,
      * then notifies features to be disabled
+     * then notifies features to be disabled
      *
      * @param listenerHolder of the feature to register
      * @return true if registration has been completed, false otherwise (if masterNode is not available & trail license spec is provided
-     *  or if there is a global block on {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK})
      */
     private boolean registerListener(final ListenerHolder listenerHolder) {
         logger.debug("Registering listener for " + listenerHolder.feature);
         ClusterState currentState = clusterService.state();
-        if (currentState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            logger.debug("Store as pendingRegistration [cluster has NOT_RECOVERED_BLOCK]");
-            return false;
-        }
-
         LicensesMetaData currentMetaData = currentState.metaData().custom(LicensesMetaData.TYPE);
         if (expiryDateForFeature(listenerHolder.feature, currentMetaData) == -1l) {
             // does not have any license so generate a trial license

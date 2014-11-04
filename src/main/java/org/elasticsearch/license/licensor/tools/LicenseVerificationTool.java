@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -23,15 +24,7 @@ import java.util.Set;
 
 public class LicenseVerificationTool {
 
-    static class Options {
-        private final Set<ESLicense> licenses;
-
-        Options(Set<ESLicense> licenses) {
-            this.licenses = licenses;
-        }
-    }
-
-    private static Options parse(String[] args) throws IOException {
+    private static Set<ESLicense> parse(String[] args) throws IOException {
         Set<ESLicense> licenses = new HashSet<>();
 
         for (int i = 0; i < args.length; i++) {
@@ -55,7 +48,7 @@ public class LicenseVerificationTool {
         if (licenses.size() == 0) {
             throw new IllegalArgumentException("mandatory option '--licensesFiles' or '--licenses' is missing");
         }
-        return new Options(licenses);
+        return licenses;
     }
 
     public static void main(String[] args) throws IOException {
@@ -63,16 +56,16 @@ public class LicenseVerificationTool {
     }
 
     public static void run(String[] args, OutputStream out) throws IOException {
-        Options options = parse(args);
+        Set<ESLicense> licenses = parse(args);
 
-        // verify licenses
-        FileBasedESLicenseProvider licenseProvider = new FileBasedESLicenseProvider(options.licenses);
+        // reduce & verify licenses
+        ImmutableMap<String, ESLicense> effectiveLicenses = ESLicenses.reduceAndMap(licenses);
         ESLicenseManager licenseManager = new ESLicenseManager();
-        licenseManager.verifyLicenses(licenseProvider.getEffectiveLicenses());
+        licenseManager.verifyLicenses(effectiveLicenses);
 
         // dump effective licences
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, out);
-        ESLicenses.toXContent(licenseProvider.getEffectiveLicenses().values(), builder, ToXContent.EMPTY_PARAMS);
+        ESLicenses.toXContent(effectiveLicenses.values(), builder, ToXContent.EMPTY_PARAMS);
         builder.flush();
     }
 

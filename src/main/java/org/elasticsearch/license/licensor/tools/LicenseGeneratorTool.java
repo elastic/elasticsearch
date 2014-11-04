@@ -69,13 +69,17 @@ public class LicenseGeneratorTool {
         }
 
         if (licenseSpecs.size() == 0) {
-            throw new IllegalArgumentException("at least one of '--licenses' or '--licenseFile' has to be provided");
+            throw new IllegalArgumentException("at least one of '--license' or '--licenseFile' has to be provided");
         }
         if (publicKeyPath == null) {
             throw new IllegalArgumentException("mandatory option '--publicKeyPath' is missing");
+        } else if (!Paths.get(publicKeyPath).toFile().exists()) {
+            throw new IllegalArgumentException("Public key file: " + publicKeyPath + " does not exist!");
         }
         if (privateKeyPath == null) {
             throw new IllegalArgumentException("mandatory option '--privateKeyPath' is missing");
+        } else if (!Paths.get(privateKeyPath).toFile().exists()) {
+            throw new IllegalArgumentException("Private key file: " + privateKeyPath + " does not exist!");
         }
 
         return new Options(licenseSpecs, publicKeyPath, privateKeyPath);

@@ -14,6 +14,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.alerts.actions.AlertAction;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -37,7 +39,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,18 +50,12 @@ public class AlertsStore extends AbstractComponent {
     public static final String ALERT_INDEX = ".alerts";
     public static final String ALERT_TYPE = "alert";
 
-    public static final ParseField QUERY_NAME_FIELD =  new ParseField("query");
     public static final ParseField SCHEDULE_FIELD =  new ParseField("schedule");
     public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
-    public static final ParseField TIMEPERIOD_FIELD = new ParseField("timeperiod");
     public static final ParseField ACTION_FIELD = new ParseField("action");
-    public static final ParseField INDICES = new ParseField("indices");
+    public static final ParseField LAST_ACTION_FIRE = new ParseField("last_action_fire");
     public static final ParseField ENABLED = new ParseField("enabled");
-    public static final ParseField SIMPLE_QUERY = new ParseField("simple");
-    public static final ParseField TIMESTAMP_FIELD = new ParseField("timefield");
-    public static final ParseField LAST_ACTION_FIRE = new ParseField("lastactionfire");
-
-    private final TimeValue defaultTimePeriod = new TimeValue(300*1000); //TODO : read from config
+    public static final ParseField SEARCH_REQUEST_FIELD =  new ParseField("request");
 
     private final Client client;
     private final ThreadPool threadPool;
@@ -276,33 +271,17 @@ public class AlertsStore extends AbstractComponent {
                     } else {
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    if (INDICES.match(currentFieldName)) {
-                        List<String> indices = new ArrayList<>();
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            indices.add(parser.text());
-                        }
-                        alert.indices(indices);
-                    } else {
-                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
-                    }
                 } else if (token.isValue()) {
-                    if (QUERY_NAME_FIELD.match(currentFieldName)) {
-                        alert.queryName(parser.textOrNull());
-                    } else if (SCHEDULE_FIELD.match(currentFieldName)) {
+                    if (SCHEDULE_FIELD.match(currentFieldName)) {
                         alert.schedule(parser.textOrNull());
-                    } else if (TIMEPERIOD_FIELD.match(currentFieldName)) {
-                        alert.timestampString(parser.textOrNull());
                     } else if (ENABLED.match(currentFieldName)) {
                         alert.enabled(parser.booleanValue());
-                    } else if (SIMPLE_QUERY.match(currentFieldName)) {
-                        alert.simpleQuery(parser.booleanValue());
-                    } else if (TIMEPERIOD_FIELD.match(currentFieldName)) {
-                        alert.timePeriod(TimeValue.parseTimeValue(parser.textOrNull(), defaultTimePeriod));
                     } else if (LAST_ACTION_FIRE.match(currentFieldName)) {
                         alert.lastActionFire(DateTime.parse(parser.textOrNull()));
-                    } else if (TIMESTAMP_FIELD.match(currentFieldName)) {
-                        alert.timestampString(parser.textOrNull());
+                    } else if (SEARCH_REQUEST_FIELD.match(currentFieldName)) {
+                        SearchRequest searchRequest = new SearchRequest();
+                        searchRequest.readFrom(new BytesStreamInput(parser.binaryValue(), false));
+                        alert.setSearchRequest(searchRequest);
                     } else {
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
@@ -314,9 +293,6 @@ public class AlertsStore extends AbstractComponent {
             throw new ElasticsearchException("Error during parsing alert", e);
         }
 
-        if (alert.timePeriod() == null) {
-            alert.timePeriod(defaultTimePeriod);
-        }
         if (alert.lastActionFire() == null) {
             alert.lastActionFire(new DateTime(0));
         }

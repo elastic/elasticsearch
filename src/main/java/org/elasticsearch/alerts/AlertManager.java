@@ -109,8 +109,8 @@ public class AlertManager extends AbstractComponent {
             return;
         }
         try {
-            TriggerResult result = triggerManager.isTriggered(alert, scheduledFireTime);
-            actionManager.addAlertAction(alert, result, fireTime, scheduledFireTime);
+            TriggerResult result = triggerManager.isTriggered(alert, scheduledFireTime, fireTime);
+            actionManager.addAlertAction(alert, result, scheduledFireTime, fireTime);
         } catch (Exception e) {
             logger.error("Failed execute alert [{}]", e, alertName);
         }

@@ -5,33 +5,56 @@
  */
 package org.elasticsearch.alerts.actions;
 
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.TriggerResult;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
 import java.util.List;
 
 /**
+ * An alert action entry is an event of an alert that fired on particular moment in time.
  */
 public class AlertActionEntry implements ToXContent{
 
+    private String id;
     private long version;
     private String alertName;
     private boolean triggered;
     private DateTime fireTime;
-    private AlertTrigger trigger;
-    private String triggeringSearchRequest;
-    private long numberOfResults;
-    private List<AlertAction> actions;
-    private List<String> indices;
-    private AlertActionState entryState;
     private DateTime scheduledTime;
+    private AlertTrigger trigger;
+    private SearchRequest searchRequest;
+    private SearchResponse searchResponse;
+    private List<AlertAction> actions;
+    private AlertActionState entryState;
 
+    AlertActionEntry() {
+    }
+
+    public AlertActionEntry(Alert alert, TriggerResult result, DateTime scheduledTime, DateTime fireTime, AlertActionState state) throws IOException {
+        this.id = alert.alertName() + "#" + scheduledTime.toDateTimeISO();
+        this.version = 1;
+        this.alertName = alert.alertName();
+        this.triggered = result.isTriggered();
+        this.fireTime = fireTime;
+        this.scheduledTime = scheduledTime;
+        this.trigger = alert.trigger();
+        this.searchRequest = result.getRequest();
+        this.searchResponse = result.getResponse();
+        this.actions = alert.actions();
+        this.entryState = state;
+    }
+
+    /**
+     * @return The unique id of the alert action entry
+     */
     public String getId() {
         return id;
     }
@@ -40,8 +63,9 @@ public class AlertActionEntry implements ToXContent{
         this.id = id;
     }
 
-    private String id;
-
+    /**
+     * @return The time the alert was scheduled to be triggered
+     */
     public DateTime getScheduledTime() {
         return scheduledTime;
     }
@@ -50,6 +74,9 @@ public class AlertActionEntry implements ToXContent{
         this.scheduledTime = scheduledTime;
     }
 
+    /**
+     * @return The name of the alert that triggered
+     */
     public String getAlertName() {
         return alertName;
     }
@@ -58,6 +85,9 @@ public class AlertActionEntry implements ToXContent{
         this.alertName = alertName;
     }
 
+    /**
+     * @return Whether the search request that run as part of the alert on a fire time matched with the defined trigger.
+     */
     public boolean isTriggered() {
         return triggered;
     }
@@ -66,6 +96,9 @@ public class AlertActionEntry implements ToXContent{
         this.triggered = triggered;
     }
 
+    /**
+     * @return The time the alert actually ran.
+     */
     public DateTime getFireTime() {
         return fireTime;
     }
@@ -74,6 +107,9 @@ public class AlertActionEntry implements ToXContent{
         this.fireTime = fireTime;
     }
 
+    /**
+     * @return The trigger that evaluated the search response
+     */
     public AlertTrigger getTrigger() {
         return trigger;
     }
@@ -82,22 +118,31 @@ public class AlertActionEntry implements ToXContent{
         this.trigger = trigger;
     }
 
-    public String getTriggeringSearchRequest() {
-        return triggeringSearchRequest;
+    /**
+     * @return The query that ran at fire time
+     */
+    public SearchRequest getSearchRequest() {
+        return searchRequest;
     }
 
-    public void setTriggeringSearchRequest(String triggeringSearchRequest) {
-        this.triggeringSearchRequest = triggeringSearchRequest;
+    public void setSearchRequest(SearchRequest searchRequest) {
+        this.searchRequest = searchRequest;
     }
 
-    public long getNumberOfResults() {
-        return numberOfResults;
+    /**
+     * @return The search response that resulted at out the search request that ran.
+     */
+    public SearchResponse getSearchResponse() {
+        return searchResponse;
     }
 
-    public void setNumberOfResults(long numberOfResults) {
-        this.numberOfResults = numberOfResults;
+    public void setSearchResponse(SearchResponse searchResponse) {
+        this.searchResponse = searchResponse;
     }
 
+    /**
+     * @return The list of actions that ran if the search response matched with the trigger
+     */
     public List<AlertAction> getActions() {
         return actions;
     }
@@ -106,14 +151,9 @@ public class AlertActionEntry implements ToXContent{
         this.actions = actions;
     }
 
-    public List<String> getIndices() {
-        return indices;
-    }
-
-    public void setIndices(List<String> indices) {
-        this.indices = indices;
-    }
-
+    /**
+     * @return The current state of the alert event.
+     */
     public AlertActionState getEntryState() {
         return entryState;
     }
@@ -130,24 +170,6 @@ public class AlertActionEntry implements ToXContent{
         this.version = version;
     }
 
-    protected AlertActionEntry() {
-    }
-
-    public AlertActionEntry(Alert alert, TriggerResult result, DateTime fireTime, DateTime scheduledTime, AlertActionState state) throws IOException {
-        this.id = alert.alertName() + "#" + scheduledTime.toDateTimeISO();
-        this.version = 1;
-        this.alertName = alert.alertName();
-        this.triggered = result.isTriggered();
-        this.fireTime = fireTime;
-        this.scheduledTime = scheduledTime;
-        this.trigger = alert.trigger();
-        this.triggeringSearchRequest = XContentHelper.convertToJson(result.getRequest().source(), false, true);
-        this.numberOfResults = result.getResponse().getHits().totalHits();
-        this.actions = alert.actions();
-        this.indices = alert.indices();
-        this.entryState = state;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder historyEntry, Params params) throws IOException {
         historyEntry.startObject();
@@ -155,56 +177,26 @@ public class AlertActionEntry implements ToXContent{
         historyEntry.field("triggered", triggered);
         historyEntry.field("fireTime", fireTime.toDateTimeISO());
         historyEntry.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, scheduledTime.toDateTimeISO());
-
-        historyEntry.field("trigger");
-        trigger.toXContent(historyEntry, ToXContent.EMPTY_PARAMS);
-        
-        historyEntry.field("queryRan", triggeringSearchRequest);
-
-        historyEntry.field("numberOfResults", numberOfResults);
-
-        historyEntry.field("actions");
-        historyEntry.startObject();
+        historyEntry.field("trigger", trigger, params);
+        BytesStreamOutput out = new BytesStreamOutput();
+        searchRequest.writeTo(out);
+        historyEntry.field("request_binary", out.bytes());
+        out = new BytesStreamOutput();
+        searchResponse.writeTo(out);
+        historyEntry.field("response_binary", out.bytes());
+        // Serializing it as xcontent allows the search response to be encapsulated in a doc as a json object
+        historyEntry.startObject("response");
+        searchResponse.toXContent(historyEntry, params);
+        historyEntry.endObject();
+        historyEntry.startObject("actions");
         for (AlertAction action : actions) {
             historyEntry.field(action.getActionName());
             action.toXContent(historyEntry, params);
         }
         historyEntry.endObject();
-
-
-        if (indices != null) {
-            historyEntry.field("indices");
-            historyEntry.startArray();
-            for (String index : indices) {
-                historyEntry.value(index);
-            }
-            historyEntry.endArray();
-        }        
-
         historyEntry.field(AlertActionState.FIELD_NAME, entryState.toString());
-
         historyEntry.endObject();
-        
         return historyEntry;
-    }
-
-
-    @Override
-    public String toString() {
-        return "AlertHistoryEntry{" +
-                "version=" + version +
-                ", alertName='" + alertName + '\'' +
-                ", triggered=" + triggered +
-                ", fireTime=" + fireTime +
-                ", trigger=" + trigger +
-                ", triggeringSearchRequest='" + triggeringSearchRequest + '\'' +
-                ", numberOfResults=" + numberOfResults +
-                ", actions=" + actions +
-                ", indices=" + indices +
-                ", entryState=" + entryState +
-                ", scheduledTime=" + scheduledTime +
-                ", id='" + id + '\'' +
-                '}';
     }
 
     @Override
@@ -212,41 +204,14 @@ public class AlertActionEntry implements ToXContent{
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        AlertActionEntry that = (AlertActionEntry) o;
-
-        if (numberOfResults != that.numberOfResults) return false;
-        if (triggered != that.triggered) return false;
-        if (version != that.version) return false;
-        if (actions != null ? !actions.equals(that.actions) : that.actions != null) return false;
-        if (alertName != null ? !alertName.equals(that.alertName) : that.alertName != null) return false;
-        if (entryState != that.entryState) return false;
-        if (fireTime != null ? !fireTime.equals(that.fireTime) : that.fireTime != null) return false;
-        if (id != null ? !id.equals(that.id) : that.id != null) return false;
-        if (indices != null ? !indices.equals(that.indices) : that.indices != null) return false;
-        if (scheduledTime != null ? !scheduledTime.equals(that.scheduledTime) : that.scheduledTime != null)
-            return false;
-        if (trigger != null ? !trigger.equals(that.trigger) : that.trigger != null) return false;
-        if (triggeringSearchRequest != null ? !triggeringSearchRequest.equals(that.triggeringSearchRequest) : that.triggeringSearchRequest != null)
-            return false;
+        AlertActionEntry entry = (AlertActionEntry) o;
+        if (!id.equals(entry.id)) return false;
 
         return true;
     }
 
     @Override
     public int hashCode() {
-        int result = (int) (version ^ (version >>> 32));
-        result = 31 * result + (alertName != null ? alertName.hashCode() : 0);
-        result = 31 * result + (triggered ? 1 : 0);
-        result = 31 * result + (fireTime != null ? fireTime.hashCode() : 0);
-        result = 31 * result + (trigger != null ? trigger.hashCode() : 0);
-        result = 31 * result + (triggeringSearchRequest != null ? triggeringSearchRequest.hashCode() : 0);
-        result = 31 * result + (int) (numberOfResults ^ (numberOfResults >>> 32));
-        result = 31 * result + (actions != null ? actions.hashCode() : 0);
-        result = 31 * result + (indices != null ? indices.hashCode() : 0);
-        result = 31 * result + (entryState != null ? entryState.hashCode() : 0);
-        result = 31 * result + (scheduledTime != null ? scheduledTime.hashCode() : 0);
-        result = 31 * result + (id != null ? id.hashCode() : 0);
-        return result;
+        return id.hashCode();
     }
-
 }

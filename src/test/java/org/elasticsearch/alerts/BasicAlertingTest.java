@@ -12,9 +12,9 @@ import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedAlertTrigger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -40,6 +40,7 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
                 .put("plugin.mandatory", "alerts")
                 .put("plugin.types", AlertsPlugin.class.getName())
                 .put("node.mode", "network")
+                .put("http.enabled", true)
                 .put("plugins.load_classpath_plugins", false)
                 .build();
     }
@@ -47,26 +48,10 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
     @Test
     // TODO: add request, response & request builder etc.
     public void testAlerSchedulerStartsProperly() throws Exception {
-
         createIndex("my-index");
         createIndex(AlertsStore.ALERT_INDEX);
         createIndex(AlertActionManager.ALERT_HISTORY_INDEX);
         ensureGreen("my-index", AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX);
-
-        client().preparePutIndexedScript()
-                .setScriptLang("mustache")
-                .setId("query")
-                .setSource(jsonBuilder().startObject().startObject("template").startObject("match_all").endObject().endObject().endObject())
-                .get();
-
-        /*client().admin().indices().preparePutTemplate("query")
-                .setTemplate("*")
-                .setSource(jsonBuilder().startObject().startObject("query").startObject("match_all").endObject().endObject().endObject())
-                .get();
-
-        GetIndexTemplatesResponse templatesResponse = client().admin().indices().prepareGetTemplates("query").get();
-        assertThat(templatesResponse.getIndexTemplates().size(), equalTo(1));
-        assertThat(templatesResponse.getIndexTemplates().get(0).getName(), equalTo("query"));*/
 
         final AlertManager alertManager = internalCluster().getInstance(AlertManager.class, internalCluster().getMasterName());
         assertBusy(new Runnable() {
@@ -107,16 +92,12 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
         AlertTrigger alertTrigger = new AlertTrigger(new ScriptedAlertTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"));
         Alert alert = new Alert(
                 "my-first-alert",
-                "/mustache/query",
+                client().prepareSearch("my-index").setQuery(QueryBuilders.matchAllQuery()).request(),
                 alertTrigger,
-                TimeValue.timeValueSeconds(1),
                 Arrays.asList(alertAction),
                 "0/5 * * * * ? *",
                 null,
-                Arrays.asList("my-index"),
-                null,
                 1,
-                true,
                 true
         );
         alertManager.addAlert("my-first-alert", jsonBuilder().value(alert).bytes());

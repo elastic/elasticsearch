@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.alerts.Alert;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
@@ -35,8 +37,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,10 +50,10 @@ public class AlertActionManager extends AbstractComponent {
     public static final String FIRE_TIME_FIELD = "fireTime";
     public static final String SCHEDULED_FIRE_TIME_FIELD = "scheduledFireTime";
     public static final String TRIGGER_FIELD = "trigger";
-    public static final String QUERY_RAN_FIELD = "queryRan";
-    public static final String NUMBER_OF_RESULTS_FIELD = "numberOfResults";
+    public static final String REQUEST = "request_binary";
+    public static final String RESPONSE = "response_binary";
     public static final String ACTIONS_FIELD = "actions";
-    public static final String INDICES_FIELD = "indices";
+
     public static final String ALERT_HISTORY_INDEX = "alerthistory";
     public static final String ALERT_HISTORY_TYPE = "alerthistory";
 
@@ -86,15 +86,11 @@ public class AlertActionManager extends AbstractComponent {
                     logger.trace("last action fire [{}]", lastActionFire);
                     logger.trace("msSinceLastAction [{}]", msSinceLastAction);
 
-                    if (alert.timePeriod().getMillis() > msSinceLastAction) {
-                        logger.debug("Not firing action because it was fired in the timePeriod");
-                    } else {
-                        actionRegistry.doAction(alert, entry);
-                        logger.debug("Did action !");
+                    actionRegistry.doAction(alert, entry);
+                    logger.debug("Did action !");
 
-                        alert.lastActionFire(scheduledTime);
-                        alertsStore.updateAlert(alert);
-                    }
+                    alert.lastActionFire(scheduledTime);
+                    alertsStore.updateAlert(alert);
                     updateHistoryEntry(entry, AlertActionState.ACTION_PERFORMED);
                 } else {
                     logger.warn("Unable to claim alert history entry" + entry);
@@ -251,17 +247,9 @@ public class AlertActionManager extends AbstractComponent {
                         case TRIGGER_FIELD:
                             entry.setTrigger(TriggerManager.parseTrigger(parser));
                             break;
-                        default:
-                            throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
-                    }
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    switch (currentFieldName) {
-                        case INDICES_FIELD:
-                            List<String> indices = new ArrayList<>();
-                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                indices.add(parser.text());
-                            }
-                            entry.setIndices(indices);
+                        case "response":
+                            // Ignore this, the binary form is already read
+                            parser.skipChildren();
                             break;
                         default:
                             throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
@@ -280,11 +268,15 @@ public class AlertActionManager extends AbstractComponent {
                         case SCHEDULED_FIRE_TIME_FIELD:
                             entry.setScheduledTime(DateTime.parse(parser.text()));
                             break;
-                        case QUERY_RAN_FIELD:
-                            entry.setTriggeringSearchRequest(parser.text());
+                        case REQUEST:
+                            SearchRequest request = new SearchRequest();
+                            request.readFrom(new BytesStreamInput(parser.binaryValue(), false));
+                            entry.setSearchRequest(request);
                             break;
-                        case NUMBER_OF_RESULTS_FIELD:
-                            entry.setNumberOfResults(parser.longValue());
+                        case RESPONSE:
+                            SearchResponse response = new SearchResponse();
+                            response.readFrom(new BytesStreamInput(parser.binaryValue(), false));
+                            entry.setSearchResponse(response);
                             break;
                         case AlertActionState.FIELD_NAME:
                             entry.setEntryState(AlertActionState.fromString(parser.text()));
@@ -303,7 +295,7 @@ public class AlertActionManager extends AbstractComponent {
     }
 
 
-    public void addAlertAction(Alert alert, TriggerResult result, DateTime fireTime, DateTime scheduledFireTime) throws IOException {
+    public void addAlertAction(Alert alert, TriggerResult result, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
         if (!client.admin().indices().prepareExists(ALERT_HISTORY_INDEX).get().isExists()) {
             createAlertHistoryIndex();
         }
@@ -313,7 +305,7 @@ public class AlertActionManager extends AbstractComponent {
             state = AlertActionState.ACTION_NEEDED;
         }
 
-        AlertActionEntry entry = new AlertActionEntry(alert, result, fireTime, scheduledFireTime, state);
+        AlertActionEntry entry = new AlertActionEntry(alert, result, scheduledFireTime, fireTime, state);
         XContentBuilder historyEntry = XContentFactory.jsonBuilder();
         entry.toXContent(historyEntry, ToXContent.EMPTY_PARAMS);
 

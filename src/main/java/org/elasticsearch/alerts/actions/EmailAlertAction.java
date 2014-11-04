@@ -89,11 +89,11 @@ public class EmailAlertAction implements AlertAction {
             message.setSubject("Elasticsearch Alert " + alert.alertName() + " triggered");
             StringBuffer output = new StringBuffer();
             output.append("The following query triggered because " + result.getTrigger().toString() + "\n");
-            output.append("The total number of hits returned : " + result.getNumberOfResults() + "\n");
-            output.append("For query : " + result.getTriggeringSearchRequest());
+            output.append("The total number of hits returned : " + result.getSearchResponse().getHits().getTotalHits() + "\n");
+            output.append("For query : " + result.getSearchRequest());
             output.append("\n");
             output.append("Indices : ");
-            for (String index : result.getIndices()) {
+            for (String index : result.getSearchRequest().indices()) {
                 output.append(index);
                 output.append("/");
             }

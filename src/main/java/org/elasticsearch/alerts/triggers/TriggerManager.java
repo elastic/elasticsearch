@@ -9,24 +9,22 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.index.query.FilteredQueryBuilder;
-import org.elasticsearch.index.query.RangeFilterBuilder;
-import org.elasticsearch.index.query.TemplateQueryBuilder;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 
@@ -35,8 +33,39 @@ import java.util.Map;
  */
 public class TriggerManager extends AbstractComponent {
 
+    private static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.Defaults.DATE_TIME_FORMATTER;
+
     private final Client client;
     private final ScriptService scriptService;
+    private final String fireTimePlaceHolder;
+    private final String scheduledFireTimePlaceHolder;
+
+    @Inject
+    public TriggerManager(Settings settings, Client client, ScriptService scriptService) {
+        super(settings);
+        this.client = client;
+        this.scriptService = scriptService;
+        this.fireTimePlaceHolder = settings.get("prefix", "<<<FIRE_TIME>>>");
+        this.scheduledFireTimePlaceHolder = settings.get("postfix", "<<<SCHEDULED_FIRE_TIME>>>");
+    }
+
+    public TriggerResult isTriggered(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws Exception {
+        SearchRequest request = prepareTriggerSearch(alert, scheduledFireTime, fireTime);
+        if (logger.isTraceEnabled()) {
+            logger.trace("For alert [{}] running query for [{}]", alert.alertName(), XContentHelper.convertToJson(request.source(), false, true));
+        }
+
+        SearchResponse response = client.search(request).get();
+        logger.debug("Ran alert [{}] and got hits : [{}]", alert.alertName(), response.getHits().getTotalHits());
+        switch (alert.trigger().triggerType()) {
+            case NUMBER_OF_EVENTS:
+                return doSimpleTrigger(alert, request, response);
+            case SCRIPT:
+                return doScriptTrigger(alert, request, response);
+            default:
+                throw new ElasticsearchIllegalArgumentException("Bad value for trigger.triggerType [" + alert.trigger().triggerType() + "]");
+        }
+    }
 
     public static AlertTrigger parseTrigger(XContentParser parser) throws IOException {
         AlertTrigger trigger = null;
@@ -84,31 +113,6 @@ public class TriggerManager extends AbstractComponent {
             }
         }
         return trigger;
-    }
-
-    @Inject
-    public TriggerManager(Settings settings, Client client, ScriptService scriptService) {
-        super(settings);
-        this.client = client;
-        this.scriptService = scriptService;
-    }
-
-    public TriggerResult isTriggered(Alert alert, DateTime scheduledFireTime) throws Exception {
-        SearchRequest request = createClampedRequest(scheduledFireTime, alert);
-        if (logger.isTraceEnabled()) {
-            logger.trace("For alert [{}] running query for [{}]", alert.alertName(), XContentHelper.convertToJson(request.source(), false, true));
-        }
-
-        SearchResponse response = client.search(request).get();
-        logger.debug("Ran alert [{}] and got hits : [{}]", alert.alertName(), response.getHits().getTotalHits());
-        switch (alert.trigger().triggerType()) {
-            case NUMBER_OF_EVENTS:
-                return doSimpleTrigger(alert, request, response);
-            case SCRIPT:
-                return doScriptTrigger(alert, request, response);
-            default:
-                throw new ElasticsearchIllegalArgumentException("Bad value for trigger.triggerType [" + alert.trigger().triggerType() + "]");
-        }
     }
 
     private TriggerResult doSimpleTrigger(Alert alert, SearchRequest request, SearchResponse response) {
@@ -164,27 +168,38 @@ public class TriggerManager extends AbstractComponent {
         return new TriggerResult(triggered, request, response);
     }
 
-    private SearchRequest createClampedRequest(DateTime scheduledFireTime, Alert alert){
-        DateTime clampEnd = new DateTime(scheduledFireTime);
-        DateTime clampStart = clampEnd.minusSeconds((int)alert.timePeriod().seconds());
-        SearchRequest request = new SearchRequest(alert.indices().toArray(new String[0]));
-        if (alert.simpleQuery()) {
-            TemplateQueryBuilder queryBuilder = new TemplateQueryBuilder(alert.queryName(), ScriptService.ScriptType.INDEXED, new HashMap<String, Object>());
-            RangeFilterBuilder filterBuilder = new RangeFilterBuilder(alert.timestampString());
-            filterBuilder.gte(clampStart);
-            filterBuilder.lt(clampEnd);
-            request.source(new SearchSourceBuilder().query(new FilteredQueryBuilder(queryBuilder, filterBuilder)));
+    private SearchRequest prepareTriggerSearch(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
+        SearchRequest request = alert.getSearchRequest();
+        if (Strings.hasLength(request.source())) {
+            String requestSource = request.source().toUtf8();
+            if (requestSource.contains(fireTimePlaceHolder)) {
+                requestSource = requestSource.replace(fireTimePlaceHolder, dateTimeFormatter.printer().print(fireTime));
+            }
+            if (requestSource.contains(scheduledFireTimePlaceHolder)) {
+                requestSource = requestSource.replace(scheduledFireTimePlaceHolder, dateTimeFormatter.printer().print(scheduledFireTime));
+            }
+            request.source(requestSource);
+        } else if (Strings.hasLength(request.templateSource())) {
+            Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(request.templateSource(), false);
+            Map<String, Object> templateSourceAsMap = tuple.v2();
+            Map<String, Object> templateObject = (Map<String, Object>) templateSourceAsMap.get("template");
+            if (templateObject != null) {
+                Map<String, Object> params = (Map<String, Object>) templateObject.get("params");
+                params.put("scheduled_fire_time", dateTimeFormatter.printer().print(scheduledFireTime));
+                params.put("fire_time", dateTimeFormatter.printer().print(fireTime));
+
+                XContentBuilder builder = XContentFactory.contentBuilder(tuple.v1());
+                builder.map(templateSourceAsMap);
+                request.templateSource(builder.bytes(), false);
+            }
+        } else if (request.templateName() != null) {
+            MapBuilder<String, String> templateParams = MapBuilder.newMapBuilder(request.templateParams())
+                    .put("scheduled_fire_time", dateTimeFormatter.printer().print(scheduledFireTime))
+                    .put("fire_time", dateTimeFormatter.printer().print(fireTime));
+            request.templateParams(templateParams.map());
         } else {
-            //We can't just wrap the template here since it probably contains aggs or something else that doesn't play nice with FilteredQuery
-            Map<String,Object> fromToMap = new HashMap<>();
-            fromToMap.put("from", clampStart); //@TODO : make these parameters configurable ? Don't want to bloat the API too much tho
-            fromToMap.put("to", clampEnd);
-            //Go and get the search template from the script service :(
-            ExecutableScript script =  scriptService.executable("mustache", alert.queryName(), ScriptService.ScriptType.INDEXED, fromToMap);
-            BytesReference requestBytes = (BytesReference)(script.run());
-            request.source(requestBytes, false);
+            throw new ElasticsearchIllegalStateException("Search requests needs either source, template source or template name");
         }
-        request.indicesOptions(IndicesOptions.lenientExpandOpen());
         return request;
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -50,8 +51,8 @@ public class PreferPrimaryAllocationTests extends ElasticsearchAllocationTestCas
         logger.info("create several indices with no replicas, and wait till all are allocated");
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").numberOfShards(10).numberOfReplicas(0))
-                .put(IndexMetaData.builder("test2").numberOfShards(10).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(10).numberOfReplicas(0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -84,7 +85,7 @@ public class PreferPrimaryAllocationTests extends ElasticsearchAllocationTestCas
 
         logger.info("create a new index");
         metaData = MetaData.builder(clusterState.metaData())
-                .put(IndexMetaData.builder("new_index").numberOfShards(4).numberOfReplicas(0))
+                .put(IndexMetaData.builder("new_index").settings(settings(Version.CURRENT)).numberOfShards(4).numberOfReplicas(0))
                 .build();
 
         routingTable = RoutingTable.builder(clusterState.routingTable())

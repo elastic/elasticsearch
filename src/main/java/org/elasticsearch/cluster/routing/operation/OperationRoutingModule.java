@@ -20,8 +20,6 @@
 package org.elasticsearch.cluster.routing.operation;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
-import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.cluster.routing.operation.plain.PlainOperationRoutingModule;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
@@ -48,6 +46,5 @@ public class OperationRoutingModule extends AbstractModule implements SpawnModul
 
     @Override
     protected void configure() {
-        bind(HashFunction.class).to(settings.getAsClass("cluster.routing.operation.hash.type", DjbHashFunction.class, "org.elasticsearch.cluster.routing.operation.hash.", "HashFunction")).asEagerSingleton();
     }
 }

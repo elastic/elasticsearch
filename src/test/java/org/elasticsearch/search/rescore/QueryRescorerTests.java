@@ -73,16 +73,17 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                             QueryBuilders.functionScoreQuery(QueryBuilders.matchAllQuery())
                                     .boostMode("replace").add(ScoreFunctionBuilders.factorFunction(100))).setQueryWeight(0.0f).setRescoreQueryWeight(1.0f))
                     .setRescoreWindow(1).setSize(randomIntBetween(2,10)).execute().actionGet();
+            assertSearchResponse(searchResponse);
             assertFirstHit(searchResponse, hasScore(100.f));
-            int numPending100 = numShards;
+            int numDocsWith100AsAScore = 0;
             for (int i = 0; i < searchResponse.getHits().hits().length; i++) {
                 float score = searchResponse.getHits().hits()[i].getScore();
                 if  (score == 100f) {
-                    assertThat(numPending100--, greaterThanOrEqualTo(0));
-                } else {
-                    assertThat(numPending100, equalTo(0));
+                    numDocsWith100AsAScore += 1;
                 }
             }
+            // we cannot assert that they are equal since some shards might not have docs at all
+            assertThat(numDocsWith100AsAScore, lessThanOrEqualTo(numShards));
         }
     }
 
@@ -93,18 +94,16 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                         "type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                                 .field("analyzer", "whitespace").field("type", "string").endObject().endObject().endObject().endObject())
-                .setSettings(ImmutableSettings.settingsBuilder().put(indexSettings()).put("index.number_of_shards", 2)));
+                .setSettings(ImmutableSettings.settingsBuilder().put(indexSettings()).put("index.number_of_shards", 1)));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").execute()
-                .actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree ").get();
         client().prepareIndex("test", "type1", "3")
-                .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").execute()
-                .actionGet();
+                .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").get();
         refresh();
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
-                .setRescorer(RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f)))
+                .setRescorer(RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f)).setRescoreQueryWeight(2))
                 .setRescoreWindow(5).execute().actionGet();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(3l));

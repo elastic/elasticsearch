@@ -20,8 +20,8 @@
 package org.elasticsearch.cluster.routing.operation.plain;
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -37,30 +37,30 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  *
  */
 public class PlainOperationRouting extends AbstractComponent implements OperationRouting {
 
-    private final HashFunction hashFunction;
 
-    private final boolean useType;
 
     private final AwarenessAllocationDecider awarenessAllocationDecider;
 
     @Inject
-    public PlainOperationRouting(Settings indexSettings, HashFunction hashFunction, AwarenessAllocationDecider awarenessAllocationDecider) {
-        super(indexSettings);
-        this.hashFunction = hashFunction;
-        this.useType = indexSettings.getAsBoolean("cluster.routing.operation.use_type", false);
+    public PlainOperationRouting(Settings settings, AwarenessAllocationDecider awarenessAllocationDecider) {
+        super(settings);
         this.awarenessAllocationDecider = awarenessAllocationDecider;
     }
 
@@ -262,22 +262,35 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         return indexShard;
     }
 
-    private int shardId(ClusterState clusterState, String index, String type, @Nullable String id, @Nullable String routing) {
+    private int shardId(ClusterState clusterState, String index, String type, String id, @Nullable String routing) {
+        final IndexMetaData indexMetaData = indexMetaData(clusterState, index);
+        final Version createdVersion = indexMetaData.getCreationVersion();
+        final HashFunction hashFunction = indexMetaData.getRoutingHashFunction();
+        final boolean useType = indexMetaData.getRoutingUseType();
+
+        final int hash;
         if (routing == null) {
             if (!useType) {
-                return Math.abs(hash(id) % indexMetaData(clusterState, index).numberOfShards());
+                hash = hash(hashFunction, id);
             } else {
-                return Math.abs(hash(type, id) % indexMetaData(clusterState, index).numberOfShards());
+                hash = hash(hashFunction, type, id);
             }
+        } else {
+            hash = hash(hashFunction, routing);
         }
-        return Math.abs(hash(routing) % indexMetaData(clusterState, index).numberOfShards());
+        if (createdVersion.onOrAfter(Version.V_2_0_0)) {
+            return MathUtils.mod(hash, indexMetaData.numberOfShards());
+        } else {
+            return Math.abs(hash % indexMetaData.numberOfShards());
+        }
     }
 
-    protected int hash(String routing) {
+    protected int hash(HashFunction hashFunction, String routing) {
         return hashFunction.hash(routing);
     }
 
-    protected int hash(String type, String id) {
+    @Deprecated
+    protected int hash(HashFunction hashFunction, String type, String id) {
         if (type == null || "_all".equals(type)) {
             throw new ElasticsearchIllegalArgumentException("Can't route an operation with no type and having type part of the routing (for backward comp)");
         }
@@ -289,4 +302,5 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
             throw new ElasticsearchIllegalArgumentException("No data node with id[" + nodeId + "] found");
         }
     }
+
 }

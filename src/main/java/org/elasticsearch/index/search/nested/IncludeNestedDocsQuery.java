@@ -19,15 +19,13 @@
 
 package org.elasticsearch.index.search.nested;
 
-import org.apache.lucene.util.BitDocIdSet;
-
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;

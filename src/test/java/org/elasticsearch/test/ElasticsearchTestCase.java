@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.test;
 
-import org.apache.lucene.uninverting.UninvertingReader;
-
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
@@ -27,8 +25,8 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.AbstractRandomizedTest;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.uninverting.UninvertingReader;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;

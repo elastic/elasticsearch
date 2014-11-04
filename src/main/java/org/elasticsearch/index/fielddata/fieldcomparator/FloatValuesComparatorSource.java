@@ -18,9 +18,8 @@
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.NumericDocValues;
-
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;

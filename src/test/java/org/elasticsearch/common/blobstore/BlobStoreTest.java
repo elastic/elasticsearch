@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.common.blobstore;
 
-import org.apache.lucene.util.BytesRefBuilder;
-
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;

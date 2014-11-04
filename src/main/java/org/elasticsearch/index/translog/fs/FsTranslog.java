@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog.fs;
 
 import org.apache.lucene.util.Accountable;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;

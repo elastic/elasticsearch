@@ -19,13 +19,11 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.BitDocIdSet;
-
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.Nullable;

@@ -19,11 +19,10 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.util.Accountable;
-
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AtomicParentChildFieldData;

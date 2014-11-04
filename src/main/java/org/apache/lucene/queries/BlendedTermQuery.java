@@ -18,8 +18,6 @@
  */
 package org.apache.lucene.queries;
 
-import org.apache.lucene.index.LeafReaderContext;
-
 import com.google.common.primitives.Ints;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;

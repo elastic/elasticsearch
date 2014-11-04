@@ -19,16 +19,13 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.BitSet;
-
-import org.apache.lucene.util.BitDocIdSet;
-
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;

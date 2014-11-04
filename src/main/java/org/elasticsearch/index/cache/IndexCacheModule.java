@@ -19,10 +19,9 @@
 
 package org.elasticsearch.index.cache;
 
-import org.elasticsearch.index.cache.bitset.BitsetFilterCacheModule;
-
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.query.parser.QueryParserCacheModule;
 

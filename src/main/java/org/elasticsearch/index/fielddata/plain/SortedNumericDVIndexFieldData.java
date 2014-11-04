@@ -19,10 +19,9 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.util.Accountable;
-
 import com.google.common.base.Preconditions;
 import org.apache.lucene.index.*;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.Index;

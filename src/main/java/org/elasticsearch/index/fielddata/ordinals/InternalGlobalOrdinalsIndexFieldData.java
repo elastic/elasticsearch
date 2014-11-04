@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.util.Accountable;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
 import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;

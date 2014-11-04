@@ -22,9 +22,9 @@ package org.elasticsearch.index.analysis.compound;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter;
 import org.apache.lucene.analysis.compound.Lucene43HyphenationCompoundWordTokenFilter;
+import org.apache.lucene.analysis.compound.hyphenation.HyphenationTree;
 import org.apache.lucene.util.Version;
 
-import org.apache.lucene.analysis.compound.hyphenation.HyphenationTree;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;

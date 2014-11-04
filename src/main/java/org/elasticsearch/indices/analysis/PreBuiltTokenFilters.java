@@ -18,13 +18,6 @@
  */
 package org.elasticsearch.indices.analysis;
 
-import org.apache.lucene.analysis.core.Lucene43StopFilter;
-import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenFilter;
-import org.apache.lucene.analysis.ngram.Lucene43NGramTokenFilter;
-import org.tartarus.snowball.ext.FrenchStemmer;
-
-import org.tartarus.snowball.ext.DutchStemmer;
-
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
@@ -34,6 +27,7 @@ import org.apache.lucene.analysis.cjk.CJKWidthFilter;
 import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
+import org.apache.lucene.analysis.core.Lucene43StopFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.UpperCaseFilter;
@@ -48,6 +42,8 @@ import org.apache.lucene.analysis.hi.HindiNormalizationFilter;
 import org.apache.lucene.analysis.in.IndicNormalizationFilter;
 import org.apache.lucene.analysis.miscellaneous.*;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
+import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenFilter;
+import org.apache.lucene.analysis.ngram.Lucene43NGramTokenFilter;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilter;
 import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
@@ -63,6 +59,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
+import org.tartarus.snowball.ext.FrenchStemmer;
+import org.tartarus.snowball.ext.DutchStemmer;
 
 import java.util.Locale;
 

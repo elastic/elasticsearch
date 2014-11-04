@@ -19,13 +19,12 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.lucene.search.join.BitDocIdSetFilter;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;

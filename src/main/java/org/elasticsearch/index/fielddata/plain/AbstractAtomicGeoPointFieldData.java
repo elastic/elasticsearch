@@ -18,12 +18,10 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.util.Accountable;
-
 import java.util.Collections;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.*;
-
 
 /**
  */

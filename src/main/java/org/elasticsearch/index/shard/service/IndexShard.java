@@ -19,13 +19,12 @@
 
 package org.elasticsearch.index.shard.service;
 
-import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;

@@ -19,12 +19,10 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.util.RamUsageEstimator;
-
 import org.apache.lucene.index.LeafReaderContext;
-
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 

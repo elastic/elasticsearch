@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.util.BitSet;
-
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -31,6 +29,7 @@ import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;

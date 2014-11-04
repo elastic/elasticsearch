@@ -22,13 +22,11 @@ package org.elasticsearch.index.fielddata.ordinals;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.lucene.util.Accountables;
-
-import org.apache.lucene.util.Accountable;
-
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.packed.PackedInts;

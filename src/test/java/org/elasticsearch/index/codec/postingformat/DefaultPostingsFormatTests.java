@@ -19,11 +19,10 @@
 
 package org.elasticsearch.index.codec.postingformat;
 
-import org.apache.lucene.codecs.lucene50.Lucene50Codec;
-
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.codecs.lucene50.Lucene50Codec;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;

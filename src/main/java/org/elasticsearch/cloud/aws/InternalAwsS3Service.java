@@ -60,11 +60,16 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         String account = componentSettings.get("access_key", settings.get("cloud.account"));
         String key = componentSettings.get("secret_key", settings.get("cloud.key"));
 
-        return getClient(endpoint, account, key);
+        return getClient(endpoint, account, key, null);
     }
 
     @Override
-    public synchronized AmazonS3 client(String region, String account, String key) {
+    public AmazonS3 client(String region, String account, String key) {
+        return client(region, account, key, null);
+    }
+
+    @Override
+    public synchronized AmazonS3 client(String region, String account, String key, Integer maxRetries) {
         String endpoint;
         if (region == null) {
             endpoint = getDefaultEndpoint();
@@ -77,11 +82,11 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             key = componentSettings.get("secret_key", settings.get("cloud.key"));
         }
 
-        return getClient(endpoint, account, key);
+        return getClient(endpoint, account, key, maxRetries);
     }
 
 
-    private synchronized AmazonS3 getClient(String endpoint, String account, String key) {
+    private synchronized AmazonS3 getClient(String endpoint, String account, String key, Integer maxRetries) {
         Tuple<String, String> clientDescriptor = new Tuple<String, String>(endpoint, account);
         AmazonS3Client client = clients.get(clientDescriptor);
         if (client != null) {
@@ -109,6 +114,11 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
                 throw new ElasticsearchIllegalArgumentException("The configured proxy port value [" + portString + "] is invalid", ex);
             }
             clientConfiguration.withProxyHost(proxyHost).setProxyPort(proxyPort);
+        }
+
+        if (maxRetries != null) {
+            // If not explicitly set, default to 3 with exponential backoff policy
+            clientConfiguration.setMaxErrorRetry(maxRetries);
         }
 
         AWSCredentialsProvider credentials;

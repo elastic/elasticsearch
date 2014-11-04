@@ -39,21 +39,19 @@ The following settings may be used:
     Controls shard allocation for all indices, by allowing specific
     kinds of shard to be allocated.
 
-    Can be set to:
-    * `all` (default) - Allows shard allocation for all kinds of shards.
-    * `primaries` - Allows shard allocation only for primary shards.
-    * `new_primaries` - Allows shard allocation only for primary shards for new indices.
-    * `none` - No shard allocations of any kind are allowed for all indices.
+Controls shard allocation for all indices, by allowing specific
+kinds of shard to be allocated.
++
+--
+Can be set to:
 
-`cluster.routing.allocation.disable_new_allocation`::
+[horizontal]
 
-
-`cluster.routing.allocation.disable_allocation`::
-
-
-
-`cluster.routing.allocation.disable_replica_allocation`::
-
+`all`:: (default) Allows shard allocation for all kinds of shards.
+`primaries`::  Allows shard allocation only for primary shards.
+`new_primaries`:: Allows shard allocation only for primary shards for new indices.
+`none`::No shard allocations of any kind are allowed for all indices.
+--
 
 `cluster.routing.allocation.same_shard.host`::
       Allows to perform a check to prevent allocation of multiple instances

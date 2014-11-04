@@ -83,7 +83,7 @@ public class TestSearchContext extends SearchContext {
         this.indexService = indexService;
         this.filterCache = indexService.cache().filter();
         this.indexFieldDataService = indexService.fieldData();
-        this.fixedBitSetFilterCache = indexService.fixedBitSetFilterCache();
+        this.fixedBitSetFilterCache = indexService.bitsetFilterCache();
         this.threadPool = threadPool;
     }
 

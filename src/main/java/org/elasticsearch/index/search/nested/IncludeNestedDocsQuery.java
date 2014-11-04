@@ -24,9 +24,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BitDocIdSet;
-import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -141,7 +141,7 @@ public class IncludeNestedDocsQuery extends Query {
     static class IncludeNestedDocsScorer extends Scorer {
 
         final Scorer parentScorer;
-        final FixedBitSet parentBits;
+        final BitSet parentBits;
 
         int currentChildPointer = -1;
         int currentParentPointer = -1;
@@ -150,8 +150,7 @@ public class IncludeNestedDocsQuery extends Query {
         IncludeNestedDocsScorer(Weight weight, Scorer parentScorer, BitDocIdSet parentBits, int currentParentPointer) {
             super(weight);
             this.parentScorer = parentScorer;
-            // TODO: remove this cast
-            this.parentBits = (FixedBitSet) parentBits.bits();
+            this.parentBits = parentBits.bits();
             this.currentParentPointer = currentParentPointer;
             if (currentParentPointer == 0) {
                 currentChildPointer = 0;

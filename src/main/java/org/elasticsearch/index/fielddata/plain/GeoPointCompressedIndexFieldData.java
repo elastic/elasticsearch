@@ -22,7 +22,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PagedMutable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -138,7 +138,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractIndexGeoPointField
                         sLon.set(i, missing);
                     }
                 }
-                FixedBitSet set = builder.buildDocsWithValuesSet();
+                BitSet set = builder.buildDocsWithValuesSet();
                 data = new GeoPointCompressedAtomicFieldData.Single(encoding, sLon, sLat, set);
             }
             success = true;

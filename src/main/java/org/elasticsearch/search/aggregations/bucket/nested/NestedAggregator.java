@@ -19,11 +19,11 @@
 package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.mapper.MapperService;
@@ -48,7 +48,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     private final BitDocIdSetFilter childFilter;
 
     private Bits childDocs;
-    private FixedBitSet parentDocs;
+    private BitSet parentDocs;
 
     public NestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData) {
         super(name, factories, aggregationContext, parentAggregator, metaData);
@@ -84,14 +84,19 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         }
 
         try {
-            DocIdSet docIdSet = parentFilter.getDocIdSet(reader, null);
-            // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
-            childDocs = DocIdSets.toSafeBits(reader.reader(), childFilter.getDocIdSet(reader, null));
-            if (DocIdSets.isEmpty(docIdSet)) {
+            BitDocIdSet parentSet = parentFilter.getDocIdSet(reader);
+            if (DocIdSets.isEmpty(parentSet)) {
                 parentDocs = null;
+                childDocs = null;
             } else {
-                // TODO: Remove cast when BitSet gets prevSetBit
-                parentDocs = (FixedBitSet) docIdSet.bits();
+                parentDocs = parentSet.bits();
+                // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
+                BitDocIdSet childSet = childFilter.getDocIdSet(reader);
+                if (DocIdSets.isEmpty(childSet)) {
+                    childDocs = new Bits.MatchAllBits(reader.reader().maxDoc());
+                } else {
+                    childDocs = childSet.bits();
+                }
             }
         } catch (IOException ioe) {
             throw new AggregationExecutionException("Failed to aggregate [" + name + "]", ioe);

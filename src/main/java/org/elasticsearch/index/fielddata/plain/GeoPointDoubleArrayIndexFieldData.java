@@ -22,7 +22,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
@@ -103,7 +103,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexGeoPointFiel
                         sLon.set(i, lon.get(nativeOrdinal));
                     }
                 }
-                FixedBitSet set = builder.buildDocsWithValuesSet();
+                BitSet set = builder.buildDocsWithValuesSet();
                 data = new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat, set);
             } else {
                 data = new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(lon, lat, build, reader.maxDoc());

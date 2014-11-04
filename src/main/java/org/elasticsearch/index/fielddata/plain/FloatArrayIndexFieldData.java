@@ -115,10 +115,10 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
 
                 };
             } else {
-                final FixedBitSet set = builder.buildDocsWithValuesSet();
+                final BitSet set = builder.buildDocsWithValuesSet();
 
                 // there's sweet spot where due to low unique value count, using ordinals will consume less memory
-                long singleValuesArraySize = reader.maxDoc() * RamUsageEstimator.NUM_BYTES_FLOAT + (set == null ? 0 : RamUsageEstimator.sizeOf(set.getBits()) + RamUsageEstimator.NUM_BYTES_INT);
+                long singleValuesArraySize = reader.maxDoc() * RamUsageEstimator.NUM_BYTES_FLOAT + (set == null ? 0 : set.ramBytesUsed());
                 long uniqueValuesArraySize = values.ramBytesUsed();
                 long ordinalsSize = build.ramBytesUsed();
                 if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
@@ -223,7 +223,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
         }
     }
 
-    private static SortedNumericDoubleValues singles(final FloatArray values, FixedBitSet set) {
+    private static SortedNumericDoubleValues singles(final FloatArray values, Bits set) {
         final NumericDoubleValues numValues = new NumericDoubleValues() {
             @Override
             public double get(int docID) {

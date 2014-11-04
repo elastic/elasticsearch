@@ -117,7 +117,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final IndexFieldDataService indexFieldData;
 
-    private final BitsetFilterCache fixedBitSetFilterCache;
+    private final BitsetFilterCache bitsetFilterCache;
 
     private final IndexEngine indexEngine;
 
@@ -138,7 +138,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                                 AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
                                 SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache, IndexEngine indexEngine,
                                 IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService, IndexFieldDataService indexFieldData,
-                                BitsetFilterCache fixedBitSetFilterCache) {
+                                BitsetFilterCache bitSetFilterCache) {
         super(index, indexSettings);
         this.injector = injector;
         this.threadPool = threadPool;
@@ -154,7 +154,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.indexGateway = indexGateway;
         this.indexStore = indexStore;
         this.settingsService = settingsService;
-        this.fixedBitSetFilterCache = fixedBitSetFilterCache;
+        this.bitsetFilterCache = bitSetFilterCache;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
         this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
@@ -162,7 +162,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         // inject workarounds for cyclic dep
         indexCache.filter().setIndexService(this);
         indexFieldData.setIndexService(this);
-        fixedBitSetFilterCache.setIndexService(this);
+        bitSetFilterCache.setIndexService(this);
     }
 
     @Override
@@ -230,8 +230,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override
-    public BitsetFilterCache fixedBitSetFilterCache() {
-        return fixedBitSetFilterCache;
+    public BitsetFilterCache bitsetFilterCache() {
+        return bitsetFilterCache;
     }
 
     @Override

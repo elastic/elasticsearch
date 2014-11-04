@@ -440,7 +440,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public BitsetFilterCache bitsetFilterCache() {
-        return indexService.fixedBitSetFilterCache();
+        return indexService.bitsetFilterCache();
     }
 
     @Override

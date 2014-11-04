@@ -63,12 +63,12 @@ public class TermsFilterTests extends ElasticsearchTestCase {
 
         tf = new TermFilter(new Term(fieldName, "20"));
         DocIdSet result = tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
-        BitSet bits = DocIdSets.toFixedBitSet(result.iterator(), reader.maxDoc());
+        BitSet bits = DocIdSets.toBitSet(result.iterator(), reader.maxDoc());
         assertThat(bits.cardinality(), equalTo(1));
 
         tf = new TermFilter(new Term("all", "xxx"));
         result = tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
-        bits = DocIdSets.toFixedBitSet(result.iterator(), reader.maxDoc());
+        bits = DocIdSets.toBitSet(result.iterator(), reader.maxDoc());
         assertThat(bits.cardinality(), equalTo(100));
 
         reader.close();
@@ -98,17 +98,17 @@ public class TermsFilterTests extends ElasticsearchTestCase {
 
         tf = new TermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20")});
         DocIdSet result = tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
-        BitSet bits = DocIdSets.toFixedBitSet(result.iterator(), reader.maxDoc());
+        BitSet bits = DocIdSets.toBitSet(result.iterator(), reader.maxDoc());
         assertThat(bits.cardinality(), equalTo(1));
 
         tf = new TermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10")});
         result = tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
-        bits = DocIdSets.toFixedBitSet(result.iterator(), reader.maxDoc());
+        bits = DocIdSets.toBitSet(result.iterator(), reader.maxDoc());
         assertThat(bits.cardinality(), equalTo(2));
 
         tf = new TermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10"), new Term(fieldName, "00")});
         result = tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
-        bits = DocIdSets.toFixedBitSet(result.iterator(), reader.maxDoc());
+        bits = DocIdSets.toBitSet(result.iterator(), reader.maxDoc());
         assertThat(bits.cardinality(), equalTo(2));
 
         reader.close();

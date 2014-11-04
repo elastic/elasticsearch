@@ -441,7 +441,7 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public BitsetFilterCache bitsetFilterCache() {
-        return indexService.fixedBitSetFilterCache();
+        return indexService.bitsetFilterCache();
     }
 
     public IndexFieldDataService fieldData() {

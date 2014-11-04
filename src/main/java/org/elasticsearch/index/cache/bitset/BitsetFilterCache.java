@@ -29,7 +29,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -141,15 +141,19 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
             public Value call() throws Exception {
                 DocIdSet docIdSet = filter.getDocIdSet(context, null);
                 final BitDocIdSet bitSet;
-                // TODO: change to simple instanceof if BitDocIdSet gets prevSetBit
-                if (docIdSet instanceof BitDocIdSet && ((BitDocIdSet)docIdSet).bits() instanceof FixedBitSet) {
+                if (docIdSet instanceof BitDocIdSet) {
                     bitSet = (BitDocIdSet) docIdSet;
                 } else {
-                    FixedBitSet fbs = new FixedBitSet(context.reader().maxDoc());
+                    BitDocIdSet.Builder builder = new BitDocIdSet.Builder(context.reader().maxDoc());
                     if (docIdSet != null && docIdSet != DocIdSet.EMPTY) {
-                        fbs.or(docIdSet.iterator());
+                        builder.or(docIdSet.iterator());
                     }
-                    bitSet = new BitDocIdSet(fbs);
+                    BitDocIdSet bits = builder.build();
+                    // code expects this to be non-null
+                    if (bits == null) {
+                        bits = new BitDocIdSet(new SparseFixedBitSet(context.reader().maxDoc()), 0);
+                    }
+                    bitSet = bits;
                 }
 
                 Value value = new Value(bitSet, shardId);
@@ -182,8 +186,8 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
             }
             IndexShard shard = indexService.shard(entry.getValue().shardId.id());
             if (shard != null) {
-                ShardBitsetFilterCache shardFixedBitSetFilterCache = shard.shardBitsetFilterCache();
-                shardFixedBitSetFilterCache.onRemoval(entry.getValue().bitset.ramBytesUsed());
+                ShardBitsetFilterCache shardBitsetFilterCache = shard.shardBitsetFilterCache();
+                shardBitsetFilterCache.onRemoval(entry.getValue().bitset.ramBytesUsed());
             }
             // if null then this means the shard has already been removed and the stats are 0 anyway for the shard this key belongs to
         }

@@ -246,7 +246,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shardStats == null ? null : shardStats.getSegments().getIndexWriterMemory());
             table.addCell(shardStats == null ? null : shardStats.getSegments().getIndexWriterMaxMemory());
             table.addCell(shardStats == null ? null : shardStats.getSegments().getVersionMapMemory());
-            table.addCell(shardStats == null ? null : shardStats.getSegments().getFixedBitSetMemory());
+            table.addCell(shardStats == null ? null : shardStats.getSegments().getBitsetMemory());
 
             table.addCell(shardStats == null ? null : shardStats.getWarmer().current());
             table.addCell(shardStats == null ? null : shardStats.getWarmer().total());

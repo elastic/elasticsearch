@@ -153,7 +153,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private final IndexFieldDataService indexFieldDataService;
     private final IndexService indexService;
     private final ShardSuggestService shardSuggestService;
-    private final ShardBitsetFilterCache shardFixedBitSetFilterCache;
+    private final ShardBitsetFilterCache shardBitsetFilterCache;
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -179,7 +179,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                               ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                               ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
-                              ShardTermVectorService termVectorService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardFixedBitSetFilterCache) {
+                              ShardTermVectorService termVectorService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -206,7 +206,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.indexService = indexService;
         this.codecService = codecService;
         this.shardSuggestService = shardSuggestService;
-        this.shardFixedBitSetFilterCache = shardFixedBitSetFilterCache;
+        this.shardBitsetFilterCache = shardBitsetFilterCache;
         state = IndexShardState.CREATED;
 
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, engine.defaultRefreshInterval());
@@ -256,7 +256,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Override
     public ShardBitsetFilterCache shardBitsetFilterCache() {
-        return shardFixedBitSetFilterCache;
+        return shardBitsetFilterCache;
     }
 
     @Override
@@ -575,7 +575,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public SegmentsStats segmentStats() {
         SegmentsStats segmentsStats = engine.segmentsStats();
-        segmentsStats.addFixedBitSetMemoryInBytes(shardFixedBitSetFilterCache.getMemorySizeInBytes());
+        segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         return segmentsStats;
     }
 

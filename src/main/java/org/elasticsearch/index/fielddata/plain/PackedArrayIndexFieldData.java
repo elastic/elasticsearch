@@ -138,7 +138,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                     }
                 };
             } else {
-                final FixedBitSet docsWithValues = builder.buildDocsWithValuesSet();
+                final BitSet docsWithValues = builder.buildDocsWithValuesSet();
 
                 long minV, maxV;
                 minV = maxV = 0;
@@ -524,7 +524,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         return DocValues.singleton(values, docsWithFields);
     }
 
-    private static SortedNumericDocValues pagedSingles(final PackedLongValues values, final FixedBitSet docsWithValue) {
+    private static SortedNumericDocValues pagedSingles(final PackedLongValues values, final Bits docsWithValue) {
         return DocValues.singleton(new NumericDocValues() {
             // we need to wrap since NumericDocValues must return 0 when a doc has no value
             @Override

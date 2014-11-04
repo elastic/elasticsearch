@@ -371,7 +371,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         // No _parent field yet, there shouldn't be anything in the parent id cache
         ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
 
         // Now add mapping + children
         assertAcked(
@@ -389,7 +389,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         if (loadFixedBitSetLazily) {
             clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-            assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+            assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
 
             // only when querying with has_child the fixed bitsets are loaded
             SearchResponse searchResponse = client().prepareSearch("test")
@@ -400,11 +400,11 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
             assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         }
         clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), greaterThan(0l));
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), greaterThan(0l));
 
         assertAcked(client().admin().indices().prepareDelete("test"));
         clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
     }
 
     @Test

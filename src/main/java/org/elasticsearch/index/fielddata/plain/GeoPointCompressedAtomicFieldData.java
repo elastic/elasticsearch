@@ -27,7 +27,7 @@ import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PagedMutable;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -126,9 +126,9 @@ public abstract class GeoPointCompressedAtomicFieldData extends AbstractAtomicGe
 
         private final GeoPointFieldMapper.Encoding encoding;
         private final PagedMutable lon, lat;
-        private final FixedBitSet set;
+        private final BitSet set;
 
-        public Single(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, FixedBitSet set) {
+        public Single(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, BitSet set) {
             super();
             this.encoding = encoding;
             this.lon = lon;

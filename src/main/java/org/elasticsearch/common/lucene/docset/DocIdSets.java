@@ -24,10 +24,11 @@ import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.RoaringDocIdSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
@@ -107,16 +108,21 @@ public class DocIdSets {
         if (iterator == null) {
             return new Bits.MatchNoBits(reader.maxDoc());
         }
-        return toFixedBitSet(iterator, reader.maxDoc());
+        return toBitSet(iterator, reader.maxDoc());
     }
 
     /**
-     * Creates a {@link FixedBitSet} from an iterator.
+     * Creates a {@link BitSet} from an iterator.
      */
-    public static FixedBitSet toFixedBitSet(DocIdSetIterator iterator, int numBits) throws IOException {
-        FixedBitSet set = new FixedBitSet(numBits);
-        set.or(iterator);
-        return set;
+    public static BitSet toBitSet(DocIdSetIterator iterator, int numBits) throws IOException {
+        BitDocIdSet.Builder builder = new BitDocIdSet.Builder(numBits);
+        builder.or(iterator);
+        BitDocIdSet result = builder.build();
+        if (result != null) {
+            return result.bits();
+        } else {
+            return new SparseFixedBitSet(numBits);
+        }
     }
 
 }

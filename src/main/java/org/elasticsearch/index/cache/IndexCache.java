@@ -46,11 +46,11 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     private ClusterService clusterService;
 
     @Inject
-    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryParserCache queryParserCache, BitsetFilterCache fixedBitSetFilterCache) {
+    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryParserCache queryParserCache, BitsetFilterCache bitsetFilterCache) {
         super(index, indexSettings);
         this.filterCache = filterCache;
         this.queryParserCache = queryParserCache;
-        this.bitsetFilterCache = fixedBitSetFilterCache;
+        this.bitsetFilterCache = bitsetFilterCache;
     }
 
     @Inject(optional = true)

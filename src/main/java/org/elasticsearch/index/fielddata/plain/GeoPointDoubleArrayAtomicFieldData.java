@@ -27,7 +27,7 @@ import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.DoubleArray;
@@ -119,9 +119,9 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AbstractAtomicG
     public static class Single extends GeoPointDoubleArrayAtomicFieldData {
 
         private final DoubleArray lon, lat;
-        private final FixedBitSet set;
+        private final BitSet set;
 
-        public Single(DoubleArray lon, DoubleArray lat, FixedBitSet set) {
+        public Single(DoubleArray lon, DoubleArray lat, BitSet set) {
             this.lon = lon;
             this.lat = lat;
             this.set = set;

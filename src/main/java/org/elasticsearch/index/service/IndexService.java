@@ -52,7 +52,7 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
 
     IndexFieldDataService fieldData();
 
-    BitsetFilterCache fixedBitSetFilterCache();
+    BitsetFilterCache bitsetFilterCache();
 
     IndexSettingsService settingsService();
 

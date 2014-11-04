@@ -40,7 +40,7 @@ public class SegmentsStats implements Streamable, ToXContent {
     private long indexWriterMemoryInBytes;
     private long indexWriterMaxMemoryInBytes;
     private long versionMapMemoryInBytes;
-    private long fixedBitSetMemoryInBytes;
+    private long bitsetMemoryInBytes;
 
     public SegmentsStats() {
 
@@ -63,8 +63,8 @@ public class SegmentsStats implements Streamable, ToXContent {
         this.versionMapMemoryInBytes += versionMapMemoryInBytes;
     }
 
-    public void addFixedBitSetMemoryInBytes(long fixedBitSetMemoryInBytes) {
-        this.fixedBitSetMemoryInBytes += fixedBitSetMemoryInBytes;
+    public void addBitsetMemoryInBytes(long bitsetMemoryInBytes) {
+        this.bitsetMemoryInBytes += bitsetMemoryInBytes;
     }
 
     public void add(SegmentsStats mergeStats) {
@@ -75,7 +75,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         addIndexWriterMemoryInBytes(mergeStats.indexWriterMemoryInBytes);
         addIndexWriterMaxMemoryInBytes(mergeStats.indexWriterMaxMemoryInBytes);
         addVersionMapMemoryInBytes(mergeStats.versionMapMemoryInBytes);
-        addFixedBitSetMemoryInBytes(mergeStats.fixedBitSetMemoryInBytes);
+        addBitsetMemoryInBytes(mergeStats.bitsetMemoryInBytes);
     }
 
     /**
@@ -130,14 +130,14 @@ public class SegmentsStats implements Streamable, ToXContent {
     }
 
     /**
-     * Estimation of how much the cached fixed bit sets are taking. (which nested and p/c rely on)
+     * Estimation of how much the cached bit sets are taking. (which nested and p/c rely on)
      */
-    public long getFixedBitSetMemoryInBytes() {
-        return fixedBitSetMemoryInBytes;
+    public long getBitsetMemoryInBytes() {
+        return bitsetMemoryInBytes;
     }
 
-    public ByteSizeValue getFixedBitSetMemory() {
-        return new ByteSizeValue(fixedBitSetMemoryInBytes);
+    public ByteSizeValue getBitsetMemory() {
+        return new ByteSizeValue(bitsetMemoryInBytes);
     }
 
     public static SegmentsStats readSegmentsStats(StreamInput in) throws IOException {
@@ -154,7 +154,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         builder.byteSizeField(Fields.INDEX_WRITER_MEMORY_IN_BYTES, Fields.INDEX_WRITER_MEMORY, indexWriterMemoryInBytes);
         builder.byteSizeField(Fields.INDEX_WRITER_MAX_MEMORY_IN_BYTES, Fields.INDEX_WRITER_MAX_MEMORY, indexWriterMaxMemoryInBytes);
         builder.byteSizeField(Fields.VERSION_MAP_MEMORY_IN_BYTES, Fields.VERSION_MAP_MEMORY, versionMapMemoryInBytes);
-        builder.byteSizeField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, fixedBitSetMemoryInBytes);
+        builder.byteSizeField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, bitsetMemoryInBytes);
         builder.endObject();
         return builder;
     }
@@ -186,7 +186,7 @@ public class SegmentsStats implements Streamable, ToXContent {
             indexWriterMaxMemoryInBytes = in.readLong();
         }
         if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            fixedBitSetMemoryInBytes = in.readLong();
+            bitsetMemoryInBytes = in.readLong();
         }
     }
 
@@ -202,7 +202,7 @@ public class SegmentsStats implements Streamable, ToXContent {
             out.writeLong(indexWriterMaxMemoryInBytes);
         }
         if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeLong(fixedBitSetMemoryInBytes);
+            out.writeLong(bitsetMemoryInBytes);
         }
     }
 }

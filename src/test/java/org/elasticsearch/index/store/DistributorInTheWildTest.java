@@ -27,6 +27,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.ThreadedIndexingAndSearchingTestCase;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.logging.ESLogger;
@@ -125,8 +126,7 @@ public class DistributorInTheWildTest extends ThreadedIndexingAndSearchingTestCa
         if (random().nextBoolean() && dir instanceof  MockDirectoryWrapper) {
             return ((MockDirectoryWrapper) dir).getOpenDeletedFiles();
         }
-        DistributorDirectory d = dir instanceof  MockDirectoryWrapper ? (DistributorDirectory)((MockDirectoryWrapper) dir).getDelegate() : (DistributorDirectory) dir;
-        assertTrue(DistributorDirectory.assertConsistency(logger, d));
+        DistributorDirectory d = DirectoryUtils.getLeaf(dir, DistributorDirectory.class, null);
         Distributor distributor = d.getDistributor();
         Set<String> set = new HashSet<>();
         for (Directory subDir : distributor.all()) {
@@ -151,11 +151,19 @@ public class DistributorInTheWildTest extends ThreadedIndexingAndSearchingTestCa
         for (Directory dir : directories) {
             ((MockDirectoryWrapper) dir).setCheckIndexOnClose(false);
         }
+
         try {
+            FilterDirectory distributorDirectory = new FilterDirectory(new DistributorDirectory(directories)) {
+                @Override
+                public void close() throws IOException {
+                    assertTrue(DistributorDirectory.assertConsistency(logger, (DistributorDirectory) this.getDelegate()));
+                    super.close();
+                }
+            };
             if (random().nextBoolean()) {
-                return new MockDirectoryWrapper(random(), new DistributorDirectory(directories));
+                return new MockDirectoryWrapper(random(), distributorDirectory);
             } else {
-                return new DistributorDirectory(directories);
+                return distributorDirectory;
             }
         } catch (IOException ex) {
             throw new RuntimeException(ex);

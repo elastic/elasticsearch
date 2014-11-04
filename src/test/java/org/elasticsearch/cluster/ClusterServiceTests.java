@@ -654,7 +654,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         // there should not be any master as the minimum number of required eligible masters is not met
         awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
-                return clusterService1.state().nodes().masterNode() == null;
+                return clusterService1.state().nodes().masterNode() == null && clusterService1.state().status() == ClusterState.ClusterStateStatus.APPLIED;
             }
         });
         assertThat(testService1.master(), is(false));

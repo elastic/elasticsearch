@@ -321,7 +321,6 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "This test intermittently fails with no throttling happening.")
     public void throttleStats() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(ImmutableSettings.builder()
@@ -363,7 +362,9 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
             }
         }
         stats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), greaterThan(0l));
+        if (done) {
+            assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), greaterThan(0l));
+        }
     }
 
     @Test

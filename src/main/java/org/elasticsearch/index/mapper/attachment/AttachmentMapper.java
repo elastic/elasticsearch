@@ -19,6 +19,18 @@
 
 package org.elasticsearch.index.mapper.attachment;
 
+import static org.elasticsearch.index.mapper.MapperBuilders.dateField;
+import static org.elasticsearch.index.mapper.MapperBuilders.integerField;
+import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
+import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika;
+
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.tika.language.LanguageIdentifier;
@@ -30,17 +42,16 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ObjectMapperListener;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
-import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika;
 
 /**
  * <pre>
@@ -257,51 +268,65 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AttachmentMapper.Builder builder = new AttachmentMapper.Builder(name);
 
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("path")) {
                     builder.pathType(parsePathType(name, fieldNode.toString()));
+                    iterator.remove();
                 } else if (fieldName.equals("fields")) {
                     Map<String, Object> fieldsNode = (Map<String, Object>) fieldNode;
-                    for (Map.Entry<String, Object> entry1 : fieldsNode.entrySet()) {
+                    for (Iterator<Map.Entry<String, Object>> fieldsIterator = fieldsNode.entrySet().iterator(); fieldsIterator.hasNext();) {
+                        Map.Entry<String, Object> entry1 = fieldsIterator.next();
                         String propName = entry1.getKey();
                         Map<String, Object> propNode = (Map<String, Object>) entry1.getValue();
 
                         Mapper.Builder<?, ?> mapperBuilder = findMapperBuilder(propNode, propName, parserContext);
-                        parseMultiField((AbstractFieldMapper.Builder) mapperBuilder, fieldName, parserContext, propName, propNode);
-
-                        if (propName.equals(name)) {
+                        if (parseMultiField((AbstractFieldMapper.Builder) mapperBuilder, fieldName, parserContext, propName, propNode)) {
+                            fieldsIterator.remove();
+                        } else if (propName.equals(name)) {
                             builder.content(mapperBuilder);
+                            fieldsIterator.remove();
                         } else {
                             switch (propName) {
                                 case FieldNames.DATE:
                                     builder.date(mapperBuilder);
+                                fieldsIterator.remove();
                                     break;
                                 case FieldNames.AUTHOR:
                                     builder.author(mapperBuilder);
+                                fieldsIterator.remove();
                                     break;
                                 case FieldNames.CONTENT_LENGTH:
                                     builder.contentLength(mapperBuilder);
+                                fieldsIterator.remove();
                                     break;
                                 case FieldNames.CONTENT_TYPE:
                                     builder.contentType(mapperBuilder);
+                                fieldsIterator.remove();
                                     break;
                                 case FieldNames.KEYWORDS:
                                     builder.keywords(mapperBuilder);
+                                fieldsIterator.remove();
                                     break;
                                 case FieldNames.LANGUAGE:
                                     builder.language(mapperBuilder);
+                                fieldsIterator.remove();
                                     break;
                                 case FieldNames.TITLE:
                                     builder.title(mapperBuilder);
+                                fieldsIterator.remove();
                                     break;
                                 case FieldNames.NAME:
                                     builder.name(mapperBuilder);
+                                fieldsIterator.remove();
                                     break;
                             }
                         }
                     }
+                    DocumentMapperParser.checkNoRemainingFields(fieldName, fieldsNode, parserContext.indexVersionCreated());
+                    iterator.remove();
                 }
             }
 

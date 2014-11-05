@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.analysis;
 
-import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.Normalizer2;
 import com.ibm.icu.text.Transliterator;
 import org.apache.lucene.analysis.TokenStream;
@@ -27,7 +26,6 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.icu.ICUFoldingFilter;
 import org.apache.lucene.analysis.icu.ICUTransformFilter;
 import org.apache.lucene.analysis.icu.segmentation.ICUTokenizer;
-import org.apache.lucene.collation.ICUCollationKeyFilter;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -35,8 +33,6 @@ import org.elasticsearch.index.analysis.PreBuiltTokenFilterFactoryFactory;
 import org.elasticsearch.index.analysis.PreBuiltTokenizerFactoryFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-
-import java.io.Reader;
 
 /**
  * Registers indices level analysis components so, if not explicitly configured, will be shared
@@ -55,8 +51,8 @@ public class IcuIndicesAnalysis extends AbstractComponent {
             }
 
             @Override
-            public Tokenizer create(Reader reader) {
-                return new ICUTokenizer(reader);
+            public Tokenizer create() {
+                return new ICUTokenizer();
             }
         }));
 
@@ -82,18 +78,6 @@ public class IcuIndicesAnalysis extends AbstractComponent {
             @Override
             public TokenStream create(TokenStream tokenStream) {
                 return new ICUFoldingFilter(tokenStream);
-            }
-        }));
-
-        indicesAnalysisService.tokenFilterFactories().put("icu_collation", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
-            @Override
-            public String name() {
-                return "icu_collation";
-            }
-
-            @Override
-            public TokenStream create(TokenStream tokenStream) {
-                return new ICUCollationKeyFilter(tokenStream, Collator.getInstance());
             }
         }));
 

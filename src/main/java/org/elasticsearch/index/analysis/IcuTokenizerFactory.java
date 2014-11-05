@@ -39,8 +39,8 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer create(Reader reader) {
-        return new ICUTokenizer(reader);
+    public Tokenizer create() {
+        return new ICUTokenizer();
     }
 
 }

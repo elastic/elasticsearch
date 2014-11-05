@@ -86,9 +86,8 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer create(Reader reader) {
-        return new JapaneseTokenizer(reader, userDictionary,
-                discartPunctuation, mode);
+    public Tokenizer create() {
+        return new JapaneseTokenizer(userDictionary, discartPunctuation, mode);
     }
 
 }

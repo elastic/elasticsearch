@@ -68,9 +68,8 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
                     }
 
                     @Override
-                    public Tokenizer create(Reader reader) {
-                        return new JapaneseTokenizer(reader, null, true,
-                                Mode.SEARCH);
+                    public Tokenizer create() {
+                        return new JapaneseTokenizer(null, true, Mode.SEARCH);
                     }
                 }));
 

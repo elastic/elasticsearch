@@ -46,15 +46,19 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.license.core.ESLicenses.reduceAndMap;
 
 /**
- * Service responsible for managing {@link org.elasticsearch.license.plugin.core.LicensesMetaData}
+ * Service responsible for managing {@link LicensesMetaData}
  * Interfaces through which this is exposed are:
  * - LicensesManagerService - responsible for managing signed and one-time-trial licenses
  * - LicensesClientService - responsible for feature registration and notification to consumer plugin(s)
+ *
  * <p/>
  * Registration Scheme:
+ * <p/>
  * A consumer plugin (feature) is registered with {@link LicensesClientService#register(String, TrialLicenseOptions, LicensesClientService.Listener)}
  * This method can be called at any time during the life-cycle of the consumer plugin.
- *
+ * If the feature can not be registered immediately, it is queued up and registered on the first clusterChanged event with
+ * no {@link GatewayService#STATE_NOT_RECOVERED_BLOCK} block
+ * Upon successful registration, the feature(s) are notified appropriately using the notification scheme
  *
  * <p/>
  * Notification Scheme:
@@ -69,7 +73,7 @@ import static org.elasticsearch.license.core.ESLicenses.reduceAndMap;
  * <p/>
  * The {@link LicensingClientNotificationJob} calls {@link #notifyFeaturesAndScheduleNotification(LicensesMetaData)} to schedule
  * another delayed {@link LicensingClientNotificationJob} as stated above. It is a no-op in case of a global block on
- * {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK}
+ * {@link GatewayService#STATE_NOT_RECOVERED_BLOCK}
  * <p/>
  * Upon successful registration of a new feature:
  * - {@link #notifyFeaturesAndScheduleNotification(LicensesMetaData)} is called
@@ -78,8 +82,8 @@ import static org.elasticsearch.license.core.ESLicenses.reduceAndMap;
  * - {@link #notifyFeaturesAndScheduleNotification(LicensesMetaData)} is called if:
  * - new trial/signed license(s) are found in the cluster state meta data
  * - if new feature(s) are added to the registeredListener
- * - if the previous cluster state had a global block on {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK}
- * - no-op in case of global block on {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK}
+ * - if the previous cluster state had a global block on {@link GatewayService#STATE_NOT_RECOVERED_BLOCK}
+ * - no-op in case of global block on {@link GatewayService#STATE_NOT_RECOVERED_BLOCK}
  */
 @Singleton
 public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener, LicensesManagerService, LicensesClientService {
@@ -380,10 +384,10 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     }
 
     /**
-     * When there is no global block on {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK}:
+     * When there is no global block on {@link GatewayService#STATE_NOT_RECOVERED_BLOCK}:
      * - tries to register any {@link #pendingListeners} by calling {@link #registeredListeners}
      * - if any {@link #pendingListeners} are registered successfully or if previous cluster state had a block on
-     * {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK}, calls
+     * {@link GatewayService#STATE_NOT_RECOVERED_BLOCK}, calls
      * {@link #notifyFeaturesAndScheduleNotification(LicensesMetaData)}
      * - else calls {@link #notifyFeaturesAndScheduleNotificationIfNeeded(LicensesMetaData)}
      */
@@ -435,6 +439,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             return;
         }
         notifyFeaturesAndScheduleNotification(currentLicensesMetaData);
+        logLicenseMetaDataStats("Setting last observed metaData", currentLicensesMetaData);
         lastObservedLicensesState.set(currentLicensesMetaData);
     }
 
@@ -493,7 +498,6 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         }
 
         if (logger.isDebugEnabled()) {
-            logLicenseMetaDataStats("Setting last observed metaData", currentLicensesMetaData);
             if (nextScheduleFrequency == -1l) {
                 logger.debug("no need to schedule next notification");
             } else {
@@ -506,10 +510,22 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     }
 
     private void logLicenseMetaDataStats(String prefix, LicensesMetaData licensesMetaData) {
-        if (licensesMetaData != null) {
-            logger.debug(prefix + " LicensesMetaData: signedLicenses: " + licensesMetaData.getSignatures().size() + " trialLicenses: " + licensesMetaData.getEncodedTrialLicenses().size());
-        } else {
-            logger.debug(prefix + " LicensesMetaData: signedLicenses: 0 trialLicenses: 0");
+        if (logger.isDebugEnabled()) {
+            if (licensesMetaData != null) {
+                StringBuilder signedFeatures = new StringBuilder();
+                for (ESLicense license : licenseManager.fromSignatures(licensesMetaData.getSignatures())) {
+                    signedFeatures.append(license.feature());
+                    signedFeatures.append(", ");
+                }
+                StringBuilder trialFeatures = new StringBuilder();
+                for (ESLicense license : TrialLicenseUtils.fromEncodedTrialLicenses(licensesMetaData.getEncodedTrialLicenses())) {
+                    trialFeatures.append(license.feature());
+                    trialFeatures.append(", ");
+                }
+                logger.debug(prefix + " LicensesMetaData: signedLicenses: [" + signedFeatures.toString() + "] trialLicenses: [" + trialFeatures.toString() + "]");
+            } else {
+                logger.debug(prefix + " LicensesMetaData: signedLicenses: [] trialLicenses: []");
+            }
         }
     }
 
@@ -537,7 +553,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      *
      * @param listenerHolder of the feature to register
      * @return true if registration has been completed, false otherwise (if masterNode is not available & trail license spec is provided)
-     * or if there is a global block on {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK}
+     * or if there is a global block on {@link GatewayService#STATE_NOT_RECOVERED_BLOCK}
      */
     private boolean registerListener(final ListenerHolder listenerHolder) {
         logger.debug("Registering listener for " + listenerHolder.feature);
@@ -644,7 +660,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     /**
      * Job for notifying on expired license(s) to registered feature(s)
-     * In case of a global block on {@link org.elasticsearch.gateway.GatewayService#STATE_NOT_RECOVERED_BLOCK},
+     * In case of a global block on {@link GatewayService#STATE_NOT_RECOVERED_BLOCK},
      * the notification is not run, instead the feature(s) would be notified on the next
      * {@link #clusterChanged(org.elasticsearch.cluster.ClusterChangedEvent)} with no global block
      */
@@ -717,12 +733,14 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
         private void enableFeatureIfNeeded() {
             if (enabled.compareAndSet(false, true)) {
+                logger.debug("feature: " + feature + " calling onEnabled");
                 listener.onEnabled();
             }
         }
 
         private void disableFeatureIfNeeded() {
             if (enabled.compareAndSet(true, false)) {
+                logger.debug("feature: " + feature + " calling onDisabled");
                 listener.onDisabled();
             }
         }
@@ -733,7 +751,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     }
 
     /**
-     * Thin wrapper to work with {@link org.elasticsearch.license.plugin.core.LicensesMetaData}
+     * Thin wrapper to work with {@link LicensesMetaData}
      * Never mutates the wrapped metaData
      */
     private static class LicensesWrapper {

@@ -11,16 +11,20 @@ import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.base.Predicate;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
+import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
+import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
 import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginService;
 import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationPluginService;
 import org.elasticsearch.license.plugin.consumer.TestPluginServiceBase;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
+import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 
@@ -92,6 +96,14 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
         return signer.sign(licenseSpec);
     }
 
+    protected void putLicense(String feature, TimeValue expiryDuration) throws Exception {
+        ESLicense license1 = generateSignedLicense(feature, expiryDuration);
+        final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster()).setLicense(Lists.newArrayList(license1)).get();
+        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+    }
+
+
     protected void assertLicenseManagerEnabledFeatureFor(final String feature) throws InterruptedException {
         assertLicenseManagerStatusFor(feature, true);
     }
@@ -101,7 +113,7 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
     }
 
     protected void assertLicenseManagerStatusFor(final String feature, final boolean expectedEnabled) throws InterruptedException {
-        assertThat(awaitBusy(new Predicate<Object>() {
+        assertThat("LicenseManager for feature " + feature + " should have enabled status of " + expectedEnabled, awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
                 for (LicensesManagerService managerService : licensesManagerServices()) {
@@ -133,17 +145,17 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
     protected void assertLazyConsumerPluginNotification(final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
         final List<TestPluginServiceBase> consumerPluginServices = consumerLazyPluginServices();
         assertThat("At least one instance has to be present", consumerPluginServices.size(), greaterThan(0));
-        assertConsumerPluginNotification(consumerPluginServices, expectedEnabled, timeoutInSec);
+        assertConsumerPluginNotification("LazyConsumer should have license status of: " + expectedEnabled, consumerPluginServices, expectedEnabled, timeoutInSec);
     }
 
     protected void assertEagerConsumerPluginNotification(final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
         final List<TestPluginServiceBase> consumerPluginServices = consumerEagerPluginServices();
         assertThat("At least one instance has to be present", consumerPluginServices.size(), greaterThan(0));
-        assertConsumerPluginNotification(consumerPluginServices, expectedEnabled, timeoutInSec);
+        assertConsumerPluginNotification("EagerConsumer should have license status of: " + expectedEnabled, consumerPluginServices, expectedEnabled, timeoutInSec);
     }
 
-    private void assertConsumerPluginNotification(final Iterable<TestPluginServiceBase> consumerPluginServices, final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
-        assertThat(awaitBusy(new Predicate<Object>() {
+    private void assertConsumerPluginNotification(String msg, final Iterable<TestPluginServiceBase> consumerPluginServices, final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
+        assertThat(msg, awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
                 for (TestPluginServiceBase pluginService : consumerPluginServices) {

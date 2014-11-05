@@ -109,8 +109,9 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
         List<Action> actions = new ArrayList<>();
 
         final TimeValue expiryDuration = TimeValue.timeValueSeconds(2);
-        actions.add(registerWithTrialLicense(clientService, clientListener, "feature1", expiryDuration));
-        actions.add(assertExpiryAction("trial", expiryDuration));
+        String feature1 = "feature1";
+        actions.add(registerWithTrialLicense(clientService, clientListener, feature1, expiryDuration));
+        actions.add(assertExpiryAction(feature1, "trial", expiryDuration));
         assertClientListenerNotificationCount(clientListener, actions);
     }
 
@@ -126,14 +127,16 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
         List<Action> secondClientActions = new ArrayList<>();
 
         final TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(2);
-        firstClientActions.add(registerWithoutTrialLicense(licensesService, clientListener1, "feature1"));
-        firstClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, "feature1", firstExpiryDuration));
-        firstClientActions.add(assertExpiryAction("signed", firstExpiryDuration));
+        String feature1 = "feature1";
+        firstClientActions.add(registerWithoutTrialLicense(licensesService, clientListener1, feature1));
+        firstClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, feature1, firstExpiryDuration));
+        firstClientActions.add(assertExpiryAction(feature1, "signed", firstExpiryDuration));
 
         final TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(1);
-        secondClientActions.add(registerWithoutTrialLicense(licensesService, clientListener2, "feature2"));
-        secondClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, "feature2", secondExpiryDuration));
-        secondClientActions.add(assertExpiryAction("signed", secondExpiryDuration));
+        String feature2 = "feature2";
+        secondClientActions.add(registerWithoutTrialLicense(licensesService, clientListener2, feature2));
+        secondClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, feature2, secondExpiryDuration));
+        secondClientActions.add(assertExpiryAction(feature2, "signed", secondExpiryDuration));
 
         if (randomBoolean()) {
             assertClientListenerNotificationCount(clientListener1, firstClientActions);
@@ -156,13 +159,15 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
         List<Action> secondClientActions = new ArrayList<>();
 
         final TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(2);
-        firstClientActions.add(registerWithoutTrialLicense(licensesService, clientListener1, "feature1"));
-        firstClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, "feature1", firstExpiryDuration));
-        firstClientActions.add(assertExpiryAction("signed", firstExpiryDuration));
+        String feature1 = "feature1";
+        firstClientActions.add(registerWithoutTrialLicense(licensesService, clientListener1, feature1));
+        firstClientActions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, feature1, firstExpiryDuration));
+        firstClientActions.add(assertExpiryAction(feature1, "signed", firstExpiryDuration));
 
         final TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(1);
-        secondClientActions.add(registerWithTrialLicense(licensesService, clientListener2, "feature2", secondExpiryDuration));
-        secondClientActions.add(assertExpiryAction("trial", secondExpiryDuration));
+        String feature2 = "feature2";
+        secondClientActions.add(registerWithTrialLicense(licensesService, clientListener2, feature2, secondExpiryDuration));
+        secondClientActions.add(assertExpiryAction(feature2, "trial", secondExpiryDuration));
 
         if (randomBoolean()) {
             assertClientListenerNotificationCount(clientListener1, firstClientActions);
@@ -184,12 +189,14 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
         List<Action> secondClientActions = new ArrayList<>();
 
         TimeValue firstExpiryDuration = TimeValue.timeValueSeconds(1);
-        firstClientActions.add(registerWithTrialLicense(licensesService, clientListener1, "feature1", firstExpiryDuration));
-        firstClientActions.add(assertExpiryAction("trial", firstExpiryDuration));
+        String feature1 = "feature1";
+        firstClientActions.add(registerWithTrialLicense(licensesService, clientListener1, feature1, firstExpiryDuration));
+        firstClientActions.add(assertExpiryAction(feature1, "trial", firstExpiryDuration));
 
         TimeValue secondExpiryDuration = TimeValue.timeValueSeconds(2);
-        secondClientActions.add(registerWithTrialLicense(licensesService, clientListener2, "feature2", secondExpiryDuration));
-        secondClientActions.add(assertExpiryAction("trial", secondExpiryDuration));
+        String feature2 = "feature2";
+        secondClientActions.add(registerWithTrialLicense(licensesService, clientListener2, feature2, secondExpiryDuration));
+        secondClientActions.add(assertExpiryAction(feature2, "trial", secondExpiryDuration));
 
         if (randomBoolean()) {
             assertClientListenerNotificationCount(clientListener1, firstClientActions);
@@ -218,8 +225,9 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
         List<Action> actions = new ArrayList<>();
 
         TimeValue expiryDuration = TimeValue.timeValueSeconds(2);
-        actions.add(registerWithTrialLicense(clientService, clientListener, "feature1", expiryDuration));
-        actions.add(assertExpiryAction("trial", expiryDuration));
+        String feature = "feature1";
+        actions.add(registerWithTrialLicense(clientService, clientListener, feature, expiryDuration));
+        actions.add(assertExpiryAction(feature, "trial", expiryDuration));
 
         assertClientListenerNotificationCount(clientListener, actions);
     }
@@ -231,19 +239,19 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
         Map<TestTrackingClientListener, List<Action>> clientListenersWithActions = new HashMap<>();
 
         TimeValue expiryDuration = TimeValue.timeValueSeconds(0);
-        for (int i = 0; i < randomIntBetween(10, 20); i++) {
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
             final TestTrackingClientListener clientListener = new TestTrackingClientListener();
-            String feature = randomRealisticUnicodeOfCodepointLengthBetween(2, 10);
-            expiryDuration = TimeValue.timeValueMillis(randomIntBetween(1, 5) * 100l + expiryDuration.millis());
+            String feature = "feature_" + String.valueOf(i);
+            expiryDuration = TimeValue.timeValueMillis(randomIntBetween(1, 3) * 1000l + expiryDuration.millis());
             List<Action> actions = new ArrayList<>();
 
             if (randomBoolean()) {
                 actions.add(registerWithTrialLicense(licensesService, clientListener, feature, expiryDuration));
-                actions.add(assertExpiryAction("trial", expiryDuration));
+                actions.add(assertExpiryAction(feature, "trial", expiryDuration));
             } else {
                 actions.add(registerWithoutTrialLicense(licensesService, clientListener, feature));
                 actions.add(generateAndPutSignedLicenseAction(masterLicensesManagerService, feature, expiryDuration));
-                actions.add(assertExpiryAction("signed", expiryDuration));
+                actions.add(assertExpiryAction(feature, "signed", expiryDuration));
             }
             clientListenersWithActions.put(clientListener, actions);
         }
@@ -274,8 +282,9 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
             }
         });
         try {
-            assertThat(latch.await(100, TimeUnit.MILLISECONDS), equalTo(true));
+            latch.await();
         } catch (InterruptedException e) {
+            fail(e.getMessage());
         }
         assertThat(success.get(), equalTo(true));
     }
@@ -320,51 +329,49 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
         }, 0, 1, "should trigger onEnable for " + feature + " once [trial license]");
     }
 
-    private Action assertExpiryAction(String licenseType, TimeValue expiryDuration) {
+    private Action assertExpiryAction(String feature, String licenseType, TimeValue expiryDuration) {
         return new Action(new Runnable() {
             @Override
             public void run() {}
         }, 1, 0, TimeValue.timeValueMillis(expiryDuration.getMillis() * 2),
-                "should trigger onDisable once [" + licenseType + " license expiry]");
+                "should trigger onDisable for " + feature + " once [" + licenseType + " license expiry]");
     }
 
     private void assertClientListenerNotificationCount(final TestTrackingClientListener clientListener, List<Action> actions) throws Exception {
-        assertThat(clientListener.onDisabledCount.get(), equalTo(0));
-        assertThat(clientListener.onEnabledCount.get(), equalTo(0));
-
         for (final Action action : actions) {
-            final AtomicBoolean actionPerformed = new AtomicBoolean(false);
-            assertThat(action.msg, awaitBusy(new Predicate<Object>() {
-                AtomicInteger previousOnEnabledCount = new AtomicInteger(0);
-                AtomicInteger previousOnDisabledCount = new AtomicInteger(0);
+            final CountDownLatch enableLatch = new CountDownLatch(action.expectedEnabledCount);
+            final CountDownLatch disableLatch = new CountDownLatch(action.expectedDisabledCount);
 
-                @Override
-                public boolean apply(Object o) {
-                    if (actionPerformed.compareAndSet(false, true)) {
-                        previousOnEnabledCount.set(clientListener.onEnabledCount.get());
-                        previousOnDisabledCount.set(clientListener.onDisabledCount.get());
-                        action.run();
-                    }
+            clientListener.latch(enableLatch, disableLatch);
+            action.run();
 
-                    return ((clientListener.onEnabledCount.get() - previousOnEnabledCount.get()) == action.expectedEnabledCount
-                            && (clientListener.onDisabledCount.get() - previousOnDisabledCount.get()) == action.expectedDisabledCount);
-                }
-            }, action.timeout.getMillis(), TimeUnit.MILLISECONDS), equalTo(true));
+            if (action.expectedEnabledCount > 0) {
+                assertThat(action.msg, enableLatch.await(action.timeout.getMillis() * 2, TimeUnit.MILLISECONDS), equalTo(true));
+            } else if (action.expectedDisabledCount > 0) {
+                assertThat(action.msg, disableLatch.await(action.timeout.getMillis() * 2, TimeUnit.MILLISECONDS), equalTo(true));
+
+            }
+
         }
     }
 
     private class TestTrackingClientListener implements LicensesClientService.Listener {
-        AtomicInteger onEnabledCount = new AtomicInteger(0);
-        AtomicInteger onDisabledCount = new AtomicInteger(0);
+        CountDownLatch enableLatch;
+        CountDownLatch disableLatch;
+
+        public synchronized void latch(CountDownLatch enableLatch, CountDownLatch disableLatch) {
+            this.enableLatch = enableLatch;
+            this.disableLatch = disableLatch;
+        }
 
         @Override
         public void onEnabled() {
-            onEnabledCount.incrementAndGet();
+            this.enableLatch.countDown();
         }
 
         @Override
         public void onDisabled() {
-            onDisabledCount.incrementAndGet();
+            this.disableLatch.countDown();
         }
     }
 

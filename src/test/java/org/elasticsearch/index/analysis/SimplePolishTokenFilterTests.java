@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
@@ -68,7 +69,9 @@ public class SimplePolishTokenFilterTests extends ElasticsearchTestCase {
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myStemmer");
 
-        TokenStream ts = filterFactory.create(new KeywordTokenizer(new StringReader(source)));
+        Tokenizer tokenizer = new KeywordTokenizer();
+        tokenizer.setReader(new StringReader(source));
+        TokenStream ts = filterFactory.create(tokenizer);
 
         CharTermAttribute term1 = ts.addAttribute(CharTermAttribute.class);
         ts.reset();

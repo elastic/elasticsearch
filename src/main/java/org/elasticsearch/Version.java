@@ -206,9 +206,11 @@ public class Version implements Serializable {
     public static final Version V_1_4_0_Beta1 = new Version(V_1_4_0_Beta1_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_1);
     public static final int V_1_4_0_ID = /*00*/1040099;
     public static final Version V_1_4_0 = new Version(V_1_4_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_2);
+    public static final int V_1_4_1_ID = /*00*/1040199;
+    public static final Version V_1_4_1 = new Version(V_1_4_1_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_2);
 
 
-    public static final Version CURRENT = V_1_4_0;
+    public static final Version CURRENT = V_1_4_1;
 
     static {
         assert CURRENT.luceneVersion.equals(Lucene.VERSION) : "Version must be upgraded to [" + Lucene.VERSION + "] is still set to [" + CURRENT.luceneVersion + "]";
@@ -220,6 +222,8 @@ public class Version implements Serializable {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_1_4_1_ID:
+                return V_1_4_1;
             case V_1_4_0_ID:
                 return V_1_4_0;
             case V_1_4_0_Beta1_ID:

@@ -29,6 +29,7 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BloomFilter;
 import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat.BloomFilteredFieldsConsumer;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -48,7 +49,9 @@ public final class Elasticsearch090PostingsFormat extends PostingsFormat {
 
     public Elasticsearch090PostingsFormat() {
         super("es090");
-        bloomPostings = new BloomFilterPostingsFormat(new Lucene50PostingsFormat(), BloomFilter.Factory.DEFAULT);
+        Lucene50PostingsFormat delegate = new Lucene50PostingsFormat();
+        assert delegate.getName().equals(Lucene.LATEST_POSTINGS_FORMAT);
+        bloomPostings = new BloomFilterPostingsFormat(delegate, BloomFilter.Factory.DEFAULT);
     }
 
     public PostingsFormat getDefaultWrapped() {

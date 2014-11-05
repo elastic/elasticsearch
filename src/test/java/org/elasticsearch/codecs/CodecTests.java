@@ -21,6 +21,7 @@ package org.elasticsearch.codecs;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -74,7 +75,7 @@ public class CodecTests extends ElasticsearchIntegrationTest {
     public void testCustomDocValuesFormat() throws IOException {
         assertAcked(prepareCreate("test")
             .addMapping("test", jsonBuilder().startObject().startObject("test")
-                    .startObject("_version").field("doc_values_format", "Lucene50").endObject()
+                    .startObject("_version").field("doc_values_format", Lucene.LATEST_DOC_VALUES_FORMAT).endObject()
                     .startObject("properties").startObject("field").field("type", "long").field("doc_values_format", "dvf").endObject().endObject()
                     .endObject().endObject())
             .setSettings(ImmutableSettings.settingsBuilder()

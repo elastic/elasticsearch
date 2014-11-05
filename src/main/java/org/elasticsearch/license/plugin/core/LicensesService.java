@@ -430,7 +430,12 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     /**
      * Calls {@link #notifyFeaturesAndScheduleNotification(LicensesMetaData)} with <code>currentLicensesMetaData</code>
-     * if it was not already notified on
+     * if it was not already notified on.
+     *
+     * Upon completion sets <code>currentLicensesMetaData</code> to {@link #lastObservedLicensesState}
+     * to ensure the same license(s) are not notified on from
+     * {@link #clusterChanged(ClusterChangedEvent)}
+     *
      */
     private void notifyFeaturesAndScheduleNotificationIfNeeded(final LicensesMetaData currentLicensesMetaData) {
         final LicensesMetaData lastNotifiedLicensesMetaData = lastObservedLicensesState.get();
@@ -455,11 +460,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     }
 
     /**
-     * Checks license expiry for all the registered feature(s), upon completion
-     * sets <code>currentLicensesMetaData</code> to {@link #lastObservedLicensesState}
-     * to ensure the same license(s) are not notified on from
-     * {@link #clusterChanged(org.elasticsearch.cluster.ClusterChangedEvent)}
-     *
+     * Checks license expiry for all the registered feature(s)
      * @return -1 if there are no expiring license(s) for any registered feature(s), else
      * returns the minimum of the expiry times of all the registered feature(s) to
      * schedule an expiry notification
@@ -662,7 +663,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      * Job for notifying on expired license(s) to registered feature(s)
      * In case of a global block on {@link GatewayService#STATE_NOT_RECOVERED_BLOCK},
      * the notification is not run, instead the feature(s) would be notified on the next
-     * {@link #clusterChanged(org.elasticsearch.cluster.ClusterChangedEvent)} with no global block
+     * {@link #clusterChanged(ClusterChangedEvent)} with no global block
      */
     private class LicensingClientNotificationJob implements Runnable {
 

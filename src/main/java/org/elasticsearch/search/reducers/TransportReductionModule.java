@@ -20,6 +20,7 @@ package org.elasticsearch.search.reducers;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.reducers.bucket.range.InternalRange;
 import org.elasticsearch.search.reducers.bucket.range.RangeReducer;
@@ -30,6 +31,7 @@ import org.elasticsearch.search.reducers.metric.avg.InternalAvg;
 import org.elasticsearch.search.reducers.metric.delta.DeltaReducer;
 import org.elasticsearch.search.reducers.metric.delta.InternalDelta;
 import org.elasticsearch.search.reducers.metric.max.MaxReducer;
+import org.elasticsearch.search.reducers.metric.min.MinReducer;
 import org.elasticsearch.search.reducers.metric.stats.StatsReducer;
 
 /**
@@ -44,6 +46,7 @@ public class TransportReductionModule extends AbstractModule {
         InternalDelta.registerStreams();
         InternalAvg.registerStreams();
         InternalMax.registerStreams();
+        InternalMin.registerStreams();
         InternalStats.registerStreams();
         InternalRange.registerStreams();
         
@@ -51,6 +54,7 @@ public class TransportReductionModule extends AbstractModule {
         DeltaReducer.registerStreams();
         AvgReducer.registerStreams();
         MaxReducer.registerStreams();
+        MinReducer.registerStreams();
         StatsReducer.registerStreams();
         RangeReducer.registerStreams();
     }

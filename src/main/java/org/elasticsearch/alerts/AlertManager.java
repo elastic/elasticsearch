@@ -8,8 +8,11 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
+import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.cluster.*;
@@ -76,14 +79,14 @@ public class AlertManager extends AbstractComponent {
         }
     }
 
-    public boolean deleteAlert(String name) throws InterruptedException, ExecutionException {
+
+    public DeleteResponse deleteAlert(String name) throws InterruptedException, ExecutionException {
         ensureStarted();
         if (alertsStore.hasAlert(name)) {
             assert scheduler.remove(name);
-            alertsStore.deleteAlert(name);
-            return true;
+            return alertsStore.deleteAlert(name);
         } else {
-            return false;
+            return null;
         }
     }
 

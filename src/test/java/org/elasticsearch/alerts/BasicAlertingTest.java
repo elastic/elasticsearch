@@ -143,7 +143,8 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
 
         DeleteAlertRequest deleteAlertRequest = new DeleteAlertRequest(alert.alertName());
         DeleteAlertResponse deleteAlertResponse = alertsClient.deleteAlert(deleteAlertRequest).actionGet();
-        assertTrue(deleteAlertResponse.success());
+        assertNotNull(deleteAlertResponse.deleteResponse());
+        assertTrue(deleteAlertResponse.deleteResponse().isFound());
 
     }
 

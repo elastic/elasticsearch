@@ -7,6 +7,7 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
+import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -153,17 +155,19 @@ public class AlertsStore extends AbstractComponent {
     /**
      * Deletes the alert with the specified name if exists
      */
-    public void deleteAlert(String name) {
+    public DeleteResponse deleteAlert(String name) {
         Alert alert = alertMap.remove(name);
-        if (alert != null) {
-            DeleteRequest deleteRequest = new DeleteRequest();
-            deleteRequest.id(name);
-            deleteRequest.index(ALERT_INDEX);
-            deleteRequest.type(ALERT_TYPE);
-            deleteRequest.version(alert.version());
-            DeleteResponse deleteResponse = client.delete(deleteRequest).actionGet();
-            assert deleteResponse.isFound();
+        if (alert == null) {
+            return null;
         }
+        DeleteRequest deleteRequest = new DeleteRequest();
+        deleteRequest.id(name);
+        deleteRequest.index(ALERT_INDEX);
+        deleteRequest.type(ALERT_TYPE);
+        deleteRequest.version(alert.version());
+        DeleteResponse deleteResponse = client.delete(deleteRequest).actionGet();
+        assert deleteResponse.isFound();
+        return deleteResponse;
     }
 
     /**

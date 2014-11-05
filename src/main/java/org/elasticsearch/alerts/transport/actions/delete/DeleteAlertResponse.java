@@ -6,6 +6,8 @@
 package org.elasticsearch.alerts.transport.actions.delete;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -15,33 +17,39 @@ import java.io.IOException;
  */
 public class DeleteAlertResponse extends ActionResponse {
 
-    private boolean success;
+    private DeleteResponse deleteResponse;
 
     public DeleteAlertResponse() {
-        success = false;
     }
 
-    public DeleteAlertResponse(boolean success) {
-        this.success = true;
+    public DeleteAlertResponse(@Nullable DeleteResponse deleteResponse) {
+        this.deleteResponse = deleteResponse;
     }
 
-    public boolean success() {
-        return success;
+    public DeleteResponse deleteResponse() {
+        return deleteResponse;
     }
 
-    public void success(boolean success) {
-        this.success = success;
+    public void deleteResponse(DeleteResponse deleteResponse){
+        this.deleteResponse = deleteResponse;
     }
+
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        success = in.readBoolean();
+        deleteResponse = new DeleteResponse();
+        if (in.readBoolean()) {
+            deleteResponse.readFrom(in);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(success);
+        out.writeBoolean(deleteResponse != null);
+        if (deleteResponse != null) {
+            deleteResponse.writeTo(out);
+        }
     }
 }

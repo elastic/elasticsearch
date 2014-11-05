@@ -23,7 +23,7 @@ import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -65,17 +65,17 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
         public static final String INDEX_NAME = FieldNamesFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        // TODO: this field should be removed?
         public static final FieldType FIELD_TYPE_PRE_1_3_0;
 
         static {
-            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
             FIELD_TYPE_PRE_1_3_0 = new FieldType(FIELD_TYPE);
-            FIELD_TYPE_PRE_1_3_0.setIndexed(false);
+            FIELD_TYPE_PRE_1_3_0.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE_PRE_1_3_0.freeze();
         }
     }
@@ -98,7 +98,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
         @Override
         public FieldNamesFieldMapper build(BuilderContext context) {
             if ((context.indexCreatedVersion() == null || context.indexCreatedVersion().before(Version.V_1_3_0)) && !indexIsExplicit) {
-                fieldType.setIndexed(false);
+                fieldType.setIndexOptions(IndexOptions.NONE);
             }
             return new FieldNamesFieldMapper(name, indexName, boost, fieldType, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
@@ -214,7 +214,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (!fieldType.indexed() && !fieldType.stored() && !hasDocValues()) {
+        if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored() && !hasDocValues()) {
             return;
         }
         for (ParseContext.Document document : context.docs()) {
@@ -224,7 +224,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
             }
             for (String path : paths) {
                 for (String fieldName : extractFieldNames(path)) {
-                    if (fieldType.indexed() || fieldType.stored()) {
+                    if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
                         document.add(new Field(names().indexName(), fieldName, fieldType));
                     }
                     if (hasDocValues()) {

@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -126,14 +126,14 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             // we also change the values on the default field type so that toXContent emits what
             // differs from the defaults
             FieldType defaultFieldType = new FieldType(Defaults.FIELD_TYPE);
-            if (fieldType.indexed() && !fieldType.tokenized()) {
+            if (fieldType.indexOptions() != IndexOptions.NONE && !fieldType.tokenized()) {
                 defaultFieldType.setOmitNorms(true);
-                defaultFieldType.setIndexOptions(IndexOptions.DOCS_ONLY);
+                defaultFieldType.setIndexOptions(IndexOptions.DOCS);
                 if (!omitNormsSet && boost == Defaults.BOOST) {
                     fieldType.setOmitNorms(true);
                 }
                 if (!indexOptionsSet) {
-                    fieldType.setIndexOptions(IndexOptions.DOCS_ONLY);
+                    fieldType.setIndexOptions(IndexOptions.DOCS);
                 }
             }
             defaultFieldType.freeze();
@@ -195,7 +195,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     private int ignoreAbove;
     private final FieldType defaultFieldType;
 
-    protected StringFieldMapper(Names names, float boost, FieldType fieldType,FieldType defaultFieldType, Boolean docValues,
+    protected StringFieldMapper(Names names, float boost, FieldType fieldType, FieldType defaultFieldType, Boolean docValues,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                                 NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove,
                                 PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat,
@@ -203,7 +203,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, 
                 similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
-        if (fieldType.tokenized() && fieldType.indexed() && hasDocValues()) {
+        if (fieldType.tokenized() && fieldType.indexOptions() != IndexOptions.NONE && hasDocValues()) {
             throw new MapperParsingException("Field [" + names.fullName() + "] cannot be analyzed and have doc values");
         }
         this.defaultFieldType = defaultFieldType;
@@ -285,7 +285,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             context.allEntries().addText(names.fullName(), valueAndBoost.value(), valueAndBoost.boost());
         }
 
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new Field(names.indexName(), valueAndBoost.value(), fieldType);
             field.setBoost(valueAndBoost.boost());
             fields.add(field);

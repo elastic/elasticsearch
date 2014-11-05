@@ -286,9 +286,9 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
             if (field.storedPayloads) {
                 mapping.put(field.name, new Analyzer() {
                     @Override
-                    protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
-                        Tokenizer tokenizer = new StandardTokenizer(Version.CURRENT.luceneVersion, reader);
-                        TokenFilter filter = new LowerCaseFilter(Version.CURRENT.luceneVersion, tokenizer);
+                    protected TokenStreamComponents createComponents(String fieldName) {
+                        Tokenizer tokenizer = new StandardTokenizer();
+                        TokenFilter filter = new LowerCaseFilter(tokenizer);
                         filter = new TypeAsPayloadTokenFilter(filter);
                         return new TokenStreamComponents(tokenizer, filter);
                     }
@@ -296,10 +296,10 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
                 });
             }
         }
-        PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new StandardAnalyzer(Version.CURRENT.luceneVersion, CharArraySet.EMPTY_SET), mapping);
+        PerFieldAnalyzerWrapper wrapper = new PerFieldAnalyzerWrapper(new StandardAnalyzer(CharArraySet.EMPTY_SET), mapping);
 
         Directory dir = new RAMDirectory();
-        IndexWriterConfig conf = new IndexWriterConfig(Version.CURRENT.luceneVersion, wrapper);
+        IndexWriterConfig conf = new IndexWriterConfig(wrapper);
 
         conf.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         IndexWriter writer = new IndexWriter(dir, conf);

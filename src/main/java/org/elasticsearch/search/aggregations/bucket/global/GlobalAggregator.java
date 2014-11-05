@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.global;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -36,7 +36,7 @@ public class GlobalAggregator extends SingleBucketAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
     }
 
     @Override

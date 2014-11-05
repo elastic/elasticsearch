@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -205,7 +205,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
             }
 
             @Override
-            public void setNextReader(AtomicReaderContext reader) {
+            public void setNextReader(LeafReaderContext reader) {
                 final MultiGeoPointValues geoValues = source.geoPointValues();
                 final FixedSourceDistance distance = distanceType.fixedSourceDistance(origin.getLat(), origin.getLon(), unit);
                 distanceValues = GeoDistance.distanceValues(geoValues, distance);

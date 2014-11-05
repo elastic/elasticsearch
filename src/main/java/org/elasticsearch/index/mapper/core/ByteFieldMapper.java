@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -318,7 +319,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                 }
             }
         }
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             CustomByteNumericField field = new CustomByteNumericField(this, value, fieldType);
             field.setBoost(boost);
             fields.add(field);
@@ -376,7 +377,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
 
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) {
-            if (fieldType().indexed()) {
+            if (fieldType().indexOptions() != IndexOptions.NONE) {
                 return mapper.popCachedStream().setIntValue(number);
             }
             return null;

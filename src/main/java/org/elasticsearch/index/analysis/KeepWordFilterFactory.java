@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.KeepWordFilter;
+import org.apache.lucene.analysis.miscellaneous.Lucene43KeepWordFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -77,22 +78,25 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
             throw new ElasticsearchIllegalArgumentException("keep requires either `" + KEEP_WORDS_KEY + "` or `"
                     + KEEP_WORDS_PATH_KEY + "` to be configured");
         }
-        if (version.onOrAfter(Version.LUCENE_44) && settings.get(ENABLE_POS_INC_KEY) != null) {
+        if (version.onOrAfter(Version.LUCENE_4_4) && settings.get(ENABLE_POS_INC_KEY) != null) {
             throw new ElasticsearchIllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain or use"
                     + " an older compatibility version (<=4.3) but beware that it might cause highlighting bugs.");
         }
-        enablePositionIncrements = version.onOrAfter(Version.LUCENE_44) ? true : settings.getAsBoolean(ENABLE_POS_INC_KEY, true);
+        enablePositionIncrements = version.onOrAfter(Version.LUCENE_4_4) ? true : settings.getAsBoolean(ENABLE_POS_INC_KEY, true);
 
-        this.keepWords = Analysis.getWordSet(env, settings, KEEP_WORDS_KEY, version);
+        this.keepWords = Analysis.getWordSet(env, settings, KEEP_WORDS_KEY);
 
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        if (version.onOrAfter(Version.LUCENE_44)) {
-            return new KeepWordFilter(version, tokenStream, keepWords);
+        if (version.onOrAfter(Version.LUCENE_4_4)) {
+            return new KeepWordFilter(tokenStream, keepWords);
+        } else {
+            @SuppressWarnings("deprecated")
+            final TokenStream filter = new Lucene43KeepWordFilter(enablePositionIncrements, tokenStream, keepWords);
+            return filter;
         }
-        return new KeepWordFilter(version, enablePositionIncrements, tokenStream, keepWords);
     }
 
 

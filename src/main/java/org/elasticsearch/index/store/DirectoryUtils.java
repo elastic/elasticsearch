@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.store.CompoundFileDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.FilterDirectory;
@@ -45,8 +44,6 @@ public final class DirectoryUtils {
             }
             if (current instanceof FilterDirectory) {
                 current = ((FilterDirectory) current).getDelegate();
-            } else if (current instanceof CompoundFileDirectory) {
-                current = ((CompoundFileDirectory) current).getDirectory();
             } else {
                 return null;
             }

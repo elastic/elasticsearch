@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.util.Accountable;
+
+import java.util.Collections;
+
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
@@ -47,6 +51,11 @@ public abstract class AbstractAtomicOrdinalsFieldData implements AtomicOrdinalsF
             @Override
             public long ramBytesUsed() {
                 return 0;
+            }
+            
+            @Override
+            public Iterable<? extends Accountable> getChildResources() {
+                return Collections.emptyList();
             }
 
             @Override

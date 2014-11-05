@@ -119,7 +119,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         super.setUp();
         defaultSettings = ImmutableSettings.builder()
                 .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
-                .put(InternalEngine.INDEX_CHECKSUM_ON_MERGE, getRandom().nextBoolean())
                 .put(InternalEngine.INDEX_GC_DELETES, "1h") // make sure this doesn't kick in on us
                 .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, randomBoolean())
                 .build(); // TODO randomize more settings
@@ -657,21 +656,21 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 @Override
                 public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
                    if (failInPhase == 1) {
-                       throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                       throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
                    }
                 }
 
                 @Override
                 public void phase2(Translog.Snapshot snapshot) throws EngineException {
                     if (failInPhase == 2) {
-                        throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                        throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
                     }
                 }
 
                 @Override
                 public void phase3(Translog.Snapshot snapshot) throws EngineException {
                     if (failInPhase == 3) {
-                        throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                        throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
                     }
                 }
             });

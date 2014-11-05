@@ -25,17 +25,33 @@ import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.SlowCompositeReaderWrapper;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MultiCollector;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryUtils;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.NotFilter;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -74,7 +90,7 @@ public class ParentQueryTests extends AbstractChildTests {
         Query parentQuery = new TermQuery(new Term("field", "value"));
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        FixedBitSetFilter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
+        BitDocIdSetFilter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
         Query query = new ParentQuery(parentChildIndexFieldData, parentQuery, "parent", childrenFilter);
         QueryUtils.check(query);
     }
@@ -83,8 +99,7 @@ public class ParentQueryTests extends AbstractChildTests {
     public void testRandom() throws Exception {
         Directory directory = newDirectory();
         final Random r = random();
-        final IndexWriterConfig iwc = LuceneTestCase.newIndexWriterConfig(r,
-                LuceneTestCase.TEST_VERSION_CURRENT, new MockAnalyzer(r))
+        final IndexWriterConfig iwc = LuceneTestCase.newIndexWriterConfig(r, new MockAnalyzer(r))
                 .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
                 .setRAMBufferSizeMB(scaledRandomIntBetween(16, 64)); // we might index a lot - don't go crazy here
         RandomIndexWriter indexWriter = new RandomIndexWriter(r, directory, iwc);
@@ -161,7 +176,7 @@ public class ParentQueryTests extends AbstractChildTests {
 
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        FixedBitSetFilter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
+        BitDocIdSetFilter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
         Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueParentValues / 4;
         for (int i = 0; i < max; i++) {
@@ -202,7 +217,7 @@ public class ParentQueryTests extends AbstractChildTests {
             String parentValue = parentValues[random().nextInt(numUniqueParentValues)];
             Query parentQuery = new ConstantScoreQuery(new TermQuery(new Term("field1", parentValue)));
             Query query = new ParentQuery(parentChildIndexFieldData, parentQuery,"parent", childrenFilter);
-            query = new XFilteredQuery(query, filterMe);
+            query = new FilteredQuery(query, filterMe);
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
             int numHits = 1 + random().nextInt(25);
             TopScoreDocCollector actualTopDocsCollector = TopScoreDocCollector.create(numHits, false);
@@ -215,8 +230,8 @@ public class ParentQueryTests extends AbstractChildTests {
             TopScoreDocCollector expectedTopDocsCollector = TopScoreDocCollector.create(numHits, false);
             expectedTopDocsCollector.setScorer(mockScorer);
             if (parentValueToChildIds.containsKey(parentValue)) {
-                AtomicReader slowAtomicReader = SlowCompositeReaderWrapper.wrap(indexReader);
-                Terms terms = slowAtomicReader.terms(UidFieldMapper.NAME);
+                LeafReader slowLeafReader = SlowCompositeReaderWrapper.wrap(indexReader);
+                Terms terms = slowLeafReader.terms(UidFieldMapper.NAME);
                 if (terms != null) {
                     NavigableMap<String, Float> childIdsAndScore = parentValueToChildIds.lget();
                     TermsEnum termsEnum = terms.iterator(null);
@@ -224,7 +239,7 @@ public class ParentQueryTests extends AbstractChildTests {
                     for (Map.Entry<String, Float> entry : childIdsAndScore.entrySet()) {
                         TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(Uid.createUidAsBytes("child", entry.getKey()));
                         if (seekStatus == TermsEnum.SeekStatus.FOUND) {
-                            docsEnum = termsEnum.docs(slowAtomicReader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
+                            docsEnum = termsEnum.docs(slowLeafReader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
                             expectedResult.set(docsEnum.nextDoc());
                             mockScorer.scores.add(entry.getValue());
                             expectedTopDocsCollector.collect(docsEnum.docID());

@@ -20,7 +20,7 @@
 package org.elasticsearch.indices.fielddata.cache;
 
 import com.google.common.cache.*;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.util.Accountable;
@@ -163,7 +163,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         }
 
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(final AtomicReaderContext context, final IFD indexFieldData) throws Exception {
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(final LeafReaderContext context, final IFD indexFieldData) throws Exception {
             final Key key = new Key(this, context.reader().getCoreCacheKey());
             //noinspection unchecked
             final Accountable accountable = cache.get(key, new Callable<AtomicFieldData>() {

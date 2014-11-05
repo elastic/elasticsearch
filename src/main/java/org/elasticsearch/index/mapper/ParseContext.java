@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -761,7 +762,7 @@ public abstract class ParseContext {
     public abstract void version(Field version);
 
     public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
-        return includeInAll(includeInAll, mapper.fieldType().indexed());
+        return includeInAll(includeInAll, mapper.fieldType().indexOptions() != IndexOptions.NONE);
     }
 
     /**

@@ -86,8 +86,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
             @Override
             public void close() throws IOException {
                 super.close();
-                IOUtils.fsync(file, false);
-                IOUtils.fsync(path, true);
+                IOUtils.fsync(file.toPath(), false);
+                IOUtils.fsync(path.toPath(), true);
             }
         }, blobStore.bufferSizeInBytes());
     }

@@ -22,7 +22,8 @@ package org.elasticsearch.index.mapper.core;
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -65,7 +66,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexed(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.freeze();
         }
     }
@@ -259,7 +260,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
 
         public static final FieldType TYPE = new FieldType();
         static {
-            TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+            TYPE.setDocValueType(DocValuesType.BINARY);
             TYPE.freeze();
         }
 

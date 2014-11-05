@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.MockTokenizer;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
@@ -43,11 +44,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CompletionTokenStreamTest extends ElasticsearchTokenStreamTestCase {
 
-    final XAnalyzingSuggester suggester = new XAnalyzingSuggester(new SimpleAnalyzer(TEST_VERSION_CURRENT));
+    final XAnalyzingSuggester suggester = new XAnalyzingSuggester(new SimpleAnalyzer());
 
     @Test
     public void testSuggestTokenFilter() throws Exception {
-        TokenStream tokenStream = new MockTokenizer(new StringReader("mykeyword"), MockTokenizer.WHITESPACE, true);
+        Tokenizer tokenStream = new MockTokenizer(MockTokenizer.WHITESPACE, true);
+        tokenStream.setReader(new StringReader("mykeyword"));
         BytesRef payload = new BytesRef("Surface keyword|friggin payload|10");
         TokenStream suggestTokenStream = new ByteTermAttrToCharTermAttrFilter(new CompletionTokenStream(tokenStream, payload, new CompletionTokenStream.ToFiniteStrings() {
             @Override
@@ -63,7 +65,8 @@ public class CompletionTokenStreamTest extends ElasticsearchTokenStreamTestCase 
         Builder builder = new SynonymMap.Builder(true);
         builder.add(new CharsRef("mykeyword"), new CharsRef("mysynonym"), true);
 
-        MockTokenizer tokenizer = new MockTokenizer(new StringReader("mykeyword"), MockTokenizer.WHITESPACE, true);
+        Tokenizer tokenizer = new MockTokenizer(MockTokenizer.WHITESPACE, true);
+        tokenizer.setReader(new StringReader("mykeyword"));
         SynonymFilter filter = new SynonymFilter(tokenizer, builder.build(), true);
 
         BytesRef payload = new BytesRef("Surface keyword|friggin payload|10");
@@ -87,7 +90,8 @@ public class CompletionTokenStreamTest extends ElasticsearchTokenStreamTestCase 
             valueBuilder.append(i+1);
             valueBuilder.append(" ");
         }
-        MockTokenizer tokenizer = new MockTokenizer(new StringReader(valueBuilder.toString()), MockTokenizer.WHITESPACE, true);
+        MockTokenizer tokenizer = new MockTokenizer(MockTokenizer.WHITESPACE, true);
+        tokenizer.setReader(new StringReader(valueBuilder.toString()));
         SynonymFilter filter = new SynonymFilter(tokenizer, builder.build(), true);
        
         TokenStream suggestTokenStream = new CompletionTokenStream(filter, new BytesRef("Surface keyword|friggin payload|10"), new CompletionTokenStream.ToFiniteStrings() {
@@ -126,7 +130,8 @@ public class CompletionTokenStreamTest extends ElasticsearchTokenStreamTestCase 
             valueBuilder.append(i+1);
             valueBuilder.append(" ");
         }
-        MockTokenizer tokenizer = new MockTokenizer(new StringReader(valueBuilder.toString()), MockTokenizer.WHITESPACE, true);
+        MockTokenizer tokenizer = new MockTokenizer(MockTokenizer.WHITESPACE, true);
+        tokenizer.setReader(new StringReader(valueBuilder.toString()));
         SynonymFilter filter = new SynonymFilter(tokenizer, builder.build(), true);
        
         TokenStream suggestTokenStream = new CompletionTokenStream(filter, new BytesRef("Surface keyword|friggin payload|10"), new CompletionTokenStream.ToFiniteStrings() {
@@ -145,9 +150,10 @@ public class CompletionTokenStreamTest extends ElasticsearchTokenStreamTestCase 
 
     @Test
     public void testSuggestTokenFilterProperlyDelegateInputStream() throws Exception {
-        TokenStream tokenStream = new MockTokenizer(new StringReader("mykeyword"), MockTokenizer.WHITESPACE, true);
+        Tokenizer tokenizer = new MockTokenizer(MockTokenizer.WHITESPACE, true);
+        tokenizer.setReader(new StringReader("mykeyword"));
         BytesRef payload = new BytesRef("Surface keyword|friggin payload|10");
-        TokenStream suggestTokenStream = new ByteTermAttrToCharTermAttrFilter(new CompletionTokenStream(tokenStream, payload, new CompletionTokenStream.ToFiniteStrings() {
+        TokenStream suggestTokenStream = new ByteTermAttrToCharTermAttrFilter(new CompletionTokenStream(tokenizer, payload, new CompletionTokenStream.ToFiniteStrings() {
             @Override
             public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
                 return suggester.toFiniteStrings(suggester.getTokenStreamToAutomaton(), stream);

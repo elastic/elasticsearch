@@ -21,9 +21,10 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import com.carrotsearch.hppc.hash.MurmurHash3;
 import com.google.common.base.Preconditions;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -70,12 +71,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         postCollectLastCollector();
         collector = createCollector(reader);
     }
 
-    private Collector createCollector(AtomicReaderContext reader) {
+    private Collector createCollector(LeafReaderContext reader) {
 
         // if rehash is false then the value source is either already hashed, or the user explicitly
         // requested not to hash the values (perhaps they already hashed the values themselves before indexing the doc)
@@ -274,7 +275,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
             final org.elasticsearch.common.hash.MurmurHash3.Hash128 hash = new org.elasticsearch.common.hash.MurmurHash3.Hash128();
             try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
-                for (int ord = allVisitedOrds.nextSetBit(0); ord != -1; ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : -1) {
+                for (int ord = allVisitedOrds.nextSetBit(0); ord < DocIdSetIterator.NO_MORE_DOCS; ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : DocIdSetIterator.NO_MORE_DOCS) {
                     final BytesRef value = values.lookupOrd(ord);
                     org.elasticsearch.common.hash.MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
                     hashes.set(ord, hash.h1);
@@ -283,7 +284,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
                     final FixedBitSet bits = visitedOrds.get(bucket);
                     if (bits != null) {
-                        for (int ord = bits.nextSetBit(0); ord != -1; ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : -1) {
+                        for (int ord = bits.nextSetBit(0); ord < DocIdSetIterator.NO_MORE_DOCS; ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : DocIdSetIterator.NO_MORE_DOCS) {
                             counts.collect(bucket, hashes.get(ord));
                         }
                     }

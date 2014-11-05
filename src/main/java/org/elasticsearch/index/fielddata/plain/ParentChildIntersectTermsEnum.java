@@ -37,13 +37,12 @@ import java.util.List;
  */
 final class ParentChildIntersectTermsEnum extends TermsEnum {
 
-    private final Comparator<BytesRef> comparator;
     private final List<TermsEnumState> states;
     private final IntArrayList stateSlots;
 
     private BytesRef current;
 
-    ParentChildIntersectTermsEnum(AtomicReader atomicReader, String... fields) throws IOException {
+    ParentChildIntersectTermsEnum(LeafReader atomicReader, String... fields) throws IOException {
         List<TermsEnum> fieldEnums = new ArrayList<>();
         for (String field : fields) {
             Terms terms = atomicReader.terms(field);
@@ -51,17 +50,11 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
                 fieldEnums.add(terms.iterator(null));
             }
         }
-        this.comparator = fieldEnums.get(0).getComparator();
         states = new ArrayList<>(fieldEnums.size());
         for (TermsEnum tEnum : fieldEnums) {
             states.add(new TermsEnumState(tEnum));
         }
         stateSlots = new IntArrayList(states.size());
-    }
-
-    @Override
-    public Comparator<BytesRef> getComparator() {
-        return comparator;
     }
 
     @Override

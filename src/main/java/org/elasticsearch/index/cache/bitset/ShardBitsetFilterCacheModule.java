@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.fixedbitset;
+package org.elasticsearch.index.cache.bitset;
 
 import org.elasticsearch.common.inject.AbstractModule;
 
 /**
  */
-public class ShardFixedBitSetFilterCacheModule extends AbstractModule {
+public class ShardBitsetFilterCacheModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(ShardFixedBitSetFilterCache.class).asEagerSingleton();
+        bind(ShardBitsetFilterCache.class).asEagerSingleton();
     }
 }

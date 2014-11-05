@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.IntOpenHashSet;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.PrefixAnalyzer.PrefixTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -624,7 +625,7 @@ public class GeolocationContextMapping extends ContextMapping {
                                 IndexableField latField = latFields[i];
                                 assert lonField.fieldType().docValueType() == latField.fieldType().docValueType();
                                 // we write doc values fields differently: one field for all values, so we need to only care about indexed fields
-                                if (lonField.fieldType().docValueType() == null) {
+                                if (lonField.fieldType().docValueType() == DocValuesType.NONE) {
                                     spare.reset(latField.numericValue().doubleValue(), lonField.numericValue().doubleValue());
                                     geohashes.add(spare.geohash());
                                 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script.expression;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
@@ -44,7 +44,7 @@ class ReplaceableConstValueSource extends ValueSource {
     }
 
     @Override
-    public FunctionValues getValues(Map map, AtomicReaderContext atomicReaderContext) throws IOException {
+    public FunctionValues getValues(Map map, LeafReaderContext atomicReaderContext) throws IOException {
         return fv;
     }
 

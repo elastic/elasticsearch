@@ -607,6 +607,10 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
     }
 
     protected static boolean testRelationSupport(SpatialOperation relation) {
+        if (relation == SpatialOperation.IsDisjointTo) {
+            // disjoint works in terms of intersection
+            relation = SpatialOperation.Intersects;
+        }
         try {
             GeohashPrefixTree tree = new GeohashPrefixTree(SpatialContext.GEO, 3);
             RecursivePrefixTreeStrategy strategy = new RecursivePrefixTreeStrategy(tree, "area");
@@ -615,6 +619,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
             strategy.makeFilter(args);
             return true;
         } catch (UnsupportedSpatialOperation e) {
+            e.printStackTrace();
             return false;
         }
     }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -86,7 +86,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         mapScript.setNextReader(reader);
     }
 

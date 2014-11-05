@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -128,7 +128,7 @@ public class RangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         values = valuesSource.doubleValues();
     }
 

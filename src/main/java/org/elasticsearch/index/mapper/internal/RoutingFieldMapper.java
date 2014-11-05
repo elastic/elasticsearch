@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -57,11 +57,10 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
         }
 
@@ -196,7 +195,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         if (context.sourceToParse().routing() != null) {
             String routing = context.sourceToParse().routing();
             if (routing != null) {
-                if (!fieldType.indexed() && !fieldType.stored()) {
+                if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
                     context.ignoredValue(names.indexName(), routing);
                     return;
                 }
@@ -215,13 +214,15 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all are defaults, no sense to write it at all
-        if (!includeDefaults && fieldType.indexed() == Defaults.FIELD_TYPE.indexed() &&
+        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != IndexOptions.NONE;
+        if (!includeDefaults && indexed == indexedDefault &&
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() && required == Defaults.REQUIRED && path == Defaults.PATH) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
+        if (includeDefaults || indexed != indexedDefault) {
+            builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
         }
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());

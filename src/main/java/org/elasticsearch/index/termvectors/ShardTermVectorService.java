@@ -159,7 +159,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
             return false;
         }
         // and must be indexed
-        if (!field.fieldType().indexed()) {
+        if (field.fieldType().indexOptions() == IndexOptions.NONE) {
             return false;
         }
         return true;
@@ -301,7 +301,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         return parallelFields;
     }
 
-    // Poached from Lucene ParallelAtomicReader
+    // Poached from Lucene ParallelLeafReader
     private static final class ParallelFields extends Fields {
         final Map<String,Terms> fields = new TreeMap<>();
 

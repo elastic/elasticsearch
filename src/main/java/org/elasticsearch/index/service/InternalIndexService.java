@@ -33,9 +33,9 @@ import org.elasticsearch.index.*;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCacheModule;
 import org.elasticsearch.index.cache.filter.ShardFilterCacheModule;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
-import org.elasticsearch.index.cache.fixedbitset.ShardFixedBitSetFilterCacheModule;
 import org.elasticsearch.index.cache.query.ShardQueryCacheModule;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.engine.Engine;
@@ -117,7 +117,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final IndexFieldDataService indexFieldData;
 
-    private final FixedBitSetFilterCache fixedBitSetFilterCache;
+    private final BitsetFilterCache bitsetFilterCache;
 
     private final IndexEngine indexEngine;
 
@@ -138,7 +138,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
                                 AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
                                 SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache, IndexEngine indexEngine,
                                 IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService, IndexFieldDataService indexFieldData,
-                                FixedBitSetFilterCache fixedBitSetFilterCache) {
+                                BitsetFilterCache bitSetFilterCache) {
         super(index, indexSettings);
         this.injector = injector;
         this.threadPool = threadPool;
@@ -154,7 +154,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.indexGateway = indexGateway;
         this.indexStore = indexStore;
         this.settingsService = settingsService;
-        this.fixedBitSetFilterCache = fixedBitSetFilterCache;
+        this.bitsetFilterCache = bitSetFilterCache;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
         this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
@@ -162,7 +162,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         // inject workarounds for cyclic dep
         indexCache.filter().setIndexService(this);
         indexFieldData.setIndexService(this);
-        fixedBitSetFilterCache.setIndexService(this);
+        bitSetFilterCache.setIndexService(this);
     }
 
     @Override
@@ -230,8 +230,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     }
 
     @Override
-    public FixedBitSetFilterCache fixedBitSetFilterCache() {
-        return fixedBitSetFilterCache;
+    public BitsetFilterCache bitsetFilterCache() {
+        return bitsetFilterCache;
     }
 
     @Override
@@ -343,7 +343,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         modules.add(new MergeSchedulerModule(indexSettings));
         modules.add(new ShardFilterCacheModule());
         modules.add(new ShardQueryCacheModule());
-        modules.add(new ShardFixedBitSetFilterCacheModule());
+        modules.add(new ShardBitsetFilterCacheModule());
         modules.add(new ShardFieldDataModule());
         modules.add(new TranslogModule(indexSettings));
         modules.add(new EngineModule(indexSettings));

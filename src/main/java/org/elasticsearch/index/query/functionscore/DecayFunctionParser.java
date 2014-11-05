@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -295,7 +295,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) {
+        public void setNextReader(LeafReaderContext context) {
             geoPointValues = fieldData.load(context).getGeoPointValues();
         }
 
@@ -357,7 +357,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             this.origin = origin;
         }
 
-        public void setNextReader(AtomicReaderContext context) {
+        public void setNextReader(LeafReaderContext context) {
             this.doubleValues = this.fieldData.load(context).getDoubleValues();
         }
 

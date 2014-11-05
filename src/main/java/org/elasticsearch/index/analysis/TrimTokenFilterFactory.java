@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.miscellaneous.Lucene43TrimFilter;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
@@ -42,7 +43,7 @@ public class TrimTokenFilterFactory extends AbstractTokenFilterFactory {
     @Inject
     public TrimTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        if (version.onOrAfter(Version.LUCENE_44) && settings.get(UPDATE_OFFSETS_KEY) != null) {
+        if (version.onOrAfter(Version.LUCENE_4_4_0) && settings.get(UPDATE_OFFSETS_KEY) != null) {
             throw new ElasticsearchIllegalArgumentException(UPDATE_OFFSETS_KEY +  " is not supported anymore. Please fix your analysis chain or use"
                     + " an older compatibility version (<=4.3) but beware that it might cause highlighting bugs.");
         }
@@ -51,9 +52,12 @@ public class TrimTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        if (version.onOrAfter(Version.LUCENE_44)) {
-            return new TrimFilter(version, tokenStream);
+        if (version.onOrAfter(Version.LUCENE_4_4_0)) {
+            return new TrimFilter(tokenStream);
+        } else {
+            @SuppressWarnings("deprecated")
+            final TokenStream filter = new Lucene43TrimFilter(tokenStream, updateOffsets);
+            return filter;
         }
-        return new TrimFilter(version, tokenStream, updateOffsets);
     }
 }

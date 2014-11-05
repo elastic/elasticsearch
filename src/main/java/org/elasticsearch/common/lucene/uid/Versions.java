@@ -126,13 +126,13 @@ public class Versions {
     private Versions() {
     }
 
-    /** Wraps an {@link AtomicReaderContext}, a doc ID <b>relative to the context doc base</b> and a version. */
+    /** Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a version. */
     public static class DocIdAndVersion {
         public final int docId;
         public final long version;
-        public final AtomicReaderContext context;
+        public final LeafReaderContext context;
 
-        public DocIdAndVersion(int docId, long version, AtomicReaderContext context) {
+        public DocIdAndVersion(int docId, long version, LeafReaderContext context) {
             this.docId = docId;
             this.version = version;
             this.context = context;

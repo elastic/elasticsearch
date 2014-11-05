@@ -464,8 +464,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getVersionMapMemory());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getVersionMapMemory());
 
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getFixedBitSetMemory());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getFixedBitSetMemory());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getBitsetMemory());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getBitsetMemory());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getWarmer().current());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().current());

@@ -44,7 +44,8 @@ public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle");
         String source = "the quick brown fox";
         String[] expected = new String[]{"the", "the quick", "quick", "quick brown", "brown", "brown fox", "fox"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
@@ -55,7 +56,8 @@ public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick brown fox";
         String[] expected = new String[]{"the_quick_brown", "quick_brown_fox"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
@@ -66,7 +68,8 @@ public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick";
         String[] expected = new String[]{"the", "quick"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
     }
 
@@ -76,7 +79,9 @@ public class ShingleTokenFilterFactoryTests extends ElasticsearchTokenStreamTest
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("shingle_filler");
         String source = "simon the sorcerer";
         String[] expected = new String[]{"simon FILLER", "simon FILLER sorcerer", "FILLER sorcerer"};
-        TokenStream tokenizer = new StopFilter(TEST_VERSION_CURRENT, new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source)), StopFilter.makeStopSet(TEST_VERSION_CURRENT, "the"));
-        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
+        TokenStream stream = new StopFilter(tokenizer, StopFilter.makeStopSet("the"));
+        assertTokenStreamContents(tokenFilter.create(stream), expected);
     }
 }

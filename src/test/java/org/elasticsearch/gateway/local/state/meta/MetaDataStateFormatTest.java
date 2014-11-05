@@ -47,11 +47,13 @@ import org.junit.Test;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.file.Files;
+import java.nio.file.Path;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -86,9 +88,12 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
                 return MetaData.Builder.fromXContent(parser);
             }
         };
-        final URL resource = this.getClass().getResource("global-3.st");
+        Path tmp = newTempDir().toPath();
+        final InputStream resource = this.getClass().getResourceAsStream("global-3.st");
         assertThat(resource, notNullValue());
-        MetaData read = format.read(new File(resource.toURI()), 3);
+        Path dst = tmp.resolve("global-3.st");
+        Files.copy(resource, dst);
+        MetaData read = format.read(dst.toFile(), 3);
         assertThat(read, notNullValue());
         assertThat(read.uuid(), equalTo("3O1tDF1IRB6fSJ-GrTMUtg"));
         // indices are empty since they are serialized separately
@@ -209,7 +214,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
 
     public static void corruptFile(File file, ESLogger logger) throws IOException {
         File fileToCorrupt = file;
-        try (final SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParentFile())) {
+        try (final SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParentFile().toPath())) {
             long checksumBeforeCorruption;
             try (IndexInput input = dir.openInput(fileToCorrupt.getName(), IOContext.DEFAULT)) {
                 checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);

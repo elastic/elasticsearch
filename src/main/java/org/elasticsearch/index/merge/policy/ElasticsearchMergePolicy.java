@@ -22,8 +22,6 @@ package org.elasticsearch.index.merge.policy;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
-import org.apache.lucene.index.FieldInfo.DocValuesType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -68,10 +66,10 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     }
 
     /** Return an "upgraded" view of the reader. */
-    static AtomicReader filter(AtomicReader reader) throws IOException {
+    static LeafReader filter(LeafReader reader) throws IOException {
         final FieldInfos fieldInfos = reader.getFieldInfos();
         final FieldInfo versionInfo = fieldInfos.fieldInfo(VersionFieldMapper.NAME);
-        if (versionInfo != null && versionInfo.hasDocValues()) {
+        if (versionInfo != null && versionInfo.getDocValuesType() != DocValuesType.NONE) {
             // the reader is a recent one, it has versions and they are stored
             // in a numeric doc values field
             return reader;
@@ -109,13 +107,21 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
             for (FieldInfo fi : fieldInfos) {
                 fieldNumber = Math.max(fieldNumber, fi.number + 1);
             }
-            newVersionInfo = new FieldInfo(VersionFieldMapper.NAME, false, fieldNumber, false, true, false,
-                    IndexOptions.DOCS_ONLY, DocValuesType.NUMERIC, DocValuesType.NUMERIC, -1, Collections.<String, String>emptyMap());
+            // TODO: lots of things can wrong here...
+            newVersionInfo = new FieldInfo(VersionFieldMapper.NAME,               // field name
+                                           fieldNumber,                           // field number
+                                           false,                                 // store term vectors
+                                           false,                                 // omit norms
+                                           false,                                 // store payloads
+                                           IndexOptions.NONE,                     // index options
+                                           DocValuesType.NUMERIC,                 // docvalues
+                                           -1,                                    // docvalues generation
+                                           Collections.<String, String>emptyMap() // attributes
+                                           );
         } else {
-            newVersionInfo = new FieldInfo(VersionFieldMapper.NAME, versionInfo.isIndexed(), versionInfo.number,
-                    versionInfo.hasVectors(), versionInfo.omitsNorms(), versionInfo.hasPayloads(),
-                    versionInfo.getIndexOptions(), versionInfo.getDocValuesType(), versionInfo.getNormType(), versionInfo.getDocValuesGen(), versionInfo.attributes());
+            newVersionInfo = versionInfo;
         }
+        newVersionInfo.checkConsistency(); // fail merge immediately if above code is wrong
         final ArrayList<FieldInfo> fieldInfoList = new ArrayList<>();
         for (FieldInfo info : fieldInfos) {
             if (info != versionInfo) {
@@ -130,7 +136,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
                 return versions.get(index);
             }
         };
-        return new FilterAtomicReader(reader) {
+        return new FilterLeafReader(reader) {
             @Override
             public FieldInfos getFieldInfos() {
                 return newFieldInfos;
@@ -156,10 +162,10 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
         }
 
         @Override
-        public List<AtomicReader> getMergeReaders() throws IOException {
-            final List<AtomicReader> readers = super.getMergeReaders();
-            ImmutableList.Builder<AtomicReader> newReaders = ImmutableList.builder();
-            for (AtomicReader reader : readers) {
+        public List<LeafReader> getMergeReaders() throws IOException {
+            final List<LeafReader> readers = super.getMergeReaders();
+            ImmutableList.Builder<LeafReader> newReaders = ImmutableList.builder();
+            for (LeafReader reader : readers) {
                 newReaders.add(filter(reader));
             }
             return newReaders.build();

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
@@ -30,7 +30,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import java.io.IOException;
 
 /**
- * A lazy regexp filter which only builds the automaton on the first call to {@link #getDocIdSet(AtomicReaderContext, Bits)}.
+ * A lazy regexp filter which only builds the automaton on the first call to {@link #getDocIdSet(LeafReaderContext, Bits)}.
  * It is not thread safe (so can't be applied on multiple segments concurrently)
  */
 public class RegexpFilter extends Filter {
@@ -65,7 +65,7 @@ public class RegexpFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
         return filter.getDocIdSet(context, acceptDocs);
     }
 

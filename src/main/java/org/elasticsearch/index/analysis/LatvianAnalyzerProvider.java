@@ -38,9 +38,9 @@ public class LatvianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Latvi
     @Inject
     public LatvianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        analyzer = new LatvianAnalyzer(version,
-                Analysis.parseStopWords(env, settings, LatvianAnalyzer.getDefaultStopSet(), version),
-                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version));
+        analyzer = new LatvianAnalyzer(Analysis.parseStopWords(env, settings, LatvianAnalyzer.getDefaultStopSet()),
+                                       Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer.setVersion(version);
     }
 
     @Override

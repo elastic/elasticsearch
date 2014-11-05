@@ -95,7 +95,8 @@ public class KeepFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
         assertThat(tokenFilter, instanceOf(KeepWordFilterFactory.class));
         String source = "hello small world";
         String[] expected = new String[]{"hello", "world"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected, new int[]{1, 2});
     }
 
@@ -106,7 +107,8 @@ public class KeepFilterFactoryTests extends ElasticsearchTokenStreamTestCase {
         assertThat(tokenFilter, instanceOf(KeepWordFilterFactory.class));
         String source = "Hello small world";
         String[] expected = new String[]{"Hello"};
-        Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected, new int[]{1});
     }
 

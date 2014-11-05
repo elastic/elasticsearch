@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.basic;
 
-import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchException;
@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockInternalEngine;
-import org.elasticsearch.test.engine.ThrowingAtomicReaderWrapper;
+import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.test.store.MockFSDirectoryService;
@@ -292,7 +292,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
 
     public static class RandomExceptionDirectoryReaderWrapper extends MockInternalEngine.DirectoryReaderWrapper {
         private final Settings settings;
-        static class ThrowingSubReaderWrapper extends SubReaderWrapper implements ThrowingAtomicReaderWrapper.Thrower {
+        static class ThrowingSubReaderWrapper extends SubReaderWrapper implements ThrowingLeafReaderWrapper.Thrower {
              private final Random random;
             private final double topLevelRatio;
             private final double lowLevelRatio;
@@ -305,12 +305,12 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             }
 
             @Override
-            public AtomicReader wrap(AtomicReader reader) {
-                return new ThrowingAtomicReaderWrapper(reader, this);
+            public LeafReader wrap(LeafReader reader) {
+                return new ThrowingLeafReaderWrapper(reader, this);
             }
 
             @Override
-            public void maybeThrow(ThrowingAtomicReaderWrapper.Flags flag) throws IOException {
+            public void maybeThrow(ThrowingLeafReaderWrapper.Flags flag) throws IOException {
                 switch (flag) {
                     case Fields:
                     case TermVectors:

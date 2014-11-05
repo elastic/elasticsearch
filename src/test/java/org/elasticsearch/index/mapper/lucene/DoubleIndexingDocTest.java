@@ -41,7 +41,7 @@ public class DoubleIndexingDocTest extends ElasticsearchSingleNodeLuceneTestCase
     @Test
     public void testDoubleIndexingSameDoc() throws Exception {
         Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(random(), TEST_VERSION_CURRENT, Lucene.STANDARD_ANALYZER));
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(random(), Lucene.STANDARD_ANALYZER));
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").endObject()

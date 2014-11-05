@@ -20,8 +20,21 @@
 package org.elasticsearch.index.engine.internal;
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherFactory;
@@ -36,7 +49,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -44,7 +56,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -58,7 +69,25 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.engine.CreateFailedEngineException;
+import org.elasticsearch.index.engine.DeleteByQueryFailedEngineException;
+import org.elasticsearch.index.engine.DeleteFailedEngineException;
+import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineAlreadyStartedException;
+import org.elasticsearch.index.engine.EngineClosedException;
+import org.elasticsearch.index.engine.EngineCreationFailureException;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.FlushFailedEngineException;
+import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
+import org.elasticsearch.index.engine.IndexFailedEngineException;
+import org.elasticsearch.index.engine.OptimizeFailedEngineException;
+import org.elasticsearch.index.engine.RecoveryEngineException;
+import org.elasticsearch.index.engine.RefreshFailedEngineException;
+import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.engine.SnapshotFailedEngineException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -78,7 +107,13 @@ import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -202,7 +237,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         this.similarityService = similarityService;
         this.codecService = codecService;
         this.compoundOnFlush = indexSettings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, this.compoundOnFlush);
-        this.checksumOnMerge = indexSettings.getAsBoolean(INDEX_CHECKSUM_ON_MERGE, this.checksumOnMerge);
         this.indexConcurrency = indexSettings.getAsInt(INDEX_INDEX_CONCURRENCY, Math.max(IndexWriterConfig.DEFAULT_MAX_THREAD_STATES, (int) (EsExecutors.boundedNumberOfProcessors(indexSettings) * 0.65)));
         this.versionMap = new LiveVersionMap();
         this.dirtyLocks = new Object[indexConcurrency * 50]; // we multiply it to have enough...
@@ -668,11 +702,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
             Query query;
             if (delete.nested() && delete.aliasFilter() != null) {
-                query = new IncludeNestedDocsQuery(new XFilteredQuery(delete.query(), delete.aliasFilter()), delete.parentFilter());
+                query = new IncludeNestedDocsQuery(new FilteredQuery(delete.query(), delete.aliasFilter()), delete.parentFilter());
             } else if (delete.nested()) {
                 query = new IncludeNestedDocsQuery(delete.query(), delete.parentFilter());
             } else if (delete.aliasFilter() != null) {
-                query = new XFilteredQuery(delete.query(), delete.aliasFilter());
+                query = new FilteredQuery(delete.query(), delete.aliasFilter());
             } else {
                 query = delete.query();
             }
@@ -1174,7 +1208,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         return t;
     }
 
-    private static long getReaderRamBytesUsed(AtomicReaderContext reader) {
+    private static long getReaderRamBytesUsed(LeafReaderContext reader) {
         final SegmentReader segmentReader = SegmentReaderUtils.segmentReader(reader.reader());
         return segmentReader.ramBytesUsed();
     }
@@ -1185,7 +1219,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             ensureOpen();
             try (final Searcher searcher = acquireSearcher("segments_stats")) {
                 SegmentsStats stats = new SegmentsStats();
-                for (AtomicReaderContext reader : searcher.reader().leaves()) {
+                for (LeafReaderContext reader : searcher.reader().leaves()) {
                     stats.add(1, getReaderRamBytesUsed(reader));
                 }
                 stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
@@ -1205,7 +1239,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             // first, go over and compute the search ones...
             Searcher searcher = acquireSearcher("segments");
             try {
-                for (AtomicReaderContext reader : searcher.reader().leaves()) {
+                for (LeafReaderContext reader : searcher.reader().leaves()) {
                     assert reader.reader() instanceof SegmentReader;
                     SegmentCommitInfo info = SegmentReaderUtils.segmentReader(reader.reader()).getSegmentInfo();
                     assert !segments.containsKey(info.info.name);
@@ -1340,7 +1374,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 // the shard is initializing
                 if (Lucene.isCorruptionException(failure)) {
                     try {
-                        store.markStoreCorrupted(ExceptionsHelper.unwrap(failure, CorruptIndexException.class));
+                        store.markStoreCorrupted(ExceptionsHelper.unwrapCorruption(failure));
                     } catch (IOException e) {
                         logger.warn("Couldn't marks store corrupted", e);
                     }
@@ -1385,7 +1419,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     /**
      * Returns whether a leaf reader comes from a merge (versus flush or addIndexes).
      */
-    private static boolean isMergedSegment(AtomicReader reader) {
+    private static boolean isMergedSegment(LeafReader reader) {
         // We expect leaves to be segment readers
         final Map<String, String> diagnostics = SegmentReaderUtils.segmentReader(reader).getSegmentInfo().info.getDiagnostics();
         final String source = diagnostics.get(IndexWriter.SOURCE);
@@ -1401,7 +1435,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 IndexWriter.unlock(store.directory());
             }
             boolean create = !Lucene.indexExists(store.directory());
-            IndexWriterConfig config = new IndexWriterConfig(Lucene.VERSION, analysisService.defaultIndexAnalyzer());
+            IndexWriterConfig config = new IndexWriterConfig(analysisService.defaultIndexAnalyzer());
+            config.setCommitOnClose(false); // we by default don't commit on close
             config.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
             config.setIndexDeletionPolicy(deletionPolicy);
             config.setInfoStream(new LoggerInfoStream(indexSettings, shardId));
@@ -1422,12 +1457,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
              * in combination with the default writelock timeout*/
             config.setWriteLockTimeout(5000);
             config.setUseCompoundFile(this.compoundOnFlush);
-            config.setCheckIntegrityAtMerge(checksumOnMerge);
             // Warm-up hook for newly-merged segments. Warming up segments here is better since it will be performed at the end
             // of the merge operation and won't slow down _refresh
             config.setMergedSegmentWarmer(new IndexReaderWarmer() {
                 @Override
-                public void warm(AtomicReader reader) throws IOException {
+                public void warm(LeafReader reader) throws IOException {
                     try {
                         assert isMergedSegment(reader);
                         if (warmer != null) {
@@ -1457,7 +1491,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     public static final String INDEX_INDEX_CONCURRENCY = "index.index_concurrency";
     public static final String INDEX_COMPOUND_ON_FLUSH = "index.compound_on_flush";
-    public static final String INDEX_CHECKSUM_ON_MERGE = "index.checksum_on_merge";
     public static final String INDEX_GC_DELETES = "index.gc_deletes";
     public static final String INDEX_FAIL_ON_MERGE_FAILURE = "index.fail_on_merge_failure";
     public static final String INDEX_FAIL_ON_CORRUPTION = "index.fail_on_corruption";
@@ -1478,13 +1511,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 logger.info("updating {} from [{}] to [{}]", InternalEngine.INDEX_COMPOUND_ON_FLUSH, InternalEngine.this.compoundOnFlush, compoundOnFlush);
                 InternalEngine.this.compoundOnFlush = compoundOnFlush;
                 indexWriter.getConfig().setUseCompoundFile(compoundOnFlush);
-            }
-            
-            final boolean checksumOnMerge = settings.getAsBoolean(INDEX_CHECKSUM_ON_MERGE, InternalEngine.this.checksumOnMerge);
-            if (checksumOnMerge != InternalEngine.this.checksumOnMerge) {
-                logger.info("updating {} from [{}] to [{}]", InternalEngine.INDEX_CHECKSUM_ON_MERGE, InternalEngine.this.checksumOnMerge, checksumOnMerge);
-                InternalEngine.this.checksumOnMerge = checksumOnMerge;
-                indexWriter.getConfig().setCheckIntegrityAtMerge(checksumOnMerge);
             }
 
             InternalEngine.this.failEngineOnCorruption = settings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION, InternalEngine.this.failEngineOnCorruption);
@@ -1602,13 +1628,13 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         try (final Searcher currentSearcher = acquireSearcher("search_factory")) {
                             // figure out the newSearcher, with only the new readers that are relevant for us
                             List<IndexReader> readers = Lists.newArrayList();
-                            for (AtomicReaderContext newReaderContext : searcher.getIndexReader().leaves()) {
+                            for (LeafReaderContext newReaderContext : searcher.getIndexReader().leaves()) {
                                 if (isMergedSegment(newReaderContext.reader())) {
                                     // merged segments are already handled by IndexWriterConfig.setMergedSegmentWarmer
                                     continue;
                                 }
                                 boolean found = false;
-                                for (AtomicReaderContext currentReaderContext : currentSearcher.reader().leaves()) {
+                                for (LeafReaderContext currentReaderContext : currentSearcher.reader().leaves()) {
                                     if (currentReaderContext.reader().getCoreCacheKey().equals(newReaderContext.reader().getCoreCacheKey())) {
                                         found = true;
                                         break;

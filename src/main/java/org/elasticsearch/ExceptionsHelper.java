@@ -19,11 +19,15 @@
 
 package org.elasticsearch;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.List;
@@ -161,12 +165,19 @@ public final class ExceptionsHelper {
         return first;
     }
 
+    public static IOException unwrapCorruption(Throwable t) {
+        return (IOException) unwrap(t, CorruptIndexException.class, 
+                                       IndexFormatTooOldException.class, 
+                                       IndexFormatTooNewException.class);
+    }
 
-    public static <T extends Throwable> T unwrap(Throwable t, Class<T> clazz) {
+    public static Throwable unwrap(Throwable t, Class<?>... clazzes) {
         if (t != null) {
             do {
-                if (clazz.isInstance(t)) {
-                    return clazz.cast(t);
+                for (Class<?> clazz : clazzes) {
+                    if (clazz.isInstance(t)) {
+                        return t;
+                    }
                 }
             } while ((t = t.getCause()) != null);
         }

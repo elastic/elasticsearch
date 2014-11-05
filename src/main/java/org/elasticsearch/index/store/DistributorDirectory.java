@@ -85,15 +85,6 @@ public final class DistributorDirectory extends BaseDirectory {
     }
 
     @Override
-    public boolean fileExists(String name) throws IOException {
-        try {
-            return getDirectory(name).fileExists(name);
-        } catch (FileNotFoundException ex) {
-            return false;
-        }
-    }
-
-    @Override
     public void deleteFile(String name) throws IOException {
         getDirectory(name, true).deleteFile(name);
         Directory remove = nameDirMapping.remove(name);
@@ -114,6 +105,25 @@ public final class DistributorDirectory extends BaseDirectory {
     public void sync(Collection<String> names) throws IOException {
         for (Directory dir : distributor.all()) {
             dir.sync(names);
+        }
+    }
+
+    @Override
+    public void renameFile(String source, String dest) throws IOException {
+        Directory directory = getDirectory(source);
+        if (nameDirMapping.putIfAbsent(dest, directory) != null) {
+            throw new IOException("Can't rename file from " + source
+                    + " to: " + dest + ": target file already exists");
+        }
+        boolean success = false;
+        try {
+            directory.renameFile(source, dest);
+            nameDirMapping.remove(source);
+            success = true;
+        } finally {
+            if (!success) {
+                nameDirMapping.remove(dest);
+            }
         }
     }
 
@@ -174,32 +184,6 @@ public final class DistributorDirectory extends BaseDirectory {
         return distributor.toString();
     }
 
-    /**
-     * Renames the given source file to the given target file unless the target already exists.
-     *
-     * @param directoryService the DirectoryService to use.
-     * @param from the source file name.
-     * @param to the target file name
-     * @throws IOException if the target file already exists.
-     */
-    public void renameFile(DirectoryService directoryService, String from, String to) throws IOException {
-        Directory directory = getDirectory(from);
-        if (nameDirMapping.putIfAbsent(to, directory) != null) {
-            throw new IOException("Can't rename file from " + from
-                    + " to: " + to + ": target file already exists");
-        }
-        boolean success = false;
-        try {
-            directoryService.renameFile(directory, from, to);
-            nameDirMapping.remove(from);
-            success = true;
-        } finally {
-            if (!success) {
-                nameDirMapping.remove(to);
-            }
-        }
-    }
-
     Distributor getDistributor() {
         return distributor;
     }
@@ -210,34 +194,29 @@ public final class DistributorDirectory extends BaseDirectory {
     static boolean assertConsistency(ESLogger logger, DistributorDirectory dir) throws IOException {
         boolean consistent = true;
         StringBuilder builder = new StringBuilder();
-        try {
-            Directory[] all = dir.distributor.all();
-            for (Directory d : all) {
-                for (String file : d.listAll()) {
-                final Directory directory = dir.nameDirMapping.get(file);
-                    if (directory == null) {
-                        consistent = false;
-                        builder.append("File ").append(file)
-                                .append(" was not mapped to a directory but exists in one of the distributors directories")
-                                .append(System.lineSeparator());
-                    }
-                    if (directory != d) {
-                        consistent = false;
-                        builder.append("File ").append(file).append(" was  mapped to a directory ").append(directory)
-                                .append(" but exists in another distributor directory").append(d)
-                                .append(System.lineSeparator());
-                    }
-
+        Directory[] all = dir.distributor.all();
+        for (Directory d : all) {
+            for (String file : d.listAll()) {
+            final Directory directory = dir.nameDirMapping.get(file);
+                if (directory == null) {
+                    consistent = false;
+                    builder.append("File ").append(file)
+                            .append(" was not mapped to a directory but exists in one of the distributors directories")
+                            .append(System.lineSeparator());
                 }
+                if (directory != d) {
+                    consistent = false;
+                    builder.append("File ").append(file).append(" was  mapped to a directory ").append(directory)
+                            .append(" but exists in another distributor directory").append(d)
+                            .append(System.lineSeparator());
+                }
+
             }
-            if (consistent == false) {
-                logger.info(builder.toString());
-            }
-            assert consistent: builder.toString();
-        } catch (NoSuchDirectoryException ex) {
-            // that's fine - we can't check the directory since we might have already been wiped by a shutdown or
-            // a test cleanup ie the directory is not there anymore.
         }
+        if (consistent == false) {
+            logger.info(builder.toString());
+        }
+        assert consistent: builder.toString();
         return consistent; // return boolean so it can be easily be used in asserts
     }
 

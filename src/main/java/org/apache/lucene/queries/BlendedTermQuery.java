@@ -162,7 +162,7 @@ public abstract class BlendedTermQuery extends Query {
             return termContext;
         }
         TermContext newTermContext = new TermContext(termContext.topReaderContext);
-        List<AtomicReaderContext> leaves = termContext.topReaderContext.leaves();
+        List<LeafReaderContext> leaves = termContext.topReaderContext.leaves();
         final int len;
         if (leaves == null) {
             len = 1;

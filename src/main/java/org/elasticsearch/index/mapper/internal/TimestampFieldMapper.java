@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -58,12 +59,12 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     public static class Defaults extends DateFieldMapper.Defaults {
         public static final String NAME = "_timestamp";
 
+        // TODO: this should be removed
         public static final FieldType PRE_20_FIELD_TYPE;
         public static final FieldType FIELD_TYPE = new FieldType(DateFieldMapper.Defaults.FIELD_TYPE);
 
         static {
             FIELD_TYPE.setStored(true);
-            FIELD_TYPE.setIndexed(true);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.freeze();
             PRE_20_FIELD_TYPE = new FieldType(FIELD_TYPE);
@@ -237,10 +238,10 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (enabledState.enabled) {
             long timestamp = context.sourceToParse().timestamp();
-            if (!fieldType.indexed() && !fieldType.stored() && !hasDocValues()) {
+            if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored() && !hasDocValues()) {
                 context.ignoredValue(names.indexName(), String.valueOf(timestamp));
             }
-            if (fieldType.indexed() || fieldType.stored()) {
+            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
                 fields.add(new LongFieldMapper.CustomLongNumericField(this, timestamp, fieldType));
             }
             if (hasDocValues()) {
@@ -257,9 +258,11 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexedDefault = Defaults.FIELD_TYPE.indexOptions() != IndexOptions.NONE;
 
         // if all are defaults, no sense to write it at all
-        if (!includeDefaults && fieldType.indexed() == Defaults.FIELD_TYPE.indexed() && customFieldDataSettings == null &&
+        if (!includeDefaults && indexed == indexedDefault && customFieldDataSettings == null &&
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED && path == Defaults.PATH
                 && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())
                 && Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)) {
@@ -269,8 +272,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         if (includeDefaults || enabledState != Defaults.ENABLED) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (includeDefaults || (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) || (fieldType.tokenized() != Defaults.FIELD_TYPE.tokenized())) {
-            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
+        if (includeDefaults || (indexed != indexedDefault) || (fieldType.tokenized() != Defaults.FIELD_TYPE.tokenized())) {
+            builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
         }
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());

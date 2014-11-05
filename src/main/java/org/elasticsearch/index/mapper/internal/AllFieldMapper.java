@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -41,7 +41,6 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -80,7 +79,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
-            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.setTokenized(true);
             FIELD_TYPE.freeze();
         }
@@ -107,7 +106,10 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         @Override
         public AllFieldMapper build(BuilderContext context) {
             // In case the mapping overrides these
-            fieldType.setIndexed(true);
+            // TODO: this should be an exception! it doesnt make sense to not index this field
+            if (fieldType.indexOptions() == IndexOptions.NONE) {
+                fieldType.setIndexOptions(Defaults.FIELD_TYPE.indexOptions());
+            }
             fieldType.setTokenized(true);
 
             return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());

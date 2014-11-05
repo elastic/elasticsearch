@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
 import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;
@@ -46,7 +47,6 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
-import org.elasticsearch.index.cache.fixedbitset.ShardFixedBitSetFilterCache;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
@@ -130,7 +130,7 @@ public interface IndexShard extends IndexShardComponent {
 
     ShardSuggestService shardSuggestService();
 
-    ShardFixedBitSetFilterCache shardFixedBitSetFilterCache();
+    ShardBitsetFilterCache shardBitsetFilterCache();
 
     MapperService mapperService();
 

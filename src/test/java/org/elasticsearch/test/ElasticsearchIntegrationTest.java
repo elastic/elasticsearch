@@ -117,6 +117,7 @@ import org.joda.time.DateTimeZone;
 import org.junit.*;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -1857,7 +1858,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     protected Settings prepareBackwardsDataDir(File backwardsIndex) throws IOException {
         File indexDir = newTempDir();
         File dataDir = new File(indexDir, "data");
-        TestUtil.unzip(backwardsIndex, indexDir);
+        try (FileInputStream stream = new FileInputStream(backwardsIndex)) {
+            TestUtil.unzip(stream, indexDir.toPath());
+        }
         assertTrue(dataDir.exists());
         String[] list = dataDir.list();
         if (list == null || list.length > 1) {

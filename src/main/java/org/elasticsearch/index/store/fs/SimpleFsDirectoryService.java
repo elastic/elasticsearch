@@ -42,6 +42,6 @@ public class SimpleFsDirectoryService extends FsDirectoryService {
 
     @Override
     protected Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
-        return new SimpleFSDirectory(location, lockFactory);
+        return new SimpleFSDirectory(location.toPath(), lockFactory);
     }
 }

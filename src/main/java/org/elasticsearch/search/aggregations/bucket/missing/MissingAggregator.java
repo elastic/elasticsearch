@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.missing;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -47,7 +47,7 @@ public class MissingAggregator extends SingleBucketAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         if (valuesSource != null) {
             docsWithValue = valuesSource.docsWithValue(reader.reader().maxDoc());
         } else {

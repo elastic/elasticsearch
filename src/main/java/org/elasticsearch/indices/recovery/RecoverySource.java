@@ -148,7 +148,7 @@ public class RecoverySource extends AbstractComponent {
                         final StoreFileMetaData md = recoverySourceMetadata.get(name);
                         if (md == null) {
                             logger.info("Snapshot differs from actual index for file: {} meta: {}", name, recoverySourceMetadata.asMap());
-                            throw new CorruptIndexException("Snapshot differs from actual index - maybe index was removed metadata has " + recoverySourceMetadata.asMap().size() + " files");
+                            throw new CorruptIndexException("Snapshot differs from actual index - maybe index was removed metadata has " + recoverySourceMetadata.asMap().size() + " files", name);
                         }
                     }
                     final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(new Store.MetadataSnapshot(request.existingFiles()));
@@ -182,7 +182,7 @@ public class RecoverySource extends AbstractComponent {
 
                     final CountDownLatch latch = new CountDownLatch(response.phase1FileNames.size());
                     final CopyOnWriteArrayList<Throwable> exceptions = new CopyOnWriteArrayList<>();
-                    final AtomicReference<CorruptIndexException> corruptedEngine = new AtomicReference<>();
+                    final AtomicReference<Throwable> corruptedEngine = new AtomicReference<>();
                     int fileIndex = 0;
                     for (final String name : response.phase1FileNames) {
                         ThreadPoolExecutor pool;
@@ -226,8 +226,8 @@ public class RecoverySource extends AbstractComponent {
                                                 TransportRequestOptions.options().withCompress(shouldCompressRequest).withType(TransportRequestOptions.Type.RECOVERY).withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                                     }
                                 } catch (Throwable e) {
-                                    final CorruptIndexException corruptIndexException;
-                                    if ((corruptIndexException = ExceptionsHelper.unwrap(e, CorruptIndexException.class)) != null) {
+                                    final Throwable corruptIndexException;
+                                    if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(e)) != null) {
                                        if (store.checkIntegrity(md) == false) { // we are corrupted on the primary -- fail!
                                            logger.warn("{} Corrupted file detected {} checksum mismatch", shard.shardId(), md);
                                            if (corruptedEngine.compareAndSet(null, corruptIndexException) == false) {

@@ -17,21 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.fixedbitset;
+package org.elasticsearch.index.cache.bitset;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
-
-import java.io.IOException;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 
 /**
- * A filter that always returns a {@link FixedBitSet}.
  */
-public abstract class FixedBitSetFilter extends Filter {
+public class BitsetFilterCacheModule extends AbstractModule {
+
+    public BitsetFilterCacheModule(Settings settings) {
+    }
 
     @Override
-    public abstract FixedBitSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException;
-
+    protected void configure() {
+        bind(BitsetFilterCache.class).asEagerSingleton();
+    }
 }

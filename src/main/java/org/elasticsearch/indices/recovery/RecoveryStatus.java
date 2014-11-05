@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
@@ -34,13 +33,10 @@ import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -91,7 +87,7 @@ public class RecoveryStatus extends AbstractRefCounted {
         store.incRef();
     }
 
-    private final Set<String> tempFileNames = ConcurrentCollections.newConcurrentSet();
+    private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
     public long recoveryId() {
         return recoveryId;
@@ -147,23 +143,7 @@ public class RecoveryStatus extends AbstractRefCounted {
     /** renames all temporary files to their true name, potentially overriding existing files */
     public void renameAllTempFiles() throws IOException {
         ensureRefCount();
-        Iterator<String> tempFileIterator = tempFileNames.iterator();
-        final Directory directory = store.directory();
-        while (tempFileIterator.hasNext()) {
-            String tempFile = tempFileIterator.next();
-            String origFile = originalNameForTempFile(tempFile);
-            // first, go and delete the existing ones
-            try {
-                directory.deleteFile(origFile);
-            } catch (FileNotFoundException | NoSuchFileException e) {
-            } catch (Throwable ex) {
-                logger.debug("failed to delete file [{}]", ex, origFile);
-            }
-            // now, rename the files... and fail it it won't work
-            store.renameFile(tempFile, origFile);
-            // upon success, remove the temp file
-            tempFileIterator.remove();
-        }
+        store.renameFilesSafe(tempFileNames);
     }
 
     /** cancel the recovery. calling this method will clean temporary files and release the store
@@ -218,7 +198,7 @@ public class RecoveryStatus extends AbstractRefCounted {
 
     /** return true if the give file is a temporary file name issued by this recovery */
     private boolean isTempFile(String filename) {
-        return tempFileNames.contains(filename);
+        return tempFileNames.containsKey(filename);
     }
 
     public IndexOutput getOpenIndexOutput(String key) {
@@ -251,7 +231,7 @@ public class RecoveryStatus extends AbstractRefCounted {
         ensureRefCount();
         String tempFileName = getTempNameForFile(fileName);
         // add first, before it's created
-        tempFileNames.add(tempFileName);
+        tempFileNames.put(tempFileName, fileName);
         IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, metaData, IOContext.DEFAULT);
         openIndexOutputs.put(fileName, indexOutput);
         return indexOutput;
@@ -268,7 +248,7 @@ public class RecoveryStatus extends AbstractRefCounted {
                 iterator.remove();
             }
             // trash temporary files
-            for (String file : tempFileNames) {
+            for (String file : tempFileNames.keySet()) {
                 logger.trace("cleaning temporary file [{}]", file);
                 store.deleteQuiet(file);
             }

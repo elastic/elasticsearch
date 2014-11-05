@@ -38,9 +38,9 @@ public class ArmenianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Arme
     @Inject
     public ArmenianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        analyzer = new ArmenianAnalyzer(version,
-                Analysis.parseStopWords(env, settings, ArmenianAnalyzer.getDefaultStopSet(), version),
-                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version));
+        analyzer = new ArmenianAnalyzer(Analysis.parseStopWords(env, settings, ArmenianAnalyzer.getDefaultStopSet()),
+                                        Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer.setVersion(version);
     }
 
     @Override

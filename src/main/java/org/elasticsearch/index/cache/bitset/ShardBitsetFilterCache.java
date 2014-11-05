@@ -17,23 +17,35 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.fixedbitset;
+package org.elasticsearch.index.cache.bitset;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
  */
-public class FixedBitSetFilterCacheModule extends AbstractModule {
+public class ShardBitsetFilterCache extends AbstractIndexShardComponent {
 
-    private final Settings settings;
+    private final CounterMetric totalMetric = new CounterMetric();
 
-    public FixedBitSetFilterCacheModule(Settings settings) {
-        this.settings = settings;
+    @Inject
+    public ShardBitsetFilterCache(ShardId shardId, @IndexSettings Settings indexSettings) {
+        super(shardId, indexSettings);
     }
 
-    @Override
-    protected void configure() {
-        bind(FixedBitSetFilterCache.class).asEagerSingleton();
+    public void onCached(long sizeInBytes) {
+        totalMetric.inc(sizeInBytes);
+    }
+
+    public void onRemoval(long sizeInBytes) {
+        totalMetric.dec(sizeInBytes);
+    }
+
+    public long getMemorySizeInBytes() {
+        return totalMetric.count();
     }
 }

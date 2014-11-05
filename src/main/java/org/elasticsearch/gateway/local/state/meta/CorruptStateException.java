@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gateway.local.state.meta;
 
-import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchCorruptionException;
 
 /**
@@ -37,12 +36,12 @@ public class CorruptStateException extends ElasticsearchCorruptionException {
 
     /**
      * Creates a new {@link CorruptStateException} with the given exceptions stacktrace.
-     * This constructor copies the stacktrace as well as the message from the given {@link CorruptIndexException}
+     * This constructor copies the stacktrace as well as the message from the given {@link Throwable}
      * into this exception.
      *
      * @param ex the exception cause
      */
-    public CorruptStateException(CorruptIndexException ex) {
+    public CorruptStateException(Throwable ex) {
         super(ex);
     }
 }

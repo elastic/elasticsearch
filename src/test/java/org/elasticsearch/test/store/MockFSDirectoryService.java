@@ -119,32 +119,37 @@ public class MockFSDirectoryService extends FsDirectoryService {
     }
 
     public void checkIndex(Store store, ShardId shardId) throws IndexShardException {
-        try {
-            Directory dir = store.directory();
-            if (!Lucene.indexExists(dir)) {
-                return;
-            }
-            if (IndexWriter.isLocked(dir)) {
-                AbstractRandomizedTest.checkIndexFailed = true;
-                throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
-            }
-            CheckIndex checkIndex = new CheckIndex(dir);
-            BytesStreamOutput os = new BytesStreamOutput();
-            PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
-            checkIndex.setInfoStream(out);
-            out.flush();
-            CheckIndex.Status status = checkIndex.checkIndex();
-            if (!status.clean) {
-                AbstractRandomizedTest.checkIndexFailed = true;
-                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
-                throw new IndexShardException(shardId, "index check failure");
-            } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+        if (store.tryIncRef()) {
+            try {
+                Directory dir = store.directory();
+                if (!Lucene.indexExists(dir)) {
+                    return;
                 }
+                if (IndexWriter.isLocked(dir)) {
+                    AbstractRandomizedTest.checkIndexFailed = true;
+                    throw new IllegalStateException("IndexWriter is still open on shard " + shardId);
+                }
+                try (CheckIndex checkIndex = new CheckIndex(dir)) {
+                    BytesStreamOutput os = new BytesStreamOutput();
+                    PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+                    checkIndex.setInfoStream(out);
+                    out.flush();
+                    CheckIndex.Status status = checkIndex.checkIndex();
+                    if (!status.clean) {
+                        AbstractRandomizedTest.checkIndexFailed = true;
+                        logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                        throw new IndexShardException(shardId, "index check failure");
+                    } else {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("failed to check index", e);
+            } finally {
+                store.decRef();
             }
-        } catch (Exception e) {
-            logger.warn("failed to check index", e);
         }
     }
 

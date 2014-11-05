@@ -97,7 +97,7 @@ public class TermVectorUnitTests extends ElasticsearchLuceneTestCase {
     private void writeEmptyTermVector(TermVectorResponse outResponse) throws IOException {
 
         Directory dir = newDirectory();
-        IndexWriterConfig conf = new IndexWriterConfig(TEST_VERSION_CURRENT, new StandardAnalyzer(TEST_VERSION_CURRENT));
+        IndexWriterConfig conf = new IndexWriterConfig(new StandardAnalyzer());
         conf.setOpenMode(OpenMode.CREATE);
         IndexWriter writer = new IndexWriter(dir, conf);
         FieldType type = new FieldType(TextField.TYPE_STORED);
@@ -129,7 +129,7 @@ public class TermVectorUnitTests extends ElasticsearchLuceneTestCase {
     private void writeStandardTermVector(TermVectorResponse outResponse) throws IOException {
 
         Directory dir = newDirectory();
-        IndexWriterConfig conf = new IndexWriterConfig(TEST_VERSION_CURRENT, new StandardAnalyzer(TEST_VERSION_CURRENT));
+        IndexWriterConfig conf = new IndexWriterConfig(new StandardAnalyzer());
 
         conf.setOpenMode(OpenMode.CREATE);
         IndexWriter writer = new IndexWriter(dir, conf);

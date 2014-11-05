@@ -24,7 +24,9 @@ import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.AtomicReaderContext;
+
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
@@ -762,7 +764,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
                 for (FieldMapper<?> fieldMapper : docMapper.mappers()) {
                     final String indexName = fieldMapper.names().indexName();
-                    if (fieldMapper.fieldType().indexed() && !fieldMapper.fieldType().omitNorms() && fieldMapper.normsLoading(defaultLoading) == Loading.EAGER) {
+                    if (fieldMapper.fieldType().indexOptions() != IndexOptions.NONE && !fieldMapper.fieldType().omitNorms() && fieldMapper.normsLoading(defaultLoading) == Loading.EAGER) {
                         warmUp.add(indexName);
                     }
                 }
@@ -777,7 +779,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         for (Iterator<ObjectCursor<String>> it = warmUp.iterator(); it.hasNext(); ) {
                             final String indexName = it.next().value;
                             final long start = System.nanoTime();
-                            for (final AtomicReaderContext ctx : context.searcher().reader().leaves()) {
+                            for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
                                 final NumericDocValues values = ctx.reader().getNormValues(indexName);
                                 if (values != null) {
                                     values.get(0);
@@ -835,7 +837,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
             final Executor executor = threadPool.executor(executor());
             final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
-            for (final AtomicReaderContext ctx : context.searcher().reader().leaves()) {
+            for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
                 for (final FieldMapper<?> fieldMapper : warmUp.values()) {
                     executor.execute(new Runnable() {
 

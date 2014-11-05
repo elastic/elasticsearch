@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 
@@ -30,13 +28,13 @@ import java.io.IOException;
 /**
  *
  */
-public class FilteredCollector extends XCollector {
+public class FilteredCollector extends SimpleCollector implements XCollector {
 
     private final Collector collector;
-
     private final Filter filter;
 
     private Bits docSet;
+    private LeafCollector leafCollector;
 
     public FilteredCollector(Collector collector, Filter filter) {
         this.collector = collector;
@@ -52,24 +50,24 @@ public class FilteredCollector extends XCollector {
 
     @Override
     public void setScorer(Scorer scorer) throws IOException {
-        collector.setScorer(scorer);
+        leafCollector.setScorer(scorer);
     }
 
     @Override
     public void collect(int doc) throws IOException {
         if (docSet.get(doc)) {
-            collector.collect(doc);
+            leafCollector.collect(doc);
         }
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) throws IOException {
-        collector.setNextReader(context);
+    public void doSetNextReader(LeafReaderContext context) throws IOException {
+        leafCollector = collector.getLeafCollector(context);
         docSet = DocIdSets.toSafeBits(context.reader(), filter.getDocIdSet(context, null));
     }
 
     @Override
     public boolean acceptsDocsOutOfOrder() {
-        return collector.acceptsDocsOutOfOrder();
+        return leafCollector.acceptsDocsOutOfOrder();
     }
 }

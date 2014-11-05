@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.Nullable;
@@ -38,7 +38,7 @@ public class ShardUtils {
      * This will be the case in almost all cases, except for percolator currently.
      */
     @Nullable
-    public static ShardId extractShardId(AtomicReader reader) {
+    public static ShardId extractShardId(LeafReader reader) {
         return extractShardId(SegmentReaderUtils.segmentReaderOrNull(reader));
     }
 

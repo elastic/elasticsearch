@@ -21,6 +21,9 @@ package org.elasticsearch.index.analysis.compound;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.compound.DictionaryCompoundWordTokenFilter;
+import org.apache.lucene.analysis.compound.Lucene43DictionaryCompoundWordTokenFilter;
+import org.apache.lucene.util.Version;
+
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +48,12 @@ public class DictionaryCompoundWordTokenFilterFactory extends AbstractCompoundWo
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new DictionaryCompoundWordTokenFilter(version, tokenStream, wordList,
-                minWordSize, minSubwordSize, maxSubwordSize, onlyLongestMatch);
+        if (version.onOrAfter(Version.LUCENE_4_4_0)) {
+            return new DictionaryCompoundWordTokenFilter(tokenStream, wordList, minWordSize, 
+                                                         minSubwordSize, maxSubwordSize, onlyLongestMatch);
+        } else {
+            return new Lucene43DictionaryCompoundWordTokenFilter(tokenStream, wordList, minWordSize,
+                                                                 minSubwordSize, maxSubwordSize, onlyLongestMatch);
+        }
     }
 }

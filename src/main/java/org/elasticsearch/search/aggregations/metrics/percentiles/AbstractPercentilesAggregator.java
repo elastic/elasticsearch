@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.ObjectArray;
@@ -62,7 +62,7 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         values = valuesSource.doubleValues();
     }
 

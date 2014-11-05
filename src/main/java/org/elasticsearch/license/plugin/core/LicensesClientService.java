@@ -27,10 +27,11 @@ public interface LicensesClientService {
 
     /**
      * Registers a feature for licensing
-     * @param feature - name of the feature to register (must be in sync with license Generator feature name)
+     *
+     * @param feature             - name of the feature to register (must be in sync with license Generator feature name)
      * @param trialLicenseOptions - Trial license specification used to generate a one-time trial license for the feature;
      *                            use <code>null</code> if no trial license should be generated for the feature
-     * @param listener - used to notify on feature enable/disable and specify trial license specification
+     * @param listener            - used to notify on feature enable/disable and specify trial license specification
      */
     void register(String feature, TrialLicenseOptions trialLicenseOptions, Listener listener);
 }

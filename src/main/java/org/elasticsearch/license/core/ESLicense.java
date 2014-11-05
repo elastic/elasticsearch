@@ -29,7 +29,7 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
     private final int maxNodes;
 
     private ESLicense(String uid, String issuer, String issuedTo, long issueDate, String type,
-                     String subscriptionType, String feature, String signature, long expiryDate, int maxNodes) {
+                      String subscriptionType, String feature, String signature, long expiryDate, int maxNodes) {
         this.uid = uid;
         this.issuer = issuer;
         this.issuedTo = issuedTo;
@@ -379,25 +379,25 @@ public class ESLicense implements Comparable<ESLicense>, ToXContent {
 
         public Builder verify() {
             if (issuer == null) {
-               throw new IllegalStateException("issuer can not be null");
+                throw new IllegalStateException("issuer can not be null");
             } else if (issuedTo == null) {
-               throw new IllegalStateException("issuedTo can not be null");
+                throw new IllegalStateException("issuedTo can not be null");
             } else if (issueDate == -1) {
-               throw new IllegalStateException("issueDate has to be set");
+                throw new IllegalStateException("issueDate has to be set");
             } else if (type == null) {
-               throw new IllegalStateException("type can not be null");
+                throw new IllegalStateException("type can not be null");
             } else if (subscriptionType == null) {
-               throw new IllegalStateException("subscriptionType can not be null");
+                throw new IllegalStateException("subscriptionType can not be null");
             } else if (uid == null) {
-               throw new IllegalStateException("uid can not be null");
+                throw new IllegalStateException("uid can not be null");
             } else if (feature == null) {
-               throw new IllegalStateException("at least one feature has to be enabled");
+                throw new IllegalStateException("at least one feature has to be enabled");
             } else if (signature == null) {
-               throw new IllegalStateException("signature can not be null");
+                throw new IllegalStateException("signature can not be null");
             } else if (maxNodes == -1) {
-               throw new IllegalStateException("maxNodes has to be set");
+                throw new IllegalStateException("maxNodes has to be set");
             } else if (expiryDate == -1) {
-               throw new IllegalStateException("expiryDate has to be set");
+                throw new IllegalStateException("expiryDate has to be set");
             }
             return this;
         }

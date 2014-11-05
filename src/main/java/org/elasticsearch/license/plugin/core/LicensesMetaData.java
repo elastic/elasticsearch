@@ -20,7 +20,6 @@ import java.util.Set;
 
 /**
  * Contains metadata about registered licenses
- *
  */
 public class LicensesMetaData implements MetaData.Custom {
 
@@ -39,7 +38,7 @@ public class LicensesMetaData implements MetaData.Custom {
     /**
      * Constructs new licenses metadata
      *
-     * @param signatures set of esLicense signatures
+     * @param signatures           set of esLicense signatures
      * @param encodedTrialLicenses set of encoded trial licenses
      */
     public LicensesMetaData(Set<String> signatures, Set<String> encodedTrialLicenses) {
@@ -177,7 +176,7 @@ public class LicensesMetaData implements MetaData.Custom {
         @Override
         public void toXContent(LicensesMetaData licensesMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.array(Fields.LICENSES, licensesMetaData.signatures.toArray(new String[licensesMetaData.signatures.size()]));
-            builder.array(Fields.TRIAL_LICENSES, licensesMetaData.encodedTrialLicenses.toArray(new String [licensesMetaData.encodedTrialLicenses.size()]));
+            builder.array(Fields.TRIAL_LICENSES, licensesMetaData.encodedTrialLicenses.toArray(new String[licensesMetaData.encodedTrialLicenses.size()]));
         }
 
         @Override

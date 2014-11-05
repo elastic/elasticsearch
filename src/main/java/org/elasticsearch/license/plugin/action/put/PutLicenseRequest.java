@@ -31,6 +31,7 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
 
     /**
      * Parses licenses from json format to an instance of {@link org.elasticsearch.license.core.ESLicenses}
+     *
      * @param licenseDefinition licenses definition
      */
     public PutLicenseRequest licenses(String licenseDefinition) {

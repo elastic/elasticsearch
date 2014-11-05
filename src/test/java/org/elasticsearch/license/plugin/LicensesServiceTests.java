@@ -10,10 +10,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.manager.ESLicenseManager;
@@ -27,9 +25,7 @@ import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFrom;
 import static org.elasticsearch.license.plugin.core.LicensesService.LicensesUpdateResponse;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
@@ -332,7 +328,8 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
     private Action assertExpiryAction(String feature, String licenseType, TimeValue expiryDuration) {
         return new Action(new Runnable() {
             @Override
-            public void run() {}
+            public void run() {
+            }
         }, 1, 0, TimeValue.timeValueMillis(expiryDuration.getMillis() * 2),
                 "should trigger onDisable for " + feature + " once [" + licenseType + " license expiry]");
     }

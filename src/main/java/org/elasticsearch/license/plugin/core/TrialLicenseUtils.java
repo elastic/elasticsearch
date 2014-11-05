@@ -9,9 +9,9 @@ import org.apache.commons.codec.binary.Base64;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.ESLicense;
-import org.elasticsearch.license.core.LicensesCharset;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -81,16 +81,16 @@ public class TrialLicenseUtils {
                 uid = UUID.randomUUID().toString();
             }
             return ESLicense.builder()
-                                .type(DEFAULT_TYPE)
-                                .subscriptionType(DEFAULT_SUBSCRIPTION_TYPE)
-                                .issuer(DEFAULT_ISSUER)
-                                .uid(uid)
-                                .issuedTo(issuedTo)
-                                .issueDate(issueDate)
-                                .feature(feature)
-                                .maxNodes(maxNodes)
-                                .expiryDate(expiryDate)
-                                .build();
+                    .type(DEFAULT_TYPE)
+                    .subscriptionType(DEFAULT_SUBSCRIPTION_TYPE)
+                    .issuer(DEFAULT_ISSUER)
+                    .uid(uid)
+                    .issuedTo(issuedTo)
+                    .issueDate(issueDate)
+                    .feature(feature)
+                    .maxNodes(maxNodes)
+                    .expiryDate(expiryDate)
+                    .build();
         }
 
     }
@@ -110,17 +110,17 @@ public class TrialLicenseUtils {
         int uidLen = byteBuffer.getInt();
         byte[] uidBytes = new byte[uidLen];
         byteBuffer.get(uidBytes);
-        String uid = new String(uidBytes, LicensesCharset.UTF_8);
+        String uid = new String(uidBytes, StandardCharsets.UTF_8);
 
         int issuedToLen = byteBuffer.getInt();
         byte[] issuedToBytes = new byte[issuedToLen];
         byteBuffer.get(issuedToBytes);
-        String issuedTo = new String(issuedToBytes, LicensesCharset.UTF_8);
+        String issuedTo = new String(issuedToBytes, StandardCharsets.UTF_8);
 
         int featureLen = byteBuffer.getInt();
         byte[] featureBytes = new byte[featureLen];
         byteBuffer.get(featureBytes);
-        String feature = new String(featureBytes, LicensesCharset.UTF_8);
+        String feature = new String(featureBytes, StandardCharsets.UTF_8);
 
         int maxNodes = byteBuffer.getInt();
         long issueDate = byteBuffer.getLong();
@@ -137,9 +137,9 @@ public class TrialLicenseUtils {
     }
 
     public static String toEncodedTrialLicense(ESLicense trialLicense) {
-        byte[] uidBytes = trialLicense.uid().getBytes(LicensesCharset.UTF_8);
-        byte[] featureBytes = trialLicense.feature().getBytes(LicensesCharset.UTF_8);
-        byte[] issuedToBytes = trialLicense.issuedTo().getBytes(LicensesCharset.UTF_8);
+        byte[] uidBytes = trialLicense.uid().getBytes(StandardCharsets.UTF_8);
+        byte[] featureBytes = trialLicense.feature().getBytes(StandardCharsets.UTF_8);
+        byte[] issuedToBytes = trialLicense.issuedTo().getBytes(StandardCharsets.UTF_8);
 
         // uid len + uid bytes + issuedTo len + issuedTo bytes + feature bytes length + feature bytes + maxNodes + issueDate + expiryDate
         int len = 4 + uidBytes.length + 4 + issuedToBytes.length + 4 + featureBytes.length + 4 + 8 + 8;

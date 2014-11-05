@@ -50,7 +50,7 @@ import static org.elasticsearch.license.core.ESLicenses.reduceAndMap;
  * Interfaces through which this is exposed are:
  * - LicensesManagerService - responsible for managing signed and one-time-trial licenses
  * - LicensesClientService - responsible for feature registration and notification to consumer plugin(s)
- *
+ * <p/>
  * <p/>
  * Registration Scheme:
  * <p/>
@@ -59,7 +59,7 @@ import static org.elasticsearch.license.core.ESLicenses.reduceAndMap;
  * If the feature can not be registered immediately, it is queued up and registered on the first clusterChanged event with
  * no {@link GatewayService#STATE_NOT_RECOVERED_BLOCK} block
  * Upon successful registration, the feature(s) are notified appropriately using the notification scheme
- *
+ * <p/>
  * <p/>
  * Notification Scheme:
  * <p/>
@@ -431,11 +431,10 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     /**
      * Calls {@link #notifyFeaturesAndScheduleNotification(LicensesMetaData)} with <code>currentLicensesMetaData</code>
      * if it was not already notified on.
-     *
+     * <p/>
      * Upon completion sets <code>currentLicensesMetaData</code> to {@link #lastObservedLicensesState}
      * to ensure the same license(s) are not notified on from
      * {@link #clusterChanged(ClusterChangedEvent)}
-     *
      */
     private void notifyFeaturesAndScheduleNotificationIfNeeded(final LicensesMetaData currentLicensesMetaData) {
         final LicensesMetaData lastNotifiedLicensesMetaData = lastObservedLicensesState.get();
@@ -461,6 +460,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
 
     /**
      * Checks license expiry for all the registered feature(s)
+     *
      * @return -1 if there are no expiring license(s) for any registered feature(s), else
      * returns the minimum of the expiry times of all the registered feature(s) to
      * schedule an expiry notification

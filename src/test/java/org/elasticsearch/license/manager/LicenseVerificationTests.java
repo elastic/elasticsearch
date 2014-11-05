@@ -12,10 +12,12 @@ import org.elasticsearch.license.core.ESLicense;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 public class LicenseVerificationTests extends AbstractLicensingTestBase {
 

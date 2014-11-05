@@ -13,9 +13,7 @@ import org.elasticsearch.license.core.ESLicense;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.license.plugin.core.LicensesService.DeleteLicenseRequestHolder;
-import static org.elasticsearch.license.plugin.core.LicensesService.LicensesUpdateResponse;
-import static org.elasticsearch.license.plugin.core.LicensesService.PutLicenseRequestHolder;
+import static org.elasticsearch.license.plugin.core.LicensesService.*;
 
 @ImplementedBy(LicensesService.class)
 public interface LicensesManagerService {

@@ -18,10 +18,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.ESLicense;
-import org.elasticsearch.license.core.LicensesCharset;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -110,7 +110,7 @@ public class ESLicenseSigner {
         final byte[] licenseSignature = licenseCreator.signAndSerializeLicense(license);
         final byte[] hash = Hasher.hash(Base64.encodeBase64String(
                         Files.readAllBytes(publicKeyPath))
-        ).getBytes(LicensesCharset.UTF_8);
+        ).getBytes(StandardCharsets.UTF_8);
         int headerLength = MAGIC_LENGTH + hash.length + 4 + 4;
         byte[] bytes = new byte[headerLength + licenseSignature.length];
 

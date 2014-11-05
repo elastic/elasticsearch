@@ -14,20 +14,22 @@ import org.elasticsearch.license.core.DateUtils;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
 import org.elasticsearch.license.manager.ESLicenseManager;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.BeforeClass;
 import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.net.URL;
-import java.text.ParseException;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomRealisticUnicodeOfCodepointLengthBetween;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.randomFrom;
+
 @RunWith(value = com.carrotsearch.randomizedtesting.RandomizedRunner.class)
 public class AbstractLicensingTestBase {
 

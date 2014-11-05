@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license.plugin.action.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;

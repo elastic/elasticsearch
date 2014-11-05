@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class ESLicenses {
@@ -37,7 +38,7 @@ public class ESLicenses {
     }
 
     public static List<ESLicense> fromSource(String content) throws IOException {
-        return fromSource(content.getBytes(LicensesCharset.UTF_8), true);
+        return fromSource(content.getBytes(StandardCharsets.UTF_8), true);
     }
 
     public static List<ESLicense> fromSource(byte[] bytes) throws IOException {

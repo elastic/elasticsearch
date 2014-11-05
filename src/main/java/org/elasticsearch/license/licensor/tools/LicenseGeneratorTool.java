@@ -12,12 +12,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.core.LicensesCharset;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.text.ParseException;
@@ -48,7 +48,7 @@ public class LicenseGeneratorTool {
             switch (command) {
                 case "--license":
                     String licenseInput = args[++i];
-                    licenseSpecs.addAll(ESLicenses.fromSource(licenseInput.getBytes(LicensesCharset.UTF_8), false));
+                    licenseSpecs.addAll(ESLicenses.fromSource(licenseInput.getBytes(StandardCharsets.UTF_8), false));
                     break;
                 case "--licenseFile":
                     File licenseFile = new File(args[++i]);

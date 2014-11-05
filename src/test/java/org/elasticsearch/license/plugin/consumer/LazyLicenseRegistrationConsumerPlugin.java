@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 /**
  * Registers licenses only after cluster has recovered
  * see {@link org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationPluginService}
- *
+ * <p/>
  * License registration happens after clusterservice start()
  */
 public class LazyLicenseRegistrationConsumerPlugin extends TestConsumerPluginBase {

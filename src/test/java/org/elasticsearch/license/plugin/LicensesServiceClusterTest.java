@@ -35,7 +35,7 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
     private final String FEATURE_NAME = EagerLicenseRegistrationPluginService.FEATURE_NAME;
 
     private final int trialLicenseDurationInSeconds = 2;
-    
+
     protected Settings transportClientSettings() {
         return super.transportClientSettings();
     }

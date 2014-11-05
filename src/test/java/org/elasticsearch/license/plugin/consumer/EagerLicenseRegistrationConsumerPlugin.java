@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 /**
  * Registers licenses upon the start of the service lifecycle
  * see {@link org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginService}
- *
+ * <p/>
  * License registration might happen before clusterService start()
  */
 public class EagerLicenseRegistrationConsumerPlugin extends TestConsumerPluginBase {

@@ -24,7 +24,7 @@ public class ResourcePublicKeyDataProvider implements PublicKeyDataProvider {
 
     @Override
     public byte[] getEncryptedPublicKeyData() throws KeyNotFoundException {
-        try(InputStream inputStream = this.getClass().getResourceAsStream(resource)) {
+        try (InputStream inputStream = this.getClass().getResourceAsStream(resource)) {
             return Streams.copyToByteArray(inputStream);
         } catch (IOException ex) {
             throw new KeyNotFoundException(ex);

@@ -27,7 +27,7 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
     private final boolean useEagerLicenseRegistrationPlugin = randomBoolean();
 
     private final int trialLicenseDurationInSeconds = 5;
-    
+
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
@@ -51,7 +51,7 @@ public class LicensesPluginIntegrationTests extends AbstractLicensesIntegrationT
 
     @Test
     public void testTrialLicenseAndSignedLicenseNotification() throws Exception {
-        logger.info("using "+ ((useEagerLicenseRegistrationPlugin) ? "eager" : "lazy") + " consumer plugin");
+        logger.info("using " + ((useEagerLicenseRegistrationPlugin) ? "eager" : "lazy") + " consumer plugin");
         logger.info(" --> trial license generated");
         // managerService should report feature to be enabled on all data nodes
         assertLicenseManagerEnabledFeatureFor(getCurrentFeatureName());

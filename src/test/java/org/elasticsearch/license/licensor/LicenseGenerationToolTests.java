@@ -15,18 +15,19 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.text.ParseException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 public class LicenseGenerationToolTests extends AbstractLicensingTestBase {
 

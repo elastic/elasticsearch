@@ -28,7 +28,8 @@ import java.util.List;
 
 public class InternalRange extends InternalBucketReducerAggregation implements Range {
 
-    public static final Type TYPE = new Type("rangereducer");
+    public static final Type TYPE = new Type("range");
+    public static final Type INTERNAL_TYPE = new Type("rangereducer");
 
     public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
@@ -40,7 +41,7 @@ public class InternalRange extends InternalBucketReducerAggregation implements R
     };
 
     public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
+        AggregationStreams.registerStream(STREAM, INTERNAL_TYPE.stream());
     }
 
     public InternalRange() {
@@ -53,6 +54,6 @@ public class InternalRange extends InternalBucketReducerAggregation implements R
 
     @Override
     public Type type() {
-        return TYPE;
+        return INTERNAL_TYPE;
     }
 }

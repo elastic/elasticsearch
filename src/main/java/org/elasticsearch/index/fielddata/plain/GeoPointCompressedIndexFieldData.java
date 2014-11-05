@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PagedMutable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -77,8 +77,8 @@ public class GeoPointCompressedIndexFieldData extends AbstractIndexGeoPointField
     }
 
     @Override
-    public AtomicGeoPointFieldData loadDirect(AtomicReaderContext context) throws Exception {
-        AtomicReader reader = context.reader();
+    public AtomicGeoPointFieldData loadDirect(LeafReaderContext context) throws Exception {
+        LeafReader reader = context.reader();
 
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicGeoPointFieldData data = null;
@@ -138,7 +138,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractIndexGeoPointField
                         sLon.set(i, missing);
                     }
                 }
-                FixedBitSet set = builder.buildDocsWithValuesSet();
+                BitSet set = builder.buildDocsWithValuesSet();
                 data = new GeoPointCompressedAtomicFieldData.Single(encoding, sLon, sLat, set);
             }
             success = true;

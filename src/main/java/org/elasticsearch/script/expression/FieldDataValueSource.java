@@ -20,7 +20,7 @@
 package org.elasticsearch.script.expression;
 
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
@@ -42,7 +42,7 @@ class FieldDataValueSource extends ValueSource {
     }
 
     @Override
-    public FunctionValues getValues(Map context, AtomicReaderContext leaf) throws IOException {
+    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
         AtomicFieldData leafData = fieldData.load(leaf);
         assert(leafData instanceof AtomicNumericFieldData);
         return new FieldDataFunctionValues(this, (AtomicNumericFieldData)leafData);

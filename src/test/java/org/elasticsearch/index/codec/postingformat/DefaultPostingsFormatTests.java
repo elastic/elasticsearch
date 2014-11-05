@@ -22,7 +22,7 @@ package org.elasticsearch.index.codec.postingformat;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene410.Lucene410Codec;
+import org.apache.lucene.codecs.lucene50.Lucene50Codec;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.*;
  */
 public class DefaultPostingsFormatTests extends ElasticsearchTestCase {
 
-    private final class TestCodec extends Lucene410Codec {
+    private final class TestCodec extends Lucene50Codec {
 
         @Override
         public PostingsFormat getPostingsFormatForField(String field) {
@@ -61,15 +61,15 @@ public class DefaultPostingsFormatTests extends ElasticsearchTestCase {
        
         Codec codec = new TestCodec();
         Directory d = new RAMDirectory();
-        IndexWriterConfig config = new IndexWriterConfig(Lucene.VERSION, new WhitespaceAnalyzer(Lucene.VERSION));
+        IndexWriterConfig config = new IndexWriterConfig(new WhitespaceAnalyzer());
         config.setCodec(codec);
         IndexWriter writer = new IndexWriter(d, config);
         writer.addDocument(Arrays.asList(new TextField("foo", "bar", Store.YES), new TextField(UidFieldMapper.NAME, "1234", Store.YES)));
         writer.commit();
         DirectoryReader reader = DirectoryReader.open(writer, false);
-        List<AtomicReaderContext> leaves = reader.leaves();
+        List<LeafReaderContext> leaves = reader.leaves();
         assertThat(leaves.size(), equalTo(1));
-        AtomicReader ar = leaves.get(0).reader();
+        LeafReader ar = leaves.get(0).reader();
         Terms terms = ar.terms("foo");
         Terms uidTerms = ar.terms(UidFieldMapper.NAME);
 
@@ -87,7 +87,7 @@ public class DefaultPostingsFormatTests extends ElasticsearchTestCase {
        
         Codec codec = new TestCodec();
         Directory d = new RAMDirectory();
-        IndexWriterConfig config = new IndexWriterConfig(Lucene.VERSION, new WhitespaceAnalyzer(Lucene.VERSION));
+        IndexWriterConfig config = new IndexWriterConfig(new WhitespaceAnalyzer());
         config.setCodec(codec);
         IndexWriter writer = new IndexWriter(d, config);
         for (int i = 0; i < 100; i++) {
@@ -97,9 +97,9 @@ public class DefaultPostingsFormatTests extends ElasticsearchTestCase {
         writer.commit();
         
         DirectoryReader reader = DirectoryReader.open(writer, false);
-        List<AtomicReaderContext> leaves = reader.leaves();
+        List<LeafReaderContext> leaves = reader.leaves();
         assertThat(leaves.size(), equalTo(1));
-        AtomicReader ar = leaves.get(0).reader();
+        LeafReader ar = leaves.get(0).reader();
         Terms terms = ar.terms("foo");
         Terms some_other_field = ar.terms("some_other_field");
 

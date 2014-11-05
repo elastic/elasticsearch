@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.sum;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -58,7 +58,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         values = valuesSource.doubleValues();
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.routing;
 
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -65,7 +66,7 @@ public class RoutingTypeMapperTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         assertThat(docMapper.routingFieldMapper().fieldType().stored(), equalTo(false));
-        assertThat(docMapper.routingFieldMapper().fieldType().indexed(), equalTo(false));
+        assertEquals(IndexOptions.NONE, docMapper.routingFieldMapper().fieldType().indexOptions());
         assertThat(docMapper.routingFieldMapper().path(), equalTo("route"));
     }
 

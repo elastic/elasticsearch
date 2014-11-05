@@ -83,7 +83,7 @@ public class NodeEnvironment extends AbstractComponent {
                 }
                 logger.trace("obtaining node lock on {} ...", dir.getAbsolutePath());
                 try {
-                    NativeFSLockFactory lockFactory = new NativeFSLockFactory(dir);
+                    NativeFSLockFactory lockFactory = new NativeFSLockFactory(dir.toPath());
                     Lock tmpLock = lockFactory.makeLock("node.lock");
                     boolean obtained = tmpLock.obtain();
                     if (obtained) {

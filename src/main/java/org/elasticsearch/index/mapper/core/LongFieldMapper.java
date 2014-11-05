@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -303,7 +304,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
                 }
             }
         }
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType);
             field.setBoost(boost);
             fields.add(field);
@@ -361,7 +362,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
-            if (fieldType().indexed()) {
+            if (fieldType().indexOptions() != IndexOptions.NONE) {
                 return mapper.popCachedStream().setLongValue(number);
             }
             return null;

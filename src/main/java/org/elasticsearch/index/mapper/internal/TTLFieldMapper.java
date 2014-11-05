@@ -21,10 +21,10 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,7 +35,6 @@ import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.query.GeoShapeFilterParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -59,8 +58,8 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         public static final FieldType TTL_FIELD_TYPE = new FieldType(LongFieldMapper.Defaults.FIELD_TYPE);
 
         static {
+            TTL_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             TTL_FIELD_TYPE.setStored(true);
-            TTL_FIELD_TYPE.setIndexed(true);
             TTL_FIELD_TYPE.setTokenized(false);
             TTL_FIELD_TYPE.freeze();
         }

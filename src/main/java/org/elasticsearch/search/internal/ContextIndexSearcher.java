@@ -19,15 +19,20 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TimeLimitingCollector;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.common.lucene.search.XCollector;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -125,7 +130,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    public void search(List<AtomicReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         final boolean timeoutSet = searchContext.timeoutInMillis() != -1;
         final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
 
@@ -194,7 +199,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             if (searchContext.aliasFilter() == null) {
                 return super.explain(query, doc);
             }
-            XFilteredQuery filteredQuery = new XFilteredQuery(query, searchContext.aliasFilter());
+            FilteredQuery filteredQuery = new FilteredQuery(query, searchContext.aliasFilter());
             return super.explain(filteredQuery, doc);
         } finally {
             searchContext.clearReleasables(Lifetime.COLLECTION);

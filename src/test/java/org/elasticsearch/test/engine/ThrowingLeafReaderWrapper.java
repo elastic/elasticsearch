@@ -27,16 +27,16 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import java.io.IOException;
 
 /**
- * An FilterAtomicReader that allows to throw exceptions if certain methods
+ * An FilterLeafReader that allows to throw exceptions if certain methods
  * are called on is. This allows to test parts of the system under certain
  * error conditions that would otherwise not be possible.
  */
-public class ThrowingAtomicReaderWrapper extends FilterAtomicReader {
+public class ThrowingLeafReaderWrapper extends FilterLeafReader {
 
     private final Thrower thrower;
 
     /**
-     * Flags passed to {@link Thrower#maybeThrow(org.elasticsearch.test.engine.ThrowingAtomicReaderWrapper.Flags)}
+     * Flags passed to {@link Thrower#maybeThrow(org.elasticsearch.test.engine.ThrowingLeafReaderWrapper.Flags)}
      * when the corresponding method is called.
      */
     public enum Flags {
@@ -52,7 +52,7 @@ public class ThrowingAtomicReaderWrapper extends FilterAtomicReader {
 
     /**
      * A callback interface that allows to throw certain exceptions for
-     * methods called on the IndexReader that is wrapped by {@link ThrowingAtomicReaderWrapper}
+     * methods called on the IndexReader that is wrapped by {@link ThrowingLeafReaderWrapper}
      */
     public static interface Thrower {
         /**
@@ -68,7 +68,7 @@ public class ThrowingAtomicReaderWrapper extends FilterAtomicReader {
         public boolean wrapTerms(String field);
     }
 
-    public ThrowingAtomicReaderWrapper(AtomicReader in, Thrower thrower) {
+    public ThrowingLeafReaderWrapper(LeafReader in, Thrower thrower) {
         super(in);
         this.thrower = thrower;
     }

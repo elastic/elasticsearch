@@ -49,6 +49,6 @@ public class DefaultFsDirectoryService extends FsDirectoryService {
 
     @Override
     protected Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
-        return new FileSwitchDirectory(PRIMARY_EXTENSIONS, new MMapDirectory(location, lockFactory), new NIOFSDirectory(location, lockFactory), true);
+        return new FileSwitchDirectory(PRIMARY_EXTENSIONS, new MMapDirectory(location.toPath(), lockFactory), new NIOFSDirectory(location.toPath(), lockFactory), true);
     }
 }

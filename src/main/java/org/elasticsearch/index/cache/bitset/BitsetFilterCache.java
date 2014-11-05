@@ -17,19 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.index.cache.fixedbitset;
+package org.elasticsearch.index.cache.bitset;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -66,29 +66,29 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 /**
- * This is a cache for {@link FixedBitSet} based filters and is unbounded by size or time.
+ * This is a cache for {@link BitDocIdSet} based filters and is unbounded by size or time.
  * <p/>
- * Use this cache with care, only components that require that a filter is to be materialized as a {@link FixedBitSet}
+ * Use this cache with care, only components that require that a filter is to be materialized as a {@link BitDocIdSet}
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.elasticsearch.index.cache.filter.FilterCache} should be used instead.
  */
-public class FixedBitSetFilterCache extends AbstractIndexComponent implements AtomicReader.CoreClosedListener, RemovalListener<Object, Cache<Filter, FixedBitSetFilterCache.Value>>, CloseableComponent {
+public class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Filter, BitsetFilterCache.Value>>, CloseableComponent {
 
     public static final String LOAD_RANDOM_ACCESS_FILTERS_EAGERLY = "index.load_fixed_bitset_filters_eagerly";
 
     private final boolean loadRandomAccessFiltersEagerly;
     private final Cache<Object, Cache<Filter, Value>> loadedFilters;
-    private final FixedBitSetFilterWarmer warmer;
+    private final BitDocIdSetFilterWarmer warmer;
 
     private IndexService indexService;
     private IndicesWarmer indicesWarmer;
 
     @Inject
-    public FixedBitSetFilterCache(Index index, @IndexSettings Settings indexSettings) {
+    public BitsetFilterCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         this.loadRandomAccessFiltersEagerly = indexSettings.getAsBoolean(LOAD_RANDOM_ACCESS_FILTERS_EAGERLY, true);
         this.loadedFilters = CacheBuilder.newBuilder().removalListener(this).build();
-        this.warmer = new FixedBitSetFilterWarmer();
+        this.warmer = new BitDocIdSetFilterWarmer();
     }
 
     @Inject(optional = true)
@@ -104,10 +104,10 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
         indicesWarmer.addListener(warmer);
     }
 
-    public FixedBitSetFilter getFixedBitSetFilter(Filter filter) {
+    public BitDocIdSetFilter getBitDocIdSetFilter(Filter filter) {
         assert filter != null;
         assert !(filter instanceof NoCacheFilter);
-        return new FixedBitSetFilterWrapper(filter);
+        return new BitDocIdSetFilterWrapper(filter);
     }
 
     @Override
@@ -121,18 +121,18 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
     }
 
     public void clear(String reason) {
-        logger.debug("Clearing all FixedBitSets because [{}]", reason);
+        logger.debug("Clearing all Bitsets because [{}]", reason);
         loadedFilters.invalidateAll();
         loadedFilters.cleanUp();
     }
 
-    private FixedBitSet getAndLoadIfNotPresent(final Filter filter, final AtomicReaderContext context) throws IOException, ExecutionException {
+    private BitDocIdSet getAndLoadIfNotPresent(final Filter filter, final LeafReaderContext context) throws IOException, ExecutionException {
         final Object coreCacheReader = context.reader().getCoreCacheKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
         Cache<Filter, Value> filterToFbs = loadedFilters.get(coreCacheReader, new Callable<Cache<Filter, Value>>() {
             @Override
             public Cache<Filter, Value> call() throws Exception {
-                SegmentReaderUtils.registerCoreListener(context.reader(), FixedBitSetFilterCache.this);
+                SegmentReaderUtils.registerCoreListener(context.reader(), BitsetFilterCache.this);
                 return CacheBuilder.newBuilder().build();
             }
         });
@@ -140,35 +140,32 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
             @Override
             public Value call() throws Exception {
                 DocIdSet docIdSet = filter.getDocIdSet(context, null);
-                final FixedBitSet fixedBitSet;
-                if (docIdSet instanceof FixedBitSet) {
-                    fixedBitSet = (FixedBitSet) docIdSet;
+                final BitDocIdSet bitSet;
+                if (docIdSet instanceof BitDocIdSet) {
+                    bitSet = (BitDocIdSet) docIdSet;
                 } else {
-                    fixedBitSet = new FixedBitSet(context.reader().maxDoc());
+                    BitDocIdSet.Builder builder = new BitDocIdSet.Builder(context.reader().maxDoc());
                     if (docIdSet != null && docIdSet != DocIdSet.EMPTY) {
-                        DocIdSetIterator iterator = docIdSet.iterator();
-                        if (iterator != null) {
-                            int doc = iterator.nextDoc();
-                            if (doc != DocIdSetIterator.NO_MORE_DOCS) {
-                                do {
-                                    fixedBitSet.set(doc);
-                                    doc = iterator.nextDoc();
-                                } while (doc != DocIdSetIterator.NO_MORE_DOCS);
-                            }
-                        }
+                        builder.or(docIdSet.iterator());
                     }
+                    BitDocIdSet bits = builder.build();
+                    // code expects this to be non-null
+                    if (bits == null) {
+                        bits = new BitDocIdSet(new SparseFixedBitSet(context.reader().maxDoc()), 0);
+                    }
+                    bitSet = bits;
                 }
 
-                Value value = new Value(fixedBitSet, shardId);
+                Value value = new Value(bitSet, shardId);
                 if (shardId != null) {
                     IndexShard shard = indexService.shard(shardId.id());
                     if (shard != null) {
-                        shard.shardFixedBitSetFilterCache().onCached(value.fixedBitSet.ramBytesUsed());
+                        shard.shardBitsetFilterCache().onCached(value.bitset.ramBytesUsed());
                     }
                 }
                 return value;
             }
-        }).fixedBitSet;
+        }).bitset;
     }
 
     @Override
@@ -189,8 +186,8 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
             }
             IndexShard shard = indexService.shard(entry.getValue().shardId.id());
             if (shard != null) {
-                ShardFixedBitSetFilterCache shardFixedBitSetFilterCache = shard.shardFixedBitSetFilterCache();
-                shardFixedBitSetFilterCache.onRemoval(entry.getValue().fixedBitSet.ramBytesUsed());
+                ShardBitsetFilterCache shardBitsetFilterCache = shard.shardBitsetFilterCache();
+                shardBitsetFilterCache.onRemoval(entry.getValue().bitset.ramBytesUsed());
             }
             // if null then this means the shard has already been removed and the stats are 0 anyway for the shard this key belongs to
         }
@@ -198,25 +195,25 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
 
     public static final class Value {
 
-        final FixedBitSet fixedBitSet;
+        final BitDocIdSet bitset;
         final ShardId shardId;
 
-        public Value(FixedBitSet fixedBitSet, ShardId shardId) {
-            this.fixedBitSet = fixedBitSet;
+        public Value(BitDocIdSet bitset, ShardId shardId) {
+            this.bitset = bitset;
             this.shardId = shardId;
         }
     }
 
-    final class FixedBitSetFilterWrapper extends FixedBitSetFilter {
+    final class BitDocIdSetFilterWrapper extends BitDocIdSetFilter {
 
         final Filter filter;
 
-        FixedBitSetFilterWrapper(Filter filter) {
+        BitDocIdSetFilterWrapper(Filter filter) {
             this.filter = filter;
         }
 
         @Override
-        public FixedBitSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public BitDocIdSet getDocIdSet(LeafReaderContext context) throws IOException {
             try {
                 return getAndLoadIfNotPresent(filter, context);
             } catch (ExecutionException e) {
@@ -229,8 +226,8 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
         }
 
         public boolean equals(Object o) {
-            if (!(o instanceof FixedBitSetFilterWrapper)) return false;
-            return this.filter.equals(((FixedBitSetFilterWrapper) o).filter);
+            if (!(o instanceof BitDocIdSetFilterWrapper)) return false;
+            return this.filter.equals(((BitDocIdSetFilterWrapper) o).filter);
         }
 
         public int hashCode() {
@@ -238,7 +235,7 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
         }
     }
 
-    final class FixedBitSetFilterWarmer extends IndicesWarmer.Listener {
+    final class BitDocIdSetFilterWarmer extends IndicesWarmer.Listener {
 
         @Override
         public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext context, ThreadPool threadPool) {
@@ -276,7 +273,7 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
 
             final Executor executor = threadPool.executor(executor());
             final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
-            for (final AtomicReaderContext ctx : context.searcher().reader().leaves()) {
+            for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
                 for (final Filter filterToWarm : warmUp) {
                     executor.execute(new Runnable() {
 
@@ -286,10 +283,10 @@ public class FixedBitSetFilterCache extends AbstractIndexComponent implements At
                                 final long start = System.nanoTime();
                                 getAndLoadIfNotPresent(filterToWarm, ctx);
                                 if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                    indexShard.warmerService().logger().trace("warmed fixed bitset for [{}], took [{}]", filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
+                                    indexShard.warmerService().logger().trace("warmed bitset for [{}], took [{}]", filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
                                 }
                             } catch (Throwable t) {
-                                indexShard.warmerService().logger().warn("failed to load fixed bitset for [{}]", t, filterToWarm);
+                                indexShard.warmerService().logger().warn("failed to load bitset for [{}]", t, filterToWarm);
                             } finally {
                                 latch.countDown();
                             }

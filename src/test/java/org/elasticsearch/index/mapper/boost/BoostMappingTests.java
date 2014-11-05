@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.boost;
 
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -80,7 +81,7 @@ public class BoostMappingTests extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         assertThat(docMapper.boostFieldMapper().fieldType().stored(), equalTo(BoostFieldMapper.Defaults.FIELD_TYPE.stored()));
-        assertThat(docMapper.boostFieldMapper().fieldType().indexed(), equalTo(BoostFieldMapper.Defaults.FIELD_TYPE.indexed()));
+        assertThat(docMapper.boostFieldMapper().fieldType().indexOptions(), equalTo(BoostFieldMapper.Defaults.FIELD_TYPE.indexOptions()));
     }
 
     @Test
@@ -93,10 +94,10 @@ public class BoostMappingTests extends ElasticsearchSingleNodeTest {
         IndexService indexServices = createIndex("test");
         DocumentMapper docMapper = indexServices.mapperService().documentMapperParser().parse("type", mapping);
         assertThat(docMapper.boostFieldMapper().fieldType().stored(), equalTo(true));
-        assertThat(docMapper.boostFieldMapper().fieldType().indexed(), equalTo(true));
+        assertEquals(IndexOptions.DOCS, docMapper.boostFieldMapper().fieldType().indexOptions());
         docMapper.refreshSource();
         docMapper = indexServices.mapperService().documentMapperParser().parse("type", docMapper.mappingSource().string());
         assertThat(docMapper.boostFieldMapper().fieldType().stored(), equalTo(true));
-        assertThat(docMapper.boostFieldMapper().fieldType().indexed(), equalTo(true));
+        assertEquals(IndexOptions.DOCS, docMapper.boostFieldMapper().fieldType().indexOptions());
     }
 }

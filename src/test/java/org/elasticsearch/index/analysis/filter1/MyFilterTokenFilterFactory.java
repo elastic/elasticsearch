@@ -37,6 +37,6 @@ public class MyFilterTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new StopFilter(version, tokenStream, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+        return new StopFilter(tokenStream, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
     }
 }

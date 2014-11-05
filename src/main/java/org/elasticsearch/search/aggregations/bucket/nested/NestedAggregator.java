@@ -18,14 +18,14 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -44,11 +44,11 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     private final String nestedPath;
     private final Aggregator parentAggregator;
-    private FixedBitSetFilter parentFilter;
-    private final FixedBitSetFilter childFilter;
+    private BitDocIdSetFilter parentFilter;
+    private final BitDocIdSetFilter childFilter;
 
     private Bits childDocs;
-    private FixedBitSet parentDocs;
+    private BitSet parentDocs;
 
     public NestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData) {
         super(name, factories, aggregationContext, parentAggregator, metaData);
@@ -66,11 +66,11 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] is not nested");
         }
 
-        childFilter = aggregationContext.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
+        childFilter = aggregationContext.searchContext().bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         if (parentFilter == null) {
             // The aggs are instantiated in reverse, first the most inner nested aggs and lastly the top level aggs
             // So at the time a nested 'nested' aggs is parsed its closest parent nested aggs hasn't been constructed.
@@ -80,17 +80,23 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             if (parentFilterNotCached == null) {
                 parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
             }
-            parentFilter = SearchContext.current().fixedBitSetFilterCache().getFixedBitSetFilter(parentFilterNotCached);
+            parentFilter = SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(parentFilterNotCached);
         }
 
         try {
-            DocIdSet docIdSet = parentFilter.getDocIdSet(reader, null);
-            // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
-            childDocs = DocIdSets.toSafeBits(reader.reader(), childFilter.getDocIdSet(reader, null));
-            if (DocIdSets.isEmpty(docIdSet)) {
+            BitDocIdSet parentSet = parentFilter.getDocIdSet(reader);
+            if (DocIdSets.isEmpty(parentSet)) {
                 parentDocs = null;
+                childDocs = null;
             } else {
-                parentDocs = (FixedBitSet) docIdSet;
+                parentDocs = parentSet.bits();
+                // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
+                BitDocIdSet childSet = childFilter.getDocIdSet(reader);
+                if (DocIdSets.isEmpty(childSet)) {
+                    childDocs = new Bits.MatchAllBits(reader.reader().maxDoc());
+                } else {
+                    childDocs = childSet.bits();
+                }
             }
         } catch (IOException ioe) {
             throw new AggregationExecutionException("Failed to aggregate [" + name + "]", ioe);

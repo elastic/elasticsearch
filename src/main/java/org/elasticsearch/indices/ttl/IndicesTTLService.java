@@ -19,11 +19,11 @@
 
 package org.elasticsearch.indices.ttl;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -237,8 +237,8 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         }
     }
 
-    private class ExpiredDocsCollector extends Collector {
-        private AtomicReaderContext context;
+    private class ExpiredDocsCollector extends SimpleCollector {
+        private LeafReaderContext context;
         private List<DocToPurge> docsToPurge = new ArrayList<>();
 
         public ExpiredDocsCollector() {
@@ -263,7 +263,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             }
         }
 
-        public void setNextReader(AtomicReaderContext context) throws IOException {
+        public void doSetNextReader(LeafReaderContext context) throws IOException {
             this.context = context;
         }
 

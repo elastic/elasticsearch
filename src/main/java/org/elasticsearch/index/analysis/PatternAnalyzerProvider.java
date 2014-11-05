@@ -20,15 +20,10 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
-import org.apache.lucene.analysis.core.StopFilter;
-import org.apache.lucene.analysis.pattern.PatternTokenizer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.regex.Regex;
@@ -37,7 +32,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.Reader;
 import java.util.regex.Pattern;
 
 /**
@@ -46,31 +40,6 @@ import java.util.regex.Pattern;
 public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
     private final PatternAnalyzer analyzer;
-
-    private static final class PatternAnalyzer extends Analyzer {
-        private final org.apache.lucene.util.Version version;
-        private final Pattern pattern;
-        private final boolean lowercase;
-        private final CharArraySet stopWords;
-
-        PatternAnalyzer(org.apache.lucene.util.Version version, Pattern pattern, boolean lowercase, CharArraySet stopWords) {
-            this.version = version;
-            this.pattern = pattern;
-            this.lowercase = lowercase;
-            this.stopWords = stopWords;
-        }
-
-        @Override
-        protected TokenStreamComponents createComponents(String s, Reader reader) {
-            final TokenStreamComponents source = new TokenStreamComponents(new PatternTokenizer(reader, pattern, -1));
-            TokenStream result = null;
-            if (lowercase) {
-                 result = new LowerCaseFilter(version, source.getTokenStream());
-            }
-            result = new StopFilter(version, (result == null) ? source.getTokenStream() : result, stopWords);
-            return new TokenStreamComponents(source.getTokenizer(), result);
-        }
-    }
 
     @Inject
     public PatternAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
@@ -84,7 +53,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analy
             defaultStopwords = StopAnalyzer.ENGLISH_STOP_WORDS_SET;
         }
         boolean lowercase = settings.getAsBoolean("lowercase", true);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords, version);
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
 
         String sPattern = settings.get("pattern", "\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/);
         if (sPattern == null) {
@@ -92,7 +61,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analy
         }
         Pattern pattern = Regex.compile(sPattern, settings.get("flags"));
 
-        analyzer = new PatternAnalyzer(version, pattern, lowercase, stopWords);
+        analyzer = new PatternAnalyzer(pattern, lowercase, stopWords);
     }
 
     @Override

@@ -63,7 +63,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
     protected QueryParseContext parseContext;
     protected IndexFieldDataService ifdService;
     protected IndexWriter writer;
-    protected AtomicReader reader;
+    protected LeafReader reader;
     protected StringFieldMapper strMapper;
     protected LongFieldMapper lngMapper;
     protected DoubleFieldMapper dblMapper;
@@ -79,7 +79,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService parserService = indexService.queryParserService();
         parseContext = new QueryParseContext(indexService.index(), parserService);
         writer = new IndexWriter(new RAMDirectory(),
-                new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)));
+                new IndexWriterConfig(new StandardAnalyzer()));
 
         // setup field mappers
         strMapper = new StringFieldMapper.Builder("str_value")

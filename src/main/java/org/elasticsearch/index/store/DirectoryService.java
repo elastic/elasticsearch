@@ -30,8 +30,4 @@ public interface DirectoryService {
     Directory[] build() throws IOException;
 
     long throttleTimeInNanos();
-
-    void renameFile(Directory dir, String from, String to) throws IOException;
-
-    void fullDelete(Directory dir) throws IOException;
 }

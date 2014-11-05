@@ -18,6 +18,10 @@
  */
 package org.elasticsearch.index.store;
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.IndexFileNames;
@@ -31,6 +35,8 @@ import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.test.ElasticsearchThreadFilter;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -47,7 +53,7 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
     @Override
-    protected Directory getDirectory(File path) throws IOException {
+    protected Directory getDirectory(Path path) throws IOException {
         Directory[] directories = new Directory[1 + random().nextInt(5)];
         for (int i = 0; i < directories.length; i++) {
             directories[i] = newDirectory();
@@ -115,7 +121,7 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
             }
 
             DistributorDirectory dd = new DistributorDirectory(dirs);
-            String file = RandomPicks.randomFrom(random(), Arrays.asList(Store.CHECKSUMS_PREFIX, IndexFileNames.SEGMENTS_GEN));
+            String file = RandomPicks.randomFrom(random(), Arrays.asList(Store.CHECKSUMS_PREFIX, IndexFileNames.OLD_SEGMENTS_GEN, IndexFileNames.SEGMENTS, IndexFileNames.PENDING_SEGMENTS));
             String tmpFileName =  RandomPicks.randomFrom(random(), Arrays.asList("recovery.", "foobar.", "test.")) + Math.max(0, Math.abs(random().nextLong())) + "." + file;
             try (IndexOutput out = dd.createOutput(tmpFileName, IOContext.DEFAULT)) {
                 out.writeInt(1);
@@ -132,28 +138,7 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
                 }
             }
             assertNotNull("file must be in at least one dir", theDir);
-            DirectoryService service = new DirectoryService() {
-                @Override
-                public Directory[] build() throws IOException {
-                    return new Directory[0];
-                }
-
-                @Override
-                public long throttleTimeInNanos() {
-                    return 0;
-                }
-
-                @Override
-                public void renameFile(Directory dir, String from, String to) throws IOException {
-                    dir.copy(dir, from, to, IOContext.DEFAULT);
-                    dir.deleteFile(from);
-                }
-
-                @Override
-                public void fullDelete(Directory dir) throws IOException {
-                }
-            };
-            dd.renameFile(service, tmpFileName, file);
+            dd.renameFile(tmpFileName, file);
             try {
                 dd.fileLength(tmpFileName);
                 fail("file ["+tmpFileName + "] was renamed but still exists");
@@ -174,7 +159,7 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
                 out.writeInt(1);
             }
             try {
-                dd.renameFile(service, "foo.bar", file);
+                dd.renameFile("foo.bar", file);
                 fail("target file already exists");
             } catch (IOException ex) {
                 // target file already exists

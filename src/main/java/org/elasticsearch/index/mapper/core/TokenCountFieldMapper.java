@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -131,7 +132,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             return;
         }
 
-        if (fieldType.indexed() || fieldType.stored() || hasDocValues()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored() || hasDocValues()) {
             int count;
             if (valueAndBoost.value() == null) {
                 count = nullValue();

@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.util.Collections;
 import java.util.Iterator;
 
@@ -65,8 +64,8 @@ public class PrefixAnalyzer extends Analyzer {
     }
 
     @Override
-    protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
-        TokenStreamComponents createComponents = analyzer.createComponents(fieldName, reader);
+    protected TokenStreamComponents createComponents(String fieldName) {
+        TokenStreamComponents createComponents = analyzer.createComponents(fieldName);
         TokenStream stream = new PrefixTokenFilter(createComponents.getTokenStream(), separator, prefix);
         TokenStreamComponents tsc = new TokenStreamComponents(createComponents.getTokenizer(), stream);
         return tsc;

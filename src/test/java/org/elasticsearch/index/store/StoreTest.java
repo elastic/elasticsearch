@@ -26,6 +26,7 @@ import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -113,7 +114,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         indexInput.seek(0);
         BytesRef ref = new BytesRef(scaledRandomIntBetween(1, 1024));
         long length = indexInput.length();
-        IndexOutput verifyingOutput = new Store.VerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, checksum, TEST_VERSION_CURRENT), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+        IndexOutput verifyingOutput = new Store.VerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, checksum), dir.createOutput("foo1.bar", IOContext.DEFAULT));
         while (length > 0) {
             if (random().nextInt(10) == 0) {
                 verifyingOutput.writeByte(indexInput.readByte());
@@ -130,7 +131,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         try {
             Store.verify(verifyingOutput);
             fail("should be a corrupted index");
-        } catch (CorruptIndexException ex) {
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             // ok
         }
         IOUtils.close(indexInput, verifyingOutput, dir);
@@ -140,14 +141,14 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     public void testVerifyingIndexOutputWithBogusInput() throws IOException {
         Directory dir = newDirectory();
         int length = scaledRandomIntBetween(10, 1024);
-        IndexOutput verifyingOutput = new Store.VerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, "", TEST_VERSION_CURRENT), dir.createOutput("foo1.bar", IOContext.DEFAULT));
+        IndexOutput verifyingOutput = new Store.VerifyingIndexOutput(new StoreFileMetaData("foo1.bar", length, ""), dir.createOutput("foo1.bar", IOContext.DEFAULT));
         try {
             while (length > 0) {
                 verifyingOutput.writeByte((byte) random().nextInt());
                 length--;
             }
             fail("should be a corrupted index");
-        } catch (CorruptIndexException ex) {
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             // ok
         }
         IOUtils.close(verifyingOutput, dir);
@@ -159,7 +160,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService));
         // set default codec - all segments need checksums
-        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
+        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
         int docs = 1 + random().nextInt(100);
 
         for (int i = 0; i < docs; i++) {
@@ -196,7 +197,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         Store.LegacyChecksums checksums = new Store.LegacyChecksums();
         Map<String, StoreFileMetaData> legacyMeta = new HashMap<>();
         for (String file : store.directory().listAll()) {
-            if (file.equals("write.lock") || file.equals(IndexFileNames.SEGMENTS_GEN)) {
+            if (file.equals("write.lock") || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
                 continue;
             }
             try (IndexInput input = store.directory().openInput(file, IOContext.READONCE)) {
@@ -228,7 +229,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService));
         // set default codec - all segments need checksums
-        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
+        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
         int docs = 1 + random().nextInt(100);
 
         for (int i = 0; i < docs; i++) {
@@ -269,7 +270,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                 assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
                 assertThat(meta.hasLegacyChecksum(), equalTo(false));
-                assertThat(meta.writtenBy(), equalTo(TEST_VERSION_CURRENT));
+                assertThat(meta.writtenBy(), equalTo(Version.LATEST));
                 if (meta.name().endsWith(".si") || meta.name().startsWith("segments_")) {
                     assertThat(meta.hash().length, greaterThan(0));
                 }
@@ -288,7 +289,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         Store store = new Store(shardId, ImmutableSettings.EMPTY, null, directoryService, randomDistributor(directoryService));
         // this time random codec....
-        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), TEST_VERSION_CURRENT, new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
+        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(actualDefaultCodec()));
         int docs = 1 + random().nextInt(100);
 
         for (int i = 0; i < docs; i++) {
@@ -332,7 +333,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                     try {
                         CodecUtil.retrieveChecksum(input);
                         fail("expected a corrupt index - posting format has not checksums");
-                    } catch (CorruptIndexException ex) {
+                    } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                         try (ChecksumIndexInput checksumIndexInput = store.directory().openChecksumInput(meta.name(), IOContext.DEFAULT)) {
                             checksumIndexInput.seek(meta.length());
                             checksum = Store.digestToString(checksumIndexInput.getChecksum());
@@ -344,7 +345,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                     String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                     assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
                     assertThat(meta.hasLegacyChecksum(), equalTo(false));
-                    assertThat(meta.writtenBy(), equalTo(TEST_VERSION_CURRENT));
+                    assertThat(meta.writtenBy(), equalTo(Version.LATEST));
                 }
             }
         }
@@ -364,7 +365,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                     String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                     assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
                     assertThat(meta.hasLegacyChecksum(), equalTo(false));
-                    assertThat(meta.writtenBy(), equalTo(TEST_VERSION_CURRENT));
+                    assertThat(meta.writtenBy(), equalTo(Version.LATEST));
                 }
             }
         }
@@ -456,7 +457,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         try {
             Store.verify(verifyingIndexInput);
             fail("should be a corrupted index");
-        } catch (CorruptIndexException ex) {
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             // ok
         }
         IOUtils.close(verifyingIndexInput);
@@ -543,24 +544,11 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         public long throttleTimeInNanos() {
             return random.nextInt(1000);
         }
-
-        @Override
-        public void renameFile(Directory dir, String from, String to) throws IOException {
-            dir.copy(dir, from, to, IOContext.DEFAULT);
-            dir.deleteFile(from);
-        }
-
-        @Override
-        public void fullDelete(Directory dir) throws IOException {
-            for (String file : dir.listAll()) {
-                dir.deleteFile(file);
-            }
-        }
     }
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
         for (String file : store.directory().listAll()) {
-            if (!IndexWriter.WRITE_LOCK_NAME.equals(file) && !IndexFileNames.SEGMENTS_GEN.equals(file) && !Store.isChecksum(file)) {
+            if (!IndexWriter.WRITE_LOCK_NAME.equals(file) && !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && !Store.isChecksum(file)) {
                 assertTrue(file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length, metadata.asMap().containsKey(file));
             } else {
                 assertFalse(file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length, metadata.asMap().containsKey(file));
@@ -591,7 +579,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         Store.MetadataSnapshot first;
         {
             Random random = new Random(seed);
-            IndexWriterConfig iwc = new IndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(actualDefaultCodec());
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             iwc.setUseCompoundFile(random.nextBoolean());
             iwc.setMaxThreadStates(1);
@@ -608,6 +596,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                     writer.commit();
                 }
             }
+            writer.commit();
             writer.close();
             first = store.getMetadata();
             assertDeleteContent(store, directoryService);
@@ -621,7 +610,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         Store store;
         {
             Random random = new Random(seed);
-            IndexWriterConfig iwc = new IndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+            IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(actualDefaultCodec());
             iwc.setMergePolicy(NoMergePolicy.INSTANCE);
             iwc.setUseCompoundFile(random.nextBoolean());
             iwc.setMaxThreadStates(1);
@@ -638,6 +627,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                     writer.commit();
                 }
             }
+            writer.commit();
             writer.close();
             second = store.getMetadata();
         }
@@ -646,10 +636,10 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         for (StoreFileMetaData md : first) {
             assertThat(second.get(md.name()), notNullValue());
             // si files are different - containing timestamps etc
-            assertThat(second.get(md.name()).isSame(md), equalTo(md.name().endsWith(".si") == false));
+            assertThat(second.get(md.name()).isSame(md), equalTo(false));
         }
-        assertThat(diff.different.size(), equalTo(first.size()-1));
-        assertThat(diff.identical.size(), equalTo(1)); // commit point is identical
+        assertThat(diff.different.size(), equalTo(first.size()));
+        assertThat(diff.identical.size(), equalTo(0)); // in lucene 5 nothing is identical - we use random ids in file headers
         assertThat(diff.missing, empty());
 
         // check the self diff
@@ -661,18 +651,19 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         // lets add some deletes
         Random random = new Random(seed);
-        IndexWriterConfig iwc = new IndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+        IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(actualDefaultCodec());
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         iwc.setUseCompoundFile(random.nextBoolean());
         iwc.setMaxThreadStates(1);
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         IndexWriter writer = new IndexWriter(store.directory(), iwc);
         writer.deleteDocuments(new Term("id", Integer.toString(random().nextInt(numDocs))));
+        writer.commit();
         writer.close();
         Store.MetadataSnapshot metadata = store.getMetadata();
         StoreFileMetaData delFile = null;
         for (StoreFileMetaData md : metadata) {
-            if (md.name().endsWith(".del")) {
+            if (md.name().endsWith(".liv")) {
                 delFile = md;
                 break;
             }
@@ -696,7 +687,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         assertThat(selfDiff.missing, empty());
 
         // add a new commit
-        iwc = new IndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random)).setCodec(actualDefaultCodec());
+        iwc = new IndexWriterConfig(new MockAnalyzer(random)).setCodec(actualDefaultCodec());
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         iwc.setUseCompoundFile(true); // force CFS - easier to test here since we know it will add 3 files
         iwc.setMaxThreadStates(1);
@@ -710,7 +701,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         if (delFile != null) {
             assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size()-5)); // segments_N, del file, cfs, cfe, si for the new segment
             assertThat(newCommitDiff.different.size(), equalTo(1)); // the del file must be different
-            assertThat(newCommitDiff.different.get(0).name(), endsWith(".del"));
+            assertThat(newCommitDiff.different.get(0).name(), endsWith(".liv"));
             assertThat(newCommitDiff.missing.size(), equalTo(4)); // segments_N,cfs, cfe, si for the new segment
         } else {
             assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size() - 4)); // segments_N, cfs, cfe, si for the new segment

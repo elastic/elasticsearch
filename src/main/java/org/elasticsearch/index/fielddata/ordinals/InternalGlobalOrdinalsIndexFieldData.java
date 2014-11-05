@@ -18,9 +18,10 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
 import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
@@ -44,7 +45,7 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
     }
 
     @Override
-    public AtomicOrdinalsFieldData load(AtomicReaderContext context) {
+    public AtomicOrdinalsFieldData load(LeafReaderContext context) {
         return atomicReaders[context.ord];
     }
 
@@ -77,6 +78,11 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
         @Override
         public long ramBytesUsed() {
             return afd.ramBytesUsed();
+        }
+
+        @Override
+        public Iterable<? extends Accountable> getChildResources() {
+            return afd.getChildResources();
         }
 
         @Override

@@ -25,6 +25,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  *
@@ -73,10 +74,12 @@ public class OrDocIdSet extends DocIdSet {
         return new IteratorBasedIterator(sets);
     }
 
-    static class OrBits implements Bits {
+    /** A disjunction between several {@link Bits} instances with short-circuit logic. */
+    public static class OrBits implements Bits {
+
         private final Bits[] bits;
 
-        OrBits(Bits[] bits) {
+        public OrBits(Bits[] bits) {
             this.bits = bits;
         }
 

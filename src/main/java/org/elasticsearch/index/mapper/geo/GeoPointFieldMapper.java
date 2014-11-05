@@ -24,8 +24,8 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -98,10 +98,9 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         public static final FieldType FIELD_TYPE = new FieldType(StringFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
         }
     }
@@ -186,7 +185,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             }
             StringFieldMapper geohashMapper = null;
             if (enableGeoHash) {
-                geohashMapper = stringField(Names.GEOHASH).index(true).tokenized(false).includeInAll(false).omitNorms(true).indexOptions(IndexOptions.DOCS_ONLY).build(context);
+                geohashMapper = stringField(Names.GEOHASH).index(true).tokenized(false).includeInAll(false).omitNorms(true).indexOptions(IndexOptions.DOCS).build(context);
             }
             context.path().remove();
 
@@ -568,7 +567,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             }
         }
 
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new Field(names.indexName(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType);
             context.doc().add(field);
         }
@@ -716,7 +715,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
         public static final FieldType TYPE = new FieldType();
         static {
-          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+          TYPE.setDocValueType(DocValuesType.BINARY);
           TYPE.freeze();
         }
 

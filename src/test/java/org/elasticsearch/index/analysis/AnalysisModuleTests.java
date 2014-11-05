@@ -91,7 +91,7 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
     }
     
     @Test
-    public void testDefaultFactoryTokenFilters() {
+    public void testDefaultFactoryTokenFilters() throws IOException {
         assertTokenFilter("keyword_repeat", KeywordRepeatFilter.class);
         assertTokenFilter("persian_normalization", PersianNormalizationFilter.class);
         assertTokenFilter("arabic_normalization", ArabicNormalizationFilter.class);
@@ -116,10 +116,11 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
         assertEquals(Version.V_0_90_0.luceneVersion, analysisService2.analyzer("thai").analyzer().getVersion());
     }
 
-    private void assertTokenFilter(String name, Class clazz) {
+    private void assertTokenFilter(String name, Class clazz) throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         TokenFilterFactory tokenFilter = analysisService.tokenFilter(name);
-        Tokenizer tokenizer = new WhitespaceTokenizer(Version.CURRENT.luceneVersion, new StringReader("foo bar"));
+        Tokenizer tokenizer = new WhitespaceTokenizer();
+        tokenizer.setReader(new StringReader("foo bar"));
         TokenStream stream = tokenFilter.create(tokenizer);
         assertThat(stream, instanceOf(clazz));
     }
@@ -187,7 +188,7 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
 //        assertThat(dictionaryDecompounderAnalyze.tokenFilters().length, equalTo(1));
 //        assertThat(dictionaryDecompounderAnalyze.tokenFilters()[0], instanceOf(DictionaryCompoundWordTokenFilterFactory.class));
 
-        Set<?> wordList = Analysis.getWordSet(null, settings, "index.analysis.filter.dict_dec.word_list", Lucene.VERSION);
+        Set<?> wordList = Analysis.getWordSet(null, settings, "index.analysis.filter.dict_dec.word_list");
         MatcherAssert.assertThat(wordList.size(), equalTo(6));
 //        MatcherAssert.assertThat(wordList, hasItems("donau", "dampf", "schiff", "spargel", "creme", "suppe"));
     }
@@ -200,7 +201,7 @@ public class AnalysisModuleTests extends ElasticsearchTestCase {
         File wordListFile = generateWordList(words);
         Settings settings = settingsBuilder().loadFromSource("index: \n  word_list_path: " + wordListFile.getAbsolutePath()).build();
 
-        Set<?> wordList = Analysis.getWordSet(env, settings, "index.word_list", Lucene.VERSION);
+        Set<?> wordList = Analysis.getWordSet(env, settings, "index.word_list");
         MatcherAssert.assertThat(wordList.size(), equalTo(6));
 //        MatcherAssert.assertThat(wordList, hasItems(words));
     }

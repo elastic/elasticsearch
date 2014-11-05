@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
@@ -116,7 +116,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         globalOrds = valuesSource.globalOrdinalsValues();
         if (acceptedGlobalOrdinals != null) {
             globalOrds = new FilteredOrdinals(globalOrds, acceptedGlobalOrdinals);
@@ -373,7 +373,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext reader) {
+        public void setNextReader(LeafReaderContext reader) {
             if (segmentOrds != null) {
                 mapSegmentCountsToGlobalCounts();
             }

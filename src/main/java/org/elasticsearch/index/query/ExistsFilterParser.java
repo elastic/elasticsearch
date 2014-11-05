@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
@@ -105,7 +106,7 @@ public class ExistsFilterParser implements FilterParser {
                 nonNullFieldMappers = smartNameFieldMappers;
             }
             Filter filter = null;
-            if (fieldNamesMapper!= null && fieldNamesMapper.mapper().fieldType().indexed()) {
+            if (fieldNamesMapper!= null && fieldNamesMapper.mapper().fieldType().indexOptions() != IndexOptions.NONE) {
                 final String f;
                 if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
                     f = smartNameFieldMappers.mapper().names().indexName();

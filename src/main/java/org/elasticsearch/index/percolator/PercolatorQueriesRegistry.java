@@ -21,13 +21,13 @@ package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -263,7 +263,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             shard.refresh(new Engine.Refresh("percolator_load_queries").force(true));
             // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
             try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", IndexShard.Mode.WRITE)) {
-                Query query = new XConstantScoreQuery(
+                Query query = new ConstantScoreQuery(
                         indexCache.filter().cache(
                                 new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME))
                         )

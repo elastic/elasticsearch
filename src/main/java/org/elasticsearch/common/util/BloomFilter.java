@@ -22,6 +22,7 @@ import com.google.common.math.LongMath;
 import com.google.common.primitives.Ints;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
@@ -169,6 +170,12 @@ public class BloomFilter {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Could not create BloomFilter of " + numBits + " bits", e);
         }
+    }
+
+    public static void skipBloom(IndexInput in) throws IOException {
+        int version = in.readInt(); // we do nothing with this now..., defaults to 0
+        final int numLongs = in.readInt();
+        in.seek(in.getFilePointer() + (numLongs * 8) + 4 + 4); // filter + numberOfHashFunctions + hashType
     }
 
     public static BloomFilter deserialize(DataInput in) throws IOException {

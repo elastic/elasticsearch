@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
@@ -204,7 +204,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
                         "preCollection not called on new Aggregator before use", null);                
             }
             @Override
-            public void setNextReader(AtomicReaderContext reader) {
+            public void setNextReader(LeafReaderContext reader) {
                 badState();
             }
 

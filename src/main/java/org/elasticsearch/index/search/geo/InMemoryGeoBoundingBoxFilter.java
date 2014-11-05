@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import java.io.IOException;
+
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-
-import java.io.IOException;
 
 /**
  *
@@ -60,7 +60,7 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptedDocs) throws IOException {
         final MultiGeoPointValues values = indexFieldData.load(context).getGeoPointValues();
 
         //checks to see if bounding box crosses 180 degrees
@@ -76,7 +76,7 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
         return "GeoBoundingBoxFilter(" + indexFieldData.getFieldNames().indexName() + ", " + topLeft + ", " + bottomRight + ")";
     }
 
-    public static class Meridian180GeoBoundingBoxDocSet extends MatchDocIdSet {
+    public static class Meridian180GeoBoundingBoxDocSet extends DocValuesDocIdSet {
         private final MultiGeoPointValues values;
         private final GeoPoint topLeft;
         private final GeoPoint bottomRight;
@@ -103,7 +103,7 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
         }
     }
 
-    public static class GeoBoundingBoxDocSet extends MatchDocIdSet {
+    public static class GeoBoundingBoxDocSet extends DocValuesDocIdSet {
         private final MultiGeoPointValues values;
         private final GeoPoint topLeft;
         private final GeoPoint bottomRight;

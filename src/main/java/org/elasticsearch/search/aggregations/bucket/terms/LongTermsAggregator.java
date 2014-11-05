@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
@@ -73,7 +73,7 @@ public class LongTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         values = getValues(valuesSource);
     }
 
@@ -108,7 +108,7 @@ public class LongTermsAggregator extends TermsAggregator {
 
         if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
-            for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
+            for (LeafReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
                 context.setNextReader(ctx);
                 final SortedNumericDocValues values = getValues(valuesSource);
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {

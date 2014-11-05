@@ -23,6 +23,7 @@ import com.google.common.net.InetAddresses;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -54,7 +55,6 @@ import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -300,7 +300,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         }
 
         final long value = ipToLong(ipAsString);
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType);
             field.setBoost(boost);
             fields.add(field);
@@ -353,15 +353,15 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         }
 
         @Override
-        protected NumericIpTokenizer createNumericTokenizer(Reader reader, char[] buffer) throws IOException {
-            return new NumericIpTokenizer(reader, precisionStep, buffer);
+        protected NumericIpTokenizer createNumericTokenizer(char[] buffer) throws IOException {
+            return new NumericIpTokenizer(precisionStep, buffer);
         }
     }
 
     public static class NumericIpTokenizer extends NumericTokenizer {
 
-        public NumericIpTokenizer(Reader reader, int precisionStep, char[] buffer) throws IOException {
-            super(reader, new NumericTokenStream(precisionStep), buffer, null);
+        public NumericIpTokenizer(int precisionStep, char[] buffer) throws IOException {
+            super(new NumericTokenStream(precisionStep), buffer, null);
         }
 
         @Override

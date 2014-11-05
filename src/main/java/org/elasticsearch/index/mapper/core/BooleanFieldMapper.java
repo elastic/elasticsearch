@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
@@ -60,7 +60,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
         static {
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.freeze();
         }
@@ -205,7 +205,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (!fieldType().indexed() && !fieldType().stored()) {
+        if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
             return;
         }
 

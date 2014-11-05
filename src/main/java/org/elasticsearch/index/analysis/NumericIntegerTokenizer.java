@@ -22,15 +22,14 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.NumericTokenStream;
 
 import java.io.IOException;
-import java.io.Reader;
 
 /**
  *
  */
 public class NumericIntegerTokenizer extends NumericTokenizer {
 
-    public NumericIntegerTokenizer(Reader reader, int precisionStep, char[] buffer) throws IOException {
-        super(reader, new NumericTokenStream(precisionStep), buffer, null);
+    public NumericIntegerTokenizer(int precisionStep, char[] buffer) throws IOException {
+        super(new NumericTokenStream(precisionStep), buffer, null);
     }
 
     @Override

@@ -24,7 +24,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -319,7 +320,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             }
         }
 
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             CustomFloatNumericField field = new CustomFloatNumericField(this, value, fieldType);
             field.setBoost(boost);
             fields.add(field);
@@ -389,7 +390,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
         @Override
         public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) throws IOException {
-            if (fieldType().indexed()) {
+            if (fieldType().indexOptions() != IndexOptions.NONE) {
                 return mapper.popCachedStream().setFloatValue(number);
             }
             return null;
@@ -405,7 +406,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
         public static final FieldType TYPE = new FieldType();
         static {
-          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+          TYPE.setDocValueType(DocValuesType.BINARY);
           TYPE.freeze();
         }
 

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.max;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
@@ -61,7 +61,7 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         final SortedNumericDoubleValues values = valuesSource.doubleValues();
         this.values = MultiValueMode.MAX.select(values, Double.NEGATIVE_INFINITY);
     }

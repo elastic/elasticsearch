@@ -21,6 +21,7 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
@@ -29,6 +30,7 @@ import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
@@ -49,7 +51,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
 
     private Directory directory;
-    private AtomicReader reader;
+    private LeafReader reader;
     private static final char[] distinctValues = new char[] {'a', 'b', 'c', 'd', 'v','z','y'};
 
     @Before
@@ -66,11 +68,12 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
             Document document = new Document();
             for (int i = 0; i < fields.length; i++) {
                 document.add(new StringField(Integer.toString(i), String.valueOf(fields[i]), Field.Store.NO));
+                document.add(new SortedDocValuesField(Integer.toString(i), new BytesRef(String.valueOf(fields[i]))));
             }
             documents.add(document);
         }
         directory = newDirectory();
-        IndexWriter w = new IndexWriter(directory, new IndexWriterConfig(Lucene.VERSION, new KeywordAnalyzer()));
+        IndexWriter w = new IndexWriter(directory, new IndexWriterConfig(new KeywordAnalyzer()));
         w.addDocuments(documents);
         w.close();
         reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(directory));
@@ -85,7 +88,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
     }
 
     @Test
-    public void testWithTwoClausesOfEachOccur_allFixedBitsetFilters() throws Exception {
+    public void testWithTwoClausesOfEachOccur_allFixedBitDocIdSetFilters() throws Exception {
         List<XBooleanFilter> booleanFilters = new ArrayList<>();
         booleanFilters.add(createBooleanFilter(
                 newFilterClause(0, 'a', MUST, false), newFilterClause(1, 'b', MUST, false),
@@ -334,7 +337,16 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
         );
 
         DocIdSet docIdSet = booleanFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs());
-        assertThat(docIdSet, equalTo(null));
+        boolean empty = false;
+        if (docIdSet == null) {
+            empty = true;
+        } else {
+            DocIdSetIterator it = docIdSet.iterator();
+            if (it == null || it.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
+                empty = true;
+            }
+        }
+        assertTrue(empty);
     }
 
     @Test
@@ -530,7 +542,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
     }
 
 
-    public static final class PrettyPrintFieldCacheTermsFilter extends FieldCacheTermsFilter {
+    public static final class PrettyPrintFieldCacheTermsFilter extends DocValuesTermsFilter {
 
         private final String value;
         private final String field;
@@ -550,7 +562,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
     public final class EmptyFilter extends Filter {
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             return random().nextBoolean() ? new Empty() : null;
         }
 
@@ -559,6 +571,11 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
             @Override
             public DocIdSetIterator iterator() throws IOException {
                 return null;
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                return 0;
             }
         }
     }

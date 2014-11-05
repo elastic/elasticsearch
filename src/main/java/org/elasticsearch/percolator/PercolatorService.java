@@ -20,11 +20,18 @@ package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.ByteObjectOpenHashMap;
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.ExtendedMemoryIndex;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
@@ -44,8 +51,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XCollector;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
@@ -92,7 +97,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
-import static org.elasticsearch.percolator.QueryCollector.*;
+import static org.elasticsearch.percolator.QueryCollector.count;
+import static org.elasticsearch.percolator.QueryCollector.match;
+import static org.elasticsearch.percolator.QueryCollector.matchAndScore;
 
 /**
  */
@@ -291,7 +298,7 @@ public class PercolatorService extends AbstractComponent {
                             throw new ElasticsearchParseException("Either specify query or filter, not both");
                         }
                         Filter filter = documentIndexService.queryParserService().parseInnerFilter(parser).filter();
-                        context.percolateQuery(new XConstantScoreQuery(filter));
+                        context.percolateQuery(new ConstantScoreQuery(filter));
                     } else if ("sort".equals(currentFieldName)) {
                         parseSort(parser, context);
                     } else if (element != null) {
@@ -740,7 +747,7 @@ public class PercolatorService extends AbstractComponent {
                 int i = 0;
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                     int segmentIdx = ReaderUtil.subIndex(scoreDoc.doc, percolatorSearcher.reader().leaves());
-                    AtomicReaderContext atomicReaderContext = percolatorSearcher.reader().leaves().get(segmentIdx);
+                    LeafReaderContext atomicReaderContext = percolatorSearcher.reader().leaves().get(segmentIdx);
                     SortedBinaryDocValues values = idFieldData.load(atomicReaderContext).getBytesValues();
                     final int localDocId = scoreDoc.doc - atomicReaderContext.docBase;
                     values.setDocument(localDocId);
@@ -775,7 +782,7 @@ public class PercolatorService extends AbstractComponent {
     private void queryBasedPercolating(Engine.Searcher percolatorSearcher, PercolateContext context, QueryCollector percolateCollector) throws IOException {
         Filter percolatorTypeFilter = context.indexService().mapperService().documentMapper(TYPE_NAME).typeFilter();
         percolatorTypeFilter = context.indexService().cache().filter().cache(percolatorTypeFilter);
-        XFilteredQuery query = new XFilteredQuery(context.percolateQuery(), percolatorTypeFilter);
+        FilteredQuery query = new FilteredQuery(context.percolateQuery(), percolatorTypeFilter);
         percolatorSearcher.searcher().search(query, percolateCollector);
         for (Collector queryCollector : percolateCollector.aggregatorCollector) {
             if (queryCollector instanceof XCollector) {

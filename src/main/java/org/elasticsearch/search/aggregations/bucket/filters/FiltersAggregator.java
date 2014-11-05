@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.filters;
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
@@ -67,7 +67,7 @@ public class FiltersAggregator extends BucketsAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         try {
             for (int i = 0; i < filters.length; i++) {
                 bits[i] = DocIdSets.toSafeBits(reader.reader(), filters[i].filter.getDocIdSet(reader, reader.reader().getLiveDocs()));

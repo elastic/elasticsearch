@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ public abstract class NonCollectingAggregator extends Aggregator {
     }
 
     @Override
-    public final void setNextReader(AtomicReaderContext reader) {
+    public final void setNextReader(LeafReaderContext reader) {
         fail();
     }
 

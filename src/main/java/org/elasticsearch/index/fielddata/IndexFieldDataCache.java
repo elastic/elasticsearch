@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -29,7 +29,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
  */
 public interface IndexFieldDataCache {
 
-    <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(AtomicReaderContext context, IFD indexFieldData) throws Exception;
+    <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData) throws Exception;
 
     <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception;
 
@@ -55,7 +55,7 @@ public interface IndexFieldDataCache {
     class None implements IndexFieldDataCache {
 
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(AtomicReaderContext context, IFD indexFieldData) throws Exception {
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData) throws Exception {
             return indexFieldData.loadDirect(context);
         }
 

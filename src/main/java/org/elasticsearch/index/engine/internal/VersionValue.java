@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.engine.internal;
 
+import java.util.Collections;
+
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
@@ -53,5 +55,10 @@ class VersionValue implements Accountable {
     @Override
     public long ramBytesUsed() {
         return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_LONG + RamUsageEstimator.NUM_BYTES_OBJECT_REF + translogLocation.ramBytesUsed();
+    }
+    
+    @Override
+    public Iterable<? extends Accountable> getChildResources() {
+        return Collections.emptyList();
     }
 }

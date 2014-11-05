@@ -24,11 +24,11 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -250,12 +250,12 @@ public class SortParseElement implements SearchParseElement {
             }
             final Nested nested;
             if (objectMapper != null && objectMapper.nested().isNested()) {
-                FixedBitSetFilter rootDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
-                FixedBitSetFilter innerDocumentsFilter;
+                BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
+                BitDocIdSetFilter innerDocumentsFilter;
                 if (nestedFilter != null) {
-                    innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedFilter);
+                    innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(nestedFilter);
                 } else {
-                    innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
+                    innerDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(objectMapper.nestedTypeFilter());
                 }
                 nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
             } else {

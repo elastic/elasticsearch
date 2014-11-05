@@ -58,8 +58,8 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(AtomicReaderContext context) throws Exception {
-        AtomicReader reader = context.reader();
+    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+        LeafReader reader = context.reader();
         AtomicOrdinalsFieldData data = null;
 
         PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA), getFieldNames().fullName());
@@ -125,12 +125,12 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
      */
     public class PagedBytesEstimator implements PerValueEstimator {
 
-        private final AtomicReaderContext context;
+        private final LeafReaderContext context;
         private final CircuitBreaker breaker;
         private final String fieldName;
         private long estimatedBytes;
 
-        PagedBytesEstimator(AtomicReaderContext context, CircuitBreaker breaker, String fieldName) {
+        PagedBytesEstimator(LeafReaderContext context, CircuitBreaker breaker, String fieldName) {
             this.breaker = breaker;
             this.context = context;
             this.fieldName = fieldName;
@@ -156,14 +156,14 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
          */
         public long estimateStringFieldData() {
             try {
-                AtomicReader reader = context.reader();
+                LeafReader reader = context.reader();
                 Terms terms = reader.terms(getFieldNames().indexName());
 
                 Fields fields = reader.fields();
                 final Terms fieldTerms = fields.terms(getFieldNames().indexName());
 
                 if (fieldTerms instanceof FieldReader) {
-                    final Stats stats = ((FieldReader) fieldTerms).computeStats();
+                    final Stats stats = ((FieldReader) fieldTerms).getStats();
                     long totalTermBytes = stats.totalTermBytes;
                     if (logger.isTraceEnabled()) {
                         logger.trace("totalTermBytes: {}, terms.size(): {}, terms.getSumDocFreq(): {}",
@@ -193,7 +193,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
                     FilterSettingFields.ACCEPTABLE_TRANSIENT_OVERHEAD_RATIO,
                     OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
 
-            AtomicReader reader = context.reader();
+            LeafReader reader = context.reader();
             // Check if one of the following is present:
             // - The OrdinalsBuilder overhead has been tweaked away from the default
             // - A field data filter is present

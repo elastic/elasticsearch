@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
@@ -64,7 +64,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         values = valuesSource.longValues();
     }
 

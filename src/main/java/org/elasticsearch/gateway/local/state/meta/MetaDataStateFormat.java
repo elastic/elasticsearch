@@ -22,11 +22,9 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.OutputStreamIndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
@@ -125,9 +123,9 @@ public abstract class MetaDataStateFormat<T> {
                 }
                 CodecUtil.writeFooter(out);
             }
-            IOUtils.fsync(tmpStatePath.toFile(), false); // fsync the state file
+            IOUtils.fsync(tmpStatePath, false); // fsync the state file
             Files.move(tmpStatePath, finalStatePath, StandardCopyOption.ATOMIC_MOVE);
-            IOUtils.fsync(stateLocation.toFile(), true);
+            IOUtils.fsync(stateLocation, true);
             for (int i = 1; i < locations.length; i++) {
                 stateLocation = Paths.get(locations[i].getPath(), STATE_DIR_NAME);
                 Files.createDirectories(stateLocation);
@@ -136,7 +134,7 @@ public abstract class MetaDataStateFormat<T> {
                 try {
                     Files.copy(finalStatePath, tmpPath);
                     Files.move(tmpPath, finalPath, StandardCopyOption.ATOMIC_MOVE); // we are on the same FileSystem / Partition here we can do an atomic move
-                    IOUtils.fsync(stateLocation.toFile(), true); // we just fsync the dir here..
+                    IOUtils.fsync(stateLocation, true); // we just fsync the dir here..
                 } finally {
                     Files.deleteIfExists(tmpPath);
                 }
@@ -187,7 +185,7 @@ public abstract class MetaDataStateFormat<T> {
                         return fromXContent(parser);
                     }
                 }
-            } catch(CorruptIndexException ex) {
+            } catch(CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we trick this into a dedicated exception with the original stacktrace
                 throw new CorruptStateException(ex);
             }
@@ -195,7 +193,7 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     protected Directory newDirectory(File dir) throws IOException {
-        return new SimpleFSDirectory(dir);
+        return new SimpleFSDirectory(dir.toPath());
     }
 
     private void cleanupOldFiles(String prefix, String fileName, File[] locations) throws IOException {

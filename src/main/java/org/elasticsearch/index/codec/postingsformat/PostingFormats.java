@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BloomFilter;
 
 /**
@@ -54,7 +55,7 @@ public class PostingFormats {
         builtInPostingFormatsX.put(PostingsFormatService.DEFAULT_FORMAT,
                                    new PreBuiltPostingsFormatProvider.Factory(PostingsFormatService.DEFAULT_FORMAT, defaultFormat));
 
-        builtInPostingFormatsX.put("bloom_default", new PreBuiltPostingsFormatProvider.Factory("bloom_default", wrapInBloom(PostingsFormat.forName("Lucene41"))));
+        builtInPostingFormatsX.put("bloom_default", new PreBuiltPostingsFormatProvider.Factory("bloom_default", wrapInBloom(PostingsFormat.forName(Lucene.LATEST_POSTINGS_FORMAT))));
 
         builtInPostingFormats = builtInPostingFormatsX.immutableMap();
     }

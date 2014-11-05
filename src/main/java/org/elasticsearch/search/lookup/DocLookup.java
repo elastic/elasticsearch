@@ -19,16 +19,14 @@
 package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.Maps;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.apache.lucene.index.LeafReaderContext;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -47,7 +45,7 @@ public class DocLookup implements Map {
     @Nullable
     private final String[] types;
 
-    private AtomicReaderContext reader;
+    private LeafReaderContext reader;
 
     private int docId = -1;
 
@@ -65,7 +63,7 @@ public class DocLookup implements Map {
         return this.fieldDataService;
     }
 
-    public void setNextReader(AtomicReaderContext context) {
+    public void setNextReader(LeafReaderContext context) {
         if (this.reader == context) { // if we are called with the same reader, don't invalidate source
             return;
         }

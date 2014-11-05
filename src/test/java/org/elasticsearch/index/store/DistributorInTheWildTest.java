@@ -37,8 +37,8 @@ import org.elasticsearch.test.ElasticsearchThreadFilter;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.junit.Before;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -144,7 +144,7 @@ public class DistributorInTheWildTest extends ThreadedIndexingAndSearchingTestCa
         Directory[] directories = new Directory[1 + random().nextInt(5)];
         directories[0] = in;
         for (int i = 1; i < directories.length; i++) {
-            final File tempDir = createTempDir(getTestName());
+            final Path tempDir = createTempDir(getTestName());
             directories[i] = newMockFSDirectory(tempDir); // some subclasses rely on this being MDW
             if (!useNonNrtReaders) ((MockDirectoryWrapper) directories[i]).setAssertNoDeleteOpenFile(true);
         }

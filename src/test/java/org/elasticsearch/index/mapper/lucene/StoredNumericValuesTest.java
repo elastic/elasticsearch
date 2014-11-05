@@ -50,7 +50,7 @@ public class StoredNumericValuesTest extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testBytesAndNumericRepresentation() throws Exception {
-        IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         String mapping = XContentFactory.jsonBuilder()
                 .startObject()

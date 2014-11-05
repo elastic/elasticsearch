@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
@@ -75,7 +75,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void setNextReader(LeafReaderContext reader) {
         this.values = this.valuesSource.geoPointValues();
     }
 

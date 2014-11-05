@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.translog.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
+import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -182,6 +184,11 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     @Override
     public long ramBytesUsed() {
         return 0;
+    }
+
+    @Override
+    public Iterable<? extends Accountable> getChildResources() {
+        return Collections.emptyList();
     }
 
     @Override

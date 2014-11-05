@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -199,9 +199,9 @@ public class TypeParsers {
                     }
                 }
             } else if (propName.equals("omit_term_freq_and_positions")) {
-                final IndexOptions op = nodeBooleanValue(propNode) ? IndexOptions.DOCS_ONLY : IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
+                final IndexOptions op = nodeBooleanValue(propNode) ? IndexOptions.DOCS : IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
                 if (parserContext.indexVersionCreated().onOrAfter(Version.V_1_0_0_RC2)) {
-                    throw new ElasticsearchParseException("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : '" + op.name() + "']  instead");
+                    throw new ElasticsearchParseException("'omit_term_freq_and_positions' is not supported anymore - use ['index_options' : 'docs']  instead");
                 }
                 // deprecated option for BW compat
                 builder.indexOptions(op);
@@ -295,7 +295,7 @@ public class TypeParsers {
         } else if (INDEX_OPTIONS_FREQS.equalsIgnoreCase(value)) {
             return IndexOptions.DOCS_AND_FREQS;
         } else if (INDEX_OPTIONS_DOCS.equalsIgnoreCase(value)) {
-            return IndexOptions.DOCS_ONLY;
+            return IndexOptions.DOCS;
         } else {
             throw new ElasticsearchParseException("Failed to parse index option [" + value + "]");
         }

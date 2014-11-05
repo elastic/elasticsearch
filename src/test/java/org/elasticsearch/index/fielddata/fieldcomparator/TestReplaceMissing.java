@@ -50,7 +50,7 @@ public class TestReplaceMissing extends ElasticsearchLuceneTestCase {
         iw.close();
         
         DirectoryReader reader = DirectoryReader.open(dir);
-        AtomicReader ar = getOnlySegmentReader(reader);
+        LeafReader ar = getOnlySegmentReader(reader);
         SortedDocValues raw = ar.getSortedDocValues("field");
         assertEquals(2, raw.getValueCount());
         

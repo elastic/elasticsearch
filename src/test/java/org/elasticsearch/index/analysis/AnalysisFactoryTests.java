@@ -152,7 +152,9 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("worddelimiter",             WordDelimiterTokenFilterFactory.class);
                 
         // TODO: these tokenfilters are not yet exposed: useful?
-        
+
+        // suggest stop
+        put("suggeststop",               Void.class);
         // capitalizes tokens
         put("capitalization",            Void.class);
         // like length filter (but codepoints)

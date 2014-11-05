@@ -18,25 +18,30 @@
  */
 package org.elasticsearch.index.codec.postingsformat;
 
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
+import com.google.common.collect.Iterators;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.TermsConsumer;
-import org.apache.lucene.codecs.lucene41.Lucene41PostingsFormat;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BloomFilter;
 import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat.BloomFilteredFieldsConsumer;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 /**
  * This is the default postings format for Elasticsearch that special cases
  * the <tt>_uid</tt> field to use a bloom filter while all other fields
- * will use a {@link Lucene41PostingsFormat}. This format will reuse the underlying
- * {@link Lucene41PostingsFormat} and its files also for the <tt>_uid</tt> saving up to
+ * will use a {@link Lucene50PostingsFormat}. This format will reuse the underlying
+ * {@link Lucene50PostingsFormat} and its files also for the <tt>_uid</tt> saving up to
  * 5 files per segment in the default case.
  */
 public final class Elasticsearch090PostingsFormat extends PostingsFormat {
@@ -44,12 +49,21 @@ public final class Elasticsearch090PostingsFormat extends PostingsFormat {
 
     public Elasticsearch090PostingsFormat() {
         super("es090");
-        bloomPostings = new BloomFilterPostingsFormat(new Lucene41PostingsFormat(), BloomFilter.Factory.DEFAULT);
+        Lucene50PostingsFormat delegate = new Lucene50PostingsFormat();
+        assert delegate.getName().equals(Lucene.LATEST_POSTINGS_FORMAT);
+        bloomPostings = new BloomFilterPostingsFormat(delegate, BloomFilter.Factory.DEFAULT);
     }
 
     public PostingsFormat getDefaultWrapped() {
         return bloomPostings.getDelegate();
     }
+    private static final Predicate<String> UID_FIELD_FILTER = new Predicate<String>() {
+
+        @Override
+        public boolean apply(String s) {
+            return  UidFieldMapper.NAME.equals(s);
+        }
+    };
 
     @Override
     public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
@@ -57,17 +71,28 @@ public final class Elasticsearch090PostingsFormat extends PostingsFormat {
         return new FieldsConsumer() {
 
             @Override
-            public void close() throws IOException {
-                fieldsConsumer.close();
+            public void write(Fields fields) throws IOException {
+
+                Fields maskedFields = new FilterLeafReader.FilterFields(fields) {
+                    @Override
+                    public Iterator<String> iterator() {
+                        return Iterators.filter(this.in.iterator(), Predicates.not(UID_FIELD_FILTER));
+                    }
+                };
+                fieldsConsumer.getDelegate().write(maskedFields);
+                maskedFields = new FilterLeafReader.FilterFields(fields) {
+                    @Override
+                    public Iterator<String> iterator() {
+                        return Iterators.singletonIterator(UidFieldMapper.NAME);
+                    }
+                };
+                // only go through bloom for the UID field
+                fieldsConsumer.write(maskedFields);
             }
 
             @Override
-            public TermsConsumer addField(FieldInfo field) throws IOException {
-                if (UidFieldMapper.NAME.equals(field.name)) {
-                    // only go through bloom for the UID field
-                    return fieldsConsumer.addField(field);
-                }
-                return fieldsConsumer.getDelegate().addField(field);
+            public void close() throws IOException {
+                fieldsConsumer.close();
             }
         };
     }

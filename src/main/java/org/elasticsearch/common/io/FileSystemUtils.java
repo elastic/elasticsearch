@@ -154,7 +154,7 @@ public class FileSystemUtils {
      *  because not all file systems and operating systems allow to fsync on a directory)
      */
     public static void syncFile(File fileToSync, boolean isDir) throws IOException {
-        IOUtils.fsync(fileToSync, isDir);
+        IOUtils.fsync(fileToSync.toPath(), isDir);
     }
 
     /**

@@ -121,86 +121,75 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
     public void testDfsQueryThenFetch() throws Exception {
         prepareData();
 
-        SearchSourceBuilder source = searchSource()
-                .query(termQuery("multi", "test"))
-                .from(0).size(60).explain(true);
-
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
-        assertNoFailures(searchResponse);
-
-        assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(60));
-        for (int i = 0; i < 60; i++) {
-            SearchHit hit = searchResponse.getHits().hits()[i];
-            assertThat(hit.explanation(), notNullValue());
-            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
+        int total = 0;
+        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(DFS_QUERY_THEN_FETCH).setQuery(termQuery("multi", "test")).setSize(60).setExplain(true).setScroll(TimeValue.timeValueSeconds(30)).get();
+        while (true) {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
+            SearchHit[] hits = searchResponse.getHits().hits();
+            if (hits.length == 0) {
+                break; // finished
+            }
+            for (int i = 0; i < hits.length; ++i) {
+                SearchHit hit = hits[i];
+                assertThat(hit.explanation(), notNullValue());
+                assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - total - i - 1)));
+            }
+            total += hits.length;
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(30)).get();
         }
-
-        searchResponse = client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
-
-        assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(40));
-        for (int i = 0; i < 40; i++) {
-            SearchHit hit = searchResponse.getHits().hits()[i];
-            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - 60 - 1 - i)));
-        }
+        clearScroll(searchResponse.getScrollId());
+        assertEquals(100, total);
     }
 
     @Test
     public void testDfsQueryThenFetchWithSort() throws Exception {
         prepareData();
 
-        SearchSourceBuilder source = searchSource()
-                .query(termQuery("multi", "test"))
-                .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
-
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(60));
-        for (int i = 0; i < 60; i++) {
-            SearchHit hit = searchResponse.getHits().hits()[i];
-            assertThat(hit.explanation(), notNullValue());
-            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(i)));
+        int total = 0;
+        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(DFS_QUERY_THEN_FETCH).setQuery(termQuery("multi", "test")).setSize(60).setExplain(true).addSort("age", SortOrder.ASC).setScroll(TimeValue.timeValueSeconds(30)).get();
+        while (true) {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
+            SearchHit[] hits = searchResponse.getHits().hits();
+            if (hits.length == 0) {
+                break; // finished
+            }
+            for (int i = 0; i < hits.length; ++i) {
+                SearchHit hit = hits[i];
+                assertThat(hit.explanation(), notNullValue());
+                assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(total + i)));
+            }
+            total += hits.length;
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(30)).get();
         }
-
-        searchResponse = client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
-
-        assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(40));
-        for (int i = 0; i < 40; i++) {
-            SearchHit hit = searchResponse.getHits().hits()[i];
-            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(i + 60)));
-        }
+        clearScroll(searchResponse.getScrollId());
+        assertEquals(100, total);
     }
 
     @Test
     public void testQueryThenFetch() throws Exception {
         prepareData();
 
-        SearchSourceBuilder source = searchSource()
-                .query(termQuery("multi", "test"))
-                .sort("nid", SortOrder.DESC) // we have to sort here to have some ordering with dist scoring
-                .from(0).size(60).explain(true);
-
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(60));
-        for (int i = 0; i < 60; i++) {
-            SearchHit hit = searchResponse.getHits().hits()[i];
-            assertThat(hit.explanation(), notNullValue());
-            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
+        int total = 0;
+        SearchResponse searchResponse = client().prepareSearch("test").setSearchType(QUERY_THEN_FETCH).setQuery(termQuery("multi", "test")).setSize(60).setExplain(true).addSort("nid", SortOrder.DESC).setScroll(TimeValue.timeValueSeconds(30)).get();
+        while (true) {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
+            SearchHit[] hits = searchResponse.getHits().hits();
+            if (hits.length == 0) {
+                break; // finished
+            }
+            for (int i = 0; i < hits.length; ++i) {
+                SearchHit hit = hits[i];
+                assertThat(hit.explanation(), notNullValue());
+                assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - total - i - 1)));
+            }
+            total += hits.length;
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(30)).get();
         }
-
-        searchResponse = client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
-
-        assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(40));
-        for (int i = 0; i < 40; i++) {
-            SearchHit hit = searchResponse.getHits().hits()[i];
-            assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - 60 - 1 - i)));
-        }
+        clearScroll(searchResponse.getScrollId());
+        assertEquals(100, total);
     }
 
     @Test

@@ -116,7 +116,7 @@ This status page is a start, but we can do a better job of explicitly documentin
 
 
 [float]
-=== Add a minimum weight to filter cache entries (STATUS: ONGOING)
+=== Take filter cache key size into account (STATUS: ONGOING)
 
 Commonly used filters are cached in Elasticsearch. That cache is limited in size (10% of node's memory by default) and is being evicted based on a least recently used policy. The amount of memory used by the cache depends on two primary components - the values it stores and the keys associated with them. Calculating the memory footprint of the values is easy enough but the keys accounting is trickier to achieve as they are, by default, raw Lucene objects. This is largely not a problem as the keys are dominated by the values. However, recent optimizations in Lucene have changed the balance causing the filter cache to grow beyond it's size.
 

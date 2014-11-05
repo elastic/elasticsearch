@@ -11,12 +11,12 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.licensor.tools.LicenseGeneratorTool;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -30,6 +30,9 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 public class LicenseGenerationToolTests extends AbstractLicensingTestBase {
+
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
     public void testSimple() throws Exception {
@@ -59,10 +62,8 @@ public class LicenseGenerationToolTests extends AbstractLicensingTestBase {
     public void testWithLicenseFile() throws Exception {
         LicenseSpec inputLicenseSpec = generateRandomLicenseSpec();
 
-        Path tempFilePath = Files.createTempFile("license_spec", "json");
-        File tempFile = tempFilePath.toFile();
+        File tempFile = temporaryFolder.newFile("license_spec.json");
         FileUtils.write(tempFile, generateESLicenseSpecString(Arrays.asList(inputLicenseSpec)));
-        tempFile.deleteOnExit();
 
         String[] args = new String[6];
         args[0] = "--licenseFile";
@@ -124,9 +125,8 @@ public class LicenseGenerationToolTests extends AbstractLicensingTestBase {
         }
     }
 
-    private static String runLicenseGenerationTool(String[] args) throws Exception {
-        File temp = File.createTempFile("temp", ".out");
-        temp.deleteOnExit();
+    private String runLicenseGenerationTool(String[] args) throws Exception {
+        File temp = temporaryFolder.newFile("license_generator.out");
         try (FileOutputStream outputStream = new FileOutputStream(temp)) {
             LicenseGeneratorTool.run(args, outputStream);
         }

@@ -16,13 +16,13 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.licensor.tools.LicenseVerificationTool;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
@@ -33,6 +33,9 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
+
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
     public void testMissingCLTArgs() throws Exception {
@@ -114,9 +117,7 @@ public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
     }
 
     private String dumpLicense(ESLicense license) throws Exception {
-        Path tempFilePath = Files.createTempFile("license_spec", "json");
-        File tempFile = tempFilePath.toFile();
-        tempFile.deleteOnExit();
+        File tempFile = temporaryFolder.newFile("licenses.json");
         try (FileOutputStream outputStream = new FileOutputStream(tempFile)) {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, outputStream);
             ESLicenses.toXContent(Collections.singletonList(license), builder, ToXContent.EMPTY_PARAMS);
@@ -126,12 +127,11 @@ public class LicenseVerificationToolTests extends AbstractLicensingTestBase {
     }
 
 
-    private static String runLicenseVerificationTool(String[] args) throws IOException {
-        File temp = File.createTempFile("temp", ".out");
-        temp.deleteOnExit();
-        try (FileOutputStream outputStream = new FileOutputStream(temp)) {
+    private String runLicenseVerificationTool(String[] args) throws IOException {
+        File tempFile = temporaryFolder.newFile("licence_verification.out");
+        try (FileOutputStream outputStream = new FileOutputStream(tempFile)) {
             LicenseVerificationTool.run(args, outputStream);
         }
-        return FileUtils.readFileToString(temp);
+        return FileUtils.readFileToString(tempFile);
     }
 }

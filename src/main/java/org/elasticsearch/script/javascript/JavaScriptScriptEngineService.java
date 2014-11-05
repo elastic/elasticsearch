@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script.javascript;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -230,7 +230,7 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) {
+        public void setNextReader(LeafReaderContext context) {
             lookup.setNextReader(context);
         }
 

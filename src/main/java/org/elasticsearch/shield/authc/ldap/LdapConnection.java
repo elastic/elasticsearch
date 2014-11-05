@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.naming.directory.*;
@@ -27,6 +30,7 @@ import java.util.Map;
  */
 public class LdapConnection implements Closeable {
 
+    private static final ESLogger logger = ESLoggerFactory.getLogger(LdapConnection.class.getName());
     private final String bindDn;
     private final DirContext ldapContext;
 
@@ -63,7 +67,9 @@ public class LdapConnection implements Closeable {
      * @return List of group membership
      */
     public List<String> getGroups(){
-        return isFindGroupsByAttribute ? getGroupsFromUserAttrs(bindDn) : getGroupsFromSearch(bindDn);
+        List<String> groups = isFindGroupsByAttribute ? getGroupsFromUserAttrs(bindDn) : getGroupsFromSearch(bindDn);
+        logger.debug("Found these groups [{}] for userDN [{}]", groups, this.bindDn );
+        return groups;
     }
 
     /**

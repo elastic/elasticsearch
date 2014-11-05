@@ -87,7 +87,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
                 String name = entry.getNameInNamespace();
 
                 if (!results.hasMore()) {
-                    //searchByAttribute=true, group subtree search=false, groupSubtreeDN=null
+                    //isFindGroupsByAttribute=true, group subtree search=false, groupSubtreeDN=null
                     return new LdapConnection(ctx, name, true, false, null);
                 }
                 throw new LdapException("Search for user [" + userName + "] by principle name yielded multiple results");

@@ -43,7 +43,7 @@ public class PolishIndicesAnalysis extends AbstractComponent {
     @Inject
     public PolishIndicesAnalysis(Settings settings, IndicesAnalysisService indicesAnalysisService) {
         super(settings);
-        indicesAnalysisService.analyzerProviderFactories().put("polish", new StempelAnalyzerProviderFactory("polish", AnalyzerScope.INDICES, new PolishAnalyzer(Lucene.ANALYZER_VERSION)));
+        indicesAnalysisService.analyzerProviderFactories().put("polish", new StempelAnalyzerProviderFactory("polish", AnalyzerScope.INDICES, new PolishAnalyzer()));
 
         indicesAnalysisService.tokenFilterFactories().put("polish_stem", new StempelTokenFilterFactoryFactory(new TokenFilterFactory() {
             @Override public String name() {

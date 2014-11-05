@@ -129,7 +129,8 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
         //alertManager.addAlert("my-first-alert", jsonBuilder().value(alert).bytes());
         CreateAlertRequest alertRequest = new CreateAlertRequest(alert);
         CreateAlertResponse alertsResponse = alertsClient.createAlert(alertRequest).actionGet();
-        assertTrue(alertsResponse.success());
+        assertNotNull(alertsResponse.indexResponse());
+        assertTrue(alertsResponse.indexResponse().isCreated());
 
 
         assertBusy(new Runnable() {

@@ -10,6 +10,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
@@ -97,15 +99,16 @@ public class AlertManager extends AbstractComponent {
         return alert;
     }
 
-    public Alert addAlert(Alert alert) {
+    public IndexResponse addAlert(Alert alert) {
         ensureStarted();
+        IndexResponse indexResponse = null;
         try {
-            alertsStore.createAlert(alert);
+            indexResponse = alertsStore.createAlert(alert);
         } catch (IOException ioe) {
             throw new ElasticsearchException("Failed to create alert [" + alert +  "]", ioe);
         }
         scheduler.add(alert.alertName(), alert);
-        return alert;
+        return indexResponse;
     }
 
 
@@ -161,12 +164,11 @@ public class AlertManager extends AbstractComponent {
         return alertsStore.getAlert(alertName);
     }
 
-    public boolean updateAlert(Alert alert) {
+    public IndexResponse updateAlert(Alert alert, boolean updateMap) {
         if (!alertsStore.hasAlert(alert.alertName())) {
-            return false;
+            return null;
         }
-        return alertsStore.updateAlert(alert);
-
+        return alertsStore.updateAlert(alert, updateMap);
     }
 
     private final class AlertsClusterStateListener implements ClusterStateListener {

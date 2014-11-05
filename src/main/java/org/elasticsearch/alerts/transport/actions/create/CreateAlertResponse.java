@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts.transport.actions.create;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -14,36 +15,41 @@ import java.io.IOException;
 /**
  */
 public class CreateAlertResponse extends ActionResponse {
-    private boolean success;
+    private IndexResponse indexResponse;
 
-    public CreateAlertResponse(boolean success) {
-        this.success = success;
+    public CreateAlertResponse(IndexResponse indexResponse) {
+        this.indexResponse = indexResponse;
     }
 
     public CreateAlertResponse() {
-        this.success = success;
+        indexResponse = null;
     }
 
 
-    public boolean success() {
-        return success;
+    public IndexResponse indexResponse(){
+        return indexResponse;
     }
 
-    public void success(boolean success) {
-        this.success = success;
+    public void indexResponse(IndexResponse indexResponse){
+        this.indexResponse = indexResponse;
     }
-
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(success);
+        out.writeBoolean(indexResponse != null);
+        if (indexResponse != null) {
+            indexResponse.writeTo(out);
+        }
     }
 
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        success = in.readBoolean();
+        if (in.readBoolean()) {
+            indexResponse = new IndexResponse();
+            indexResponse.readFrom(in);
+        }
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
@@ -107,25 +108,24 @@ public class AlertsStore extends AbstractComponent {
     /**
      * Creates an alert with the specified and fails if an alert with the name already exists.
      */
-    public Alert createAlert(Alert alert) throws IOException {
+    public IndexResponse createAlert(Alert alert) throws IOException {
         if (alertMap.putIfAbsent(alert.alertName(), alert) == null) {
             XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
             alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-            persistAlert(alert.alertName(), jsonBuilder.bytes(), IndexRequest.OpType.CREATE);
+            return persistAlert(alert.alertName(), jsonBuilder.bytes(), IndexRequest.OpType.CREATE);
         } else {
             throw new ElasticsearchIllegalArgumentException("There is already an alert named [" + alert.alertName() + "]");
         }
-        return alert;
     }
 
-    public boolean updateAlert(Alert alert) {
+    public IndexResponse updateAlert(Alert alert) {
         return updateAlert(alert, false);
     }
 
     /**
      * Updates the specified alert by making sure that the made changes are persisted.
      */
-    public boolean updateAlert(Alert alert, boolean updateMap) {
+    public IndexResponse updateAlert(Alert alert, boolean updateMap) {
         IndexRequest updateRequest = new IndexRequest();
         updateRequest.index(ALERT_INDEX);
         updateRequest.type(ALERT_TYPE);
@@ -149,7 +149,7 @@ public class AlertsStore extends AbstractComponent {
             // Don'<></> need to update the alertMap, since we are working on an instance from it.
             assert alertMap.get(alert.alertName()) == alert;
         }
-        return true;
+        return response;
     }
 
     /**
@@ -234,12 +234,12 @@ public class AlertsStore extends AbstractComponent {
         clear();
     }
 
-    private void persistAlert(String alertName, BytesReference alertSource, IndexRequest.OpType opType) {
+    private IndexResponse persistAlert(String alertName, BytesReference alertSource, IndexRequest.OpType opType) {
         IndexRequest indexRequest = new IndexRequest(ALERT_INDEX, ALERT_TYPE, alertName);
         indexRequest.listenerThreaded(false);
         indexRequest.source(alertSource, false);
         indexRequest.opType(opType);
-        client.index(indexRequest).actionGet();
+        return client.index(indexRequest).actionGet();
     }
 
     private void loadAlerts() {

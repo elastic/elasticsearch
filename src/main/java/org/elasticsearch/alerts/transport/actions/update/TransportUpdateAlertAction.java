@@ -7,8 +7,10 @@ package org.elasticsearch.alerts.transport.actions.update;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.actions.AlertActionManager;
@@ -51,8 +53,8 @@ public class TransportUpdateAlertAction extends TransportMasterNodeOperationActi
     @Override
     protected void masterOperation(UpdateAlertRequest request, ClusterState state, ActionListener<UpdateAlertResponse> listener) throws ElasticsearchException {
         try {
-            boolean success = alertManager.updateAlert(request.alert());
-            listener.onResponse(new UpdateAlertResponse(success));
+            IndexResponse indexResponse = alertManager.updateAlert(request.alert(), true);
+            listener.onResponse(new UpdateAlertResponse(indexResponse));
         } catch (Exception e) {
             listener.onFailure(e);
         }

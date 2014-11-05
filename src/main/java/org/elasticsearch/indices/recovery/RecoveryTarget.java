@@ -462,7 +462,7 @@ public class RecoveryTarget extends AbstractComponent {
         @Override
         public void onFailure(Throwable t) {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatus(recoveryId)) {
-                if (statusRef == null) {
+                if (statusRef != null) {
                     logger.error("unexpected error during recovery [{}], failing shard", t, recoveryId);
                     onGoingRecoveries.failRecovery(recoveryId,
                             new RecoveryFailedException(statusRef.status().state(), "unexpected error", t),

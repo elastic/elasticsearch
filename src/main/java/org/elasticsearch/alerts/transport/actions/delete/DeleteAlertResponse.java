@@ -15,7 +15,7 @@ import java.io.IOException;
  */
 public class DeleteAlertResponse extends ActionResponse {
 
-    boolean success;
+    private boolean success;
 
     public DeleteAlertResponse() {
         success = false;

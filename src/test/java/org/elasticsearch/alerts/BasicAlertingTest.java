@@ -7,7 +7,13 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.alerts.actions.*;
+import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
+import org.elasticsearch.alerts.transport.actions.create.CreateAlertRequest;
+import org.elasticsearch.alerts.transport.actions.create.CreateAlertResponse;
+import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
+import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedAlertTrigger;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -117,7 +123,15 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
                 1,
                 true
         );
-        alertManager.addAlert("my-first-alert", jsonBuilder().value(alert).bytes());
+
+        AlertsClientInterface alertsClient = internalCluster().getInstance(AlertsClient.class, internalCluster().getMasterName());
+
+        //alertManager.addAlert("my-first-alert", jsonBuilder().value(alert).bytes());
+        CreateAlertRequest alertRequest = new CreateAlertRequest(alert);
+        CreateAlertResponse alertsResponse = alertsClient.createAlert(alertRequest).actionGet();
+        assertTrue(alertsResponse.success());
+
+
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -126,6 +140,11 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
                 assertThat(indicesExistsResponse.isExists(), is(true));
             }
         }, 30, TimeUnit.SECONDS);
+
+        DeleteAlertRequest deleteAlertRequest = new DeleteAlertRequest(alert.alertName());
+        DeleteAlertResponse deleteAlertResponse = alertsClient.deleteAlert(deleteAlertRequest).actionGet();
+        assertTrue(deleteAlertResponse.success());
+
     }
 
 }

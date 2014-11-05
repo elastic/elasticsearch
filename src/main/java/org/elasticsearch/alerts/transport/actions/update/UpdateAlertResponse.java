@@ -14,7 +14,7 @@ import java.io.IOException;
 /**
  */
 public class UpdateAlertResponse extends ActionResponse {
-    boolean success = false;
+    private boolean success = false;
 
     public UpdateAlertResponse() {
 

@@ -78,9 +78,13 @@ public class AlertActionManager extends AbstractComponent {
                     Alert alert = alertsStore.getAlert(entry.getAlertName());
                     DateTime lastActionFire = alert.lastActionFire();
                     DateTime scheduledTime = entry.getScheduledTime();
-                    long msSinceLastAction = scheduledTime.getMillis() - lastActionFire.getMillis();
-                    logger.trace("last action fire [{}]", lastActionFire);
-                    logger.trace("msSinceLastAction [{}]", msSinceLastAction);
+                    if (lastActionFire != null) {
+                        long msSinceLastAction = scheduledTime.getMillis() - lastActionFire.getMillis();
+                        logger.trace("last action fire [{}]", lastActionFire);
+                        logger.trace("msSinceLastAction [{}]", msSinceLastAction);
+                    } else {
+                        logger.trace("This is the first time this alert has run");
+                    }
 
                     actionRegistry.doAction(alert, entry);
                     logger.debug("Did action !");

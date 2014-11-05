@@ -15,8 +15,8 @@ import java.io.IOException;
 /**
  */
 public class GetAlertResponse extends ActionResponse {
-    boolean found = false;
-    Alert alert = null;
+    private boolean found = false;
+    private Alert alert = null;
 
     public GetAlertResponse() {
 

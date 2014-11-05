@@ -89,7 +89,8 @@ public class KuromojiAnalysisTests extends ElasticsearchTestCase {
         assertThat(tokenFilter, instanceOf(KuromojiPartOfSpeechFilterFactory.class));
         String source = "私は制限スピードを超える。";
         String[] expected = new String[]{"私", "は", "制限", "スピード", "を"};
-        Tokenizer tokenizer = new JapaneseTokenizer(new StringReader(source), null, true, JapaneseTokenizer.Mode.SEARCH);
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
     }
 
@@ -101,11 +102,13 @@ public class KuromojiAnalysisTests extends ElasticsearchTestCase {
         String source = "今夜はロバート先生と話した";
         String[] expected_tokens_romanji = new String[]{"kon'ya", "ha", "robato", "sensei", "to", "hanashi", "ta"};
 
-        Tokenizer tokenizer = new JapaneseTokenizer(new StringReader(source), null, true, JapaneseTokenizer.Mode.SEARCH);
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
 
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_romanji);
 
-        tokenizer = new JapaneseTokenizer(new StringReader(source), null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
         String[] expected_tokens_katakana = new String[]{"コンヤ", "ハ", "ロバート", "センセイ", "ト", "ハナシ", "タ"};
         tokenFilter = analysisService.tokenFilter("kuromoji_readingform");
         assertThat(tokenFilter, instanceOf(KuromojiReadingFormFilterFactory.class));
@@ -119,7 +122,8 @@ public class KuromojiAnalysisTests extends ElasticsearchTestCase {
         assertThat(tokenFilter, instanceOf(KuromojiKatakanaStemmerFactory.class));
         String source = "明後日パーティーに行く予定がある。図書館で資料をコピーしました。";
 
-        Tokenizer tokenizer = new JapaneseTokenizer(new StringReader(source), null, true, JapaneseTokenizer.Mode.SEARCH);
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
 
         // パーティー should be stemmed by default
         // (min len) コピー should not be stemmed
@@ -128,7 +132,8 @@ public class KuromojiAnalysisTests extends ElasticsearchTestCase {
 
         tokenFilter = analysisService.tokenFilter("kuromoji_ks");
         assertThat(tokenFilter, instanceOf(KuromojiKatakanaStemmerFactory.class));
-        tokenizer = new JapaneseTokenizer(new StringReader(source), null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
 
         // パーティー should not be stemmed since min len == 6
         // コピー should not be stemmed

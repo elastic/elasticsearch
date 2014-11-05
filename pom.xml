@@ -51,7 +51,8 @@ governing permissions and limitations under the License. -->
         <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
         <google.gce.version>v1-rev15-1.18.0-rc</google.gce.version>
         <google.api.version>1.18.0-rc</google.api.version>
-        <lucene.version>4.9.0</lucene.version>
+        <lucene.version>5.0.0</lucene.version>
+        <lucene.maven.version>5.0.0-snapshot-1636426</lucene.maven.version>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
@@ -59,6 +60,17 @@ governing permissions and limitations under the License. -->
         <es.logger.level>INFO</es.logger.level>
         <es.config>${project.build.testOutputDirectory}/elasticsearch.yml</es.config>
     </properties>
+
+    <repositories>
+        <repository>
+            <id>sonatype</id>
+            <url>http://oss.sonatype.org/content/repositories/releases/</url>
+        </repository>
+        <repository>
+            <id>Lucene snapshots</id>
+            <url>https://download.elasticsearch.org/lucenesnapshots/maven/</url>
+        </repository>
+    </repositories>
 
     <dependencies>
         <dependency>
@@ -77,7 +89,7 @@ governing permissions and limitations under the License. -->
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-test-framework</artifactId>
-            <version>${lucene.version}</version>
+            <version>${lucene.maven.version}</version>
             <scope>test</scope>
         </dependency>
 

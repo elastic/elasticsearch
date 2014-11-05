@@ -3,7 +3,7 @@
 
 :version: 1.4.0
 :branch:  1.4
-:jdk:     1.8.0_20
+:jdk:     1.8.0_25
 
 include::getting-started.asciidoc[]
 

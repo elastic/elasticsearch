@@ -61,7 +61,7 @@ public class Lucene {
     public static final Version QUERYPARSER_VERSION = VERSION;
     public static final String LATEST_DOC_VALUES_FORMAT = "Lucene50";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
-    public static final String LATEST_CODEC = Codec.getDefault().getName();
+    public static final String LATEST_CODEC = "Lucene50";
 
     static {
         Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);

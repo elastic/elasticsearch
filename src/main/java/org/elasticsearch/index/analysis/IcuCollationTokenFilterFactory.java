@@ -23,7 +23,6 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.collation.ICUCollationKeyFilter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -174,6 +173,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new ICUCollationKeyFilter(tokenStream, collator);
+        throw new UnsupportedOperationException("i was deprecated in lucene 4, and now i'm gone");
+        // TODO: lucene does sort keys as binary keys since 4.x
     }
 }

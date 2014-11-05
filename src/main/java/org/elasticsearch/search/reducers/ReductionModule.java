@@ -29,6 +29,7 @@ import org.elasticsearch.search.reducers.metric.delta.DeltaParser;
 import org.elasticsearch.search.reducers.metric.max.MaxParser;
 import org.elasticsearch.search.reducers.metric.min.MinParser;
 import org.elasticsearch.search.reducers.metric.stats.StatsParser;
+import org.elasticsearch.search.reducers.metric.sum.SumParser;
 
 import java.util.List;
 
@@ -42,6 +43,7 @@ public class ReductionModule extends AbstractModule {
         parsers.add(AvgParser.class);
         parsers.add(MaxParser.class);
         parsers.add(MinParser.class);
+        parsers.add(SumParser.class);
         parsers.add(StatsParser.class);
         parsers.add(RangeParser.class);
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.LoadingListener;
+import org.elasticsearch.alerts.plugin.AlertsPlugin;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.client.Client;
@@ -123,7 +124,7 @@ public class AlertActionManager extends AbstractComponent {
                         logger.debug("Stopping thread to read from the job queue");
                         return;
                     }
-                    threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new AlertHistoryRunnable(entry));
+                    threadPool.executor(AlertsPlugin.THREAD_POOL_NAME).execute(new AlertHistoryRunnable(entry));
                 }
             } catch (Throwable t) {
                 logger.error("Error during reader thread", t);

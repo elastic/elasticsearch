@@ -17,10 +17,10 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 
 public class AlertsPlugin extends AbstractPlugin {
 
-    public static final String NAME = "alerts";
+    public static final String THREAD_POOL_NAME = "alerts";
 
     @Override public String name() {
-        return NAME;
+        return THREAD_POOL_NAME;
     }
 
     @Override public String description() {
@@ -37,7 +37,7 @@ public class AlertsPlugin extends AbstractPlugin {
     @Override
     public Settings additionalSettings() {
         return settingsBuilder()
-                .put("threadpool."+ NAME + ".type","cached")
+                .put("threadpool."+ THREAD_POOL_NAME + ".type","cached")
                 .build();
     }
 

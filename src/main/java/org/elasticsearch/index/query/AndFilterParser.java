@@ -60,12 +60,18 @@ public class AndFilterParser implements FilterParser {
         String currentFieldName = null;
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
+            boolean subSequentToken = true;
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                if(subSequentToken && token == XContentParser.Token.START_ARRAY) {
+                    //Make `and` filter parsing stricter #7311
+                    throw new QueryParsingException(parseContext.index(), "[and] filter should not have double or more nested arrays.");
+                }
                 filtersFound = true;
                 Filter filter = parseContext.parseInnerFilter();
                 if (filter != null) {
                     filters.add(filter);
                 }
+                subSequentToken = false;
             }
         } else {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

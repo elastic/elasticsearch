@@ -37,7 +37,7 @@ public class SmartChineseTokenizerTokenizerFactory extends AbstractTokenizerFact
     }
 
     @Override
-    public Tokenizer create(Reader reader) {
-        return new HMMChineseTokenizer(reader);
+    public Tokenizer create() {
+        return new HMMChineseTokenizer();
     }
 }

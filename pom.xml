@@ -63,29 +63,6 @@
             <version>1.1.1</version>
         </dependency>
 
-        <!-- Provided dependencies -->
-
-        <dependency>
-            <groupId>org.elasticsearch</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <version>${elasticsearch.version}</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-core</artifactId>
-            <version>${lucene.version}</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.codehaus.groovy</groupId>
-            <artifactId>groovy-all</artifactId>
-            <version>2.3.2</version>
-            <scope>provided</scope>
-        </dependency>
-
         <!-- Test dependencies -->
 
         <dependency>
@@ -122,6 +99,29 @@
             <version>${elasticsearch.version}</version>
             <type>test-jar</type>
             <scope>test</scope>
+        </dependency>
+
+        <!-- Provided dependencies -->
+
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch</artifactId>
+            <version>${elasticsearch.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-core</artifactId>
+            <version>${lucene.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <version>2.3.2</version>
+            <scope>provided</scope>
         </dependency>
 
     </dependencies>

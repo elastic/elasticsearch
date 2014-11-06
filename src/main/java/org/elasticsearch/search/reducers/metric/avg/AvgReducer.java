@@ -34,11 +34,7 @@ import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 import java.io.IOException;
 
-public abstract class AvgReducer extends Reducer {
-
-    public enum AvgType {
-        SIMPLE, LINEAR, EXPONENTIAL
-    }
+public class AvgReducer extends Reducer {
 
     public static final ReducerFactoryStreams.Stream STREAM = new ReducerFactoryStreams.Stream() {
         @Override
@@ -63,117 +59,38 @@ public abstract class AvgReducer extends Reducer {
         return (Object[]) aggregation.getProperty(fieldName);
     }
 
+    @Override
+    public InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType,
+                                        BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
 
+        Object[] bucketProperties = this.getProperties(aggregation);
 
-
-    public static class SimpleAvgReducer extends AvgReducer {
-        public SimpleAvgReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context, Reducer parent) {
-            super(name, bucketsPath, fieldName, factories, context, parent);
+        double avg = 0;
+        for (Object bucketValue : bucketProperties) {
+            avg += (double) bucketValue;
         }
 
-        @Override
-        public InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType,
-                                            BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
-
-            Object[] bucketProperties = this.getProperties(aggregation);
-
-            double avg = 0;
-            for (Object bucketValue : bucketProperties) {
-                avg += (double) bucketValue;
-            }
-
-            return new InternalAvg(name(), avg, bucketProperties.length);
-        }
+        return new InternalAvg(name(), avg, bucketProperties.length);
     }
-
-    public static class LinearWeightedAvgReducer extends AvgReducer {
-        public LinearWeightedAvgReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context, Reducer parent) {
-            super(name, bucketsPath, fieldName, factories, context, parent);
-        }
-
-        @Override
-        public InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType,
-                                            BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
-
-            Object[] bucketProperties = this.getProperties(aggregation);
-
-            long current = 1;
-            long totalWeight = 1;
-
-            double avg = 0;
-            for (Object bucketValue : bucketProperties) {
-                avg += (double) bucketValue * current;
-                totalWeight += current;
-                current += 1;
-            }
-
-            return new InternalAvg(name(), avg, totalWeight);
-        }
-    }
-
-    public static class ExpWeightedAvgReducer extends AvgReducer {
-        public ExpWeightedAvgReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context, Reducer parent) {
-            super(name, bucketsPath, fieldName, factories, context, parent);
-        }
-
-        @Override
-        public InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType,
-                                            BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
-
-            Object[] bucketProperties = this.getProperties(aggregation);
-
-            double alpha = 2.0 / (double) (bucketProperties.length + 1);  //TODO expose alpha or period as a param to the user
-
-            double ema = 0;
-            boolean first = true;
-            for (Object bucketValue : bucketProperties) {
-                if (first) {
-                    ema = (double) bucketValue;
-                    first = false;
-                } else {
-                    ema = ((double) bucketValue * alpha) + (ema * (1 - alpha));
-                }
-
-            }
-
-            return new InternalAvg(name(), ema, 1);
-        }
-    }
-
-
 
     public static class Factory extends ReducerFactory {
 
         private String bucketsPath;
         private String fieldName;
-        private AvgType avgType = AvgType.SIMPLE;
 
         public Factory() {
             super(InternalAvg.TYPE);
         }
 
-        public Factory(String name, String bucketsPath, String fieldName, AvgType avgType) {
+        public Factory(String name, String bucketsPath, String fieldName) {
             super(name, InternalAvg.TYPE);
             this.fieldName = fieldName;
-            this.avgType = avgType;
             this.bucketsPath = bucketsPath;
         }
 
         @Override
         public Reducer create(ReducerContext context, Reducer parent) {
-            if (this.avgType == AvgType.SIMPLE) {
-                return new SimpleAvgReducer(name, bucketsPath, fieldName, factories, context, parent);
-
-            } else if (this.avgType == AvgType.LINEAR) {
-                return new LinearWeightedAvgReducer(name, bucketsPath, fieldName, factories, context, parent);
-
-            } else if (this.avgType == AvgType.EXPONENTIAL) {
-                return new ExpWeightedAvgReducer(name, bucketsPath, fieldName, factories, context, parent);
-
-            } else {
-                return new SimpleAvgReducer(name, bucketsPath, fieldName, factories, context, parent);
-            }
-
+            return new AvgReducer(name, bucketsPath, fieldName, factories, context, parent);
         }
 
         @Override
@@ -182,25 +99,12 @@ public abstract class AvgReducer extends Reducer {
             bucketsPath = in.readString();
             String avgType = in.readString();
 
-            if (avgType.equals(AvgType.SIMPLE.name())) {
-                this.avgType = AvgType.SIMPLE;
-
-            } else if (avgType.equals(AvgType.LINEAR.name())) {
-                this.avgType = AvgType.LINEAR;
-
-            } else if (avgType.equals(AvgType.EXPONENTIAL.name())) {
-                this.avgType = AvgType.EXPONENTIAL;
-
-            } else {
-                throw new IOException("Failed to deserialise avgType [" + avgType + "]. Type not found.");
-            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             out.writeString(bucketsPath);
-            out.writeString(avgType.name());
         }
         
     }

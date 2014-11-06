@@ -19,21 +19,11 @@
 
 package org.elasticsearch.search.reducers.metric.avg;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerFactory;
+import org.elasticsearch.search.reducers.metric.SimpleMetricReducerParser;
 
-import java.io.IOException;
 
-public class AvgParser implements Reducer.Parser {
-
-    protected static final ParseField BUCKETS_FIELD = new ParseField("buckets");
-    protected static final ParseField FIELD_NAME_FIELD = new ParseField("field");
-    protected static final ParseField AVG_TYPE = new ParseField("type");
-
+public class AvgParser extends SimpleMetricReducerParser {
 
     @Override
     public String type() {
@@ -41,51 +31,7 @@ public class AvgParser implements Reducer.Parser {
     }
 
     @Override
-    public ReducerFactory parse(String reducerName, XContentParser parser, SearchContext context) throws IOException {
-        String buckets = null;
-        String fieldName = null;
-        AvgReducer.AvgType avgType = AvgReducer.AvgType.SIMPLE;
-
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (BUCKETS_FIELD.match(currentFieldName)) {
-                    buckets = parser.text();
-                } else if (FIELD_NAME_FIELD.match(currentFieldName)) {
-                    fieldName = parser.text();
-                } else if (AVG_TYPE.match(currentFieldName)) {
-                    if (parser.text().equals("simple")) {
-                        avgType = AvgReducer.AvgType.SIMPLE;
-                    } else if (parser.text().equals("linear")) {
-                        avgType = AvgReducer.AvgType.LINEAR;
-                    } else if (parser.text().equals("exponential")) {
-                        avgType = AvgReducer.AvgType.EXPONENTIAL;
-                    } else {
-                        throw new SearchParseException(context, "Unknown average type in [" + reducerName + "]: ["
-                                + currentFieldName + "]. Must be 'simple', 'weighted', or 'exp'.");
-                    }
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
-                            + currentFieldName + "].");
-                }
-            } else {
-                throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName
-                        + "].");
-            }
-        }
-
-        if (buckets == null) {
-            throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
-        }
-
-        if (fieldName == null) {
-            throw new SearchParseException(context, "Missing [" + FIELD_NAME_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
-        }
-
-        return new AvgReducer.Factory(reducerName, buckets, fieldName, avgType);
+    public ReducerFactory createReducerFactory(String reducerName, String bucketsPath, String fieldName) {
+        return new AvgReducer.Factory(reducerName, bucketsPath, fieldName);
     }
-
 }

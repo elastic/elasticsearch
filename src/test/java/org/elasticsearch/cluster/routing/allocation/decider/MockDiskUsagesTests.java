@@ -81,13 +81,13 @@ public class MockDiskUsagesTests extends ElasticsearchIntegrationTest {
         // Start with all nodes at 50% usage
         final MockInternalClusterInfoService cis = (MockInternalClusterInfoService)
                 internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
-        cis.setN1Usage(nodes.get(0), new DiskUsage(nodes.get(0), 100, 50));
-        cis.setN2Usage(nodes.get(1), new DiskUsage(nodes.get(1), 100, 50));
-        cis.setN3Usage(nodes.get(2), new DiskUsage(nodes.get(2), 100, 50));
+        cis.setN1Usage(nodes.get(0), new DiskUsage(nodes.get(0), "n1", 100, 50));
+        cis.setN2Usage(nodes.get(1), new DiskUsage(nodes.get(1), "n2", 100, 50));
+        cis.setN3Usage(nodes.get(2), new DiskUsage(nodes.get(2), "n3", 100, 50));
 
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "20b")
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "10b")
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, randomFrom("20b", "80%"))
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, randomFrom("10b", "90%"))
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL, "1s")).get();
 
         // Create an index with 10 shards so we can check allocation for it
@@ -118,9 +118,9 @@ public class MockDiskUsagesTests extends ElasticsearchIntegrationTest {
         }
 
         // Update the disk usages so one node has now passed the high watermark
-        cis.setN1Usage(realNodeNames.get(0), new DiskUsage(nodes.get(0), 100, 50));
-        cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), 100, 50));
-        cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), 100, 0)); // nothing free on node3
+        cis.setN1Usage(realNodeNames.get(0), new DiskUsage(nodes.get(0), "n1", 100, 50));
+        cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", 100, 50));
+        cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", 100, 0)); // nothing free on node3
 
         // Cluster info gathering interval is 2 seconds, give reroute 2 seconds to kick in
         Thread.sleep(4000);
@@ -170,9 +170,9 @@ public class MockDiskUsagesTests extends ElasticsearchIntegrationTest {
                                               ClusterService clusterService, ThreadPool threadPool) {
             super(settings, nodeSettingsService, transportNodesStatsAction, transportIndicesStatsAction, clusterService, threadPool);
             this.clusterName = ClusterName.clusterNameFromSettings(settings);
-            stats[0] = makeStats("node_t1", new DiskUsage("node_t1", 100, 100));
-            stats[1] = makeStats("node_t2", new DiskUsage("node_t2", 100, 100));
-            stats[2] = makeStats("node_t3", new DiskUsage("node_t3", 100, 100));
+            stats[0] = makeStats("node_t1", new DiskUsage("node_t1", "n1", 100, 100));
+            stats[1] = makeStats("node_t2", new DiskUsage("node_t2", "n2", 100, 100));
+            stats[2] = makeStats("node_t3", new DiskUsage("node_t3", "n3", 100, 100));
         }
 
         public void setN1Usage(String nodeName, DiskUsage newUsage) {

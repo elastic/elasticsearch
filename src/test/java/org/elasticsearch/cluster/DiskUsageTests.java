@@ -28,7 +28,7 @@ public class DiskUsageTests extends ElasticsearchTestCase {
 
     @Test
     public void diskUsageCalcTest() {
-        DiskUsage du = new DiskUsage("node1", 100, 40);
+        DiskUsage du = new DiskUsage("node1", "n1", 100, 40);
         assertThat(du.getFreeDiskAsPercentage(), equalTo(40.0));
         assertThat(du.getFreeBytes(), equalTo(40L));
         assertThat(du.getUsedBytes(), equalTo(60L));
@@ -44,12 +44,12 @@ public class DiskUsageTests extends ElasticsearchTestCase {
             long free = between(Integer.MIN_VALUE, Integer.MAX_VALUE);
             if (free > total || total <= 0) {
                 try {
-                    new DiskUsage("random", total, free);
+                    new DiskUsage("random", "random", total, free);
                     fail("should never reach this");
                 } catch (IllegalStateException e) {
                 }
             } else {
-                DiskUsage du = new DiskUsage("random", total, free);
+                DiskUsage du = new DiskUsage("random", "random", total, free);
                 assertThat(du.getFreeBytes(), equalTo(free));
                 assertThat(du.getTotalBytes(), equalTo(total));
                 assertThat(du.getUsedBytes(), equalTo(total - free));

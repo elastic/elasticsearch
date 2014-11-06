@@ -203,8 +203,7 @@ public final class DistributorDirectory extends BaseDirectory {
                     builder.append("File ").append(file)
                             .append(" was not mapped to a directory but exists in one of the distributors directories")
                             .append(System.lineSeparator());
-                }
-                if (directory != d) {
+                } else if (directory != d) {
                     consistent = false;
                     builder.append("File ").append(file).append(" was  mapped to a directory ").append(directory)
                             .append(" but exists in another distributor directory").append(d)

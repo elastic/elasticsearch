@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client.support;
 
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -142,6 +144,7 @@ import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequestBuilder
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 
 /**
  *
@@ -239,8 +242,57 @@ public abstract class AbstractIndicesAdminClient implements IndicesAdminClient {
     }
 
     @Override
-    public void getIndex(GetIndexRequest request, ActionListener<GetIndexResponse> listener) {
-        execute(GetIndexAction.INSTANCE, request, listener);
+    public void getIndex(final GetIndexRequest request, final ActionListener<GetIndexResponse> listener) {
+        execute(GetIndexAction.INSTANCE, request, new ActionListener<GetIndexResponse>() {
+
+            @Override
+            public void onResponse(GetIndexResponse response) {
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                Throwable rootCause = ExceptionsHelper.unwrapCause(e);
+                if (rootCause instanceof ActionNotFoundTransportException) {
+                    String[] features = request.features();
+                    GetAliasesResponse aliasResponse = null;
+                    GetMappingsResponse mappingResponse = null;
+                    GetSettingsResponse settingsResponse = null;
+                    GetWarmersResponse warmerResponse = null;
+                    try {
+                        for (String feature : features) {
+                            switch (feature) {
+                            case "_alias":
+                            case "_aliases":
+                                aliasResponse = prepareGetAliases(new String[0]).addIndices(request.indices())
+                                        .setIndicesOptions(request.indicesOptions()).get();
+                                break;
+                            case "_mapping":
+                            case "_mappings":
+                                mappingResponse = prepareGetMappings(request.indices()).setIndicesOptions(request.indicesOptions()).get();
+                                break;
+                            case "_settings":
+                                settingsResponse = prepareGetSettings(request.indices()).setIndicesOptions(request.indicesOptions()).get();
+                                break;
+                            case "_warmer":
+                            case "_warmers":
+                                warmerResponse = prepareGetWarmers(request.indices()).setIndicesOptions(request.indicesOptions()).get();
+                                break;
+                            default:
+                                throw new ElasticsearchIllegalStateException("feature [" + feature + "] is not valid");
+                            }
+                        }
+                        GetIndexResponse getIndexResponse = GetIndexResponse.convertResponses(aliasResponse, mappingResponse,
+                                settingsResponse, warmerResponse);
+                        onResponse(getIndexResponse);
+                    } catch (Throwable e1) {
+                        listener.onFailure(e1);
+                    }
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        });
     }
 
     @Override

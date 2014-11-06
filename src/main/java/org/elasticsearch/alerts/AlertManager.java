@@ -8,13 +8,10 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
-import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.cluster.*;
@@ -164,7 +161,7 @@ public class AlertManager extends AbstractComponent {
         return alertsStore.getAlert(alertName);
     }
 
-    public IndexResponse updateAlert(Alert alert, boolean updateMap) {
+    public IndexResponse updateAlert(Alert alert, boolean updateMap) throws IOException {
         if (!alertsStore.hasAlert(alert.alertName())) {
             return null;
         }

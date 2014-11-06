@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.actions.AlertActionManager;

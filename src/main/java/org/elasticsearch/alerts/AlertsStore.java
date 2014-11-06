@@ -7,18 +7,14 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
-import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,7 +24,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
-import org.elasticsearch.common.io.stream.DataOutputStreamOutput;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -37,8 +32,6 @@ import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
@@ -74,8 +67,9 @@ public class AlertsStore extends AbstractComponent {
         this.threadPool = threadPool;
         this.alertActionRegistry = alertActionRegistry;
         this.alertMap = ConcurrentCollections.newConcurrentMap();
-        this.scrollSize = componentSettings.getAsInt("scroll.size", 100);
-        this.scrollTimeout = componentSettings.getAsTime("scroll.timeout", TimeValue.timeValueSeconds(30));
+        // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
+        this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
+        this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
     }
 
     /**
@@ -118,29 +112,18 @@ public class AlertsStore extends AbstractComponent {
         }
     }
 
-    public IndexResponse updateAlert(Alert alert) {
+    public IndexResponse updateAlert(Alert alert) throws IOException {
         return updateAlert(alert, false);
     }
 
     /**
      * Updates the specified alert by making sure that the made changes are persisted.
      */
-    public IndexResponse updateAlert(Alert alert, boolean updateMap) {
-        IndexRequest updateRequest = new IndexRequest();
-        updateRequest.index(ALERT_INDEX);
-        updateRequest.type(ALERT_TYPE);
-        updateRequest.id(alert.alertName());
-        updateRequest.version(alert.version());
-        XContentBuilder alertBuilder;
-        try {
-            alertBuilder = XContentFactory.jsonBuilder();
-            alert.toXContent(alertBuilder, ToXContent.EMPTY_PARAMS);
-        } catch (IOException ie) {
-            throw new ElasticsearchException("Unable to serialize alert ["+ alert.alertName() + "]", ie);
-        }
-        updateRequest.source(alertBuilder);
-
-        IndexResponse response = client.index(updateRequest).actionGet();
+    public IndexResponse updateAlert(Alert alert, boolean updateMap) throws IOException {
+        IndexResponse response = client.prepareIndex(ALERT_INDEX, ALERT_TYPE, alert.alertName())
+                .setSource(XContentFactory.jsonBuilder().value(alert))
+                .setVersion(alert.version())
+                .get();
         alert.version(response.getVersion());
 
         if (updateMap) {
@@ -160,12 +143,10 @@ public class AlertsStore extends AbstractComponent {
         if (alert == null) {
             return null;
         }
-        DeleteRequest deleteRequest = new DeleteRequest();
-        deleteRequest.id(name);
-        deleteRequest.index(ALERT_INDEX);
-        deleteRequest.type(ALERT_TYPE);
-        deleteRequest.version(alert.version());
-        DeleteResponse deleteResponse = client.delete(deleteRequest).actionGet();
+
+        DeleteResponse deleteResponse = client.prepareDelete(ALERT_INDEX, ALERT_TYPE, name)
+                .setVersion(alert.version())
+                .get();
         assert deleteResponse.isFound();
         return deleteResponse;
     }

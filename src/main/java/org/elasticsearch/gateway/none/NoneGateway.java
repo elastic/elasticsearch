@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway.none;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
@@ -117,7 +118,11 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
                 if (!newMetaData.hasIndex(current.index())) {
                     logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keys());
                     if (nodeEnv.hasNodeFile()) {
-                        FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
+                        try {
+                            IOUtils.rm(FileSystemUtils.toPaths(nodeEnv.indexLocations(new Index(current.index()))));
+                        } catch (Exception ex) {
+                            logger.debug("failed to delete shard locations", ex);
+                        }
                     }
                     try {
                         nodeIndexDeletedAction.nodeIndexStoreDeleted(event.state(), current.index(), event.state().nodes().localNodeId());

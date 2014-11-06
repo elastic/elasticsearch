@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.translog.AbstractSimpleTranslogTests;
@@ -26,6 +27,8 @@ import org.elasticsearch.index.translog.Translog;
 import org.junit.AfterClass;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Paths;
 
 /**
  *
@@ -49,7 +52,7 @@ public class FsBufferedTranslogTests extends AbstractSimpleTranslogTests {
     }
 
     @AfterClass
-    public static void cleanup() {
-        FileSystemUtils.deleteRecursively(new File("data/fs-buf-translog"), true);
+    public static void cleanup() throws IOException {
+        IOUtils.rm(Paths.get("data/fs-buf-translog"));
     }
 }

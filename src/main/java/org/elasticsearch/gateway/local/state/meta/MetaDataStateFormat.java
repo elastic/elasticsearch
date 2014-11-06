@@ -208,7 +208,9 @@ public abstract class MetaDataStateFormat<T> {
                     if (file.getName().equals(fileName)) {
                         continue;
                     }
-                    Files.delete(file.toPath());
+                    if (Files.exists(file.toPath())) {
+                        Files.delete(file.toPath());
+                    }
                 }
             }
         }

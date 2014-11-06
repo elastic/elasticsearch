@@ -22,6 +22,8 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 
+import java.io.IOException;
+
 /**
  *
  */
@@ -39,7 +41,7 @@ public class BlobStoreWrapper implements BlobStore {
     }
 
     @Override
-    public void delete(BlobPath path) {
+    public void delete(BlobPath path) throws IOException {
         delegate.delete(path);
     }
 

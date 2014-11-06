@@ -99,6 +99,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -164,7 +165,7 @@ public final class InternalTestCluster extends TestCluster {
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
     private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
 
-    private final Set<File> dataDirToClean = new HashSet<>();
+    private final Set<Path> dataDirToClean = new HashSet<>();
 
     private final String clusterName;
 
@@ -788,7 +789,7 @@ public final class InternalTestCluster extends TestCluster {
             if (callback.clearData(name)) {
                 NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, node);
                 if (nodeEnv.hasNodeFile()) {
-                    FileSystemUtils.deleteRecursively(nodeEnv.nodeDataLocations());
+                    IOUtils.rm(FileSystemUtils.toPaths(nodeEnv.nodeDataLocations()));
                 }
             }
             node = (InternalNode) nodeBuilder().settings(node.settings()).settings(newSettings).node();
@@ -953,12 +954,17 @@ public final class InternalTestCluster extends TestCluster {
 
     private void wipeDataDirectories() {
         if (!dataDirToClean.isEmpty()) {
-            boolean deleted = false;
             try {
-                deleted = FileSystemUtils.deleteSubDirectories(dataDirToClean.toArray(new File[dataDirToClean.size()]));
+                for (Path path : dataDirToClean) {
+                    try {
+                        FileSystemUtils.deleteSubDirectories(path);
+                        logger.info("Successfully wiped data directory for node location: {}", path);
+                    } catch (IOException e) {
+                        logger.info("Failed to wipe data directory for node location: {}", path);
+                    }
+                }
             } finally {
-                logger.info("Wipe data directory for all nodes locations: {} success: {}", this.dataDirToClean, deleted);
-                this.dataDirToClean.clear();
+                dataDirToClean.clear();
             }
         }
     }
@@ -1399,7 +1405,7 @@ public final class InternalTestCluster extends TestCluster {
         assert !nodeAndClient.node().isClosed();
         NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, nodeAndClient.node);
         if (nodeEnv.hasNodeFile()) {
-            dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataLocations()));
+            dataDirToClean.addAll(Arrays.asList(FileSystemUtils.toPaths(nodeEnv.nodeDataLocations())));
         }
         nodes.put(nodeAndClient.name, nodeAndClient);
         applyDisruptionSchemeToNode(nodeAndClient);

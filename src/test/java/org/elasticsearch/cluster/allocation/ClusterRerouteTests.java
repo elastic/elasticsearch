@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.allocation;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
@@ -196,7 +197,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> deleting the shard data [{}] ", Arrays.toString(shardLocation));
         assertThat(FileSystemUtils.exists(shardLocation), equalTo(true)); // verify again after cluster was shut down
-        assertThat(FileSystemUtils.deleteRecursively(shardLocation), equalTo(true));
+        IOUtils.rm(FileSystemUtils.toPaths(shardLocation));
 
         logger.info("--> starting nodes back, will not allocate the shard since it has no data, but the index will be there");
         node_1 = internalCluster().startNode(commonSettings);

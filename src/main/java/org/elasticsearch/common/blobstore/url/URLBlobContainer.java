@@ -73,7 +73,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
      * This operation is not supported by URLBlobContainer
      */
     @Override
-    public boolean deleteBlob(String blobName) throws IOException {
+    public void deleteBlob(String blobName) throws IOException {
         throw new UnsupportedOperationException("URL repository is read only");
     }
 

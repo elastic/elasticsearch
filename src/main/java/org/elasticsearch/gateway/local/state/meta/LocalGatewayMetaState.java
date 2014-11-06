@@ -21,6 +21,7 @@ package org.elasticsearch.gateway.local.state.meta;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
@@ -49,6 +50,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -243,7 +245,11 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 if (!newMetaData.hasIndex(current.index())) {
                     logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keys());
                     if (nodeEnv.hasNodeFile()) {
-                        FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
+                        try {
+                            IOUtils.rm(FileSystemUtils.toPaths(nodeEnv.indexLocations(new Index(current.index()))));
+                        } catch (Exception ex) {
+                            logger.debug("[{}] failed to delete index", ex, current.index());
+                        }
                     }
                     try {
                         nodeIndexDeletedAction.nodeIndexStoreDeleted(event.state(), current.index(), event.state().nodes().localNodeId());
@@ -280,7 +286,11 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                             if (indexMetaData != null) {
                                 if (danglingTimeout.millis() == 0) {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
-                                    FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(indexName)));
+                                    try {
+                                        IOUtils.rm(FileSystemUtils.toPaths(nodeEnv.indexLocations(new Index(indexName))));
+                                    } catch (Exception ex) {
+                                        logger.debug("[{}] failed to delete dangling index", ex, indexName);
+                                    }
                                 } else {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, scheduling to delete in [{}], auto import to cluster state [{}]", indexName, danglingTimeout, autoImportDangled);
                                     danglingIndices.put(indexName, new DanglingIndex(indexName, threadPool.schedule(danglingTimeout, ThreadPool.Names.SAME, new RemoveDanglingIndex(indexName))));
@@ -517,7 +527,11 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                 if (!name.startsWith("metadata-")) {
                     continue;
                 }
-                stateFile.delete();
+                try {
+                    Files.delete(stateFile.toPath());
+                } catch (Exception ex) {
+                    logger.debug("failed to delete file " + stateFile, ex);
+                }
             }
         }
 
@@ -576,7 +590,11 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                     return;
                 }
                 logger.warn("[{}] deleting dangling index", index);
-                FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(index)));
+                try {
+                    IOUtils.rm(FileSystemUtils.toPaths(nodeEnv.indexLocations(new Index(index))));
+                } catch (Exception ex) {
+                    logger.debug("failed to delete dangling index", ex);
+                }
             }
         }
     }

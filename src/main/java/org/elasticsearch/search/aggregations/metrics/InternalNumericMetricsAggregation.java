@@ -51,27 +51,6 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
     }
 
-    public static abstract class ArrayValue extends InternalNumericMetricsAggregation {
-
-        protected ArrayValue() {}
-
-        protected ArrayValue(String name) {
-            super(name);
-        }
-
-        public abstract double[] values();
-
-        @Override
-        public Object getProperty(List<String> path) {
-            if (path.isEmpty() || path.size() == 1 && "value".equals(path.get(0))) {
-                return values();
-            } else {
-                throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
-            }
-        }
-
-    }
-
     public static abstract class MultiValue extends InternalNumericMetricsAggregation {
 
         protected MultiValue() {}

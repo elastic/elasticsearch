@@ -8,6 +8,7 @@ package org.elasticsearch.alerts.actions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,15 +60,15 @@ public class IndexAlertAction implements AlertAction, ToXContent {
     }
 
     @Override
-    public boolean doAction(Alert alert, AlertActionEntry alertResult) {
+    public boolean doAction(Alert alert, TriggerResult result) {
         IndexRequest indexRequest = new IndexRequest();
         indexRequest.index(index);
         indexRequest.type(type);
         try {
             XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
             resultBuilder.startObject();
-            resultBuilder = alertResult.getSearchResponse().toXContent(resultBuilder, ToXContent.EMPTY_PARAMS);
-            resultBuilder.field("timestamp", alertResult.getFireTime());
+            resultBuilder = result.getResponse().toXContent(resultBuilder, ToXContent.EMPTY_PARAMS);
+            //resultBuilder.field("timestamp", result.getFireTime()); ///@TODO FIXME
             resultBuilder.endObject();
             indexRequest.source(resultBuilder);
         } catch (IOException ie) {

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.alerts.actions;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.Alert;
@@ -28,28 +29,29 @@ public class AlertActionEntry implements ToXContent{
     private String id;
     private long version;
     private String alertName;
-    private boolean triggered;
+
     private DateTime fireTime;
     private DateTime scheduledTime;
     private AlertTrigger trigger;
-    private SearchRequest searchRequest;
-    private SearchResponse searchResponse;
     private List<AlertAction> actions;
     private AlertActionState entryState;
+
+    /*Optional*/
+    private SearchRequest searchRequest;
+    private SearchResponse searchResponse;
+    private boolean triggered;
+    private String errorMsg;
 
     AlertActionEntry() {
     }
 
-    public AlertActionEntry(Alert alert, TriggerResult result, DateTime scheduledTime, DateTime fireTime, AlertActionState state) throws IOException {
+    public AlertActionEntry(Alert alert, DateTime scheduledTime, DateTime fireTime, AlertActionState state) throws IOException {
         this.id = alert.alertName() + "#" + scheduledTime.toDateTimeISO();
         this.version = 1;
         this.alertName = alert.alertName();
-        this.triggered = result.isTriggered();
         this.fireTime = fireTime;
         this.scheduledTime = scheduledTime;
         this.trigger = alert.trigger();
-        this.searchRequest = result.getRequest();
-        this.searchResponse = result.getResponse();
         this.actions = alert.actions();
         this.entryState = state;
     }
@@ -172,6 +174,17 @@ public class AlertActionEntry implements ToXContent{
         this.version = version;
     }
 
+    /**
+     * @return The error if an error occured otherwise null
+     */
+    public String getErrorMsg(){
+        return this.errorMsg;
+    }
+
+    public void setErrorMsg(String errorMsg) {
+        this.errorMsg = errorMsg;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder historyEntry, Params params) throws IOException {
         historyEntry.startObject();
@@ -181,16 +194,22 @@ public class AlertActionEntry implements ToXContent{
         historyEntry.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, scheduledTime.toDateTimeISO());
         historyEntry.field("trigger", trigger, params);
 
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        searchRequest.writeTo(new DataOutputStreamOutput(new DataOutputStream(out)));
-        historyEntry.field("request_binary", out.toByteArray());
-        out = new ByteArrayOutputStream();
-        searchResponse.writeTo(new DataOutputStreamOutput(new DataOutputStream(out)));
-        historyEntry.field("response_binary", out.toByteArray());
-        // Serializing it as xcontent allows the search response to be encapsulated in a doc as a json object
-        historyEntry.startObject("response");
-        searchResponse.toXContent(historyEntry, params);
-        historyEntry.endObject();
+        ByteArrayOutputStream out;
+        if (searchRequest != null) {
+            out = new ByteArrayOutputStream();
+            searchRequest.writeTo(new DataOutputStreamOutput(new DataOutputStream(out)));
+            historyEntry.field("request_binary", out.toByteArray());
+        }
+        if (searchResponse != null) {
+            out = new ByteArrayOutputStream();
+            searchResponse.writeTo(new DataOutputStreamOutput(new DataOutputStream(out)));
+            historyEntry.field("response_binary", out.toByteArray());
+            // Serializing it as xcontent allows the search response to be encapsulated in a doc as a json object
+            historyEntry.startObject("response");
+            searchResponse.toXContent(historyEntry, params);
+            historyEntry.endObject();
+        }
+
         historyEntry.startObject("actions");
         for (AlertAction action : actions) {
             historyEntry.field(action.getActionName());
@@ -198,7 +217,13 @@ public class AlertActionEntry implements ToXContent{
         }
         historyEntry.endObject();
         historyEntry.field(AlertActionState.FIELD_NAME, entryState.toString());
+
+        if (errorMsg != null) {
+            historyEntry.field("errorMsg", errorMsg);
+        }
         historyEntry.endObject();
+
+
         return historyEntry;
     }
 

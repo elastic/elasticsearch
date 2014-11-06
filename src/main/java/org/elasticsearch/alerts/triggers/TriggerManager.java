@@ -138,7 +138,7 @@ public class TriggerManager extends AbstractComponent {
                 triggered = false; //TODO FIX THESE
                 break;
         }
-        return new TriggerResult(triggered, request, response);
+        return new TriggerResult(triggered, request, response, alert.trigger());
     }
 
     private TriggerResult doScriptTrigger(Alert alert, SearchRequest request, SearchResponse response) {
@@ -165,7 +165,7 @@ public class TriggerManager extends AbstractComponent {
         } catch (Exception e ){
             logger.error("Failed to execute script trigger", e);
         }
-        return new TriggerResult(triggered, request, response);
+        return new TriggerResult(triggered, request, response, alert.trigger());
     }
 
     private SearchRequest prepareTriggerSearch(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {

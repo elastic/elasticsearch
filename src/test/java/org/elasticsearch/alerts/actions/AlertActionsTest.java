@@ -23,6 +23,7 @@ import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedAlertTrigger;
+import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -110,7 +111,7 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         searchResponse.writeTo(out);
         builder.field(AlertActionManager.RESPONSE, out.bytes());
         builder.field(AlertActionManager.ACTIONS_FIELD, actionMap);
-        builder.field(AlertActionState.FIELD_NAME, AlertActionState.ACTION_NEEDED.toString());
+        builder.field(AlertActionState.FIELD_NAME, AlertActionState.SEARCH_NEEDED.toString());
         builder.endObject();
         AlertActionRegistry alertActionRegistry = internalCluster().getInstance(AlertActionRegistry.class, internalCluster().getMasterName());
         AlertActionEntry actionEntry = AlertActionManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry);
@@ -120,7 +121,7 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         assertEquals(actionEntry.isTriggered(), true);
         assertEquals(actionEntry.getScheduledTime(), scheduledFireTime);
         assertEquals(actionEntry.getFireTime(), fireTime);
-        assertEquals(actionEntry.getEntryState(), AlertActionState.ACTION_NEEDED);
+        assertEquals(actionEntry.getEntryState(), AlertActionState.SEARCH_NEEDED);
         assertEquals(actionEntry.getSearchResponse().getHits().getTotalHits(), 10);
         assertEquals(actionEntry.getTrigger(),
                 new AlertTrigger(AlertTrigger.SimpleTrigger.GREATER_THAN, AlertTrigger.TriggerType.NUMBER_OF_EVENTS, 1));
@@ -173,7 +174,7 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
             }
 
             @Override
-            public boolean doAction(Alert alert, AlertActionEntry actionEntry) {
+            public boolean doAction(Alert alert, TriggerResult actionEntry) {
                 logger.info("Alert {} invoked: {}", alert.alertName(), actionEntry);
                 alertActionInvoked.set(true);
                 return true;

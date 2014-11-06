@@ -59,7 +59,7 @@ public class AlertScheduler extends AbstractComponent {
     public void executeAlert(String alertName, JobExecutionContext jobExecutionContext){
         DateTime scheduledFireTime = new DateTime(jobExecutionContext.getScheduledFireTime());
         DateTime fireTime = new DateTime(jobExecutionContext.getFireTime());
-        alertManager.executeAlert(alertName, scheduledFireTime, fireTime);
+        alertManager.scheduleAlert(alertName, scheduledFireTime, fireTime);
     }
 
     public boolean remove(String alertName) {

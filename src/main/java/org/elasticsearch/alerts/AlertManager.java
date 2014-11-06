@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.alerts.actions.AlertActionManager;
+import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
@@ -42,17 +43,20 @@ public class AlertManager extends AbstractComponent {
     private final TriggerManager triggerManager;
     private final ClusterService clusterService;
     private final AlertActionManager actionManager;
+    private final AlertActionRegistry actionRegistry;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
 
     @Inject
     public AlertManager(Settings settings, ClusterService clusterService, AlertsStore alertsStore,
-                        IndicesService indicesService, TriggerManager triggerManager, AlertActionManager actionManager) {
+                        IndicesService indicesService, TriggerManager triggerManager, AlertActionManager actionManager, AlertActionRegistry actionRegistry) {
         super(settings);
         this.alertsStore = alertsStore;
         this.clusterService = clusterService;
         this.triggerManager = triggerManager;
         this.actionManager = actionManager;
+        this.actionManager.setAlertManager(this);
+        this.actionRegistry = actionRegistry;
         clusterService.add(new AlertsClusterStateListener());
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will
         // happen because we're shutting down and an alert is scheduled.
@@ -106,7 +110,7 @@ public class AlertManager extends AbstractComponent {
         return started.get();
     }
 
-    public void executeAlert(String alertName, DateTime scheduledFireTime, DateTime fireTime){
+    public void scheduleAlert(String alertName, DateTime scheduledFireTime, DateTime fireTime){
         ensureStarted();
         Alert alert = alertsStore.getAlert(alertName);
         if (alert == null) {
@@ -117,13 +121,33 @@ public class AlertManager extends AbstractComponent {
             logger.debug("Alert [{}] is not enabled", alert.alertName());
             return;
         }
+
         try {
-            TriggerResult result = triggerManager.isTriggered(alert, scheduledFireTime, fireTime);
-            actionManager.addAlertAction(alert, result, scheduledFireTime, fireTime);
-        } catch (Exception e) {
-            logger.error("Failed execute alert [{}]", e, alertName);
+            actionManager.addAlertAction(alert, scheduledFireTime, fireTime);
+        } catch (IOException ioe) {
+            logger.error("Failed to add alert action for [{}]", ioe, alert);
         }
     }
+
+    public TriggerResult executeAlert(String alertName, DateTime scheduledFireTime, DateTime fireTime) {
+        ensureStarted();
+        Alert alert = alertsStore.getAlert(alertName);
+        if (alert == null) {
+            throw new ElasticsearchException("Alert is not available");
+        }
+        try {
+            TriggerResult triggerResult = triggerManager.isTriggered(alert, scheduledFireTime, fireTime);
+            if (triggerResult.isTriggered()) {
+                actionRegistry.doAction(alert, triggerResult);
+                alert.lastActionFire(fireTime);
+                alertsStore.updateAlert(alert);
+            }
+            return triggerResult;
+        } catch (Exception e) {
+            throw new ElasticsearchException("Failed to execute alert [" + alert + "]", e);
+        }
+    }
+
 
     public void stop() {
         if (started.compareAndSet(true, false)) {
@@ -143,17 +167,6 @@ public class AlertManager extends AbstractComponent {
         for (Map.Entry<String, Alert> entry : alertsStore.getAlerts().entrySet()) {
             scheduler.add(entry.getKey(), entry.getValue());
         }
-    }
-
-    public Alert getAlert(String alertName) {
-        return alertsStore.getAlert(alertName);
-    }
-
-    public IndexResponse updateAlert(Alert alert, boolean updateMap) throws IOException {
-        if (!alertsStore.hasAlert(alert.alertName())) {
-            return null;
-        }
-        return alertsStore.updateAlert(alert, updateMap);
     }
 
     private final class AlertsClusterStateListener implements ClusterStateListener {

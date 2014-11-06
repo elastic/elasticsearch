@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -95,7 +96,7 @@ public class EmailAlertAction implements AlertAction {
     }
 
     @Override
-    public boolean doAction(Alert alert, AlertActionEntry result) {
+    public boolean doAction(Alert alert, TriggerResult result) {
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.starttls.enable", "true");
@@ -115,11 +116,11 @@ public class EmailAlertAction implements AlertAction {
             message.setSubject("Elasticsearch Alert " + alert.alertName() + " triggered");
             StringBuffer output = new StringBuffer();
             output.append("The following query triggered because " + result.getTrigger().toString() + "\n");
-            output.append("The total number of hits returned : " + result.getSearchResponse().getHits().getTotalHits() + "\n");
-            output.append("For query : " + result.getSearchRequest());
+            output.append("The total number of hits returned : " + result.getResponse().getHits().getTotalHits() + "\n");
+            output.append("For query : " + result.getRequest());
             output.append("\n");
             output.append("Indices : ");
-            for (String index : result.getSearchRequest().indices()) {
+            for (String index : result.getRequest().indices()) {
                 output.append(index);
                 output.append("/");
             }

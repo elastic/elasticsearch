@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.LoadingListener;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
@@ -59,6 +60,7 @@ public class AlertActionManager extends AbstractComponent {
     private final ThreadPool threadPool;
     private final AlertsStore alertsStore;
     private final AlertActionRegistry actionRegistry;
+    private AlertManager alertManager;
 
     private final BlockingQueue<AlertActionEntry> actionsToBeProcessed = new LinkedBlockingQueue<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
@@ -67,6 +69,8 @@ public class AlertActionManager extends AbstractComponent {
     private final TimeValue scrollTimeout;
 
     private static AlertActionEntry END_ENTRY = new AlertActionEntry();
+
+
 
     @Inject
     public AlertActionManager(Settings settings, Client client, AlertActionRegistry actionRegistry, ThreadPool threadPool, AlertsStore alertsStore) {
@@ -78,6 +82,10 @@ public class AlertActionManager extends AbstractComponent {
         // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
         this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
         this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
+    }
+
+    public void setAlertManager(AlertManager alertManager){
+        this.alertManager = alertManager;
     }
 
     public void start(ClusterState state, final LoadingListener listener) {
@@ -136,7 +144,7 @@ public class AlertActionManager extends AbstractComponent {
 
     public void loadQueue() {
         SearchResponse response = client.prepareSearch()
-                .setQuery(QueryBuilders.termQuery(AlertActionState.FIELD_NAME, AlertActionState.ACTION_NEEDED))
+                .setQuery(QueryBuilders.termQuery(AlertActionState.FIELD_NAME, AlertActionState.SEARCH_NEEDED))
                 .setSearchType(SearchType.SCAN)
                 .setScroll(scrollTimeout)
                 .setSize(scrollSize)
@@ -147,7 +155,7 @@ public class AlertActionManager extends AbstractComponent {
                 for (SearchHit sh : response.getHits()) {
                     String historyId = sh.getId();
                     AlertActionEntry historyEntry = parseHistory(historyId, sh.getSourceRef(), sh.version(), actionRegistry);
-                    assert historyEntry.getEntryState() == AlertActionState.ACTION_NEEDED;
+                    assert historyEntry.getEntryState() == AlertActionState.SEARCH_NEEDED;
                     actionsToBeProcessed.add(historyEntry);
                 }
                 response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
@@ -224,29 +232,20 @@ public class AlertActionManager extends AbstractComponent {
         return entry;
     }
 
-    public void addAlertAction(Alert alert, TriggerResult result, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
-        AlertActionState state = AlertActionState.NO_ACTION_NEEDED;
-        if (result.isTriggered() && !alert.actions().isEmpty()) {
-            state = AlertActionState.ACTION_NEEDED;
-        }
+    public void addAlertAction(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
 
-        AlertActionEntry entry = new AlertActionEntry(alert, result, scheduledFireTime, fireTime, state);
+
+        AlertActionEntry entry = new AlertActionEntry(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
         IndexResponse response = client.prepareIndex(ALERT_HISTORY_INDEX, ALERT_HISTORY_TYPE, entry.getId())
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .setOpType(IndexRequest.OpType.CREATE)
                 .get();
         entry.setVersion(response.getVersion());
-        if (state != AlertActionState.NO_ACTION_NEEDED) {
-            actionsToBeProcessed.add(entry);
-        }
+        actionsToBeProcessed.add(entry);
     }
 
     private void updateHistoryEntry(AlertActionEntry entry, AlertActionState actionPerformed) throws IOException {
         entry.setEntryState(actionPerformed);
-        UpdateRequest updateRequest = new UpdateRequest();
-        updateRequest.index(ALERT_HISTORY_INDEX);
-        updateRequest.type(ALERT_HISTORY_TYPE);
-        updateRequest.id(entry.getId());
         IndexResponse response = client.prepareIndex(ALERT_HISTORY_INDEX, ALERT_HISTORY_TYPE, entry.getId())
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .get();
@@ -265,15 +264,25 @@ public class AlertActionManager extends AbstractComponent {
         public void run() {
             try {
                 Alert alert = alertsStore.getAlert(entry.getAlertName());
-                updateHistoryEntry(entry, AlertActionState.ACTION_NEEDED);
-
-                actionRegistry.doAction(alert, entry);
-
-                alert.lastActionFire(entry.getFireTime());
-                alertsStore.updateAlert(alert);
-                updateHistoryEntry(entry, AlertActionState.ACTION_PERFORMED);
-            } catch (Throwable t) {
-                logger.error("Failed to execute alert action", t);
+                if (alert == null) {
+                    entry.setErrorMsg("Alert was not found in the alerts store");
+                    updateHistoryEntry(entry, AlertActionState.ERROR);
+                    return;
+                }
+                updateHistoryEntry(entry, AlertActionState.SEARCH_UNDERWAY);
+                TriggerResult trigger = alertManager.executeAlert(alert.alertName(), entry.getScheduledTime(), entry.getFireTime());
+                entry.setTriggered(trigger.isTriggered());
+                entry.setSearchRequest(trigger.getRequest());
+                entry.setSearchResponse(trigger.getResponse());
+                updateHistoryEntry(entry, trigger.isTriggered() ? AlertActionState.ACTION_PERFORMED : AlertActionState.NO_ACTION_NEEDED);
+            } catch (Exception e) {
+                logger.error("Failed to execute alert action", e);
+                try {
+                    entry.setErrorMsg(e.getMessage());
+                    updateHistoryEntry(entry, AlertActionState.ERROR);
+                } catch (IOException ioe) {
+                    logger.error("Failed to update action history entry", ioe);
+                }
             }
         }
     }
@@ -285,17 +294,7 @@ public class AlertActionManager extends AbstractComponent {
             try {
                 logger.debug("Starting thread to read from the job queue");
                 while (started()) {
-                    AlertActionEntry entry = null;
-                    do {
-                        try {
-                            entry = actionsToBeProcessed.take();
-                        } catch (InterruptedException ie) {
-                            if (!started()) {
-                                break;
-                            }
-                        }
-                    } while (entry == null);
-
+                    AlertActionEntry entry = actionsToBeProcessed.take();
                     if (!started() || entry == END_ENTRY) {
                         logger.debug("Stopping thread to read from the job queue");
                         return;
@@ -304,7 +303,9 @@ public class AlertActionManager extends AbstractComponent {
                 }
             } catch (Exception e) {
                 logger.error("Error during reader thread, restarting queue reader thread...", e);
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(new QueueReaderThread());
+                if (started()) {
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(new QueueReaderThread());
+                }
             }
         }
     }

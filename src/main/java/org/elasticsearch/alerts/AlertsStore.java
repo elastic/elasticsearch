@@ -13,6 +13,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.triggers.TriggerManager;
@@ -99,26 +101,21 @@ public class AlertsStore extends AbstractComponent {
         return new Tuple<>(alert, response);
     }
 
-    public IndexResponse updateAlert(Alert alert) throws IOException {
-        return updateAlert(alert, false);
-    }
-
     /**
      * Updates the specified alert by making sure that the made changes are persisted.
      */
-    public IndexResponse updateAlert(Alert alert, boolean updateMap) throws IOException {
+    public IndexResponse updateAlert(Alert alert) throws IOException {
+
         IndexResponse response = client.prepareIndex(ALERT_INDEX, ALERT_TYPE, alert.alertName())
-                .setSource(XContentFactory.jsonBuilder().value(alert))
+                .setSource()
                 .setVersion(alert.version())
+                .setOpType(IndexRequest.OpType.INDEX)
                 .get();
         alert.version(response.getVersion());
 
-        if (updateMap) {
-            alertMap.put(alert.alertName(), alert);
-        } else {
-            // Don'<></> need to update the alertMap, since we are working on an instance from it.
-            assert alertMap.get(alert.alertName()) == alert;
-        }
+        // Don'<></> need to update the alertMap, since we are working on an instance from it.
+        assert alertMap.get(alert.alertName()) == alert;
+
         return response;
     }
 

@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -60,7 +61,7 @@ public class AlertActionRegistry extends AbstractComponent {
         return actions;
     }
 
-    public void doAction(Alert alert, AlertActionEntry actionEntry){
+    public void doAction(Alert alert, TriggerResult actionEntry){
         for (AlertAction action : alert.actions()) {
             action.doAction(alert, actionEntry);
         }

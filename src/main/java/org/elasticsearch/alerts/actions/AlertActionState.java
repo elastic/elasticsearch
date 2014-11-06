@@ -14,10 +14,11 @@ import java.io.IOException;
 /**
  */
 public enum AlertActionState implements ToXContent {
+    SEARCH_NEEDED,
+    SEARCH_UNDERWAY,
     NO_ACTION_NEEDED,
-    ACTION_NEEDED,
-    ACTION_UNDERWAY,
-    ACTION_PERFORMED;
+    ACTION_PERFORMED,
+    ERROR;
 
     public static final String FIELD_NAME = "state";
 
@@ -25,14 +26,16 @@ public enum AlertActionState implements ToXContent {
     @Override
     public String toString(){
         switch (this) {
+            case SEARCH_NEEDED:
+                return "SEARCH_NEEDED";
+            case SEARCH_UNDERWAY:
+                return "SEARCH_UNDERWAY";
             case NO_ACTION_NEEDED:
                 return "NO_ACTION_NEEDED";
-            case ACTION_NEEDED:
-                return "ACTION_NEEDED";
-            case ACTION_UNDERWAY:
-                return "ACTION_UNDERWAY";
             case ACTION_PERFORMED:
                 return "ACTION_PERFORMED";
+            case ERROR:
+                return "ERROR";
             default:
                 return "NO_ACTION_NEEDED";
         }
@@ -40,14 +43,16 @@ public enum AlertActionState implements ToXContent {
 
     public static AlertActionState fromString(String s) {
         switch(s.toUpperCase()) {
+            case "SEARCH_NEEDED":
+                return SEARCH_NEEDED;
+            case "SEARCH_UNDERWAY":
+                return SEARCH_UNDERWAY;
             case "NO_ACTION_NEEDED":
                 return NO_ACTION_NEEDED;
-            case "ACTION_NEEDED":
-                return ACTION_NEEDED;
             case "ACTION_UNDERWAY":
-                return ACTION_UNDERWAY;
-            case "ACTION_PERFORMED":
                 return ACTION_PERFORMED;
+            case "ERROR":
+                return ERROR;
             default:
                 throw new ElasticsearchIllegalArgumentException("Unknown value [" + s + "] for AlertHistoryState" );
         }

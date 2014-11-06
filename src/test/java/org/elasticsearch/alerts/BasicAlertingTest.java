@@ -16,6 +16,7 @@ import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedAlertTrigger;
+import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -55,7 +56,6 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    // TODO: add request, response & request builder etc.
     public void testAlerSchedulerStartsProperly() throws Exception {
         createIndex("my-index");
         createIndex(AlertsStore.ALERT_INDEX);
@@ -94,8 +94,8 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
             }
 
             @Override
-            public boolean doAction(Alert alert, AlertActionEntry actionEntry) {
-                logger.info("Alert {} invoked: {}", alert.alertName(), actionEntry);
+            public boolean doAction(Alert alert, TriggerResult result) {
+                logger.info("Alert {} invoked: {}", alert.alertName(), result);
                 alertActionInvoked.set(true);
                 return true;
             }

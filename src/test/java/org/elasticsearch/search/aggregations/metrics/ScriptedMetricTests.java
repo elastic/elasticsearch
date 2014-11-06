@@ -19,6 +19,11 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -34,17 +39,19 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.scriptedMetric;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.SUITE)
 @ElasticsearchIntegrationTest.SuiteScopeTest
@@ -125,15 +132,22 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
         assertThat(scriptedMetricAggregation.aggregation(), instanceOf(ArrayList.class));
         List<?> aggregationList = (List<?>) scriptedMetricAggregation.aggregation();
         assertThat(aggregationList.size(), equalTo(getNumShards("idx").numPrimaries));
+        int numShardsRun = 0;
         for (Object object : aggregationList) {
             assertThat(object, notNullValue());
             assertThat(object, instanceOf(Map.class));
             Map<String, Object> map = (Map<String, Object>) object;
-            assertThat(map.size(), equalTo(1));
-            assertThat(map.get("count"), notNullValue());
-            assertThat(map.get("count"), instanceOf(Number.class));
-            assertThat((Number) map.get("count"), equalTo((Number) 1));
+            assertThat(map.size(), lessThanOrEqualTo(1));
+            if (map.size() == 1) {
+                assertThat(map.get("count"), notNullValue());
+                assertThat(map.get("count"), instanceOf(Number.class));
+                assertThat((Number) map.get("count"), equalTo((Number) 1));
+                numShardsRun++;
+            }
         }
+        // We don't know how many shards will have documents but we need to make
+        // sure that at least one shard ran the map script
+        assertThat(numShardsRun, greaterThan(0));
     }
 
     @Test
@@ -252,7 +266,10 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
                 assertThat(o, notNullValue());
                 assertThat(o, instanceOf(Number.class));
                 Number numberValue = (Number) o;
-                assertThat(numberValue.longValue(), allOf(greaterThanOrEqualTo(1l), lessThanOrEqualTo(numDocs)));
+                // A particular shard may not have any documents stored on it so
+                // we have to assume the lower bound may be 0. The check at the
+                // bottom of the test method will make sure the count is correct
+                assertThat(numberValue.longValue(), allOf(greaterThanOrEqualTo(0l), lessThanOrEqualTo(numDocs)));
                 totalCount += numberValue.longValue();
             }
         }
@@ -299,7 +316,10 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
                 assertThat(o, notNullValue());
                 assertThat(o, instanceOf(Number.class));
                 Number numberValue = (Number) o;
-                assertThat(numberValue.longValue(), allOf(greaterThanOrEqualTo(3l), lessThanOrEqualTo(numDocs * 3)));
+                // A particular shard may not have any documents stored on it so
+                // we have to assume the lower bound may be 0. The check at the
+                // bottom of the test method will make sure the count is correct
+                assertThat(numberValue.longValue(), allOf(greaterThanOrEqualTo(0l), lessThanOrEqualTo(numDocs * 3)));
                 totalCount += numberValue.longValue();
             }
         }

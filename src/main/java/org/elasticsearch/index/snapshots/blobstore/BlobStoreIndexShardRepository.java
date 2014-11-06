@@ -800,7 +800,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 /// now, go over and clean files that are in the store, but were not in the snapshot
                 try {
                     for (String storeFile : store.directory().listAll()) {
-                        if (!snapshot.containPhysicalIndexFile(storeFile)) {
+                        if (!Store.isChecksum(storeFile) && !snapshot.containPhysicalIndexFile(storeFile)) {
                             try {
                                 store.directory().deleteFile(storeFile);
                             } catch (IOException e) {

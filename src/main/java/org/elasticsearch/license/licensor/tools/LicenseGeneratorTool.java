@@ -5,101 +5,130 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
+import org.elasticsearch.common.cli.CliTool;
+import org.elasticsearch.common.cli.CliToolConfig;
+import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.cli.commons.CommandLine;
 import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.licensor.ESLicenseSigner;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.ParseException;
 import java.util.HashSet;
 import java.util.Set;
 
-public class LicenseGeneratorTool {
+import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
+import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
+import static org.elasticsearch.common.cli.CliToolConfig.config;
 
-    static class Options {
-        private final Set<ESLicense> licenseSpecs;
-        private final String publicKeyFilePath;
-        private final String privateKeyFilePath;
+public class LicenseGeneratorTool extends CliTool {
+    public static final String NAME = "license-generator";
 
-        Options(Set<ESLicense> licenseSpecs, String publicKeyFilePath, String privateKeyFilePath) {
+    private static final CliToolConfig CONFIG = config(NAME, LicenseGeneratorTool.class)
+            .cmds(LicenseGenerator.CMD)
+            .build();
+
+    public LicenseGeneratorTool() {
+        super(CONFIG);
+    }
+
+    @Override
+    protected Command parse(String s, CommandLine commandLine) throws Exception {
+        return LicenseGenerator.parse(terminal, commandLine);
+    }
+
+    public static class LicenseGenerator extends Command {
+
+        private static final CliToolConfig.Cmd CMD = cmd(NAME, LicenseGenerator.class)
+                .options(
+                        option("pub", "publicKeyPath").required(true).hasArg(true),
+                        option("pri", "privateKeyPath").required(true).hasArg(true),
+                        option("l", "license").required(false).hasArg(true),
+                        option("lf", "licenseFile").required(false).hasArg(true)
+                ).build();
+
+        public final Set<ESLicense> licenseSpecs;
+        public final String publicKeyFilePath;
+        public final String privateKeyFilePath;
+
+        public LicenseGenerator(Terminal terminal, String publicKeyFilePath, String privateKeyFilePath, Set<ESLicense> licenseSpecs) {
+            super(terminal);
             this.licenseSpecs = licenseSpecs;
-            this.publicKeyFilePath = publicKeyFilePath;
             this.privateKeyFilePath = privateKeyFilePath;
+            this.publicKeyFilePath = publicKeyFilePath;
         }
-    }
 
-    private static Options parse(String[] args) throws IOException, ParseException {
-        Set<ESLicense> licenseSpecs = new HashSet<>();
-        String privateKeyPath = null;
-        String publicKeyPath = null;
+        public static Command parse(Terminal terminal, CommandLine commandLine) throws IOException {
+            String publicKeyPath = commandLine.getOptionValue("publicKeyPath");
+            String privateKeyPath = commandLine.getOptionValue("privateKeyPath");
+            String[] licenseSpecSources = commandLine.getOptionValues("license");
+            String[] licenseSpecSourceFiles = commandLine.getOptionValues("licenseFile");
 
-        for (int i = 0; i < args.length; i++) {
-            String command = args[i].trim();
-            switch (command) {
-                case "--license":
-                    String licenseInput = args[++i];
-                    licenseSpecs.addAll(ESLicenses.fromSource(licenseInput.getBytes(StandardCharsets.UTF_8), false));
-                    break;
-                case "--licenseFile":
-                    File licenseFile = new File(args[++i]);
-                    if (licenseFile.exists()) {
-                        final byte[] bytes = Files.readAllBytes(Paths.get(licenseFile.getAbsolutePath()));
-                        licenseSpecs.addAll(ESLicenses.fromSource(bytes, false));
-                    } else {
-                        throw new IllegalArgumentException(licenseFile.getAbsolutePath() + " does not exist!");
-                    }
-                    break;
-                case "--publicKeyPath":
-                    publicKeyPath = args[++i];
-                    break;
-                case "--privateKeyPath":
-                    privateKeyPath = args[++i];
-                    break;
+            if (!exists(privateKeyPath)) {
+                return exitCmd(ExitStatus.USAGE, terminal, privateKeyPath + " does not exist");
+            } else if (!exists(publicKeyPath)) {
+                return exitCmd(ExitStatus.USAGE, terminal, publicKeyPath + " does not exist");
             }
+
+            Set<ESLicense> licenseSpecs = new HashSet<>();
+            if (licenseSpecSources != null) {
+                for (String licenseSpec : licenseSpecSources) {
+                    licenseSpecs.addAll(ESLicenses.fromSource(licenseSpec.getBytes(StandardCharsets.UTF_8), false));
+                }
+            }
+
+            if (licenseSpecSourceFiles != null) {
+                for (String licenseSpecFilePath : licenseSpecSourceFiles) {
+                    Path licenseSpecPath = Paths.get(licenseSpecFilePath);
+                    if (!exists(licenseSpecFilePath)) {
+                        return exitCmd(ExitStatus.USAGE, terminal, licenseSpecFilePath + " does not exist");
+                    }
+                    licenseSpecs.addAll(ESLicenses.fromSource(Files.readAllBytes(licenseSpecPath), false));
+                }
+            }
+
+            if (licenseSpecs.size() == 0) {
+                return exitCmd(ExitStatus.USAGE, terminal, "no license spec provided");
+            }
+            return new LicenseGenerator(terminal, publicKeyPath, privateKeyPath, licenseSpecs);
         }
 
-        if (licenseSpecs.size() == 0) {
-            throw new IllegalArgumentException("at least one of '--license' or '--licenseFile' has to be provided");
-        }
-        if (publicKeyPath == null) {
-            throw new IllegalArgumentException("mandatory option '--publicKeyPath' is missing");
-        } else if (!Paths.get(publicKeyPath).toFile().exists()) {
-            throw new IllegalArgumentException("Public key file: " + publicKeyPath + " does not exist!");
-        }
-        if (privateKeyPath == null) {
-            throw new IllegalArgumentException("mandatory option '--privateKeyPath' is missing");
-        } else if (!Paths.get(privateKeyPath).toFile().exists()) {
-            throw new IllegalArgumentException("Private key file: " + privateKeyPath + " does not exist!");
+        @Override
+        public ExitStatus execute(Settings settings, Environment env) throws Exception {
+
+            // sign
+            ESLicenseSigner signer = new ESLicenseSigner(privateKeyFilePath, publicKeyFilePath);
+            ImmutableSet<ESLicense> signedLicences = signer.sign(licenseSpecs);
+
+            // dump
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            ESLicenses.toXContent(signedLicences, builder, ToXContent.EMPTY_PARAMS);
+            builder.flush();
+            terminal.print(builder.string());
+
+            return ExitStatus.OK;
         }
 
-        return new Options(licenseSpecs, publicKeyPath, privateKeyPath);
+
+        private static boolean exists(String filePath) {
+            return new File(filePath).exists();
+        }
     }
 
-    public static void main(String[] args) throws IOException, ParseException {
-        run(args, System.out);
+    public static void main(String[] args) throws Exception {
+        int status = new LicenseGeneratorTool().execute(args);
+        System.exit(status);
     }
-
-    public static void run(String[] args, OutputStream out) throws IOException, ParseException {
-        Options options = parse(args);
-
-        ESLicenseSigner signer = new ESLicenseSigner(options.privateKeyFilePath, options.publicKeyFilePath);
-        ImmutableSet<ESLicense> signedLicences = signer.sign(options.licenseSpecs);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, out);
-
-        ESLicenses.toXContent(signedLicences, builder, ToXContent.EMPTY_PARAMS);
-
-        builder.flush();
-    }
-
 }

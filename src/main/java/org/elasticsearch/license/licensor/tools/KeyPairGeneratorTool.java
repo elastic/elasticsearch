@@ -11,95 +11,99 @@ import net.nicholaswilliams.java.licensing.exception.AlgorithmNotSupportedExcept
 import net.nicholaswilliams.java.licensing.exception.InappropriateKeyException;
 import net.nicholaswilliams.java.licensing.exception.InappropriateKeySpecificationException;
 import net.nicholaswilliams.java.licensing.exception.RSA2048NotSupportedException;
+import org.elasticsearch.common.cli.CliTool;
+import org.elasticsearch.common.cli.CliToolConfig;
+import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.cli.commons.CommandLine;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintStream;
 import java.security.KeyPair;
 
-public class KeyPairGeneratorTool {
+import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
+import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
+import static org.elasticsearch.common.cli.CliToolConfig.config;
 
-    public static String DEFAULT_PASS_PHRASE = "elasticsearch-license";
+public class KeyPairGeneratorTool extends CliTool {
 
-    static class Options {
-        private final String publicKeyFilePath;
-        private final String privateKeyFilePath;
+    private static final CliToolConfig CONFIG = config("key-pair-generator", KeyPairGeneratorTool.class)
+            .cmds(KeyPairGenerator.CMD)
+            .build();
 
-        Options(String publicKeyFilePath, String privateKeyFilePath) {
-            this.publicKeyFilePath = publicKeyFilePath;
-            this.privateKeyFilePath = privateKeyFilePath;
-        }
+    public KeyPairGeneratorTool() {
+        super(CONFIG);
     }
 
-    private static Options parse(String[] args) {
-        String privateKeyPath = null;
-        String publicKeyPath = null;
+    @Override
+    protected Command parse(String s, CommandLine commandLine) throws Exception {
+        return KeyPairGenerator.parse(terminal, commandLine);
+    }
 
-        for (int i = 0; i < args.length; i++) {
-            String command = args[i];
-            switch (command) {
-                case "--publicKeyPath":
-                    publicKeyPath = args[++i];
-                    break;
-                case "--privateKeyPath":
-                    privateKeyPath = args[++i];
-                    break;
+    private static class KeyPairGenerator extends Command {
+
+        public static String DEFAULT_PASS_PHRASE = "elasticsearch-license";
+        private static final String NAME = "key-pair-generator";
+        private static final CliToolConfig.Cmd CMD = cmd(NAME, KeyPairGenerator.class)
+                .options(
+                        option("pub", "publicKeyPath").required(true).hasArg(true),
+                        option("pri", "privateKeyPath").required(true).hasArg(true)
+                ).build();
+
+        private final String publicKeyPath;
+        private final String privateKeyPath;
+
+        protected KeyPairGenerator(Terminal terminal, String publicKeyPath, String privateKeyPath) {
+            super(terminal);
+            this.privateKeyPath = privateKeyPath;
+            this.publicKeyPath = publicKeyPath;
+        }
+
+        public static Command parse(Terminal terminal, CommandLine commandLine) {
+            String publicKeyPath = commandLine.getOptionValue("publicKeyPath");
+            String privateKeyPath = commandLine.getOptionValue("privateKeyPath");
+
+            if (exists(privateKeyPath)) {
+                return exitCmd(ExitStatus.USAGE, terminal, privateKeyPath + " already exists");
+            } else if (exists(publicKeyPath)) {
+                return exitCmd(ExitStatus.USAGE, terminal, publicKeyPath + " already exists");
             }
+            return new KeyPairGenerator(terminal, publicKeyPath, privateKeyPath);
         }
 
-        if (publicKeyPath == null) {
-            throw new IllegalArgumentException("mandatory option '--publicKeyPath' is missing");
-        }
-        if (privateKeyPath == null) {
-            throw new IllegalArgumentException("mandatory option '--privateKeyPath' is missing");
+        @Override
+        public ExitStatus execute(Settings settings, Environment env) throws Exception {
+            KeyPair keyPair = generateKeyPair(privateKeyPath, publicKeyPath);
+            terminal.println(Terminal.Verbosity.VERBOSE, "generating key pair [public key: " + publicKeyPath + ", private key: " + privateKeyPath + "]");
+            return (keyPair != null) ? ExitStatus.OK : ExitStatus.CANT_CREATE;
         }
 
-        return new Options(publicKeyPath, privateKeyPath);
+        private static boolean exists(String filePath) {
+            return new File(filePath).exists();
+        }
+
+        private static KeyPair generateKeyPair(String privateKeyFileName, String publicKeyFileName) {
+            RSAKeyPairGenerator generator = new RSAKeyPairGenerator();
+
+            KeyPair keyPair;
+            try {
+                keyPair = generator.generateKeyPair();
+            } catch (RSA2048NotSupportedException e) {
+                throw new IllegalStateException(e);
+            }
+
+            try {
+                generator.saveKeyPairToFiles(keyPair, privateKeyFileName, publicKeyFileName, Hasher.hash(DEFAULT_PASS_PHRASE).toCharArray());
+            } catch (IOException | AlgorithmNotSupportedException | InappropriateKeyException | InappropriateKeySpecificationException e) {
+                throw new IllegalStateException(e);
+            }
+            return keyPair;
+        }
     }
 
-    public static void main(String[] args) throws IOException {
-        run(args, System.out);
-    }
-
-    public static void run(String[] args, OutputStream out) throws IOException {
-        PrintStream printStream = new PrintStream(out);
-
-        Options options = parse(args);
-
-        if (exists(options.privateKeyFilePath)) {
-            throw new IllegalArgumentException("private key already exists in " + options.privateKeyFilePath);
-        } else if (exists(options.publicKeyFilePath)) {
-            throw new IllegalArgumentException("public key already exists in " + options.publicKeyFilePath);
-        }
-
-        KeyPair keyPair = generateKeyPair(options.privateKeyFilePath, options.publicKeyFilePath);
-        if (keyPair != null) {
-            printStream.println("Successfully generated new keyPair [publicKey: " + options.publicKeyFilePath + ", privateKey: " + options.privateKeyFilePath + "]");
-            printStream.flush();
-        }
-    }
-
-    private static boolean exists(String filePath) {
-        return new File(filePath).exists();
-    }
-
-
-    private static KeyPair generateKeyPair(String privateKeyFileName, String publicKeyFileName) {
-        RSAKeyPairGenerator generator = new RSAKeyPairGenerator();
-
-        KeyPair keyPair;
-        try {
-            keyPair = generator.generateKeyPair();
-        } catch (RSA2048NotSupportedException e) {
-            throw new IllegalStateException(e);
-        }
-
-        try {
-            generator.saveKeyPairToFiles(keyPair, privateKeyFileName, publicKeyFileName, Hasher.hash(DEFAULT_PASS_PHRASE).toCharArray());
-        } catch (IOException | AlgorithmNotSupportedException | InappropriateKeyException | InappropriateKeySpecificationException e) {
-            throw new IllegalStateException(e);
-        }
-        return keyPair;
+    public static void main(String[] args) throws Exception {
+        int status = new KeyPairGeneratorTool().execute(args);
+        System.exit(status);
     }
 }

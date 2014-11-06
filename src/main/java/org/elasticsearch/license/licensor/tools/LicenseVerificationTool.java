@@ -5,68 +5,121 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
-import org.elasticsearch.common.collect.ImmutableMap;
+import net.nicholaswilliams.java.licensing.exception.InvalidLicenseException;
+import org.elasticsearch.common.cli.CliTool;
+import org.elasticsearch.common.cli.CliToolConfig;
+import org.elasticsearch.common.cli.Terminal;
+import org.elasticsearch.common.cli.commons.CommandLine;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
 import org.elasticsearch.license.manager.ESLicenseManager;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
-public class LicenseVerificationTool {
+import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
+import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
+import static org.elasticsearch.common.cli.CliToolConfig.config;
 
-    private static Set<ESLicense> parse(String[] args) throws IOException {
-        Set<ESLicense> licenses = new HashSet<>();
+public class LicenseVerificationTool extends CliTool {
+    public static final String NAME = "verify-license";
 
-        for (int i = 0; i < args.length; i++) {
-            String command = args[i];
-            switch (command) {
-                case "--licensesFiles":
-                    for (String filePath : args[++i].split(":")) {
-                        File file = new File(filePath);
-                        if (file.exists()) {
-                            licenses.addAll(ESLicenses.fromSource(Files.readAllBytes(Paths.get(file.getAbsolutePath()))));
-                        } else {
-                            throw new IllegalArgumentException(file.getAbsolutePath() + " does not exist!");
-                        }
-                    }
-                    break;
-                case "--licenses":
-                    licenses.addAll(ESLicenses.fromSource(args[++i]));
-                    break;
+    private static final CliToolConfig CONFIG = config(NAME, LicenseVerificationTool.class)
+            .cmds(LicenseVerifier.CMD)
+            .build();
+
+    public LicenseVerificationTool() {
+        super(CONFIG);
+    }
+
+    @Override
+    protected Command parse(String s, CommandLine commandLine) throws Exception {
+        return LicenseVerifier.parse(terminal, commandLine);
+    }
+
+    public static class LicenseVerifier extends Command {
+
+        private static final CliToolConfig.Cmd CMD = cmd(NAME, LicenseVerifier.class)
+                .options(
+                        option("l", "license").required(false).hasArg(true),
+                        option("lf", "licenseFile").required(false).hasArg(true)
+                ).build();
+
+        public final Set<ESLicense> licenses;
+
+        public LicenseVerifier(Terminal terminal, Set<ESLicense> licenses) {
+            super(terminal);
+            this.licenses = licenses;
+        }
+
+        public static Command parse(Terminal terminal, CommandLine commandLine) throws IOException {
+            String[] licenseSources = commandLine.getOptionValues("license");
+            String[] licenseSourceFiles = commandLine.getOptionValues("licenseFile");
+
+            Set<ESLicense> esLicenses = new HashSet<>();
+            if (licenseSources != null) {
+                for (String licenseSpec : licenseSources) {
+                    esLicenses.addAll(ESLicenses.fromSource(licenseSpec.getBytes(StandardCharsets.UTF_8)));
+                }
             }
+
+            if (licenseSourceFiles != null) {
+                for (String licenseFilePath : licenseSourceFiles) {
+                    Path licensePath = Paths.get(licenseFilePath);
+                    if (!exists(licenseFilePath)) {
+                        return exitCmd(ExitStatus.USAGE, terminal, licenseFilePath + " does not exist");
+                    }
+                    esLicenses.addAll(ESLicenses.fromSource(Files.readAllBytes(licensePath)));
+                }
+            }
+
+            if (esLicenses.size() == 0) {
+                return exitCmd(ExitStatus.USAGE, terminal, "no license provided");
+            }
+            return new LicenseVerifier(terminal, esLicenses);
         }
-        if (licenses.size() == 0) {
-            throw new IllegalArgumentException("mandatory option '--licensesFiles' or '--licenses' is missing");
+
+        @Override
+        public ExitStatus execute(Settings settings, Environment env) throws Exception {
+
+            // verify
+            Map<String, ESLicense> effectiveLicenses = ESLicenses.reduceAndMap(licenses);
+            ESLicenseManager licenseManager = new ESLicenseManager();
+            try {
+                licenseManager.verifyLicenses(effectiveLicenses);
+            } catch (InvalidLicenseException e) {
+                return ExitStatus.DATA_ERROR;
+            }
+
+            // dump effective licences
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            ESLicenses.toXContent(effectiveLicenses.values(), builder, ToXContent.EMPTY_PARAMS);
+            builder.flush();
+            terminal.print(builder.string());
+
+            return ExitStatus.OK;
         }
-        return licenses;
+
+        private static boolean exists(String filePath) {
+            return new File(filePath).exists();
+        }
     }
 
-    public static void main(String[] args) throws IOException {
-        run(args, System.out);
+    public static void main(String[] args) throws Exception {
+        int status = new LicenseVerificationTool().execute(args);
+        System.exit(status);
     }
-
-    public static void run(String[] args, OutputStream out) throws IOException {
-        Set<ESLicense> licenses = parse(args);
-
-        // reduce & verify licenses
-        ImmutableMap<String, ESLicense> effectiveLicenses = ESLicenses.reduceAndMap(licenses);
-        ESLicenseManager licenseManager = new ESLicenseManager();
-        licenseManager.verifyLicenses(effectiveLicenses);
-
-        // dump effective licences
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, out);
-        ESLicenses.toXContent(effectiveLicenses.values(), builder, ToXContent.EMPTY_PARAMS);
-        builder.flush();
-    }
-
 }

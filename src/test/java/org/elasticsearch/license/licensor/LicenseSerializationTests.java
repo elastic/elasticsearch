@@ -70,19 +70,7 @@ public class LicenseSerializationTests extends AbstractLicensingTestBase {
         for (ESLicense license : esLicensesOutput) {
             LicenseSpec spec = licenseSpecs.get(license.feature());
             assertThat(spec, notNullValue());
-
-            assertThat(license.uid(), equalTo(spec.uid));
-            assertThat(license.feature(), equalTo(spec.feature));
-            assertThat(license.issuedTo(), equalTo(spec.issuedTo));
-            assertThat(license.issuer(), equalTo(spec.issuer));
-            assertThat(license.type(), equalTo(spec.type));
-            assertThat(license.subscriptionType(), equalTo(spec.subscriptionType));
-            assertThat(license.maxNodes(), equalTo(spec.maxNodes));
-            assertThat(license.issueDate(), equalTo(DateUtils.beginningOfTheDay(spec.issueDate)));
-            assertThat(license.expiryDate(), equalTo(DateUtils.endOfTheDay(spec.expiryDate)));
+            assertLicenseSpec(spec, license);
         }
-
     }
-
-
 }

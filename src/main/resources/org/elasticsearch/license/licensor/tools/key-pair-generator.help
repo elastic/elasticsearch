@@ -1,0 +1,22 @@
+NAME
+
+    key-pair-generator - generates a key pair with RSA 2048-bit security
+
+SYNOPSIS
+
+    key-pair-generator -pub publicKeyPath -pri privateKeyPath
+
+DESCRIPTION
+
+    This tool generates and saves a key pair to the provided publicKeyPath
+    and privateKeyPath. The tool checks the existence of the provided key paths
+    and will not override if any existing keys are found.
+
+OPTIONS
+
+    -h,--help                               Shows this message
+
+    -pub,--publicKeyPath <path>             Save the generated public key to path
+
+    -pri,--privateKeyPath <path>            Save the generated private key to path
+

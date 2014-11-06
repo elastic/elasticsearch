@@ -29,6 +29,8 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomRealisticUnicodeOfCodepointLengthBetween;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.randomFrom;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.core.IsEqual.equalTo;
 
 @RunWith(value = com.carrotsearch.randomizedtesting.RandomizedRunner.class)
 public class AbstractLicensingTestBase {
@@ -36,9 +38,9 @@ public class AbstractLicensingTestBase {
     protected static String pubKeyPath = null;
     protected static String priKeyPath = null;
 
-    private final FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
-    private final org.elasticsearch.common.joda.time.format.DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
-    private final DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter, TimeUnit.MILLISECONDS);
+    private final static FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
+    private final static org.elasticsearch.common.joda.time.format.DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
+    private final static DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter, TimeUnit.MILLISECONDS);
 
     @BeforeClass
     public static void setup() throws Exception {
@@ -46,11 +48,11 @@ public class AbstractLicensingTestBase {
         priKeyPath = getResourcePath("/private.key");
     }
 
-    protected String dateMathString(String time, long now) {
+    protected static String dateMathString(String time, long now) {
         return dateTimeFormatter.print(dateMathParser.parse(time, now));
     }
 
-    protected long dateMath(String time, long now) {
+    protected static long dateMath(String time, long now) {
         return dateMathParser.parse(time, now);
     }
 
@@ -62,13 +64,13 @@ public class AbstractLicensingTestBase {
         return getResourcePath("/public.key");
     }
 
-    private static String getResourcePath(String resource) throws Exception {
+    public static String getResourcePath(String resource) throws Exception {
         URL url = ESLicenseManager.class.getResource(resource);
         return url.toURI().getPath();
     }
 
 
-    protected LicenseSpec generateRandomLicenseSpec() {
+    public static LicenseSpec generateRandomLicenseSpec() {
         long now = System.currentTimeMillis();
         String issueDate = dateMathString("now", now);
         String expiryDate = dateMathString("now+10d/d", now);
@@ -174,5 +176,17 @@ public class AbstractLicensingTestBase {
             this.issuer = issuer;
             this.maxNodes = maxNodes;
         }
+    }
+
+    public static void assertLicenseSpec(LicenseSpec spec, ESLicense license) {
+        assertThat(license.uid(), equalTo(spec.uid));
+        assertThat(license.feature(), equalTo(spec.feature));
+        assertThat(license.issuedTo(), equalTo(spec.issuedTo));
+        assertThat(license.issuer(), equalTo(spec.issuer));
+        assertThat(license.type(), equalTo(spec.type));
+        assertThat(license.subscriptionType(), equalTo(spec.subscriptionType));
+        assertThat(license.maxNodes(), equalTo(spec.maxNodes));
+        assertThat(license.issueDate(), equalTo(DateUtils.beginningOfTheDay(spec.issueDate)));
+        assertThat(license.expiryDate(), equalTo(DateUtils.endOfTheDay(spec.expiryDate)));
     }
 }

@@ -1,0 +1,20 @@
+NAME
+
+    verify-license - verifies the integrity of elasticsearch signed license(s)
+
+SYNOPSIS
+
+    verify-license -l signedLicense
+
+DESCRIPTION
+
+    This tool assumes the configured public key to be the same as that of the production license plugin public key.
+    The tool can take arbitrary number of `--license` and/or `--licenseFile` for verifying signed license(s).
+
+OPTIONS
+
+    -h,--help                               Shows this message
+
+    -l,--license <signed license>           License spec to generate a signed license from
+
+    -lf,--licenseFile <path>                Path to signed license(s) file

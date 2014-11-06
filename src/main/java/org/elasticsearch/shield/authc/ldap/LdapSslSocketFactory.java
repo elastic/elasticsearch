@@ -112,7 +112,9 @@ public class LdapSslSocketFactory extends SocketFactory {
             builder.put(JAVA_NAMING_LDAP_FACTORY_SOCKET, LdapSslSocketFactory.class.getName());
         } else {
             logger.warn("LdapSslSocketFactory not used for LDAP connections");
-            logger.debug("LdapSslSocketFactory: secureProtocol = [{}], instance != null [{}]", secureProtocol, instance != null);
+            if (logger.isDebugEnabled()) {
+                logger.debug("LdapSslSocketFactory: secureProtocol = [{}], instance != null [{}]", secureProtocol, instance != null);
+            }
         }
     }
 }

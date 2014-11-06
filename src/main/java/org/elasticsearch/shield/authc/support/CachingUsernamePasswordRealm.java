@@ -91,7 +91,9 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
         Callable<UserWithHash> callback = new Callable<UserWithHash>() {
             @Override
             public UserWithHash call() throws Exception {
-                logger.debug("User not found in cache, proceeding with normal authentication");
+                if (logger.isDebugEnabled()) {
+                    logger.debug("User not found in cache, proceeding with normal authentication");
+                }
                 User user = doAuthenticate(token);
                 if (user == null) {
                     throw new AuthenticationException("Could not authenticate [" + token.principal() + "]");
@@ -103,13 +105,18 @@ public abstract class CachingUsernamePasswordRealm extends AbstractComponent imp
         try {
             UserWithHash userWithHash = cache.get(token.principal(), callback);
             if (userWithHash.verify(token.credentials())) {
-                logger.debug("Authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+                if(logger.isDebugEnabled()) {
+                    logger.debug("Authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+                }
                 return userWithHash.user;
             }
             //this handles when a user's password has changed:
             expire(token.principal());
             userWithHash = cache.get(token.principal(), callback);
-            logger.debug("Cached user's password changed. Authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+
+            if (logger.isDebugEnabled()) {
+                logger.debug("Cached user's password changed. Authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
+            }
             return userWithHash.user;
             
         } catch (ExecutionException | UncheckedExecutionException ee) {

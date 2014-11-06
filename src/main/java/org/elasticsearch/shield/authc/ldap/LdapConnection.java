@@ -68,7 +68,9 @@ public class LdapConnection implements Closeable {
      */
     public List<String> getGroups(){
         List<String> groups = isFindGroupsByAttribute ? getGroupsFromUserAttrs(bindDn) : getGroupsFromSearch(bindDn);
-        logger.debug("Found these groups [{}] for userDN [{}]", groups, this.bindDn );
+        if (logger.isDebugEnabled()) {
+            logger.debug("Found these groups [{}] for userDN [{}]", groups, this.bindDn);
+        }
         return groups;
     }
 

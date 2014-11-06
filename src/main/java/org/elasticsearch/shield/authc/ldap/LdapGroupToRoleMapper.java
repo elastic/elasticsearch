@@ -124,7 +124,9 @@ public class LdapGroupToRoleMapper extends AbstractComponent {
                 roles.add(getRelativeName(groupLdapName));
             }
         }
-        logger.debug("The roles [{}], are mapped from these LDAP groups [{}]", roles, groupDns);
+        if (logger.isDebugEnabled()) {
+            logger.debug("The roles [{}], are mapped from these LDAP groups [{}]", roles, groupDns);
+        }
         return roles;
     }
 

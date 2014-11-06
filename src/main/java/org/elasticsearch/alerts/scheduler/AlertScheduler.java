@@ -69,7 +69,9 @@ public class AlertScheduler extends AbstractComponent {
 
     public void clearAlerts() {
         try {
-            scheduler.clear();
+            if (scheduler != null) {
+                scheduler.clear();
+            }
         } catch (SchedulerException se){
             throw new ElasticsearchException("Failed to clear scheduler", se);
         }

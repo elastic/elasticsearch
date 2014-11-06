@@ -19,8 +19,31 @@ import java.io.IOException;
  */
 public class IndexAlertRequest extends MasterNodeOperationRequest<IndexAlertRequest> {
 
-    private BytesReference alertSource;
     private String alertName;
+    private BytesReference alertSource;
+
+    IndexAlertRequest() {
+    }
+
+    public IndexAlertRequest(BytesReference alertSource) {
+        this.alertSource = alertSource;
+    }
+
+    public String getAlertName() {
+        return alertName;
+    }
+
+    public void setAlertName(String alertName) {
+        this.alertName = alertName;
+    }
+
+    public BytesReference getAlertSource() {
+        return alertSource;
+    }
+
+    public void setAlertSource(BytesReference alertSource) {
+        this.alertSource = alertSource;
+    }
 
     @Override
     public ActionRequestValidationException validate() {
@@ -34,41 +57,18 @@ public class IndexAlertRequest extends MasterNodeOperationRequest<IndexAlertRequ
         return validationException;
     }
 
-
-    IndexAlertRequest() {
-    }
-
-
-    public IndexAlertRequest(BytesReference alertSource) {
-        this.alertSource = alertSource;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        alertName = in.readString();
         alertSource = in.readBytesReference();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        alertSource.writeTo(out);
+        out.writeString(alertName);
+        out.writeBytesReference(alertSource);
     }
 
-
-    public String alertName() {
-        return alertName;
-    }
-
-    public void alertName(String alertName) {
-        this.alertName = alertName;
-    }
-
-    public BytesReference alertSource() {
-        return alertSource;
-    }
-
-    public void alertSource(BytesReference alertSource) {
-        this.alertSource = alertSource;
-    }
 }

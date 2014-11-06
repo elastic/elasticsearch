@@ -24,16 +24,16 @@ public class IndexAlertRequestBuilder
 
     public IndexAlertRequestBuilder(AlertsClientInterface client, String alertName) {
         super(client, new IndexAlertRequest());
-        request.alertName(alertName);
+        request.setAlertName(alertName);
     }
 
     public IndexAlertRequestBuilder setAlertName(String alertName){
-        request.alertName(alertName);
+        request.setAlertName(alertName);
         return this;
     }
 
     public IndexAlertRequestBuilder setAlertSource(BytesReference alertSource) {
-        request.alertSource(alertSource);
+        request.setAlertSource(alertSource);
         return this;
     }
 

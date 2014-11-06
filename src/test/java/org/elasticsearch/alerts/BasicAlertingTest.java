@@ -38,7 +38,7 @@ import static org.hamcrest.core.Is.is;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0, numDataNodes = 1)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0)
 public class BasicAlertingTest extends ElasticsearchIntegrationTest {
 
     @Override
@@ -142,7 +142,7 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
     }
 
     private AlertsClient alertClient() {
-        return internalCluster().getInstance(AlertsClient.class, internalCluster().getMasterName());
+        return internalCluster().getInstance(AlertsClient.class);
     }
 
 }

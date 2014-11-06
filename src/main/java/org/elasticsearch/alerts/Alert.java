@@ -7,7 +7,6 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.actions.AlertAction;
-import org.elasticsearch.alerts.actions.AlertActionFactory;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.common.io.stream.DataOutputStreamOutput;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.omg.CORBA.portable.Streamable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -55,11 +53,9 @@ public class Alert implements ToXContent {
         builder.startObject();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         searchRequest.writeTo(new DataOutputStreamOutput(new DataOutputStream(out)));
-        builder.field(AlertsStore.SEARCH_REQUEST_FIELD.getPreferredName(), out.toByteArray());
-        if (schedule != null) {
-            builder.field(AlertsStore.SCHEDULE_FIELD.getPreferredName(), schedule);
-        }
-        builder.field(AlertsStore.ENABLED.getPreferredName(), enabled);
+        builder.field(AlertsStore.REQUEST_BINARY_FIELD.getPreferredName(), out.toByteArray());
+        builder.field(AlertsStore.SCHEDULE_FIELD.getPreferredName(), schedule);
+        builder.field(AlertsStore.ENABLE.getPreferredName(), enabled);
         if (lastActionFire != null) {
             builder.field(AlertsStore.LAST_ACTION_FIRE.getPreferredName(), lastActionFire);
         }

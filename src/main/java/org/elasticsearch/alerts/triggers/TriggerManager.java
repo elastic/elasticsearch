@@ -49,13 +49,13 @@ public class TriggerManager extends AbstractComponent {
         this.scheduledFireTimePlaceHolder = settings.get("postfix", "<<<SCHEDULED_FIRE_TIME>>>");
     }
 
-    public TriggerResult isTriggered(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws Exception {
+    public TriggerResult isTriggered(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
         SearchRequest request = prepareTriggerSearch(alert, scheduledFireTime, fireTime);
         if (logger.isTraceEnabled()) {
             logger.trace("For alert [{}] running query for [{}]", alert.alertName(), XContentHelper.convertToJson(request.source(), false, true));
         }
 
-        SearchResponse response = client.search(request).get();
+        SearchResponse response = client.search(request).actionGet(); // actionGet deals properly with InterruptedException
         logger.debug("Ran alert [{}] and got hits : [{}]", alert.alertName(), response.getHits().getTotalHits());
         switch (alert.trigger().triggerType()) {
             case NUMBER_OF_EVENTS:

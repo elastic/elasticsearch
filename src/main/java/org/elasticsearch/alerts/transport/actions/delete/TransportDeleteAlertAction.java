@@ -7,12 +7,7 @@ package org.elasticsearch.alerts.transport.actions.delete;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptAction;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DelegatingActionListener;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.AlertsStore;
@@ -23,7 +18,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -68,9 +62,6 @@ public class TransportDeleteAlertAction extends TransportMasterNodeOperationActi
 
     @Override
     protected ClusterBlockException checkBlock(DeleteAlertRequest request, ClusterState state) {
-        if (!alertManager.isStarted()) {
-            return new ClusterBlockException(null);
-        }
         return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX});
     }
 

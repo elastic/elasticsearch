@@ -63,9 +63,6 @@ public class TransportIndexAlertAction extends TransportMasterNodeOperationActio
 
     @Override
     protected ClusterBlockException checkBlock(IndexAlertRequest request, ClusterState state) {
-        if (!alertManager.isStarted()) {
-            return new ClusterBlockException(null);
-        }
         return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX});
 
     }

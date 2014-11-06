@@ -63,7 +63,6 @@ public class AlertRestHandler implements RestHandler {
     private boolean dispatchRequest(RestRequest request, RestChannel restChannel) throws IOException, InterruptedException, ExecutionException {
         //@TODO : change these direct calls to actions/request/response/listener once we create the java client API
         if (request.path().contains("/_refresh")) {
-            alertManager.clearAndReload();
             XContentBuilder builder = getListOfAlerts();
             restChannel.sendResponse(new BytesRestResponse(OK,builder));
             return true;

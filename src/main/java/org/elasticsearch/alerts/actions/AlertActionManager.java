@@ -12,7 +12,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.AlertsStore;
@@ -30,7 +29,9 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,6 +49,7 @@ public class AlertActionManager extends AbstractComponent {
     public static final String TRIGGERED_FIELD = "triggered";
     public static final String FIRE_TIME_FIELD = "fire_time";
     public static final String SCHEDULED_FIRE_TIME_FIELD = "scheduled_fire_time";
+    public static final String ERROR_MESSAGE = "errorMsg";
     public static final String TRIGGER_FIELD = "trigger";
     public static final String REQUEST = "request_binary";
     public static final String RESPONSE = "response_binary";
@@ -69,8 +71,6 @@ public class AlertActionManager extends AbstractComponent {
     private final TimeValue scrollTimeout;
 
     private static AlertActionEntry END_ENTRY = new AlertActionEntry();
-
-
 
     @Inject
     public AlertActionManager(Settings settings, Client client, AlertActionRegistry actionRegistry, ThreadPool threadPool, AlertsStore alertsStore) {
@@ -128,7 +128,8 @@ public class AlertActionManager extends AbstractComponent {
 
     public void stop() {
         if (state.compareAndSet(State.STARTED, State.STOPPED)) {
-            logger.info("Stopping job queue");
+            logger.info("Stopping job queue...");
+            actionsToBeProcessed.clear();
             actionsToBeProcessed.add(END_ENTRY);
         }
     }
@@ -216,6 +217,9 @@ public class AlertActionManager extends AbstractComponent {
                             response.readFrom(new BytesStreamInput(parser.binaryValue(), false));
                             entry.setSearchResponse(response);
                             break;
+                        case ERROR_MESSAGE:
+                            entry.setErrorMsg(parser.textOrNull());
+                            break;
                         case AlertActionState.FIELD_NAME:
                             entry.setEntryState(AlertActionState.fromString(parser.text()));
                             break;
@@ -233,8 +237,6 @@ public class AlertActionManager extends AbstractComponent {
     }
 
     public void addAlertAction(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
-
-
         AlertActionEntry entry = new AlertActionEntry(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
         IndexResponse response = client.prepareIndex(ALERT_HISTORY_INDEX, ALERT_HISTORY_TYPE, entry.getId())
                 .setSource(XContentFactory.jsonBuilder().value(entry))
@@ -276,12 +278,16 @@ public class AlertActionManager extends AbstractComponent {
                 entry.setSearchResponse(trigger.getResponse());
                 updateHistoryEntry(entry, trigger.isTriggered() ? AlertActionState.ACTION_PERFORMED : AlertActionState.NO_ACTION_NEEDED);
             } catch (Exception e) {
-                logger.error("Failed to execute alert action", e);
-                try {
-                    entry.setErrorMsg(e.getMessage());
-                    updateHistoryEntry(entry, AlertActionState.ERROR);
-                } catch (IOException ioe) {
-                    logger.error("Failed to update action history entry", ioe);
+                if (started()) {
+                    logger.error("Failed to execute alert action", e);
+                    try {
+                        entry.setErrorMsg(e.getMessage());
+                        updateHistoryEntry(entry, AlertActionState.ERROR);
+                    } catch (IOException ioe) {
+                        logger.error("Failed to update action history entry", ioe);
+                    }
+                } else {
+                    logger.debug("Failed to execute alert action after shutdown", e);
                 }
             }
         }

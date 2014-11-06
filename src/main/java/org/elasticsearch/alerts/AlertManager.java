@@ -72,18 +72,6 @@ public class AlertManager extends AbstractComponent {
         this.scheduler = scheduler;
     }
 
-    public void clearAndReload() {
-        ensureStarted();
-        try {
-            scheduler.clearAlerts();
-            alertsStore.reload();
-            sendAlertsToScheduler();
-        } catch (Exception e){
-            throw new ElasticsearchException("Failed to refresh alerts",e);
-        }
-    }
-
-
     public DeleteResponse deleteAlert(String name) throws InterruptedException, ExecutionException {
         ensureStarted();
         if (alertsStore.hasAlert(name)) {
@@ -129,32 +117,36 @@ public class AlertManager extends AbstractComponent {
         }
     }
 
-    public TriggerResult executeAlert(String alertName, DateTime scheduledFireTime, DateTime fireTime) {
+    public TriggerResult executeAlert(String alertName, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
         ensureStarted();
         Alert alert = alertsStore.getAlert(alertName);
         if (alert == null) {
             throw new ElasticsearchException("Alert is not available");
         }
-        try {
-            TriggerResult triggerResult = triggerManager.isTriggered(alert, scheduledFireTime, fireTime);
-            if (triggerResult.isTriggered()) {
-                actionRegistry.doAction(alert, triggerResult);
-                alert.lastActionFire(fireTime);
-                alertsStore.updateAlert(alert);
-            }
-            return triggerResult;
-        } catch (Exception e) {
-            throw new ElasticsearchException("Failed to execute alert [" + alert + "]", e);
+        TriggerResult triggerResult = triggerManager.isTriggered(alert, scheduledFireTime, fireTime);
+        if (triggerResult.isTriggered()) {
+            actionRegistry.doAction(alert, triggerResult);
+            alert.lastActionFire(fireTime);
+            alertsStore.updateAlert(alert);
         }
+        return triggerResult;
     }
 
 
     public void stop() {
         if (started.compareAndSet(true, false)) {
             scheduler.stop();
-            alertsStore.stop();
             actionManager.stop();
+            alertsStore.stop();
         }
+    }
+
+    /**
+     * For testing only to clear the alerts between tests.
+     */
+    public void clear() {
+        scheduler.clearAlerts();
+        alertsStore.clear();
     }
 
     private void ensureStarted() {

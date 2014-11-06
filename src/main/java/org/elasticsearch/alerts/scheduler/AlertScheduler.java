@@ -18,26 +18,23 @@ import org.quartz.simpl.SimpleJobFactory;
 
 public class AlertScheduler extends AbstractComponent {
 
-    private final Scheduler scheduler;
+    private volatile Scheduler scheduler;
     private final AlertManager alertManager;
 
     @Inject
     public AlertScheduler(Settings settings, AlertManager alertManager) {
         super(settings);
         this.alertManager = alertManager;
-        try {
-            SchedulerFactory schFactory = new StdSchedulerFactory();
-            scheduler = schFactory.getScheduler();
-            scheduler.setJobFactory(new SimpleJobFactory());
-        } catch (SchedulerException e) {
-            throw new ElasticsearchException("Failed to instantiate scheduler", e);
-        }
         alertManager.setAlertScheduler(this);
     }
 
     public void start() {
         try {
             logger.info("Starting scheduler");
+            // Can't start a scheduler that has been shutdown, so we need to re-create each time start() is invoked
+            SchedulerFactory schFactory = new StdSchedulerFactory();
+            scheduler = schFactory.getScheduler();
+            scheduler.setJobFactory(new SimpleJobFactory());
             scheduler.start();
         } catch (SchedulerException se){
             logger.error("Failed to start quartz scheduler", se);

@@ -5,31 +5,18 @@
  */
 package org.elasticsearch.alerts.transport.actions.get;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.AlertsStore;
-import org.elasticsearch.alerts.actions.AlertActionManager;
-import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
-import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 /**
- * Performs the delete operation.
+ * Performs the get operation.
  */
 public class TransportGetAlertAction extends TransportAction<GetAlertRequest,  GetAlertResponse> {
 

@@ -6,40 +6,39 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
-import org.elasticsearch.alerts.actions.*;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.alerts.actions.AlertActionManager;
+import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequest;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
-import org.elasticsearch.alerts.triggers.AlertTrigger;
-import org.elasticsearch.alerts.triggers.ScriptedAlertTrigger;
-import org.elasticsearch.alerts.triggers.TriggerResult;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0, maxNumDataNodes = 1, minNumDataNodes = 1, numDataNodes = 1)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0, numDataNodes = 1)
 public class BasicAlertingTest extends ElasticsearchIntegrationTest {
 
     @Override
@@ -56,99 +55,94 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testAlerSchedulerStartsProperly() throws Exception {
+    public void testIndexAlert() throws Exception {
+        AlertsClientInterface alertsClient = alertClient();
         createIndex("my-index");
-        createIndex(AlertsStore.ALERT_INDEX);
-        createIndex(AlertActionManager.ALERT_HISTORY_INDEX);
-        ensureGreen("my-index", AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX);
-
-        final AlertManager alertManager = internalCluster().getInstance(AlertManager.class, internalCluster().getMasterName());
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(alertManager.isStarted(), is(true));
-            }
-        });
-        final AtomicBoolean alertActionInvoked = new AtomicBoolean(false);
-        final AlertAction alertAction = new AlertAction() {
-            @Override
-            public String getActionName() {
-                return "test";
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
-                builder.endObject();
-                return builder;
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-
-            }
-
-            @Override
-            public void readFrom(StreamInput in) throws IOException {
-
-            }
-
-            @Override
-            public boolean doAction(Alert alert, TriggerResult result) {
-                logger.info("Alert {} invoked: {}", alert.alertName(), result);
-                alertActionInvoked.set(true);
-                return true;
-            }
-        };
-        AlertActionRegistry alertActionRegistry = internalCluster().getInstance(AlertActionRegistry.class, internalCluster().getMasterName());
-        alertActionRegistry.registerAction("test", new AlertActionFactory() {
-            @Override
-            public AlertAction createAction(XContentParser parser) throws IOException {
-                parser.nextToken();
-                return alertAction;
-            }
-
-            @Override
-            public AlertAction readFrom(StreamInput in) throws IOException {
-                return alertAction;
-            }
-        });
-        AlertTrigger alertTrigger = new AlertTrigger(new ScriptedAlertTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"));
-        Alert alert = new Alert(
-                "my-first-alert",
-                client().prepareSearch("my-index").setQuery(QueryBuilders.matchAllQuery()).request(),
-                alertTrigger,
-                Arrays.asList(alertAction),
-                "0/5 * * * * ? *",
-                null,
-                1,
-                true
-        );
-
-        AlertsClientInterface alertsClient = internalCluster().getInstance(AlertsClient.class, internalCluster().getMasterName());
-        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-        alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-
-        IndexAlertRequest alertRequest = alertsClient.prepareCreateAlert().setAlertName("my-first-alert").setAlertSource(jsonBuilder.bytes()).request();
-        IndexAlertResponse alertsResponse = alertsClient.createAlert(alertRequest).actionGet();
-        assertNotNull(alertsResponse.indexResponse());
-        assertTrue(alertsResponse.indexResponse().isCreated());
-
+        // Have a sample document in the index, the alert is going to evaluate
+        client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
+        SearchRequest searchRequest = new SearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
+        alertsClient.prepareCreateAlert("my-first-alert")
+                .setAlertSource(alertSource)
+                .get();
 
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(alertActionInvoked.get(), is(true));
                 IndicesExistsResponse indicesExistsResponse = client().admin().indices().prepareExists(AlertActionManager.ALERT_HISTORY_INDEX).get();
                 assertThat(indicesExistsResponse.isExists(), is(true));
+
+                SearchResponse searchResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX)
+                        .setQuery(termQuery("state", AlertActionState.ACTION_PERFORMED.toString()))
+                        .addField("response.hits.total")
+                        .setSize(1)
+                        .get();
+                assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+                assertThat((Integer) searchResponse.getHits().getAt(0).field("response.hits.total").getValue(), equalTo(1));
             }
         }, 30, TimeUnit.SECONDS);
+    }
 
-        DeleteAlertRequest deleteAlertRequest = new DeleteAlertRequest(alert.alertName());
+    @Test
+    public void testDeleteAlert() throws Exception {
+        AlertsClientInterface alertsClient = alertClient();
+        createIndex("my-index");
+        // Have a sample document in the index, the alert is going to evaluate
+        client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
+        SearchRequest searchRequest = new SearchRequest("my-index").source(searchSource().query(matchAllQuery()));
+        BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
+        alertsClient.prepareCreateAlert("my-first-alert")
+                .setAlertSource(alertSource)
+                .get();
+
+        DeleteAlertRequest deleteAlertRequest = new DeleteAlertRequest("my-first-alert");
         DeleteAlertResponse deleteAlertResponse = alertsClient.deleteAlert(deleteAlertRequest).actionGet();
         assertNotNull(deleteAlertResponse.deleteResponse());
         assertTrue(deleteAlertResponse.deleteResponse().isFound());
 
+        assertHitCount(client().prepareCount(AlertsStore.ALERT_INDEX).get(), 0l);
+    }
+
+    @Before
+    public void clearAlerts() {
+        // Clear all in-memory alerts on all nodes, perhaps there isn't an elected master at this point
+        for (AlertManager manager : internalCluster().getInstances(AlertManager.class)) {
+            manager.clear();
+        }
+    }
+
+    private BytesReference createAlertSource(String cron, SearchRequest request, String scriptTrigger) throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject();
+        builder.field("schedule", cron);
+        builder.field("enable", true);
+
+        builder.startObject("request");
+        XContentHelper.writeRawField("body", request.source(), builder, ToXContent.EMPTY_PARAMS);
+        builder.startArray("indices");
+        for (String index : request.indices()) {
+            builder.value(index);
+        }
+        builder.endArray();
+        builder.endObject();
+
+        builder.startObject("trigger");
+        builder.startObject("script");
+        builder.field("script", scriptTrigger);
+        builder.endObject();
+        builder.endObject();
+
+        builder.startObject("actions");
+        builder.startObject("index");
+        builder.field("index", "my-index");
+        builder.field("type", "trail");
+        builder.endObject();
+        builder.endObject();
+
+        return builder.endObject().bytes();
+    }
+
+    private AlertsClient alertClient() {
+        return internalCluster().getInstance(AlertsClient.class, internalCluster().getMasterName());
     }
 
 }

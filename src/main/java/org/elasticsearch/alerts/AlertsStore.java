@@ -13,8 +13,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.triggers.TriggerManager;
@@ -31,11 +29,14 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,10 +50,11 @@ public class AlertsStore extends AbstractComponent {
 
     public static final ParseField SCHEDULE_FIELD =  new ParseField("schedule");
     public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
-    public static final ParseField ACTION_FIELD = new ParseField("action");
+    public static final ParseField ACTION_FIELD = new ParseField("actions");
     public static final ParseField LAST_ACTION_FIRE = new ParseField("last_action_fire");
-    public static final ParseField ENABLED = new ParseField("enabled");
-    public static final ParseField SEARCH_REQUEST_FIELD =  new ParseField("request");
+    public static final ParseField ENABLE = new ParseField("enable");
+    public static final ParseField REQUEST_BINARY_FIELD =  new ParseField("request_binary");
+    public static final ParseField REQUEST_FIELD =  new ParseField("request");
 
     private final Client client;
     private final ThreadPool threadPool;
@@ -104,8 +106,7 @@ public class AlertsStore extends AbstractComponent {
     /**
      * Updates the specified alert by making sure that the made changes are persisted.
      */
-    public IndexResponse updateAlert(Alert alert) throws IOException {
-
+    public IndexResponse updateAlert(Alert alert) {
         IndexResponse response = client.prepareIndex(ALERT_INDEX, ALERT_TYPE, alert.alertName())
                 .setSource()
                 .setVersion(alert.version())
@@ -251,17 +252,54 @@ public class AlertsStore extends AbstractComponent {
                     } else if (ACTION_FIELD.match(currentFieldName)) {
                         List<AlertAction> actions = alertActionRegistry.instantiateAlertActions(parser);
                         alert.actions(actions);
+                    } else if (REQUEST_FIELD.match(currentFieldName)) {
+                        String searchRequestFieldName = null;
+                        SearchRequest searchRequest = new SearchRequest();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                searchRequestFieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.START_ARRAY) {
+                                switch (searchRequestFieldName) {
+                                    case "indices":
+                                        List<String> indices = new ArrayList<>();
+                                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                            if (token == XContentParser.Token.VALUE_STRING) {
+                                                indices.add(parser.textOrNull());
+                                            } else {
+                                                throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
+                                            }
+                                        }
+                                        searchRequest.indices(indices.toArray(new String[indices.size()]));
+                                        break;
+                                    default:
+                                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
+                                }
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                switch (searchRequestFieldName) {
+                                    case "body":
+                                        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+                                        builder.copyCurrentStructure(parser);
+                                        searchRequest.source(builder);
+                                        break;
+                                    default:
+                                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
+                                }
+                            } else {
+                                throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
+                            }
+                        }
+                        alert.setSearchRequest(searchRequest);
                     } else {
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
                     if (SCHEDULE_FIELD.match(currentFieldName)) {
                         alert.schedule(parser.textOrNull());
-                    } else if (ENABLED.match(currentFieldName)) {
+                    } else if (ENABLE.match(currentFieldName)) {
                         alert.enabled(parser.booleanValue());
                     } else if (LAST_ACTION_FIRE.match(currentFieldName)) {
                         alert.lastActionFire(DateTime.parse(parser.textOrNull()));
-                    } else if (SEARCH_REQUEST_FIELD.match(currentFieldName)) {
+                    } else if (REQUEST_BINARY_FIELD.match(currentFieldName)) {
                         SearchRequest searchRequest = new SearchRequest();
                         searchRequest.readFrom(new BytesStreamInput(parser.binaryValue(), false));
                         alert.setSearchRequest(searchRequest);

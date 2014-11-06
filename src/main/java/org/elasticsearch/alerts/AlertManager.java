@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
@@ -89,11 +90,11 @@ public class AlertManager extends AbstractComponent {
         }
     }
 
-    public Alert addAlert(String alertName, BytesReference alertSource) {
+    public IndexResponse addAlert(String alertName, BytesReference alertSource) {
         ensureStarted();
-        Alert alert = alertsStore.createAlert(alertName, alertSource);
-        scheduler.add(alertName, alert);
-        return alert;
+        Tuple<Alert, IndexResponse> result = alertsStore.addAlert(alertName, alertSource);
+        scheduler.add(alertName, result.v1());
+        return result.v2();
     }
 
     public IndexResponse addAlert(Alert alert) {

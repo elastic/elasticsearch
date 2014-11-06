@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -87,16 +88,15 @@ public class AlertsStore extends AbstractComponent {
     }
 
     /**
-     * Creates an alert with the specified and fails if an alert with the name already exists.
+     * Creates an alert with the specified name and source. If an alert with the specified name already exists it will
+     * get overwritten.
      */
-    public Alert createAlert(String name, BytesReference alertSource) {
-        Alert alert = parseAlert(name, alertSource, 1);
-        if (alertMap.putIfAbsent(name, alert) == null) {
-            persistAlert(name, alertSource, IndexRequest.OpType.CREATE);
-        } else {
-            throw new ElasticsearchIllegalArgumentException("There is already an alert named [" + name + "]");
-        }
-        return alert;
+    public Tuple<Alert, IndexResponse> addAlert(String name, BytesReference alertSource) {
+        Alert alert = parseAlert(name, alertSource);
+        IndexResponse response = persistAlert(name, alertSource, IndexRequest.OpType.CREATE);
+        alert.version(response.getVersion());
+        alertMap.put(name, alert);
+        return new Tuple<>(alert, response);
     }
 
     /**
@@ -106,7 +106,9 @@ public class AlertsStore extends AbstractComponent {
         if (alertMap.putIfAbsent(alert.alertName(), alert) == null) {
             XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
             alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-            return persistAlert(alert.alertName(), jsonBuilder.bytes(), IndexRequest.OpType.CREATE);
+            IndexResponse response = persistAlert(alert.alertName(), jsonBuilder.bytes(), IndexRequest.OpType.CREATE);
+            alert.version(response.getVersion());
+            return response;
         } else {
             throw new ElasticsearchIllegalArgumentException("There is already an alert named [" + alert.alertName() + "]");
         }
@@ -246,13 +248,14 @@ public class AlertsStore extends AbstractComponent {
     }
 
     private Alert parseAlert(String alertId, SearchHit sh) {
-        return parseAlert(alertId, sh.getSourceRef(), sh.getVersion());
+        Alert alert = parseAlert(alertId, sh.getSourceRef());
+        alert.version(sh.version());
+        return alert;
     }
 
-    private Alert parseAlert(String alertName, BytesReference source, long version) {
+    private Alert parseAlert(String alertName, BytesReference source) {
         Alert alert = new Alert();
         alert.alertName(alertName);
-        alert.version(version);
         try (XContentParser parser = XContentHelper.createParser(source)) {
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();

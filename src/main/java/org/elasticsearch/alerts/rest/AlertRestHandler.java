@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts.rest;
 
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.common.inject.Inject;
@@ -85,10 +86,20 @@ public class AlertRestHandler implements RestHandler {
             restChannel.sendResponse(new BytesRestResponse(OK,responseBuilder));
             return true;
         } else if (request.method() == POST && request.path().contains("/_create")) {
-            Alert alert = alertManager.addAlert(request.param("name"), request.content());
+            IndexResponse response = alertManager.addAlert(request.param("name"), request.content());
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            alert.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            restChannel.sendResponse(new BytesRestResponse(OK, builder));
+            builder.startObject()
+                    .field("_index", response.getIndex())
+                    .field("_type", response.getType())
+                    .field("_id", response.getId())
+                    .field("_version", response.getVersion())
+                    .field("created", response.isCreated());
+            builder.endObject();
+            RestStatus status = OK;
+            if (response.isCreated()) {
+                status = CREATED;
+            }
+            restChannel.sendResponse(new BytesRestResponse(status, builder));
             return true;
         } else if (request.method() == DELETE) {
             String alertName = request.param("name");

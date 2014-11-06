@@ -304,10 +304,11 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                                 total += info.getTotal().bytes();
                             }
                             String nodeId = nodeStats.getNode().id();
+                            String nodeName = nodeStats.getNode().getName();
                             if (logger.isTraceEnabled()) {
                                 logger.trace("node: [{}], total disk: {}, available disk: {}", nodeId, total, available);
                             }
-                            newUsages.put(nodeId, new DiskUsage(nodeId, total, available));
+                            newUsages.put(nodeId, new DiskUsage(nodeId, nodeName, total, available));
                         }
                     }
                     usages = ImmutableMap.copyOf(newUsages);

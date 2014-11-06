@@ -128,9 +128,9 @@ public class AlertActionManager extends AbstractComponent {
 
     public void stop() {
         if (state.compareAndSet(State.STARTED, State.STOPPED)) {
-            logger.info("Stopping job queue...");
             actionsToBeProcessed.clear();
             actionsToBeProcessed.add(END_ENTRY);
+            logger.info("Stopped job queue");
         }
     }
 

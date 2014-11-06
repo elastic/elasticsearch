@@ -198,6 +198,7 @@ public class AlertsStore extends AbstractComponent {
     public void stop() {
         state.set(State.STOPPED);
         clear();
+        logger.info("Stopped alert store");
     }
 
     private IndexResponse persistAlert(String alertName, BytesReference alertSource, IndexRequest.OpType opType) {

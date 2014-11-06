@@ -43,10 +43,10 @@ public class AlertScheduler extends AbstractComponent {
 
     public void stop() {
         try {
-            logger.info("Stopping scheduler");
             if (!scheduler.isShutdown()) {
                 scheduler.clear();
                 scheduler.shutdown(false);
+                logger.info("Stopped scheduler");
             }
         } catch (SchedulerException se){
             logger.error("Failed to stop quartz scheduler", se);

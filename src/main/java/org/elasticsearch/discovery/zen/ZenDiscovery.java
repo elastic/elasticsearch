@@ -1354,15 +1354,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             running.set(false);
             Thread joinThread = currentJoinThread.getAndSet(null);
             if (joinThread != null) {
-                for (int i = 0; i < 10 && joinThread.isAlive(); i++) {
-                    joinThread.interrupt();
-                    try {
-                        joinThread.join(200);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
-                }
+                joinThread.interrupt();
             }
         }
 

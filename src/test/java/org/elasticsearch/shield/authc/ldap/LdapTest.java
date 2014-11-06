@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import com.carrotsearch.randomizedtesting.ThreadFilter;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -17,6 +19,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
 
 @Ignore
+@ThreadLeakFilters(defaultFilters = true, filters = { LdapTest.ApachedsThreadLeakFilter.class })
 public abstract class LdapTest extends ElasticsearchTestCase {
 
     static String SETTINGS_PREFIX = LdapRealm.class.getPackage().getName().substring("com.elasticsearch.".length()) + '.';
@@ -51,13 +54,28 @@ public abstract class LdapTest extends ElasticsearchTestCase {
                 .build();
     }
 
-    protected LdapGroupToRoleMapper buildGroupAsRoleMapper() {
+    protected LdapGroupToRoleMapper buildGroupAsRoleMapper(ResourceWatcherService resourceWatcherService) {
         Settings settings = ImmutableSettings.builder()
                 .put("shield.authc.ldap." + LdapGroupToRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .build();
 
-        return new LdapGroupToRoleMapper(settings,
-                new Environment(settings),
-                new ResourceWatcherService(settings, new ThreadPool("test")));
+        return new LdapGroupToRoleMapper(settings, new Environment(settings), resourceWatcherService);
+    }
+
+    /**
+     * thread filter because apache ds leaks a thread when LdapServer is started
+     */
+    public final static class ApachedsThreadLeakFilter implements ThreadFilter {
+
+        @Override
+        public boolean reject(Thread t) {
+            for (StackTraceElement stackTraceElement : t.getStackTrace()) {
+                if (stackTraceElement.getClassName().startsWith("org.apache.mina.filter.executor.UnorderedThreadPoolExecutor")) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 }

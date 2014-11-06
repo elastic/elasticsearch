@@ -4,12 +4,9 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 package org.elasticsearch.shield.authc.ldap;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
+
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
-import org.elasticsearch.test.ElasticsearchTestCase;
-import org.junit.Rule;
 import org.junit.Test;
 
 import java.util.List;
@@ -35,11 +32,12 @@ public class LdapConnectionTests extends LdapTest {
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        LdapConnection ldap = connectionFactory.bind(user, userPass);
-        Map<String, String[]> attrs = ldap.getUserAttrs(ldap.getAuthenticatedUserDn());
+        try (LdapConnection ldap = connectionFactory.bind(user, userPass)) {
+            Map<String, String[]> attrs = ldap.getUserAttrs(ldap.getAuthenticatedUserDn());
 
-        assertThat(attrs, hasKey("uid"));
-        assertThat( attrs.get("uid"), arrayContaining("hhornblo"));
+            assertThat(attrs, hasKey("uid"));
+            assertThat( attrs.get("uid"), arrayContaining("hhornblo"));
+        }
     }
 
     @Test(expected = LdapException.class)
@@ -57,7 +55,8 @@ public class LdapConnectionTests extends LdapTest {
 
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
-        LdapConnection ldap = ldapFac.bind(user, userPass);
+        try (LdapConnection ldapConnection = ldapFac.bind(user, userPass)) {
+        }
     }
 
     @Test
@@ -72,9 +71,10 @@ public class LdapConnectionTests extends LdapTest {
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        LdapConnection ldap = ldapFac.bind(user, userPass);
-        List<String> groups = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
-        assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
+        try (LdapConnection ldap = ldapFac.bind(user, userPass)) {
+            List<String> groups = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
+            assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
+        }
     }
 
     @Test
@@ -86,9 +86,9 @@ public class LdapConnectionTests extends LdapTest {
                 buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
 
         String user = "Horatio Hornblower";
-        LdapConnection ldap = ldapFac.bind(user, SecuredStringTests.build("pass"));
-
-        List<String> groups = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
-        assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
+        try (LdapConnection ldap = ldapFac.bind(user, SecuredStringTests.build("pass"))) {
+            List<String> groups = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
+            assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
+        }
     }
 }

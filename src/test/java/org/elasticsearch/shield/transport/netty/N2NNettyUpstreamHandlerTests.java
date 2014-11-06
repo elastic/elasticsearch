@@ -16,6 +16,7 @@ import org.elasticsearch.shield.transport.n2n.IPFilteringN2NAuthenticator;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -37,11 +38,13 @@ public class N2NNettyUpstreamHandlerTests extends ElasticsearchTestCase {
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     private N2NNettyUpstreamHandler nettyUpstreamHandler;
+    private ThreadPool threadPool;
 
     @Before
     public void init() throws Exception {
         File configFile = temporaryFolder.newFile();
-        ResourceWatcherService resourceWatcherService = new ResourceWatcherService(ImmutableSettings.EMPTY, new ThreadPool("resourceWatcher")).start();
+        threadPool = new ThreadPool("resourceWatcher");
+        ResourceWatcherService resourceWatcherService = new ResourceWatcherService(ImmutableSettings.EMPTY, threadPool).start();
 
         String testData = "allow: 127.0.0.1\ndeny: 10.0.0.0/8";
         Files.write(testData.getBytes(Charsets.UTF_8), configFile);
@@ -50,6 +53,11 @@ public class N2NNettyUpstreamHandlerTests extends ElasticsearchTestCase {
         IPFilteringN2NAuthenticator ipFilteringN2NAuthenticator = new IPFilteringN2NAuthenticator(settings, new Environment(), resourceWatcherService);
 
         nettyUpstreamHandler = new N2NNettyUpstreamHandler(ipFilteringN2NAuthenticator);
+    }
+
+    @After
+    public void shutdownThreadPool() {
+        threadPool.shutdownNow();
     }
 
     @Test

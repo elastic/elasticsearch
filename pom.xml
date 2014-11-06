@@ -30,9 +30,9 @@
     </repositories>
 
     <properties>
-        <lucene.version>4.10.1</lucene.version>
-        <lucene.maven.version>4.10.1</lucene.maven.version>
-        <elasticsearch.version>1.4.0.Beta1</elasticsearch.version>
+        <lucene.version>4.10.2</lucene.version>
+        <lucene.maven.version>4.10.2</lucene.maven.version>
+        <elasticsearch.version>1.4.0</elasticsearch.version>
 
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
@@ -76,7 +76,7 @@
         <dependency>
             <groupId>com.carrotsearch.randomizedtesting</groupId>
             <artifactId>randomizedtesting-runner</artifactId>
-            <version>2.1.2</version>
+            <version>2.1.10</version>
             <scope>test</scope>
         </dependency>
         <dependency>

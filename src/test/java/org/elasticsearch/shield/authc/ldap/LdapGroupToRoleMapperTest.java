@@ -11,6 +11,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
@@ -35,6 +37,17 @@ public class LdapGroupToRoleMapperTest extends ElasticsearchTestCase {
     };
     private final String roleShield = "shield";
     private final String roleAvenger = "avenger";
+    private ThreadPool threadPool;
+
+    @Before
+    public void init() {
+        threadPool = new ThreadPool("test");
+    }
+
+    @After
+    public void shutdown() {
+        threadPool.shutdownNow();
+    }
 
 
     @Test
@@ -46,7 +59,7 @@ public class LdapGroupToRoleMapperTest extends ElasticsearchTestCase {
 
         LdapGroupToRoleMapper mapper = new LdapGroupToRoleMapper(settings,
                 new Environment(settings),
-                new ResourceWatcherService(settings, new ThreadPool("test")));
+                new ResourceWatcherService(settings, threadPool));
 
         Set<String> roles = mapper.mapRoles( Arrays.asList(starkGroupDns) );
 
@@ -62,7 +75,7 @@ public class LdapGroupToRoleMapperTest extends ElasticsearchTestCase {
 
         LdapGroupToRoleMapper mapper = new LdapGroupToRoleMapper(settings,
                 new Environment(settings),
-                new ResourceWatcherService(settings, new ThreadPool("test")));
+                new ResourceWatcherService(settings, threadPool));
 
         Set<String> roles = mapper.mapRoles(Arrays.asList(starkGroupDns));
         assertThat(roles, hasItems("genius", "billionaire", "playboy", "philanthropist", "shield", "avengers"));

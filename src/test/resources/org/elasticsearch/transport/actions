@@ -3,6 +3,7 @@ cluster:admin/nodes/shutdown
 cluster:admin/repository/delete
 cluster:admin/repository/get
 cluster:admin/repository/put
+cluster:admin/repository/verify
 cluster:admin/reroute
 cluster:admin/settings/update
 cluster:admin/snapshot/create

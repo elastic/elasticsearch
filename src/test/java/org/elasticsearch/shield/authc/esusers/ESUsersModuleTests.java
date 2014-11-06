@@ -15,6 +15,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -31,17 +32,24 @@ public class ESUsersModuleTests extends ElasticsearchTestCase {
 
     private Path users;
     private Path usersRoles;
+    private ThreadPool threadPool;
 
     @Before
     public void init() throws Exception {
         users = Paths.get(getClass().getResource("users").toURI());
         usersRoles = Paths.get(getClass().getResource("users_roles").toURI());
+        threadPool = new ThreadPool("test");
+    }
+
+    @After
+    public void shutdown() {
+        threadPool.shutdownNow();
     }
 
     @Test
     public void test() throws Exception {
         Settings settings = ImmutableSettings.builder().put("client.type", "node").build();
-        Injector injector = Guice.createInjector(new TestModule(users, usersRoles), new ESUsersModule(settings));
+        Injector injector = Guice.createInjector(new TestModule(users, usersRoles, threadPool), new ESUsersModule(settings));
         ESUsersRealm realm = injector.getInstance(ESUsersRealm.class);
         assertThat(realm, notNullValue());
         assertThat(realm.userPasswdStore, notNullValue());
@@ -67,10 +75,12 @@ public class ESUsersModuleTests extends ElasticsearchTestCase {
 
         final Path users;
         final Path usersRoles;
+        private ThreadPool threadPool;
 
-        public TestModule(Path users, Path usersRoles) {
+        public TestModule(Path users, Path usersRoles, ThreadPool threadPool) {
             this.users = users;
             this.usersRoles = usersRoles;
+            this.threadPool = threadPool;
         }
 
         @Override
@@ -82,7 +92,7 @@ public class ESUsersModuleTests extends ElasticsearchTestCase {
             Environment env = new Environment(settings);
             bind(Settings.class).toInstance(settings);
             bind(Environment.class).toInstance(env);
-            bind(ThreadPool.class).toInstance(new ThreadPool("test"));
+            bind(ThreadPool.class).toInstance(threadPool);
             bind(ResourceWatcherService.class).asEagerSingleton();
             bind(RestController.class).toInstance(mock(RestController.class));
         }

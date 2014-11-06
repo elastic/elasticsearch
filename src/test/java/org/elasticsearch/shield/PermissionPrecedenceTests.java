@@ -82,45 +82,47 @@ public class PermissionPrecedenceTests extends ShieldIntegrationTest {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
         TransportAddress address = clusterService.localNode().address();
 
-        TransportClient client = new TransportClient(ImmutableSettings.builder()
+        try (TransportClient client = new TransportClient(ImmutableSettings.builder()
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("node.mode", "network")
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient")))
-                .addTransportAddress(address);
+                .addTransportAddress(address)) {
 
-        // first lets try with "admin"... all should work
 
-        PutIndexTemplateResponse putResponse = client.admin().indices().preparePutTemplate("template1")
-                .setTemplate("test_*")
-                .putHeader("Authorization", basicAuthHeaderValue("admin", SecuredStringTests.build("test123")))
-                .get();
-        assertAcked(putResponse);
+            // first lets try with "admin"... all should work
 
-        GetIndexTemplatesResponse getResponse = client.admin().indices().prepareGetTemplates("template1")
-                .putHeader("Authorization", basicAuthHeaderValue("admin", SecuredStringTests.build("test123")))
-                .get();
-        List<IndexTemplateMetaData> templates = getResponse.getIndexTemplates();
-        assertThat(templates, hasSize(1));
-
-        // now lets try with "user"
-
-        try {
-            client.admin().indices().preparePutTemplate("template1")
+            PutIndexTemplateResponse putResponse = client.admin().indices().preparePutTemplate("template1")
                     .setTemplate("test_*")
-                    .putHeader("Authorization", basicAuthHeaderValue("user", SecuredStringTests.build("test123")))
+                    .putHeader("Authorization", basicAuthHeaderValue("admin", SecuredStringTests.build("test123")))
                     .get();
-            fail("expected an authorization exception as template APIs should require cluster ALL permission");
-        } catch (AuthorizationException ae) {
-            // expected;
-        }
+            assertAcked(putResponse);
 
-        try {
-            client.admin().indices().prepareGetTemplates("template1")
-                    .putHeader("Authorization", basicAuthHeaderValue("user", SecuredStringTests.build("test123")))
+            GetIndexTemplatesResponse getResponse = client.admin().indices().prepareGetTemplates("template1")
+                    .putHeader("Authorization", basicAuthHeaderValue("admin", SecuredStringTests.build("test123")))
                     .get();
-            fail("expected an authorization exception as template APIs should require cluster ALL permission");
-        } catch (AuthorizationException ae) {
-            // expected
+            List<IndexTemplateMetaData> templates = getResponse.getIndexTemplates();
+            assertThat(templates, hasSize(1));
+
+            // now lets try with "user"
+
+            try {
+                client.admin().indices().preparePutTemplate("template1")
+                        .setTemplate("test_*")
+                        .putHeader("Authorization", basicAuthHeaderValue("user", SecuredStringTests.build("test123")))
+                        .get();
+                fail("expected an authorization exception as template APIs should require cluster ALL permission");
+            } catch (AuthorizationException ae) {
+                // expected;
+            }
+
+            try {
+                client.admin().indices().prepareGetTemplates("template1")
+                        .putHeader("Authorization", basicAuthHeaderValue("user", SecuredStringTests.build("test123")))
+                        .get();
+                fail("expected an authorization exception as template APIs should require cluster ALL permission");
+            } catch (AuthorizationException ae) {
+                // expected
+            }
         }
     }
 }

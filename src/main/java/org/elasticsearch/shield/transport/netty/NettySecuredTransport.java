@@ -42,18 +42,18 @@ public class NettySecuredTransport extends NettyTransport {
     }
 
     @Override
-    public ChannelPipelineFactory configureServerChannelPipelineFactory() {
-        return new SslServerChannelPipelineFactory(this);
+    public ChannelPipelineFactory configureServerChannelPipelineFactory(String name, Settings profileSettings) {
+        return new SslServerChannelPipelineFactory(this, name, settings, profileSettings);
     }
 
-    private class SslServerChannelPipelineFactory extends ServerChannelPipeFactory {
+    private class SslServerChannelPipelineFactory extends ServerChannelPipelineFactory {
 
         private final SSLConfig sslConfig;
 
-        public SslServerChannelPipelineFactory(NettyTransport nettyTransport) {
-            super(nettyTransport);
+        public SslServerChannelPipelineFactory(NettyTransport nettyTransport, String name, Settings settings, Settings profileSettings) {
+            super(nettyTransport, name, settings);
             if (ssl) {
-                sslConfig = new SSLConfig(settings.getByPrefix("shield.transport.ssl."), settings.getByPrefix("shield.ssl."), true);
+                sslConfig = new SSLConfig(this.settings.getByPrefix("shield.transport.ssl."), this.settings.getByPrefix("shield.ssl."), true);
                 // try to create an SSL engine, so that exceptions lead to early exit
                 sslConfig.createSSLEngine();
             } else {

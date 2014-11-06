@@ -78,17 +78,18 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
     // no SSL exception as this is the exception is returned when connecting
     @Test(expected = NoNodeAvailableException.class)
     public void testThatUnconfiguredCipchersAreRejected() {
-        TransportClient transportClient = new TransportClient(settingsBuilder()
+        try (TransportClient transportClient = new TransportClient(settingsBuilder()
                 .put(transportClientSettings())
                 .put("name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
                 .putArray("shield.transport.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"})
-                .build());
+                .build())) {
 
-        TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
-        transportClient.addTransportAddress(transportAddress);
+            TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();
+            transportClient.addTransportAddress(transportAddress);
 
-        transportClient.admin().cluster().prepareHealth().get();
+            transportClient.admin().cluster().prepareHealth().get();
+        }
     }
 
     @Test

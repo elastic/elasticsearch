@@ -52,6 +52,7 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
     private File configFile;
     private Settings settings;
     private IPFilteringN2NAuthenticator ipFilteringN2NAuthenticator;
+    private ThreadPool threadPool;
 
     @Before
     public void init() throws Exception {
@@ -61,6 +62,9 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
     @After
     public void shutdown() {
         resourceWatcherService.stop();
+        if (threadPool != null) {
+            threadPool.shutdownNow();
+        }
     }
 
     @Test
@@ -149,7 +153,8 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
 
     private void writeConfigFile(String data) throws IOException {
         Files.write(data.getBytes(Charsets.UTF_8), configFile);
-        resourceWatcherService = new ResourceWatcherService(resourceWatcherServiceSettings, new ThreadPool("resourceWatcher")).start();
+        threadPool = new ThreadPool("resourceWatcher");
+        resourceWatcherService = new ResourceWatcherService(resourceWatcherServiceSettings, threadPool).start();
         settings = settingsBuilder().put("shield.transport.n2n.ip_filter.file", configFile.getPath()).build();
         ipFilteringN2NAuthenticator = new IPFilteringN2NAuthenticator(settings, new Environment(), resourceWatcherService);
     }

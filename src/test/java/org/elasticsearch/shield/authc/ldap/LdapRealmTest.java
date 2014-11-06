@@ -12,8 +12,10 @@ import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.arrayContaining;
@@ -28,10 +30,20 @@ public class LdapRealmTest extends LdapTest {
     public static final String PASSWORD = "pass";
 
     private RestController restController;
+    private ThreadPool threadPool;
+    private ResourceWatcherService resourceWatcherService;
 
     @Before
     public void init() throws Exception {
         restController = mock(RestController.class);
+        threadPool = new ThreadPool("test");
+        resourceWatcherService = new ResourceWatcherService(ImmutableSettings.EMPTY, threadPool);
+    }
+
+    @After
+    public void shutdown() {
+        resourceWatcherService.stop();
+        threadPool.shutdownNow();
     }
 
     @Test
@@ -47,7 +59,7 @@ public class LdapRealmTest extends LdapTest {
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch);
         StandardLdapConnectionFactory ldapFactory = new StandardLdapConnectionFactory(settings);
-        LdapRealm ldap = new LdapRealm(buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
+        LdapRealm ldap = new LdapRealm(buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), restController);
 
         User user = ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
         assertThat( user, notNullValue());
@@ -62,7 +74,7 @@ public class LdapRealmTest extends LdapTest {
         StandardLdapConnectionFactory ldapFactory = new StandardLdapConnectionFactory(
                 buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
 
-        LdapRealm ldap = new LdapRealm(buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
+        LdapRealm ldap = new LdapRealm(buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), restController);
 
         User user = ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
         assertThat( user, notNullValue());
@@ -78,7 +90,7 @@ public class LdapRealmTest extends LdapTest {
                 buildLdapSettings( apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch) );
 
         ldapFactory = spy(ldapFactory);
-        LdapRealm ldap = new LdapRealm( buildCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
+        LdapRealm ldap = new LdapRealm( buildCachingSettings(), ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), restController);
         User user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
         user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
@@ -94,7 +106,7 @@ public class LdapRealmTest extends LdapTest {
         StandardLdapConnectionFactory ldapFactory = new StandardLdapConnectionFactory(
                 buildLdapSettings( apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch) );
 
-        LdapGroupToRoleMapper roleMapper = buildGroupAsRoleMapper();
+        LdapGroupToRoleMapper roleMapper = buildGroupAsRoleMapper(resourceWatcherService);
 
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm( buildCachingSettings(), ldapFactory, roleMapper, restController);
@@ -118,10 +130,10 @@ public class LdapRealmTest extends LdapTest {
         boolean isSubTreeSearch = true;
         String userTemplate = VALID_USER_TEMPLATE;
         StandardLdapConnectionFactory ldapFactory = new StandardLdapConnectionFactory(
-                buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch) );
+                buildLdapSettings(apacheDsRule.getUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
 
         ldapFactory = spy(ldapFactory);
-        LdapRealm ldap = new LdapRealm( buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(), restController);
+        LdapRealm ldap = new LdapRealm( buildNonCachingSettings(), ldapFactory, buildGroupAsRoleMapper(resourceWatcherService), restController);
         User user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
         user = ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 

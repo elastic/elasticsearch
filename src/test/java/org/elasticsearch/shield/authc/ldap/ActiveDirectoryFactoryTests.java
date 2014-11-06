@@ -41,17 +41,18 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
                 buildAdSettings(AD_LDAP_URL, AD_DOMAIN));
 
         String userName = "ironman";
-        LdapConnection ldap = connectionFactory.bind(userName, SecuredStringTests.build(PASSWORD));
-        String userDN = ldap.getAuthenticatedUserDn();
+        try (LdapConnection ldap = connectionFactory.bind(userName, SecuredStringTests.build(PASSWORD))) {
+            String userDN = ldap.getAuthenticatedUserDn();
 
-        List<String> groups = ldap.getGroupsFromUserAttrs(userDN);
-        assertThat(groups, containsInAnyOrder(
-                containsString("Geniuses"),
-                containsString("Billionaire"),
-                containsString("Playboy"),
-                containsString("Philanthropists"),
-                containsString("Avengers"),
-                containsString("SHIELD")));
+            List<String> groups = ldap.getGroupsFromUserAttrs(userDN);
+            assertThat(groups, containsInAnyOrder(
+                    containsString("Geniuses"),
+                    containsString("Billionaire"),
+                    containsString("Playboy"),
+                    containsString("Philanthropists"),
+                    containsString("Avengers"),
+                    containsString("SHIELD")));
+        }
     }
 
     @Test
@@ -61,9 +62,9 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
 
         String[] users = new String[]{"cap", "hawkeye", "hulk", "ironman", "thor", "blackwidow", };
         for(String user: users) {
-            LdapConnection ldap = connectionFactory.bind(user, SecuredStringTests.build(PASSWORD));
-            assertThat("group avenger test for user "+user, ldap.getGroups(), hasItem(Matchers.containsString("Avengers")));
-            ldap.close();
+            try (LdapConnection ldap = connectionFactory.bind(user, SecuredStringTests.build(PASSWORD))) {
+                assertThat("group avenger test for user "+user, ldap.getGroups(), hasItem(Matchers.containsString("Avengers")));
+            }
         }
     }
 
@@ -74,16 +75,17 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
                             "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"));
 
         String userName = "hulk";
-        LdapConnection ldap = connectionFactory.bind(userName, SecuredStringTests.build(PASSWORD));
-        String userDN = ldap.getAuthenticatedUserDn();
+        try (LdapConnection ldap = connectionFactory.bind(userName, SecuredStringTests.build(PASSWORD))) {
+            String userDN = ldap.getAuthenticatedUserDn();
 
-        List<String> groups = ldap.getGroupsFromUserAttrs(userDN);
+            List<String> groups = ldap.getGroupsFromUserAttrs(userDN);
 
-        assertThat(groups, containsInAnyOrder(
-                containsString("Avengers"),
-                containsString("SHIELD"),
-                containsString("Geniuses"),
-                containsString("Philanthropists")));
+            assertThat(groups, containsInAnyOrder(
+                    containsString("Avengers"),
+                    containsString("SHIELD"),
+                    containsString("Geniuses"),
+                    containsString("Philanthropists")));
+        }
     }
 
     @Test
@@ -95,21 +97,21 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
                 LdapTest.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, isSubTreeSearch));
 
         String user = "Bruce Banner";
-        LdapConnection ldap = connectionFactory.bind(user, SecuredStringTests.build(PASSWORD));
+        try (LdapConnection ldap = connectionFactory.bind(user, SecuredStringTests.build(PASSWORD))) {
+            List<String> groups = ldap.getGroupsFromUserAttrs(ldap.getAuthenticatedUserDn());
+            List<String> groups2 = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
 
-        List<String> groups = ldap.getGroupsFromUserAttrs(ldap.getAuthenticatedUserDn());
-        List<String> groups2 = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
-
-        assertThat(groups, containsInAnyOrder(
-                containsString("Avengers"),
-                containsString("SHIELD"),
-                containsString("Geniuses"),
-                containsString("Philanthropists")));
-        assertThat(groups2, containsInAnyOrder(
-                containsString("Avengers"),
-                containsString("SHIELD"),
-                containsString("Geniuses"),
-                containsString("Philanthropists")));
+            assertThat(groups, containsInAnyOrder(
+                    containsString("Avengers"),
+                    containsString("SHIELD"),
+                    containsString("Geniuses"),
+                    containsString("Philanthropists")));
+            assertThat(groups2, containsInAnyOrder(
+                    containsString("Avengers"),
+                    containsString("SHIELD"),
+                    containsString("Geniuses"),
+                    containsString("Philanthropists")));
+        }
     }
 
     public static Settings buildAdSettings(String ldapUrl, String adDomainName) {

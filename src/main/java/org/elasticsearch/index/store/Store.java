@@ -39,6 +39,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -609,6 +610,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * @see StoreFileMetaData
      */
     public final static class MetadataSnapshot implements Iterable<StoreFileMetaData> {
+        private static final ESLogger logger = Loggers.getLogger(MetadataSnapshot.class);
+
         private final Map<String, StoreFileMetaData> metadata;
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot();
@@ -672,6 +675,16 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             return builder.build();
         }
 
+        /**
+         * Reads legacy checksum files found in the directory.
+         *
+         * Files are expected to start with _checksums- prefix
+         * followed by long file version. Only file with the highest version is read, all other files are ignored.
+         *
+         * @param directory the directory to read checksums from
+         * @return a map of file checksums and the checksum file version
+         * @throws IOException
+         */
         static Tuple<Map<String, String>, Long> readLegacyChecksums(Directory directory) throws IOException {
             synchronized (directory) {
                 long lastFound = -1;
@@ -691,6 +704,30 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     }
                 }
                 return new Tuple(new HashMap<>(), -1l);
+            }
+        }
+
+        /**
+         * Deletes all checksum files with version lower than newVersion.
+         *
+         * @param directory the directory to clean
+         * @param newVersion the latest checksum file version
+         * @throws IOException
+         */
+        static void cleanLegacyChecksums(Directory directory, long newVersion) throws IOException {
+            synchronized (directory) {
+                for (String name : directory.listAll()) {
+                    if (isChecksum(name)) {
+                        long current = Long.parseLong(name.substring(CHECKSUMS_PREFIX.length()));
+                        if (current < newVersion) {
+                            try {
+                                directory.deleteFile(name);
+                            } catch (IOException ex) {
+                                logger.debug("can't delete old checksum file [{}]", ex, name);
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -904,6 +941,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 output.writeStringStringMap(checksums);
             }
             directory.sync(Collections.singleton(checksumName));
+            MetadataSnapshot.cleanLegacyChecksums(directory, nextVersion);
         }
 
         public void clear() {

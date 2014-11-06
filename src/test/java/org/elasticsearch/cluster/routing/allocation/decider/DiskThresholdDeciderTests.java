@@ -62,10 +62,10 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.8).build();
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", 100, 10)); // 90% used
-        usages.put("node2", new DiskUsage("node2", 100, 35)); // 65% used
-        usages.put("node3", new DiskUsage("node3", 100, 60)); // 40% used
-        usages.put("node4", new DiskUsage("node4", 100, 80)); // 20% used
+        usages.put("node1", new DiskUsage("node1", "node1", 100, 10)); // 90% used
+        usages.put("node2", new DiskUsage("node2", "node2", 100, 35)); // 65% used
+        usages.put("node3", new DiskUsage("node3", "node3", 100, 60)); // 40% used
+        usages.put("node4", new DiskUsage("node4", "node4", 100, 80)); // 20% used
 
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
@@ -257,11 +257,11 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "9b").build();
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", 100, 10)); // 90% used
-        usages.put("node2", new DiskUsage("node2", 100, 10)); // 90% used
-        usages.put("node3", new DiskUsage("node3", 100, 60)); // 40% used
-        usages.put("node4", new DiskUsage("node4", 100, 80)); // 20% used
-        usages.put("node5", new DiskUsage("node5", 100, 85)); // 15% used
+        usages.put("node1", new DiskUsage("node1", "n1", 100, 10)); // 90% used
+        usages.put("node2", new DiskUsage("node2", "n2", 100, 10)); // 90% used
+        usages.put("node3", new DiskUsage("node3", "n3", 100, 60)); // 40% used
+        usages.put("node4", new DiskUsage("node4", "n4", 100, 80)); // 20% used
+        usages.put("node5", new DiskUsage("node5", "n5", 100, 85)); // 15% used
 
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
@@ -327,7 +327,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         logger.info("--> nodeWithoutPrimary: {}", nodeWithoutPrimary);
 
         // Make node without the primary now habitable to replicas
-        usages.put(nodeWithoutPrimary, new DiskUsage(nodeWithoutPrimary, 100, 35)); // 65% used
+        usages.put(nodeWithoutPrimary, new DiskUsage(nodeWithoutPrimary, "", 100, 35)); // 65% used
         final ClusterInfo clusterInfo2 = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
         cis = new ClusterInfoService() {
             @Override
@@ -522,8 +522,8 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "71%").build();
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", 100, 31)); // 69% used
-        usages.put("node2", new DiskUsage("node2", 100, 1));  // 99% used
+        usages.put("node1", new DiskUsage("node1", "n1", 100, 31)); // 69% used
+        usages.put("node2", new DiskUsage("node2", "n2", 100, 1));  // 99% used
 
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
@@ -588,8 +588,8 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.85).build();
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node2", new DiskUsage("node2", 100, 50)); // 50% used
-        usages.put("node3", new DiskUsage("node3", 100, 0));  // 100% used
+        usages.put("node2", new DiskUsage("node2", "node2", 100, 50)); // 50% used
+        usages.put("node3", new DiskUsage("node3", "node3", 100, 0));  // 100% used
 
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
@@ -659,8 +659,8 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         DiskThresholdDecider decider = new DiskThresholdDecider(ImmutableSettings.EMPTY);
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node2", new DiskUsage("node2", 100, 50)); // 50% used
-        usages.put("node3", new DiskUsage("node3", 100, 0));  // 100% used
+        usages.put("node2", new DiskUsage("node2", "n2", 100, 50)); // 50% used
+        usages.put("node3", new DiskUsage("node3", "n3", 100, 0));  // 100% used
 
         DiskUsage node1Usage = decider.averageUsage(rn, usages);
         assertThat(node1Usage.getTotalBytes(), equalTo(100L));
@@ -673,10 +673,10 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         DiskThresholdDecider decider = new DiskThresholdDecider(ImmutableSettings.EMPTY);
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node2", new DiskUsage("node2", 100, 50)); // 50% used
-        usages.put("node3", new DiskUsage("node3", 100, 0));  // 100% used
+        usages.put("node2", new DiskUsage("node2", "n2", 100, 50)); // 50% used
+        usages.put("node3", new DiskUsage("node3", "n3", 100, 0));  // 100% used
 
-        Double after = decider.freeDiskPercentageAfterShardAssigned(new DiskUsage("node2", 100, 30), 11L);
+        Double after = decider.freeDiskPercentageAfterShardAssigned(new DiskUsage("node2", "n2", 100, 30), 11L);
         assertThat(after, equalTo(19.0));
     }
 
@@ -689,9 +689,9 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.8).build();
 
         Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", 100, 40)); // 60% used
-        usages.put("node2", new DiskUsage("node2", 100, 40)); // 60% used
-        usages.put("node2", new DiskUsage("node3", 100, 40)); // 60% used
+        usages.put("node1", new DiskUsage("node1", "n1", 100, 40)); // 60% used
+        usages.put("node2", new DiskUsage("node2", "n2", 100, 40)); // 60% used
+        usages.put("node2", new DiskUsage("node3", "n3", 100, 40)); // 60% used
 
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 14L); // 14 bytes

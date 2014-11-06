@@ -686,7 +686,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             } catch (Throwable e1) {
                 // ignore
             }
-            throw new SearchParseException(context, "Failed to parse source [" + sSource + "]", e);
+            logger.error("Could not parse search source [{}]", sSource, e);
+            throw new SearchParseException(context, "Failed to parse source", e);
         } finally {
             if (parser != null) {
                 parser.close();

@@ -173,7 +173,6 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        throw new UnsupportedOperationException("i was deprecated in lucene 4, and now i'm gone");
-        // TODO: lucene does sort keys as binary keys since 4.x
+        return new ICUCollationKeyFilter(tokenStream, collator);
     }
 }

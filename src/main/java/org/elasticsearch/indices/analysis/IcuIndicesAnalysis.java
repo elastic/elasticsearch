@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.analysis;
 
+import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.Normalizer2;
 import com.ibm.icu.text.Transliterator;
 import org.apache.lucene.analysis.TokenStream;
@@ -29,6 +30,7 @@ import org.apache.lucene.analysis.icu.segmentation.ICUTokenizer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.ICUCollationKeyFilter;
 import org.elasticsearch.index.analysis.PreBuiltTokenFilterFactoryFactory;
 import org.elasticsearch.index.analysis.PreBuiltTokenizerFactoryFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -78,6 +80,18 @@ public class IcuIndicesAnalysis extends AbstractComponent {
             @Override
             public TokenStream create(TokenStream tokenStream) {
                 return new ICUFoldingFilter(tokenStream);
+            }
+        }));
+
+        indicesAnalysisService.tokenFilterFactories().put("icu_collation", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return "icu_collation";
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return new ICUCollationKeyFilter(tokenStream, Collator.getInstance());
             }
         }));
 

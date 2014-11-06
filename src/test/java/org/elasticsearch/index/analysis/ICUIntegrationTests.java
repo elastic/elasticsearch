@@ -52,8 +52,10 @@ public class ICUIntegrationTests extends ElasticsearchIntegrationTest {
         Settings settings = ImmutableSettings.builder()
                 .put(super.indexSettings())
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.my_analyzer.filter", "standard", "my_folding")
-                .put("index.analysis.filter.my_folding.type", "icu_folding")
+                .putArray("index.analysis.analyzer.my_analyzer.filter", "standard", "lowercase", "my_collator")
+                .put("index.analysis.filter.my_collator.type", "icu_collation")
+                .put("index.analysis.filter.my_collator.language", "en")
+                .put("index.analysis.filter.my_collator.strength", "primary")
                 .build();
 
         return settings;

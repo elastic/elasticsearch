@@ -161,6 +161,7 @@
                                 </execution-times>
                             </balancers>
                             <includes>
+                                <include>**/Test*.class</include>
                                 <include>**/*Tests.class</include>
                                 <include>**/*Test.class</include>
                             </includes>

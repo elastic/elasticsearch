@@ -15,7 +15,7 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>1.4.0-SNAPSHOT</elasticsearch.version>
+        <elasticsearch.version>1.4.0</elasticsearch.version>
         <lucene.version>4.10.2</lucene.version>
         <!-- TODO: do we want to always enforce non-default keys -->
         <keys.path>${basedir}/src/test/resources</keys.path>

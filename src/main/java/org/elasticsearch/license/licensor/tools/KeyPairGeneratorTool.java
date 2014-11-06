@@ -43,7 +43,7 @@ public class KeyPairGeneratorTool extends CliTool {
 
     private static class KeyPairGenerator extends Command {
 
-        public static String DEFAULT_PASS_PHRASE = "elasticsearch-license";
+        public static final String DEFAULT_PASS_PHRASE = "elasticsearch-license";
         private static final String NAME = "key-pair-generator";
         private static final CliToolConfig.Cmd CMD = cmd(NAME, KeyPairGenerator.class)
                 .options(

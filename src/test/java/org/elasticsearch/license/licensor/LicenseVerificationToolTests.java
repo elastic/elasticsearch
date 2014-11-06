@@ -25,16 +25,14 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static org.elasticsearch.common.cli.CliTool.Command;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus;
 import static org.elasticsearch.license.AbstractLicensingTestBase.generateSignedLicense;
 import static org.elasticsearch.license.licensor.tools.LicenseVerificationTool.LicenseVerifier;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class LicenseVerificationToolTests extends CliToolTestCase {
@@ -85,14 +83,15 @@ public class LicenseVerificationToolTests extends CliToolTestCase {
     @Test
     public void testParsingMultipleLicense() throws Exception {
         int n = randomIntBetween(2, 5);
-        Set<ESLicense> inputLicenses = new HashSet<>();
+        Map<String, ESLicense> inputLicenses = new HashMap<>();
         for (int i = 0; i < n; i++) {
-            inputLicenses.add(generateSignedLicense(randomRealisticUnicodeOfCodepointLengthBetween(5, 15),
-                    TimeValue.timeValueHours(1)));
+            ESLicense esLicense = generateSignedLicense(randomRealisticUnicodeOfCodepointLengthBetween(5, 15),
+                    TimeValue.timeValueHours(1));
+            inputLicenses.put(esLicense.feature(), esLicense);
         }
 
         StringBuilder argsBuilder = new StringBuilder();
-        for (ESLicense inputLicense : inputLicenses) {
+        for (ESLicense inputLicense : inputLicenses.values()) {
             argsBuilder.append(" --license ")
                     .append(dumpLicense(inputLicense));
         }
@@ -101,44 +100,33 @@ public class LicenseVerificationToolTests extends CliToolTestCase {
 
         assertThat(command, instanceOf(LicenseVerifier.class));
         LicenseVerifier licenseVerifier = (LicenseVerifier) command;
-        assertThat(licenseVerifier.licenses.size(), equalTo(n));
+        assertThat(licenseVerifier.licenses.size(), equalTo(inputLicenses.size()));
 
-        for (ESLicense inputLicense : inputLicenses) {
-            boolean found = false;
-            for (ESLicense outputLicense : licenseVerifier.licenses) {
-                if (inputLicense.uid().equals(outputLicense.uid())) {
-                    TestUtils.isSame(inputLicense, outputLicense);
-                    found = true;
-                    break;
-                }
-            }
-            assertThat(found, equalTo(true));
+        for (ESLicense outputLicense : licenseVerifier.licenses) {
+            ESLicense inputLicense = inputLicenses.get(outputLicense.feature());
+            assertThat(inputLicense, notNullValue());
+            TestUtils.isSame(inputLicense, outputLicense);
         }
     }
 
     @Test
     public void testToolSimple() throws Exception {
         int n = randomIntBetween(2, 5);
-        Set<ESLicense> inputLicenses = new HashSet<>();
+        Map<String, ESLicense> inputLicenses = new HashMap<>();
         for (int i = 0; i < n; i++) {
-            inputLicenses.add(generateSignedLicense(randomRealisticUnicodeOfCodepointLengthBetween(5, 15),
-                    TimeValue.timeValueHours(1)));
+            ESLicense esLicense = generateSignedLicense(randomRealisticUnicodeOfCodepointLengthBetween(5, 15),
+                    TimeValue.timeValueHours(1));
+            inputLicenses.put(esLicense.feature(), esLicense);
         }
 
-        String output = runLicenseVerificationTool(inputLicenses, ExitStatus.OK);
+        String output = runLicenseVerificationTool(new HashSet<>(inputLicenses.values()), ExitStatus.OK);
         List<ESLicense> outputLicenses = ESLicenses.fromSource(output.getBytes(StandardCharsets.UTF_8), true);
-        assertThat(outputLicenses.size(), equalTo(n));
+        assertThat(outputLicenses.size(), equalTo(inputLicenses.size()));
 
-        for (ESLicense inputLicense : inputLicenses) {
-            boolean found = false;
-            for (ESLicense outputLicense : outputLicenses) {
-                if (inputLicense.uid().equals(outputLicense.uid())) {
-                    TestUtils.isSame(inputLicense, outputLicense);
-                    found = true;
-                    break;
-                }
-            }
-            assertThat(found, equalTo(true));
+        for (ESLicense outputLicense : outputLicenses) {
+            ESLicense inputLicense = inputLicenses.get(outputLicense.feature());
+            assertThat(inputLicense, notNullValue());
+            TestUtils.isSame(inputLicense, outputLicense);
         }
     }
 

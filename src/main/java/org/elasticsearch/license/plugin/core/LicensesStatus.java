@@ -12,7 +12,7 @@ public enum LicensesStatus {
     INVALID((byte) 1),
     EXPIRED((byte) 2);
 
-    private byte id;
+    private final byte id;
 
     LicensesStatus(byte id) {
         this.id = id;

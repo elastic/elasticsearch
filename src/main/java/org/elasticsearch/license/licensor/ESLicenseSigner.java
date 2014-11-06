@@ -30,7 +30,7 @@ import java.util.Set;
 
 public class ESLicenseSigner {
 
-    public static String DEFAULT_PASS_PHRASE = "elasticsearch-license";
+    public final static String DEFAULT_PASS_PHRASE = "elasticsearch-license";
 
     private final static int VERSION_START = 0;
     private final static int VERSION = VERSION_START;

@@ -30,6 +30,7 @@ import static org.elasticsearch.license.licensor.tools.LicenseGeneratorTool.Comm
 import static org.elasticsearch.license.licensor.tools.LicenseGeneratorTool.LicenseGenerator;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class LicenseGenerationToolTests extends CliToolTestCase {
@@ -134,13 +135,14 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
     @Test
     public void testParsingMultipleLicense() throws Exception {
         int n = randomIntBetween(2, 5);
-        List<LicenseSpec> inputLicenseSpecs = new ArrayList<>();
+        Map<String, LicenseSpec> inputLicenseSpecs = new HashMap<>();
         for (int i = 0; i < n; i++) {
-            inputLicenseSpecs.add(generateRandomLicenseSpec());
+            LicenseSpec licenseSpec = generateRandomLicenseSpec();
+            inputLicenseSpecs.put(licenseSpec.feature, licenseSpec);
         }
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
         Command command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
-                args("--license " + generateESLicenseSpecString(inputLicenseSpecs)
+                args("--license " + generateESLicenseSpecString(new ArrayList<>(inputLicenseSpecs.values()))
                         + " --publicKeyPath " + pubKeyPath
                         + " --privateKeyPath " + priKeyPath));
 
@@ -148,44 +150,33 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
         LicenseGenerator licenseGenerator = (LicenseGenerator) command;
         assertThat(licenseGenerator.publicKeyFilePath, equalTo(pubKeyPath));
         assertThat(licenseGenerator.privateKeyFilePath, equalTo(priKeyPath));
-        assertThat(licenseGenerator.licenseSpecs.size(), equalTo(n));
+        assertThat(licenseGenerator.licenseSpecs.size(), equalTo(inputLicenseSpecs.size()));
 
-        for (LicenseSpec inputSpec : inputLicenseSpecs) {
-            boolean found = false;
-            for (ESLicense outputSpec : licenseGenerator.licenseSpecs) {
-                if (inputSpec.uid.equals(outputSpec.uid())) {
-                    assertLicenseSpec(inputSpec, outputSpec);
-                    found = true;
-                    break;
-                }
-            }
-            assertThat(found, equalTo(true));
+        for (ESLicense outputLicenseSpec : licenseGenerator.licenseSpecs) {
+            LicenseSpec inputLicenseSpec = inputLicenseSpecs.get(outputLicenseSpec.feature());
+            assertThat(inputLicenseSpec, notNullValue());
+            assertLicenseSpec(inputLicenseSpec, outputLicenseSpec);
         }
     }
 
     @Test
     public void testTool() throws Exception {
         int n = randomIntBetween(1, 5);
-        List<LicenseSpec> inputLicenseSpecs = new ArrayList<>();
+        Map<String, LicenseSpec> inputLicenseSpecs = new HashMap<>();
         for (int i = 0; i < n; i++) {
-            inputLicenseSpecs.add(generateRandomLicenseSpec());
+            LicenseSpec licenseSpec = generateRandomLicenseSpec();
+            inputLicenseSpecs.put(licenseSpec.feature, licenseSpec);
         }
-        List<ESLicense> licenseSpecs = ESLicenses.fromSource(generateESLicenseSpecString(inputLicenseSpecs).getBytes(StandardCharsets.UTF_8), false);
+        List<ESLicense> licenseSpecs = ESLicenses.fromSource(generateESLicenseSpecString(new ArrayList<>(inputLicenseSpecs.values())).getBytes(StandardCharsets.UTF_8), false);
 
         String output = runLicenseGenerationTool(pubKeyPath, priKeyPath, new HashSet<>(licenseSpecs), ExitStatus.OK);
         List<ESLicense> outputLicenses = ESLicenses.fromSource(output.getBytes(StandardCharsets.UTF_8), true);
-        assertThat(outputLicenses.size(), equalTo(n));
+        assertThat(outputLicenses.size(), equalTo(inputLicenseSpecs.size()));
 
-        for (LicenseSpec inputSpec : inputLicenseSpecs) {
-            boolean found = false;
-            for (ESLicense license : outputLicenses) {
-                if (inputSpec.uid.equals(license.uid())) {
-                    assertLicenseSpec(inputSpec, license);
-                    found = true;
-                    break;
-                }
-            }
-            assertThat(found, equalTo(true));
+        for (ESLicense outputLicense : outputLicenses) {
+            LicenseSpec inputLicenseSpec = inputLicenseSpecs.get(outputLicense.feature());
+            assertThat(inputLicenseSpec, notNullValue());
+            assertLicenseSpec(inputLicenseSpec, outputLicense);
         }
     }
 

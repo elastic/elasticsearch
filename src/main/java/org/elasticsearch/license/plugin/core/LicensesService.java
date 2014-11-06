@@ -169,7 +169,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     }
 
     public static class LicensesUpdateResponse extends ClusterStateUpdateResponse {
-        private LicensesStatus status;
+        private final LicensesStatus status;
 
         public LicensesUpdateResponse(boolean acknowledged, LicensesStatus status) {
             super(acknowledged);

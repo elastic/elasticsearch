@@ -38,14 +38,12 @@ public interface AlertsClientInterface extends ElasticsearchClient<AlertsClientI
 
     ActionFuture<DeleteAlertResponse> deleteAlert(DeleteAlertRequest request);
 
+    IndexAlertRequestBuilder prepareIndexAlert(String alertName);
 
-    IndexAlertRequestBuilder prepareCreateAlert(String alertName);
+    IndexAlertRequestBuilder prepareIndexAlert();
 
-    IndexAlertRequestBuilder prepareCreateAlert();
+    public void indexAlert(IndexAlertRequest request, ActionListener<IndexAlertResponse> response);
 
-    public void createAlert(IndexAlertRequest request, ActionListener<IndexAlertResponse> response);
-
-    ActionFuture<IndexAlertResponse> createAlert(IndexAlertRequest request);
-
+    ActionFuture<IndexAlertResponse> indexAlert(IndexAlertRequest request);
 
 }

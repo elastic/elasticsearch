@@ -51,7 +51,6 @@ public class AlertsClient implements AlertsClientInterface {
 
     }
 
-
     @Override
     public GetAlertRequestBuilder prepareGetAlert(String alertName) {
         return new GetAlertRequestBuilder(this, alertName);
@@ -70,8 +69,6 @@ public class AlertsClient implements AlertsClientInterface {
     public ActionFuture<GetAlertResponse> getAlert(GetAlertRequest request) {
         return execute(GetAlertAction.INSTANCE, request);
     }
-
-
 
     @Override
     public DeleteAlertRequestBuilder prepareDeleteAlert(String alertName) {
@@ -93,25 +90,23 @@ public class AlertsClient implements AlertsClientInterface {
         return execute(DeleteAlertAction.INSTANCE, request);
     }
 
-
-
     @Override
-    public IndexAlertRequestBuilder prepareCreateAlert(String alertName) {
+    public IndexAlertRequestBuilder prepareIndexAlert(String alertName) {
         return new IndexAlertRequestBuilder(this, alertName);
     }
 
     @Override
-    public IndexAlertRequestBuilder prepareCreateAlert() {
+    public IndexAlertRequestBuilder prepareIndexAlert() {
         return new IndexAlertRequestBuilder(this, null);
     }
 
     @Override
-    public void createAlert(IndexAlertRequest request, ActionListener<IndexAlertResponse> response) {
+    public void indexAlert(IndexAlertRequest request, ActionListener<IndexAlertResponse> response) {
         execute(IndexAlertAction.INSTANCE, request, response);
     }
 
     @Override
-    public ActionFuture<IndexAlertResponse> createAlert(IndexAlertRequest request) {
+    public ActionFuture<IndexAlertResponse> indexAlert(IndexAlertRequest request) {
         return execute(IndexAlertAction.INSTANCE, request);
     }
 

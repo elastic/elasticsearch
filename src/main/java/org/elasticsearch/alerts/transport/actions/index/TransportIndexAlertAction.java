@@ -63,6 +63,7 @@ public class TransportIndexAlertAction extends TransportMasterNodeOperationActio
 
     @Override
     protected ClusterBlockException checkBlock(IndexAlertRequest request, ClusterState state) {
+        request.beforeLocalFork(); // This is the best place to make the alert source safe
         return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX});
 
     }

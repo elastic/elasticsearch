@@ -40,6 +40,6 @@ public class IndexAlertRequestBuilder
 
     @Override
     protected void doExecute(ActionListener<IndexAlertResponse> listener) {
-        client.createAlert(request, listener);
+        client.indexAlert(request, listener);
     }
 }

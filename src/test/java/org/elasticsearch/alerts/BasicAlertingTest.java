@@ -62,7 +62,7 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
         SearchRequest searchRequest = new SearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
-        alertsClient.prepareCreateAlert("my-first-alert")
+        alertsClient.prepareIndexAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
 
@@ -91,7 +91,7 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
         SearchRequest searchRequest = new SearchRequest("my-index").source(searchSource().query(matchAllQuery()));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
-        alertsClient.prepareCreateAlert("my-first-alert")
+        alertsClient.prepareIndexAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.File;
+import java.io.IOException;
 
 /**
  *
@@ -74,8 +76,8 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
     }
 
     @Override
-    public void delete(BlobPath path) {
-        FileSystemUtils.deleteRecursively(buildPath(path));
+    public void delete(BlobPath path) throws IOException {
+        IOUtils.rm(buildPath(path).toPath());
     }
 
     @Override

@@ -78,84 +78,34 @@ public class FileSystemUtils {
     }
 
     /**
-     * Deletes the given files recursively. if <tt>deleteRoots</tt> is set to <code>true</code>
-     * the given root files will be deleted as well. Otherwise only their content is deleted.
+     * Returns an array of {@link Path} build from the correspondent element
+     * in the input array using {@link java.io.File#toPath()}
+     * @param files the files to get paths for
      */
-    public static boolean deleteRecursively(File[] roots, boolean deleteRoots) {
-
-        boolean deleted = true;
-        for (File root : roots) {
-            deleted &= deleteRecursively(root, deleteRoots);
+    public static Path[] toPaths(File... files) {
+        Path[] paths = new Path[files.length];
+        for (int i = 0; i < files.length; i++) {
+            paths[i] = files[i].toPath();
         }
-        return deleted;
+        return paths;
     }
 
     /**
-     * Deletes all subdirectories of the given roots recursively.
+     * Deletes all subdirectories in the given path recursively
+     * @throws java.lang.IllegalArgumentException if the given path is not a directory
      */
-    public static boolean deleteSubDirectories(File[] roots) {
-
-        boolean deleted = true;
-        for (File root : roots) {
-            if (root.isDirectory()) {
-                File[] files = root.listFiles(new FileFilter() {
-                    @Override
-                    public boolean accept(File pathname) {
-                        return pathname.isDirectory();
-                    }
-                });
-                deleted &= deleteRecursively(files, true);
-            }
-
-        }
-        return deleted;
-    }
-
-    /**
-     * Deletes the given files recursively including the given roots.
-     */
-    public static boolean deleteRecursively(File... roots) {
-       return deleteRecursively(roots, true);
-    }
-
-    /**
-     * Delete the supplied {@link java.io.File} - for directories,
-     * recursively delete any nested directories or files as well.
-     *
-     * @param root       the root <code>File</code> to delete
-     * @param deleteRoot whether or not to delete the root itself or just the content of the root.
-     * @return <code>true</code> if the <code>File</code> was deleted,
-     *         otherwise <code>false</code>
-     */
-    public static boolean deleteRecursively(File root, boolean deleteRoot) {
-        if (root != null && root.exists()) {
-            if (root.isDirectory()) {
-                File[] children = root.listFiles();
-                if (children != null) {
-                    for (File aChildren : children) {
-                        deleteRecursively(aChildren, true);
+    public static void deleteSubDirectories(Path... paths) throws IOException {
+        for (Path path : paths) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+                for (Path subPath : stream) {
+                    if (Files.isDirectory(subPath)) {
+                        IOUtils.rm(subPath);
                     }
                 }
             }
-
-            if (deleteRoot) {
-                return root.delete();
-            } else {
-                return true;
-            }
         }
-        return false;
     }
 
-    /**
-     * Ensure that any writes to the given file is written to the storage device that contains it.
-     * @param fileToSync the file to fsync
-     * @param isDir if true, the given file is a directory (we open for read and ignore IOExceptions,
-     *  because not all file systems and operating systems allow to fsync on a directory)
-     */
-    public static void syncFile(File fileToSync, boolean isDir) throws IOException {
-        IOUtils.fsync(fileToSync.toPath(), isDir);
-    }
 
     /**
      * Check that a directory exists, is a directory and is readable
@@ -181,11 +131,19 @@ public class FileSystemUtils {
 
     private FileSystemUtils() {}
 
-    public static void tryDeleteFile(File file) {
-        try {
-            file.delete();
-        } catch (SecurityException e1) {
-            // ignore
+    /**
+     * Temporary solution until LUCENE-6051 is fixed
+     * @see org.apache.lucene.util.IOUtils#deleteFilesIgnoringExceptions(java.nio.file.Path...)
+     */
+    public static void deleteFilesIgnoringExceptions(Path... files) {
+        for (Path name : files) {
+            if (name != null) {
+                try {
+                    Files.delete(name);
+                } catch (Throwable ignored) {
+                    // ignore
+                }
+            }
         }
     }
 

@@ -41,6 +41,7 @@ import org.elasticsearch.index.translog.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -215,9 +216,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                             continue;
                         }
                         try {
-                            file.delete();
-                        } catch (Exception e) {
-                            // ignore
+                            Files.delete(file.toPath());
+                        } catch (Exception ex) {
+                            logger.debug("failed to delete " + file, ex);
                         }
                     }
                 }

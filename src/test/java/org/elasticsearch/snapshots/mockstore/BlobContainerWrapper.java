@@ -58,8 +58,8 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public boolean deleteBlob(String blobName) throws IOException {
-        return delegate.deleteBlob(blobName);
+    public void deleteBlob(String blobName) throws IOException {
+        delegate.deleteBlob(blobName);
     }
 
     @Override

@@ -37,6 +37,7 @@ import org.elasticsearch.gateway.local.state.meta.MetaDataStateFormat;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.*;
+import java.nio.file.Files;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -317,7 +318,12 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
                 if (!name.startsWith("shards-")) {
                     continue;
                 }
-                stateFile.delete();
+                try {
+                    Files.delete(stateFile.toPath());
+                } catch (Exception ex) {
+                    logger.debug("Failed to delete state file {}", ex, stateFile);
+                }
+
             }
         }
 

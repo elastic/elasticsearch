@@ -31,6 +31,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -73,8 +74,8 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file"));
 
         logger.info("--> delete both files");
-        assertThat(testFileNoExt.delete(), equalTo(true));
-        assertThat(testFileWithExt.delete(), equalTo(true));
+        Files.delete(testFileNoExt.toPath());
+        Files.delete(testFileWithExt.toPath());
         resourceWatcherService.notifyNow();
 
         logger.info("--> verify that file with extension was correctly removed");

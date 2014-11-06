@@ -20,6 +20,7 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Predicate;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -46,6 +47,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.io.FileSystemUtilsTests.assertFileContent;
@@ -65,12 +67,12 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     private static final String PLUGIN_DIR = "plugins";
 
     @After
-    public void afterTest() {
+    public void afterTest() throws IOException {
         deletePluginsFolder();
     }
 
     @Before
-    public void beforeTest() {
+    public void beforeTest() throws IOException {
         deletePluginsFolder();
     }
 
@@ -123,8 +125,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             assertThat(toolFile.canExecute(), is(true));
         } finally {
             // we need to clean up the copied dirs
-            FileSystemUtils.deleteRecursively(pluginBinDir);
-            FileSystemUtils.deleteRecursively(pluginConfigDir);
+            IOUtils.rm(pluginBinDir.toPath(), pluginConfigDir.toPath());
         }
     }
 
@@ -206,7 +207,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt.new", "version2\n");
         } finally {
             // we need to clean up the copied dirs
-            FileSystemUtils.deleteRecursively(pluginConfigDir);
+            IOUtils.rm(pluginConfigDir.toPath());
         }
     }
 
@@ -230,7 +231,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             assertDirectoryExists(pluginBinDir);
         } finally {
             // we need to clean up the copied dirs
-            FileSystemUtils.deleteRecursively(pluginBinDir);
+            IOUtils.rm(pluginBinDir.toPath());
         }
     }
 
@@ -463,8 +464,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         return false;
     }
 
-    private void deletePluginsFolder() {
-        FileSystemUtils.deleteRecursively(new File(PLUGIN_DIR));
+    private void deletePluginsFolder() throws IOException {
+        IOUtils.rm(Paths.get(PLUGIN_DIR));
     }
 
     @Test

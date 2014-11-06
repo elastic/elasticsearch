@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Files;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -98,7 +99,7 @@ public class FileBasedMappingsTests extends ElasticsearchTestCase {
                 assertEquals(ImmutableSet.of("f", "g", "h"), properties.keySet());
             }
         } finally {
-            FileSystemUtils.deleteRecursively(configDir);
+            IOUtils.rm(configDir.toPath());
         }
     }
 

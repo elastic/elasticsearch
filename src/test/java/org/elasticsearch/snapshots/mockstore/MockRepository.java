@@ -262,9 +262,9 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public boolean deleteBlob(String blobName) throws IOException {
+            public void deleteBlob(String blobName) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
-                return super.deleteBlob(blobName);
+                super.deleteBlob(blobName);
             }
 
             @Override

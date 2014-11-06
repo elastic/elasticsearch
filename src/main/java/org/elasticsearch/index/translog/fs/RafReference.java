@@ -19,11 +19,15 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.io.FileSystemUtils;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -70,12 +74,14 @@ public class RafReference {
         if (refCount.decrementAndGet() <= 0) {
             try {
                 raf.close();
-                if (delete) {
-                    file.delete();
-                }
             } catch (IOException e) {
                 // ignore
+            } finally {
+                if (delete) {
+                    FileSystemUtils.deleteFilesIgnoringExceptions(file.toPath());
+                }
             }
+
         }
     }
 }

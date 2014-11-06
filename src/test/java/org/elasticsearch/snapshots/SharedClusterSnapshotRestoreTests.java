@@ -22,6 +22,7 @@ package org.elasticsearch.snapshots;
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ListenableActionFuture;
@@ -45,6 +46,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
@@ -55,6 +57,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -732,8 +735,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         File testIndex1 = new File(indices, "test-idx-1");
         File testIndex2 = new File(indices, "test-idx-2");
         File testIndex2Shard0 = new File(testIndex2, "0");
-        new File(testIndex1, "snapshot-test-snap-1").delete();
-        new File(testIndex2Shard0, "snapshot-test-snap-1").delete();
+        FileSystemUtils.deleteFilesIgnoringExceptions(new File(testIndex1, "snapshot-test-snap-1").toPath());
+        FileSystemUtils.deleteFilesIgnoringExceptions(new File(testIndex2Shard0, "snapshot-test-snap-1").toPath());
 
         logger.info("--> delete snapshot");
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
@@ -768,7 +771,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("--> delete index metadata and shard metadata");
         File metadata = new File(repo, "metadata-test-snap-1");
-        assertThat(metadata.delete(), equalTo(true));
+        Files.delete(metadata.toPath());
 
         logger.info("--> delete snapshot");
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();

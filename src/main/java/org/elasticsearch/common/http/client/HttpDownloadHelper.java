@@ -22,6 +22,7 @@ package org.elasticsearch.common.http.client;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.*;
@@ -346,7 +347,7 @@ public class HttpDownloadHelper {
                     // Try to delete the garbage we'd otherwise leave
                     // behind.
                     IOUtils.closeWhileHandlingException(os, is);
-                    dest.delete();
+                    FileSystemUtils.deleteFilesIgnoringExceptions(dest.toPath());
                 } else {
                     IOUtils.close(os, is);
                 }
@@ -385,7 +386,7 @@ public class HttpDownloadHelper {
             } else {
                 IOUtils.closeWhileHandlingException(is, os);
                 if (dest != null && dest.exists()) {
-                    dest.delete();
+                    FileSystemUtils.deleteFilesIgnoringExceptions(dest.toPath());
                 }
             }
         }

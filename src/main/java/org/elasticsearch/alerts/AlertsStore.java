@@ -99,21 +99,6 @@ public class AlertsStore extends AbstractComponent {
         return new Tuple<>(alert, response);
     }
 
-    /**
-     * Creates an alert with the specified and fails if an alert with the name already exists.
-     */
-    public IndexResponse createAlert(Alert alert) throws IOException {
-        if (alertMap.putIfAbsent(alert.alertName(), alert) == null) {
-            XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-            alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-            IndexResponse response = persistAlert(alert.alertName(), jsonBuilder.bytes(), IndexRequest.OpType.CREATE);
-            alert.version(response.getVersion());
-            return response;
-        } else {
-            throw new ElasticsearchIllegalArgumentException("There is already an alert named [" + alert.alertName() + "]");
-        }
-    }
-
     public IndexResponse updateAlert(Alert alert) throws IOException {
         return updateAlert(alert, false);
     }

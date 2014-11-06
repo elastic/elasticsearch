@@ -13,7 +13,7 @@ import org.elasticsearch.alerts.client.AlertsClientInterface;
 public class IndexAlertAction extends AlertsClientAction<IndexAlertRequest, IndexAlertResponse, IndexAlertRequestBuilder> {
 
     public static final IndexAlertAction INSTANCE = new IndexAlertAction();
-    public static final String NAME = "indices:data/write/alert/create";
+    public static final String NAME = "indices:data/write/alert/index";
 
     private IndexAlertAction() {
         super(NAME);

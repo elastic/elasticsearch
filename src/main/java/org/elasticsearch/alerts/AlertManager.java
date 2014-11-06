@@ -97,19 +97,6 @@ public class AlertManager extends AbstractComponent {
         return result.v2();
     }
 
-    public IndexResponse addAlert(Alert alert) {
-        ensureStarted();
-        IndexResponse indexResponse = null;
-        try {
-            indexResponse = alertsStore.createAlert(alert);
-        } catch (IOException ioe) {
-            throw new ElasticsearchException("Failed to create alert [" + alert +  "]", ioe);
-        }
-        scheduler.add(alert.alertName(), alert);
-        return indexResponse;
-    }
-
-
     public List<Alert> getAllAlerts() {
         ensureStarted();
         return ImmutableList.copyOf(alertsStore.getAlerts().values());

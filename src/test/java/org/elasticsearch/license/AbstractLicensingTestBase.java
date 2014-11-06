@@ -25,8 +25,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomRealisticUnicodeOfCodepointLengthBetween;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.randomFrom;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -74,10 +74,10 @@ public class AbstractLicensingTestBase {
         long now = System.currentTimeMillis();
         String issueDate = dateMathString("now", now);
         String expiryDate = dateMathString("now+10d/d", now);
-        String uid = randomRealisticUnicodeOfCodepointLengthBetween(2, 10);
-        String feature = randomRealisticUnicodeOfCodepointLengthBetween(5, 15);
-        String issuer = randomRealisticUnicodeOfCodepointLengthBetween(5, 15);
-        String issuedTo = randomRealisticUnicodeOfCodepointLengthBetween(5, 15);
+        String uid = UUID.randomUUID().toString();
+        String feature = "feature__" + randomInt();
+        String issuer = "issuer__"  + randomInt();
+        String issuedTo = "issuedTo__" + randomInt();
         String type = randomFrom("subscription", "internal", "development");
         String subscriptionType = randomFrom("none", "gold", "silver", "platinum");
         int maxNodes = randomIntBetween(5, 100);

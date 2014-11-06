@@ -373,9 +373,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         } catch (ConnectTransportException e) {
                             // can't connect to the node - this is a more common path!
                             logger.trace("[{}] failed to connect to {}", e, sendPingsHandler.id(), finalNodeToSend);
-                        } catch (RemoteTransportException e) {
-                            // something went wrong on the other side
-                            logger.debug("[{}] received a remote error as a response to ping {}", e, sendPingsHandler.id(), finalNodeToSend);
                         } catch (Throwable e) {
                             logger.warn("[{}] failed send ping to {}", e, sendPingsHandler.id(), finalNodeToSend);
                         } finally {

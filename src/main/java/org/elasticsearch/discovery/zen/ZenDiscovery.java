@@ -253,7 +253,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     @Override
     protected void doStop() throws ElasticsearchException {
-        joinThreadControl.stop();
         pingService.stop();
         masterFD.stop("zen disco stop");
         nodesFD.stop();
@@ -283,6 +282,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
             }
         }
+        joinThreadControl.stop();
     }
 
     @Override
@@ -1354,14 +1354,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             running.set(false);
             Thread joinThread = currentJoinThread.getAndSet(null);
             if (joinThread != null) {
-                for (int i = 0; i < 10 && joinThread.isAlive(); i++) {
+                try {
                     joinThread.interrupt();
-                    try {
-                        joinThread.join(200);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
+                } catch (Exception e) {
+                    // ignore
+                }
+                try {
+                    joinThread.join(10000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                 }
             }
         }

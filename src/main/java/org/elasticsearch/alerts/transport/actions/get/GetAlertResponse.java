@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts.transport.actions.get;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,44 +17,38 @@ import java.io.IOException;
  */
 public class GetAlertResponse extends ActionResponse {
     private boolean found = false;
-    private Alert alert = null;
+    private GetResponse getResponse;
 
     public GetAlertResponse() {
 
     }
 
-    public boolean found() {
-        return this.found;
+    public GetAlertResponse(GetResponse getResponse) {
+        this.getResponse = getResponse;
     }
 
-    public void found(boolean found) {
-        this.found = found;
+    public void getResponse(GetResponse getResponse) {
+        this.getResponse = getResponse;
     }
 
-    public Alert alert() {
-        return alert;
-    }
-
-    public void alert(Alert alert){
-        this.alert = alert;
+    public GetResponse getResponse() {
+        return this.getResponse;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        found = in.readBoolean();
-        if (found) {
-            alert = new Alert();
-            alert.readFrom(in);
+        if (in.readBoolean()) {
+            getResponse = GetResponse.readGetResponse(in);
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(found);
-        if (found && alert != null){
-            alert.writeTo(out);
+        out.writeBoolean(getResponse != null);
+        if (getResponse != null) {
+            getResponse.writeTo(out);
         }
     }
 }

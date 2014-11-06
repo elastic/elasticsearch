@@ -17,7 +17,7 @@ import org.elasticsearch.index.VersionType;
  * A delete document action request builder.
  */
 public class GetAlertRequestBuilder
-        extends MasterNodeOperationRequestBuilder<GetAlertRequest, GetAlertResponse, GetAlertRequestBuilder, AlertsClientInterface> {
+        extends ActionRequestBuilder<GetAlertRequest, GetAlertResponse, GetAlertRequestBuilder, AlertsClientInterface> {
 
 
     public GetAlertRequestBuilder(AlertsClientInterface client, String alertName) {

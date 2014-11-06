@@ -10,8 +10,8 @@ import org.elasticsearch.alerts.actions.*;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
-import org.elasticsearch.alerts.transport.actions.create.CreateAlertRequest;
-import org.elasticsearch.alerts.transport.actions.create.CreateAlertResponse;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequest;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
@@ -20,7 +20,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
@@ -124,10 +126,11 @@ public class BasicAlertingTest extends ElasticsearchIntegrationTest {
         );
 
         AlertsClientInterface alertsClient = internalCluster().getInstance(AlertsClient.class, internalCluster().getMasterName());
+        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+        alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
-        //alertManager.addAlert("my-first-alert", jsonBuilder().value(alert).bytes());
-        CreateAlertRequest alertRequest = new CreateAlertRequest(alert);
-        CreateAlertResponse alertsResponse = alertsClient.createAlert(alertRequest).actionGet();
+        IndexAlertRequest alertRequest = alertsClient.prepareCreateAlert().setAlertName("my-first-alert").setAlertSource(jsonBuilder.bytes()).request();
+        IndexAlertResponse alertsResponse = alertsClient.createAlert(alertRequest).actionGet();
         assertNotNull(alertsResponse.indexResponse());
         assertTrue(alertsResponse.indexResponse().isCreated());
 

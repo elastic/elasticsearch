@@ -15,14 +15,12 @@ import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
-import org.elasticsearch.alerts.transport.actions.create.CreateAlertRequest;
-import org.elasticsearch.alerts.transport.actions.create.CreateAlertResponse;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequest;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
-import org.elasticsearch.alerts.transport.actions.update.UpdateAlertRequest;
-import org.elasticsearch.alerts.transport.actions.update.UpdateAlertResponse;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedAlertTrigger;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -31,8 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
@@ -41,13 +38,11 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.core.Is.is;
 import java.util.ArrayList;
@@ -211,25 +206,20 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
                 true
         );
 
+        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+        alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
         AlertsClientInterface alertsClient = internalCluster().getInstance(AlertsClient.class, internalCluster().getMasterName());
 
-        CreateAlertRequest alertRequest = new CreateAlertRequest(alert);
-        CreateAlertResponse alertsResponse = alertsClient.createAlert(alertRequest).actionGet();
+        IndexAlertRequest alertRequest = alertsClient.prepareCreateAlert().setAlertName("my-first-alert").setAlertSource(jsonBuilder.bytes()).request();
+        IndexAlertResponse alertsResponse = alertsClient.createAlert(alertRequest).actionGet();
         assertNotNull(alertsResponse.indexResponse());
         assertTrue(alertsResponse.indexResponse().isCreated());
 
         GetAlertRequest getAlertRequest = new GetAlertRequest(alert.alertName());
         GetAlertResponse getAlertResponse = alertsClient.getAlert(getAlertRequest).actionGet();
-        assertTrue(getAlertResponse.found());
-        assertEquals(alert.schedule(), getAlertResponse.alert().schedule());
-
-        String schedule = "0/10 * * * * ? *";
-        alert.schedule(schedule);
-        UpdateAlertRequest updateAlertRequest = new UpdateAlertRequest(alert);
-        UpdateAlertResponse updateAlertResponse = alertsClient.updateAlert(updateAlertRequest).actionGet();
-        assertNotNull(updateAlertResponse.updateResponse());
-        assertFalse(updateAlertResponse.updateResponse().isCreated());
+        assertTrue(getAlertResponse.getResponse().isExists());
+        assertEquals(getAlertResponse.getResponse().getSourceAsMap().get("schedule").toString(), "0/5 * * * * ? *");
 
         DeleteAlertRequest deleteAlertRequest = new DeleteAlertRequest(alert.alertName());
         DeleteAlertResponse deleteAlertResponse = alertsClient.deleteAlert(deleteAlertRequest).actionGet();
@@ -237,10 +227,8 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         assertTrue(deleteAlertResponse.deleteResponse().isFound());
 
         getAlertResponse = alertsClient.getAlert(getAlertRequest).actionGet();
-        assertFalse(getAlertResponse.found());
+        assertFalse(getAlertResponse.getResponse().isExists());
 
-        updateAlertResponse = alertsClient.updateAlert(updateAlertRequest).actionGet();
-        assertNull(updateAlertResponse.updateResponse());
     }
 
 }

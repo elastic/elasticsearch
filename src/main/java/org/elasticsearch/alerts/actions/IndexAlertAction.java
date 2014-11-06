@@ -66,7 +66,7 @@ public class IndexAlertAction implements AlertAction, ToXContent {
         try {
             XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
             resultBuilder.startObject();
-            //resultBuilder = alertResult.searchResponse.toXContent(resultBuilder, ToXContent.EMPTY_PARAMS);
+            resultBuilder = alertResult.getSearchResponse().toXContent(resultBuilder, ToXContent.EMPTY_PARAMS);
             resultBuilder.field("timestamp", alertResult.getFireTime());
             resultBuilder.endObject();
             indexRequest.source(resultBuilder);

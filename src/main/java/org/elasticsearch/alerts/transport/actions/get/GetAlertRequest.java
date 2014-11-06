@@ -22,7 +22,7 @@ import java.io.IOException;
 
 /**
  */
-public class GetAlertRequest extends MasterNodeOperationRequest<GetAlertRequest> implements IndicesRequest {
+public class GetAlertRequest extends ActionRequest<GetAlertRequest> implements IndicesRequest {
 
     private String alertName;
     private long version = Versions.MATCH_ANY;

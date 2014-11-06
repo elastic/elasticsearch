@@ -8,13 +8,11 @@ package org.elasticsearch.alerts.client;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.update.TransportUpdateAction;
-import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertManager;
-import org.elasticsearch.alerts.transport.actions.create.*;
+import org.elasticsearch.alerts.transport.actions.index.*;
 import org.elasticsearch.alerts.transport.actions.delete.*;
 import org.elasticsearch.alerts.transport.actions.get.*;
-import org.elasticsearch.alerts.transport.actions.update.*;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -36,22 +34,21 @@ public class AlertsClient implements AlertsClientInterface {
                         Settings settings,
                         Headers headers,
                         ActionFilters filters,
-                        TransportService transportService, ClusterService clusterService, AlertManager alertManager) {
+                        TransportService transportService, ClusterService clusterService, AlertManager alertManager,
+                        Client client) {
         this.headers = headers;
         internalActions = new HashMap<>();
         this.threadPool = threadPool;
 
-        internalActions.put(CreateAlertAction.INSTANCE, new TransportCreateAlertAction(settings,
-                CreateAlertAction.NAME, transportService, clusterService, threadPool, filters, alertManager));
+        internalActions.put(IndexAlertAction.INSTANCE, new TransportIndexAlertAction(settings,
+                IndexAlertAction.NAME, transportService, clusterService, threadPool, filters, alertManager));
 
         internalActions.put(GetAlertAction.INSTANCE, new TransportGetAlertAction(settings,
-                GetAlertAction.NAME, transportService, clusterService, threadPool, filters, alertManager));
+                GetAlertAction.NAME, threadPool, filters, client));
 
         internalActions.put(DeleteAlertAction.INSTANCE, new TransportDeleteAlertAction(settings,
                 DeleteAlertAction.NAME, transportService, clusterService, threadPool, filters, alertManager));
 
-        internalActions.put(UpdateAlertAction.INSTANCE, new TransportUpdateAlertAction(settings,
-                UpdateAlertAction.NAME, transportService, clusterService, threadPool, filters, alertManager));
     }
 
 
@@ -99,46 +96,24 @@ public class AlertsClient implements AlertsClientInterface {
 
 
     @Override
-    public CreateAlertRequestBuilder prepareCreateAlert(Alert alert) {
-        return new CreateAlertRequestBuilder(this, alert);
+    public IndexAlertRequestBuilder prepareCreateAlert(String alertName) {
+        return new IndexAlertRequestBuilder(this, alertName);
     }
 
     @Override
-    public CreateAlertRequestBuilder prepareCreateAlert() {
-        return new CreateAlertRequestBuilder(this, null);
+    public IndexAlertRequestBuilder prepareCreateAlert() {
+        return new IndexAlertRequestBuilder(this, null);
     }
 
     @Override
-    public void createAlert(CreateAlertRequest request, ActionListener<CreateAlertResponse> response) {
-        execute(CreateAlertAction.INSTANCE, request, response);
+    public void createAlert(IndexAlertRequest request, ActionListener<IndexAlertResponse> response) {
+        execute(IndexAlertAction.INSTANCE, request, response);
     }
 
     @Override
-    public ActionFuture<CreateAlertResponse> createAlert(CreateAlertRequest request) {
-        return execute(CreateAlertAction.INSTANCE, request);
+    public ActionFuture<IndexAlertResponse> createAlert(IndexAlertRequest request) {
+        return execute(IndexAlertAction.INSTANCE, request);
     }
-
-
-    @Override
-    public UpdateAlertRequestBuilder prepareUpdateAlert(Alert alert) {
-        return new UpdateAlertRequestBuilder(this, alert);
-    }
-
-    @Override
-    public UpdateAlertRequestBuilder prepareUpdateAlert() {
-        return new UpdateAlertRequestBuilder(this);
-    }
-
-    @Override
-    public void updateAlert(UpdateAlertRequest request, ActionListener<UpdateAlertResponse> response) {
-        execute(UpdateAlertAction.INSTANCE, request, response);
-    }
-
-    @Override
-    public ActionFuture<UpdateAlertResponse> updateAlert(UpdateAlertRequest request) {
-        return execute(UpdateAlertAction.INSTANCE, request);
-    }
-
 
     @SuppressWarnings("unchecked")
     @Override

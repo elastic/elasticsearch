@@ -6,23 +6,16 @@
 package org.elasticsearch.alerts.client;
 
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.transport.actions.create.CreateAlertRequest;
-import org.elasticsearch.alerts.transport.actions.create.CreateAlertRequestBuilder;
-import org.elasticsearch.alerts.transport.actions.create.CreateAlertResponse;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequest;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequestBuilder;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequestBuilder;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertRequestBuilder;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
-import org.elasticsearch.alerts.transport.actions.update.UpdateAlertRequest;
-import org.elasticsearch.alerts.transport.actions.update.UpdateAlertRequestBuilder;
-import org.elasticsearch.alerts.transport.actions.update.UpdateAlertResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.lease.Releasable;
 
 /**
  */
@@ -46,24 +39,13 @@ public interface AlertsClientInterface extends ElasticsearchClient<AlertsClientI
     ActionFuture<DeleteAlertResponse> deleteAlert(DeleteAlertRequest request);
 
 
-    CreateAlertRequestBuilder prepareCreateAlert(Alert alert);
+    IndexAlertRequestBuilder prepareCreateAlert(String alertName);
 
-    CreateAlertRequestBuilder prepareCreateAlert();
+    IndexAlertRequestBuilder prepareCreateAlert();
 
-    public void createAlert(CreateAlertRequest request, ActionListener<CreateAlertResponse> response);
+    public void createAlert(IndexAlertRequest request, ActionListener<IndexAlertResponse> response);
 
-    ActionFuture<CreateAlertResponse> createAlert(CreateAlertRequest request);
-
-
-    UpdateAlertRequestBuilder prepareUpdateAlert(Alert alert);
-
-    UpdateAlertRequestBuilder prepareUpdateAlert();
-
-    public void updateAlert(UpdateAlertRequest request, ActionListener<UpdateAlertResponse> response);
-
-    ActionFuture<UpdateAlertResponse> updateAlert(UpdateAlertRequest request);
-
-
+    ActionFuture<IndexAlertResponse> createAlert(IndexAlertRequest request);
 
 
 }

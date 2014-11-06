@@ -7,7 +7,10 @@ package org.elasticsearch.alerts.transport.actions.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertManager;
@@ -15,6 +18,7 @@ import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -27,53 +31,27 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Performs the delete operation.
  */
-public class TransportGetAlertAction extends TransportMasterNodeOperationAction<GetAlertRequest,  GetAlertResponse> {
+public class TransportGetAlertAction extends TransportAction<GetAlertRequest,  GetAlertResponse> {
 
-    private final AlertManager alertManager;
+    private final Client client;
 
     @Inject
-    public TransportGetAlertAction(Settings settings, String actionName, TransportService transportService,
-                                   ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                   AlertManager alertManager) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters);
-        this.alertManager = alertManager;
+    public TransportGetAlertAction(Settings settings, String actionName, ThreadPool threadPool,
+                                   ActionFilters actionFilters, Client client) {
+        super(settings, actionName, threadPool, actionFilters);
+        this.client = client;
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected GetAlertRequest newRequest() {
-        return new GetAlertRequest();
-    }
-
-    @Override
-    protected GetAlertResponse newResponse() {
-        return new GetAlertResponse();
-    }
-
-    @Override
-    protected void masterOperation(GetAlertRequest request, ClusterState state, ActionListener<GetAlertResponse> listener) throws ElasticsearchException {
+    protected void doExecute(GetAlertRequest request, ActionListener<GetAlertResponse> listener) {
         try {
-            Alert alert = alertManager.getAlert(request.alertName());
-            GetAlertResponse response = new GetAlertResponse();
-            response.found(alert != null);
-            response.alert(alert);
+            GetResponse getResponse = client.prepareGet(AlertsStore.ALERT_INDEX, AlertsStore.ALERT_TYPE, request.alertName())
+                    .setVersion(request.version())
+                    .setVersionType(request.versionType()).execute().actionGet();
+            GetAlertResponse response = new GetAlertResponse(getResponse);
             listener.onResponse(response);
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
-
-    @Override
-    protected ClusterBlockException checkBlock(GetAlertRequest request, ClusterState state) {
-        if (!alertManager.isStarted()) {
-            return new ClusterBlockException(null);
-        }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX});
-    }
-
-
 }

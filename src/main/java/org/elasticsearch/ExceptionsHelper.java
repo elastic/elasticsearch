@@ -19,11 +19,13 @@
 
 package org.elasticsearch;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.List;
@@ -161,6 +163,9 @@ public final class ExceptionsHelper {
         return first;
     }
 
+    public static IOException unwrapCorruption(Throwable t) {
+        return (IOException) unwrap(t, CorruptIndexException.class);
+    }
 
     public static <T extends Throwable> T unwrap(Throwable t, Class<T> clazz) {
         if (t != null) {

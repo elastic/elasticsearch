@@ -25,6 +25,8 @@ import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.license.plugin.core.LicensesService.LicensesUpdateResponse;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -335,21 +337,40 @@ public class LicensesServiceTests extends AbstractLicensesIntegrationTests {
     }
 
     private void assertClientListenerNotificationCount(final TestTrackingClientListener clientListener, List<Action> actions) throws Exception {
+        final AtomicInteger expectedEnabledCount = new AtomicInteger(0);
+        final AtomicInteger expectedDisableCount = new AtomicInteger(0);
+
         for (final Action action : actions) {
-            final CountDownLatch enableLatch = new CountDownLatch(action.expectedEnabledCount);
-            final CountDownLatch disableLatch = new CountDownLatch(action.expectedDisabledCount);
-
-            clientListener.latch(enableLatch, disableLatch);
-            action.run();
-
-            if (action.expectedEnabledCount > 0) {
-                assertThat(action.msg, enableLatch.await(action.timeout.getMillis() * 2, TimeUnit.MILLISECONDS), equalTo(true));
-            } else if (action.expectedDisabledCount > 0) {
-                assertThat(action.msg, disableLatch.await(action.timeout.getMillis() * 2, TimeUnit.MILLISECONDS), equalTo(true));
-
-            }
-
+            expectedEnabledCount.addAndGet(action.expectedEnabledCount);
+            expectedDisableCount.addAndGet(action.expectedDisabledCount);
         }
+
+        final CountDownLatch enableLatch = new CountDownLatch(expectedEnabledCount.get());
+        final CountDownLatch disableLatch = new CountDownLatch(expectedDisableCount.get());
+        final AtomicLong cumulativeTimeoutMillis = new AtomicLong(0);
+        clientListener.latch(enableLatch, disableLatch);
+        for (final Action  action : actions) {
+            action.run();
+            cumulativeTimeoutMillis.addAndGet(action.timeout.getMillis());
+        }
+
+        if (expectedDisableCount.get() > 0) {
+            assertThat(getActionMsg(true, enableLatch.getCount(), actions), enableLatch.await((cumulativeTimeoutMillis.get() * 2), TimeUnit.MILLISECONDS), equalTo(true));
+        }
+        if (expectedDisableCount.get() > 0) {
+            assertThat(disableLatch.await((cumulativeTimeoutMillis.get() * 2), TimeUnit.MILLISECONDS), equalTo(true));
+        }
+    }
+
+    private static String getActionMsg(final boolean enabledCount,final long latchCount,final List<Action> actions) {
+            AtomicLong cumulativeCount = new AtomicLong(0);
+            for (Action action : actions) {
+                cumulativeCount.addAndGet((enabledCount)? action.expectedEnabledCount : action.expectedDisabledCount);
+                if (latchCount <= cumulativeCount.get()) {
+                    return action.msg;
+                }
+            }
+        return "there should be no errors";
     }
 
     private class TestTrackingClientListener implements LicensesClientService.Listener {

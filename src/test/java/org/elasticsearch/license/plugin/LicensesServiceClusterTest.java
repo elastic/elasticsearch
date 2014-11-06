@@ -69,14 +69,14 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
         ensureGreen();
 
         logger.info("--> put signed license");
-        final List<ESLicense> esLicenses = generateAndPutLicense();
-        getAndCheckLicense(esLicenses);
+        final ESLicense esLicense = generateAndPutLicense();
+        getAndCheckLicense(esLicense);
         logger.info("--> restart all nodes");
         internalCluster().fullRestart();
         ensureYellow();
 
         logger.info("--> get and check signed license");
-        getAndCheckLicense(esLicenses);
+        getAndCheckLicense(esLicense);
 
         wipeAllLicenses();
     }
@@ -94,7 +94,7 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
         assertEagerConsumerPluginEnableNotification(1);
     }
 
-    private List<ESLicense> generateAndPutLicense() throws Exception {
+    private ESLicense generateAndPutLicense() throws Exception {
         ClusterAdminClient cluster = internalCluster().client().admin().cluster();
         ESLicense license = generateSignedLicense(FEATURE_NAME, TimeValue.timeValueMinutes(1));
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(cluster);
@@ -107,13 +107,13 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
 
-        return putLicenses;
+        return license;
     }
 
-    private void getAndCheckLicense(List<ESLicense> license) {
+    private void getAndCheckLicense(ESLicense license) {
         ClusterAdminClient cluster = internalCluster().client().admin().cluster();
         final GetLicenseResponse response = new GetLicenseRequestBuilder(cluster).get();
         assertThat(response.licenses().size(), equalTo(1));
-        TestUtils.isSame(license, response.licenses());
+        TestUtils.isSame(license, response.licenses().iterator().next());
     }
 }

@@ -63,11 +63,14 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         recoveryState.getIndex().startTime(System.currentTimeMillis());
         // in the none case, we simply start the shard
         // clean the store, there should be nothing there...
+        indexShard.store().incRef();
         try {
             logger.debug("cleaning shard content before creation");
             indexShard.store().deleteContent();
         } catch (IOException e) {
             logger.warn("failed to clean store before starting shard", e);
+        } finally {
+            indexShard.store().decRef();
         }
         indexShard.postRecovery("post recovery from gateway");
         recoveryState.getIndex().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());

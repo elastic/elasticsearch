@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 // The KeyedLock make sure that we only lock on the same alert, but not on different alerts.
 public class AlertManager extends AbstractComponent {
 
-    private AlertScheduler scheduler;
+    private final AlertScheduler scheduler;
     private final AlertsStore alertsStore;
     private final TriggerManager triggerManager;
     private final ClusterService clusterService;
@@ -48,9 +48,12 @@ public class AlertManager extends AbstractComponent {
 
 
     @Inject
-    public AlertManager(Settings settings, ClusterService clusterService, AlertsStore alertsStore,
-                        IndicesService indicesService, TriggerManager triggerManager, AlertActionManager actionManager, AlertActionRegistry actionRegistry) {
+    public AlertManager(Settings settings, ClusterService clusterService, AlertScheduler scheduler, AlertsStore alertsStore,
+                        IndicesService indicesService, TriggerManager triggerManager, AlertActionManager actionManager,
+                        AlertActionRegistry actionRegistry) {
         super(settings);
+        this.scheduler = scheduler;
+        this.scheduler.setAlertManager(this);
         this.alertsStore = alertsStore;
         this.clusterService = clusterService;
         this.triggerManager = triggerManager;
@@ -66,10 +69,6 @@ public class AlertManager extends AbstractComponent {
                 stop();
             }
         });
-    }
-
-    public void setAlertScheduler(AlertScheduler scheduler){
-        this.scheduler = scheduler;
     }
 
     public DeleteResponse deleteAlert(String name) throws InterruptedException, ExecutionException {

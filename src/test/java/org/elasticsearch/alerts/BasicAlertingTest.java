@@ -6,26 +6,19 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
-import org.elasticsearch.alerts.triggers.ScriptedTrigger;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
-
-import java.util.ArrayList;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.is;
 
 /**
  */
@@ -54,9 +47,10 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
         SearchRequest searchRequest = new SearchRequest("my-index").source(searchSource().query(matchAllQuery()));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
-        alertsClient.prepareIndexAlert("my-first-alert")
+        IndexAlertResponse indexResponse = alertsClient.prepareIndexAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
+        assertThat(indexResponse.indexResponse().isCreated(), is(true));
 
         DeleteAlertRequest deleteAlertRequest = new DeleteAlertRequest("my-first-alert");
         DeleteAlertResponse deleteAlertResponse = alertsClient.deleteAlert(deleteAlertRequest).actionGet();

@@ -19,13 +19,15 @@ import org.quartz.simpl.SimpleJobFactory;
 public class AlertScheduler extends AbstractComponent {
 
     private volatile Scheduler scheduler;
-    private final AlertManager alertManager;
+    private AlertManager alertManager;
 
     @Inject
-    public AlertScheduler(Settings settings, AlertManager alertManager) {
+    public AlertScheduler(Settings settings) {
         super(settings);
+    }
+
+    public void setAlertManager(AlertManager alertManager){
         this.alertManager = alertManager;
-        alertManager.setAlertScheduler(this);
     }
 
     public void start() {

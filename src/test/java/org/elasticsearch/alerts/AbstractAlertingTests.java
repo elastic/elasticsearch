@@ -42,11 +42,8 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("scroll.size", randomIntBetween(1, 100))
-                .put("plugin.mandatory", "alerts")
                 .put("plugin.types", AlertsPlugin.class.getName())
                 .put("node.mode", "network")
-                .put("http.enabled", true)
-                .put("plugins.load_classpath_plugins", false)
                 .build();
     }
 

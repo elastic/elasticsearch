@@ -32,8 +32,11 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.metrics.EvictionStats;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -52,25 +55,27 @@ import static org.hamcrest.Matchers.greaterThan;
 public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        // Set the fielddata and filter size to 1b and expire to 1ms, forces evictions immediately
+        // Set the fielddata and filter size to 2048b (due to 1024 min) and expire to 10ms, to encourage quick evictions
         return  ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("indices.fielddata.cache.expire", "1ms")
-                .put("indices.fielddata.cache.size", "1b")
-                .put("indices.cache.filter.expire", "1ms")
-                .put("indices.cache.filter.size", "1b")
+                .put("indices.fielddata.cache.expire", "10ms")
+                .put("indices.fielddata.cache.size", "2048b")
+                .put(IndicesFilterCache.INDICES_CACHE_FILTER_EXPIRE, "10ms")
+                .put(IndicesFilterCache.INDICES_CACHE_FILTER_SIZE, "2048b")
+                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
                 .build();
     }
 
     @Override
     protected Settings externalNodeSettings(int nodeOrdinal) {
-        // Set the fielddata and filter size to 1b and expire to 1ms, forces evictions immediately
+        // Set the fielddata and filter size to 2048b (due to 1024 min) and expire to 10ms, to encourage quick evictions
         return  ImmutableSettings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("indices.fielddata.cache.expire", "1ms")
-                .put("indices.fielddata.cache.size", "1b")
-                .put("indices.cache.filter.expire", "1ms")
-                .put("indices.cache.filter.size", "1b")
+                .put("indices.fielddata.cache.expire", "10ms")
+                .put("indices.fielddata.cache.size", "2048b")
+                .put(IndicesFilterCache.INDICES_CACHE_FILTER_EXPIRE, "10ms")
+                .put(IndicesFilterCache.INDICES_CACHE_FILTER_SIZE, "2048b")
+                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
                 .build();
     }
 
@@ -79,9 +84,8 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
 
         int numberOfShards = between(5, 10);    // We need to override this so that all nodes have at least one shard
-        if (numberOfShards > 0) {
-            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
-        }
+        builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+
         int numberOfReplicas = numberOfReplicas();
         if (numberOfReplicas >= 0) {
             builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
@@ -154,6 +158,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
         }
 
         indexRandom(true, docs);
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
         ensureGreen();
 
         // sort to load it to field data...run multiple queries to thrash the evictions
@@ -273,6 +278,7 @@ public class BackwardsCompatEvictionTests extends ElasticsearchBackwardsCompatIn
         }
 
         indexRandom(true, docs);
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
         ensureGreen();
 
         // Run some searches to cache and evict filters

@@ -37,6 +37,11 @@ public class PutLicenseRequestBuilder extends AcknowledgedRequestBuilder<PutLice
         return this;
     }
 
+    public PutLicenseRequestBuilder setLicense(String licenseSource) {
+        request.licenses(licenseSource);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<PutLicenseResponse> listener) {
         client.execute(PutLicenseAction.INSTANCE, request, listener);

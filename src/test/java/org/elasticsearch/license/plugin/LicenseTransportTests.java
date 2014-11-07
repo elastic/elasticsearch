@@ -6,9 +6,14 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
+import org.elasticsearch.license.core.ESLicenses;
+import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
+import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequestBuilder;
+import org.elasticsearch.license.plugin.action.delete.DeleteLicenseResponse;
 import org.elasticsearch.license.plugin.action.get.GetLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
@@ -49,16 +54,38 @@ public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
         // put license
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
                 .setLicense(actualLicenses);
-        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.execute().get();
+        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
 
         // get license
         GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
         assertThat(getLicenseResponse.licenses(), notNullValue());
+        assertThat(getLicenseResponse.licenses().size(), equalTo(1));
 
         // check license
-        TestUtils.isSame(actualLicenses, getLicenseResponse.licenses());
+        TestUtils.isSame(signedLicense, getLicenseResponse.licenses().get(0));
+    }
+
+    @Test
+    public void testPutLicenseFromString() throws Exception {
+        ESLicense signedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        String licenseString = TestUtils.dumpLicense(signedLicense);
+
+        // put license source
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
+                .setLicense(licenseString);
+        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
+        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+
+        // get license
+        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
+        assertThat(getLicenseResponse.licenses(), notNullValue());
+        assertThat(getLicenseResponse.licenses().size(), equalTo(1));
+
+        // check license
+        TestUtils.isSame(signedLicense, getLicenseResponse.licenses().get(0));
     }
 
     @Test
@@ -76,9 +103,8 @@ public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
         builder.setLicense(Collections.singletonList(tamperedLicense));
 
         // try to put license (should be invalid)
-        final PutLicenseResponse putLicenseResponse = builder.execute().get();
+        final PutLicenseResponse putLicenseResponse = builder.get();
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.INVALID));
-
 
         // try to get invalid license
         GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
@@ -94,16 +120,17 @@ public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
         // put license
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
                 .setLicense(actualLicenses);
-        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.execute().get();
+        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
 
         // get should return only one license (with longer expiry date)
         GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
         assertThat(getLicenseResponse.licenses(), notNullValue());
+        assertThat(getLicenseResponse.licenses().size(), equalTo(1));
 
         // check license
-        TestUtils.isSame(Collections.singletonList(longerSignedLicense), getLicenseResponse.licenses());
+        TestUtils.isSame(longerSignedLicense, getLicenseResponse.licenses().get(0));
     }
 
     @Test
@@ -115,7 +142,7 @@ public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
         // put license
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
                 .setLicense(actualLicenses);
-        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.execute().get();
+        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
 
@@ -137,16 +164,82 @@ public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
         // put license
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
                 .setLicense(actualLicenses);
-        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.execute().get();
+        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
 
         // get should return both the licenses
         GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
         assertThat(getLicenseResponse.licenses(), notNullValue());
+        assertThat(getLicenseResponse.licenses().size(), equalTo(2));
 
         // check license (should get the longest expiry time for all unique features)
         TestUtils.isSame(Arrays.asList(marvelLicense, longerSignedLicense), getLicenseResponse.licenses());
     }
 
+    @Test
+    public void testRemoveLicenseSimple() throws Exception {
+        ESLicense shieldLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        ESLicense marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueMinutes(5));
+        List<ESLicense> actualLicenses = Arrays.asList(marvelLicense, shieldLicense);
+
+        // put two licenses
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
+                .setLicense(actualLicenses);
+        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
+        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+
+        // get and check licenses
+        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
+        assertThat(getLicenseResponse.licenses(), notNullValue());
+        assertThat(getLicenseResponse.licenses().size(), equalTo(2));
+
+        // delete all licenses
+        DeleteLicenseRequestBuilder deleteLicenseRequestBuilder = new DeleteLicenseRequestBuilder(client().admin().cluster())
+                .setFeatures(Sets.newHashSet("shield", "marvel"));
+        DeleteLicenseResponse deleteLicenseResponse = deleteLicenseRequestBuilder.get();
+        assertThat(deleteLicenseResponse.isAcknowledged(), equalTo(true));
+
+        // get licenses (expected no licenses)
+        getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
+        assertThat(getLicenseResponse.licenses(), notNullValue());
+        assertThat(getLicenseResponse.licenses().size(), equalTo(0));
+    }
+
+    @Test
+    public void testRemoveLicenses() throws Exception {
+        ESLicense shieldLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        ESLicense marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueMinutes(5));
+        List<ESLicense> actualLicenses = Arrays.asList(marvelLicense, shieldLicense);
+
+        // put two licenses
+        PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
+                .setLicense(actualLicenses);
+        PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
+        assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+
+        // delete one license
+        DeleteLicenseRequestBuilder deleteLicenseRequestBuilder = new DeleteLicenseRequestBuilder(client().admin().cluster())
+                .setFeatures(Sets.newHashSet("shield"));
+        DeleteLicenseResponse deleteLicenseResponse = deleteLicenseRequestBuilder.get();
+        assertThat(deleteLicenseResponse.isAcknowledged(), equalTo(true));
+
+        // check other license
+        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
+        assertThat(getLicenseResponse.licenses(), notNullValue());
+        assertThat(getLicenseResponse.licenses().size(), equalTo(1));
+
+        // delete another license
+        deleteLicenseRequestBuilder = new DeleteLicenseRequestBuilder(client().admin().cluster())
+                .setFeatures(Sets.newHashSet("marvel"));
+        deleteLicenseResponse = deleteLicenseRequestBuilder.get();
+        assertThat(deleteLicenseResponse.isAcknowledged(), equalTo(true));
+
+        // check no license
+        getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
+        assertThat(getLicenseResponse.licenses(), notNullValue());
+        assertThat(getLicenseResponse.licenses().size(), equalTo(0));
+    }
 }

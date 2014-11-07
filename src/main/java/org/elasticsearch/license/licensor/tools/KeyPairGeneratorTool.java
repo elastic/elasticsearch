@@ -28,7 +28,8 @@ import static org.elasticsearch.common.cli.CliToolConfig.config;
 
 public class KeyPairGeneratorTool extends CliTool {
 
-    private static final CliToolConfig CONFIG = config("key-pair-generator", KeyPairGeneratorTool.class)
+    public static final String NAME = "key-pair-generator";
+    private static final CliToolConfig CONFIG = config(NAME, KeyPairGeneratorTool.class)
             .cmds(KeyPairGenerator.CMD)
             .build();
 
@@ -41,18 +42,18 @@ public class KeyPairGeneratorTool extends CliTool {
         return KeyPairGenerator.parse(terminal, commandLine);
     }
 
-    private static class KeyPairGenerator extends Command {
+    public static class KeyPairGenerator extends Command {
 
         public static final String DEFAULT_PASS_PHRASE = "elasticsearch-license";
-        private static final String NAME = "key-pair-generator";
+
         private static final CliToolConfig.Cmd CMD = cmd(NAME, KeyPairGenerator.class)
                 .options(
                         option("pub", "publicKeyPath").required(true).hasArg(true),
                         option("pri", "privateKeyPath").required(true).hasArg(true)
                 ).build();
 
-        private final String publicKeyPath;
-        private final String privateKeyPath;
+        public final String publicKeyPath;
+        public final String privateKeyPath;
 
         protected KeyPairGenerator(Terminal terminal, String publicKeyPath, String privateKeyPath) {
             super(terminal);

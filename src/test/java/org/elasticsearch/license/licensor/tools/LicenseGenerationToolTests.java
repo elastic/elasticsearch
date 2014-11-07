@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.license.licensor;
+package org.elasticsearch.license.licensor.tools;
 
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.common.cli.CliTool;
@@ -52,14 +52,22 @@ public class LicenseGenerationToolTests extends CliToolTestCase {
     public void testParsingNonExistentKeyFile() throws Exception {
         LicenseSpec inputLicenseSpec = generateRandomLicenseSpec();
         LicenseGeneratorTool licenseGeneratorTool = new LicenseGeneratorTool();
-        boolean invalidPubKeyPath = randomBoolean();
         Command command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
                 args("--license " + generateESLicenseSpecString(Arrays.asList(inputLicenseSpec))
-                        + " --publicKeyPath " + ((invalidPubKeyPath) ? pubKeyPath.concat("invalid") : pubKeyPath)
-                        + " --privateKeyPath " + ((!invalidPubKeyPath) ? priKeyPath.concat("invalid") : priKeyPath)));
+                        + " --publicKeyPath " + pubKeyPath.concat("invalid")
+                        + " --privateKeyPath " + priKeyPath));
 
         assertThat(command, instanceOf(Command.Exit.class));
         Command.Exit exitCommand = (Command.Exit) command;
+        assertThat(exitCommand.status(), equalTo(ExitStatus.USAGE));
+
+        command = licenseGeneratorTool.parse(LicenseGeneratorTool.NAME,
+                args("--license " + generateESLicenseSpecString(Arrays.asList(inputLicenseSpec))
+                        + " --privateKeyPath " + priKeyPath.concat("invalid")
+                        + " --publicKeyPath " + pubKeyPath));
+
+        assertThat(command, instanceOf(Command.Exit.class));
+        exitCommand = (Command.Exit) command;
         assertThat(exitCommand.status(), equalTo(ExitStatus.USAGE));
     }
 

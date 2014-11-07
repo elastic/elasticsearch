@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
 
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertThat;
@@ -49,5 +50,12 @@ public class TestUtils {
         assertThat(license1.expiryDate(), equalTo(license2.expiryDate()));
         assertThat(license1.issueDate(), equalTo(license2.issueDate()));
         assertThat(license1.maxNodes(), equalTo(license2.maxNodes()));
+    }
+
+    public static String dumpLicense(ESLicense license) throws Exception {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        ESLicenses.toXContent(Collections.singletonList(license), builder, ToXContent.EMPTY_PARAMS);
+        builder.flush();
+        return builder.string();
     }
 }

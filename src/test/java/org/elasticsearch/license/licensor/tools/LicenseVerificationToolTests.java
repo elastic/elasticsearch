@@ -3,17 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.license.licensor;
+package org.elasticsearch.license.licensor.tools;
 
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.core.ESLicense;
@@ -56,7 +52,7 @@ public class LicenseVerificationToolTests extends CliToolTestCase {
                 TimeValue.timeValueHours(1));
         LicenseVerificationTool licenseVerificationTool = new LicenseVerificationTool();
         Command command = licenseVerificationTool.parse(LicenseVerificationTool.NAME,
-                args("--license " + dumpLicense(inputLicense)));
+                args("--license " + TestUtils.dumpLicense(inputLicense)));
         assertThat(command, instanceOf(LicenseVerifier.class));
         LicenseVerifier licenseVerifier = (LicenseVerifier) command;
         assertThat(licenseVerifier.licenses.size(), equalTo(1));
@@ -93,7 +89,7 @@ public class LicenseVerificationToolTests extends CliToolTestCase {
         StringBuilder argsBuilder = new StringBuilder();
         for (ESLicense inputLicense : inputLicenses.values()) {
             argsBuilder.append(" --license ")
-                    .append(dumpLicense(inputLicense));
+                    .append(TestUtils.dumpLicense(inputLicense));
         }
         LicenseVerificationTool licenseVerificationTool = new LicenseVerificationTool();
         Command command = licenseVerificationTool.parse(LicenseVerificationTool.NAME, args(argsBuilder.toString()));
@@ -144,18 +140,9 @@ public class LicenseVerificationToolTests extends CliToolTestCase {
 
     private String dumpLicenseAsFile(ESLicense license) throws Exception {
         File tempFile = temporaryFolder.newFile();
-        FileUtils.write(tempFile, dumpLicense(license));
+        FileUtils.write(tempFile, TestUtils.dumpLicense(license));
         return tempFile.getAbsolutePath();
-
     }
-
-    private String dumpLicense(ESLicense license) throws Exception {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        ESLicenses.toXContent(Collections.singletonList(license), builder, ToXContent.EMPTY_PARAMS);
-        builder.flush();
-        return builder.string();
-    }
-
 
     private String runLicenseVerificationTool(Set<ESLicense> licenses, ExitStatus expectedExitStatus) throws Exception {
         CaptureOutputTerminal outputTerminal = new CaptureOutputTerminal();

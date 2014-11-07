@@ -50,7 +50,6 @@ public class TransportDeleteLicenseAction extends TransportMasterNodeOperationAc
 
     @Override
     protected ClusterBlockException checkBlock(DeleteLicenseRequest request, ClusterState state) {
-        //TODO: do the right checkBlock
         return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, "");
     }
 

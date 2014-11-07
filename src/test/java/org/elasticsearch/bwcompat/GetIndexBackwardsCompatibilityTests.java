@@ -20,8 +20,10 @@
 package org.elasticsearch.bwcompat;
 
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -33,7 +35,9 @@ import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class GetIndexBackwardsCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
 
@@ -41,7 +45,7 @@ public class GetIndexBackwardsCompatibilityTests extends ElasticsearchBackwardsC
     public void testGetAliases() throws Exception {
         CreateIndexResponse createIndexResponse = prepareCreate("test").addAlias(new Alias("testAlias")).execute().actionGet();
         assertAcked(createIndexResponse);
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures("_aliases")
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures(Feature.ALIASES)
                 .execute().actionGet();
         ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliasesMap = getIndexResponse.aliases();
         assertThat(aliasesMap, notNullValue());
@@ -58,7 +62,7 @@ public class GetIndexBackwardsCompatibilityTests extends ElasticsearchBackwardsC
     public void testGetMappings() throws Exception {
         CreateIndexResponse createIndexResponse = prepareCreate("test").addMapping("type1", "{\"type1\":{}}").execute().actionGet();
         assertAcked(createIndexResponse);
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures("_mappings")
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures(Feature.MAPPINGS)
                 .execute().actionGet();
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = getIndexResponse.mappings();
         assertThat(mappings, notNullValue());
@@ -79,7 +83,7 @@ public class GetIndexBackwardsCompatibilityTests extends ElasticsearchBackwardsC
     public void testGetSettings() throws Exception {
         CreateIndexResponse createIndexResponse = prepareCreate("test").setSettings(ImmutableSettings.builder().put("number_of_shards", 1)).execute().actionGet();
         assertAcked(createIndexResponse);
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures("_settings")
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures(Feature.SETTINGS)
                 .execute().actionGet();
         ImmutableOpenMap<String, Settings> settingsMap = getIndexResponse.settings();
         assertThat(settingsMap, notNullValue());
@@ -95,7 +99,7 @@ public class GetIndexBackwardsCompatibilityTests extends ElasticsearchBackwardsC
         ensureSearchable("test");
         assertAcked(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch("test")).get());
         ensureSearchable("test");
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures("_warmers")
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures(Feature.WARMERS)
                 .execute().actionGet();
         ImmutableOpenMap<String, ImmutableList<Entry>> warmersMap = getIndexResponse.warmers();
         assertThat(warmersMap, notNullValue());

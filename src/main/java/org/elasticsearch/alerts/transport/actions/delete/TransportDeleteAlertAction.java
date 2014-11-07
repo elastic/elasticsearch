@@ -54,7 +54,8 @@ public class TransportDeleteAlertAction extends TransportMasterNodeOperationActi
     @Override
     protected void masterOperation(DeleteAlertRequest request, ClusterState state, ActionListener<DeleteAlertResponse> listener) throws ElasticsearchException {
         try {
-            listener.onResponse(new DeleteAlertResponse(alertManager.deleteAlert(request.getAlertName())));
+            DeleteAlertResponse response = new DeleteAlertResponse(alertManager.deleteAlert(request.getAlertName()));
+            listener.onResponse(response);
         } catch (Exception e) {
             listener.onFailure(e);
         }

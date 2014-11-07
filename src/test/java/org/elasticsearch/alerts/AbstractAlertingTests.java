@@ -23,7 +23,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  */
-public class AbstractAlertingTests extends ElasticsearchIntegrationTest {
+public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

@@ -41,6 +41,8 @@ import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+
 /**
  */
 public class AlertsStore extends AbstractComponent {
@@ -106,9 +108,9 @@ public class AlertsStore extends AbstractComponent {
     /**
      * Updates the specified alert by making sure that the made changes are persisted.
      */
-    public IndexResponse updateAlert(Alert alert) {
+    public IndexResponse updateAlert(Alert alert) throws IOException {
         IndexResponse response = client.prepareIndex(ALERT_INDEX, ALERT_TYPE, alert.alertName())
-                .setSource()
+                .setSource(jsonBuilder().value(alert)) // TODO: the content type should be based on the provided content type when the alert was initially added.
                 .setVersion(alert.version())
                 .setOpType(IndexRequest.OpType.INDEX)
                 .get();
@@ -158,8 +160,11 @@ public class AlertsStore extends AbstractComponent {
     public void start(ClusterState state, final LoadingListener listener) {
         IndexMetaData alertIndexMetaData = state.getMetaData().index(ALERT_INDEX);
         if (alertIndexMetaData != null) {
+            logger.info("Previous alerting index");
             if (state.routingTable().index(ALERT_INDEX).allPrimaryShardsActive()) {
+                logger.info("Previous alerting index with active primary shards");
                 if (this.state.compareAndSet(State.STOPPED, State.LOADING)) {
+                    logger.info("Started loading");
                     threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
                         @Override
                         public void run() {
@@ -185,6 +190,7 @@ public class AlertsStore extends AbstractComponent {
                 }
             }
         } else {
+            logger.info("No previous .alert index");
             if (AlertsStore.this.state.compareAndSet(State.STOPPED, State.STARTED)) {
                 listener.onSuccess();
             }
@@ -210,20 +216,24 @@ public class AlertsStore extends AbstractComponent {
     }
 
     private void loadAlerts() {
-        SearchResponse response = client.prepareSearch()
+        SearchResponse response = client.prepareSearch(ALERT_INDEX)
+                .setTypes(ALERT_TYPE)
                 .setSearchType(SearchType.SCAN)
                 .setScroll(scrollTimeout)
                 .setSize(scrollSize)
-                .setTypes(ALERT_TYPE)
-                .setIndices(ALERT_INDEX).get();
+                .setVersion(true)
+                .get();
         try {
-            while (response.getHits().hits().length != 0) {
-                for (SearchHit sh : response.getHits()) {
-                    String alertId = sh.getId();
-                    Alert alert = parseAlert(alertId, sh);
-                    alertMap.put(alertId, alert);
-                }
+            if (response.getHits().getTotalHits() > 0) {
                 response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
+                while (response.getHits().hits().length != 0) {
+                    for (SearchHit sh : response.getHits()) {
+                        String alertId = sh.getId();
+                        Alert alert = parseAlert(alertId, sh);
+                        alertMap.put(alertId, alert);
+                    }
+                    response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
+                }
             }
         } finally {
             client.prepareClearScroll().addScrollId(response.getScrollId()).get();
@@ -318,6 +328,15 @@ public class AlertsStore extends AbstractComponent {
         if (alert.lastActionFire() == null) {
             alert.lastActionFire(new DateTime(0));
         }
+
+        if (alert.schedule() == null) {
+            throw new ElasticsearchIllegalArgumentException("Schedule is a required field");
+        }
+
+        if (alert.trigger() == null) {
+            throw new ElasticsearchIllegalArgumentException("Trigger is a required field");
+        }
+
         return alert;
     }
 

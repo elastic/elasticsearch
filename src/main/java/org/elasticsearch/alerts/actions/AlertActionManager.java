@@ -145,7 +145,7 @@ public class AlertActionManager extends AbstractComponent {
 
     public void loadQueue() {
         SearchResponse response = client.prepareSearch()
-                .setQuery(QueryBuilders.termQuery(AlertActionState.FIELD_NAME, AlertActionState.SEARCH_NEEDED))
+                .setQuery(QueryBuilders.termQuery(AlertActionState.FIELD_NAME, AlertActionState.SEARCH_NEEDED.toString()))
                 .setSearchType(SearchType.SCAN)
                 .setScroll(scrollTimeout)
                 .setSize(scrollSize)

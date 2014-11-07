@@ -309,4 +309,16 @@
             </plugin>
         </plugins>
     </build>
+    <profiles>
+      <profile>
+        <id>artifactory-private</id>
+        <distributionManagement>
+          <snapshotRepository>
+            <id>snapshots</id>
+            <name>artifactory.elasticsearch.org-snapshots</name>
+            <url>https://artifactory.elasticsearch.org/artifactory/libs-snapshot-local</url>
+          </snapshotRepository>
+        </distributionManagement>
+      </profile>
+    </profiles>
 </project>

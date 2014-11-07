@@ -195,6 +195,42 @@
         </plugins>
     </build>
     <profiles>
+        <profile>
+            <id>default</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                      <groupId>com.mycila</groupId>
+                      <artifactId>license-maven-plugin</artifactId>
+                      <version>2.5</version>
+                      <configuration>
+                        <header>dev-tools/elasticsearch_license_header.txt</header>
+                        <headerDefinitions>
+                          <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
+                        </headerDefinitions>
+                        <includes>
+                          <include>src/main/java/org/elasticsearch/**/*.java</include>
+                          <include>src/test/java/org/elasticsearch/**/*.java</include>
+                        </includes>
+                        <excludes>
+                        </excludes>
+                      </configuration>
+                      <executions>
+                        <execution>
+                          <phase>compile</phase>
+                          <goals>
+                            <goal>check</goal>
+                          </goals>
+                        </execution>
+                      </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
       <profile>
         <id>coverage</id>
         <activation>

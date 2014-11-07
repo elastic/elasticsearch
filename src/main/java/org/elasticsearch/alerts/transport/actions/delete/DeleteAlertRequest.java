@@ -70,7 +70,6 @@ public class DeleteAlertRequest extends MasterNodeOperationRequest<DeleteAlertRe
         super.writeTo(out);
         out.writeString(alertName);
         Versions.writeVersion(version, out);
-
     }
 
     @Override

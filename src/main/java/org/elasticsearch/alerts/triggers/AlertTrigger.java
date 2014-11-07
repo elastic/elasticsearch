@@ -154,7 +154,7 @@ public class AlertTrigger implements ToXContent {
             }
         }
 
-        public static String asString(final TriggerType triggerType){
+        public static String asString(final TriggerType triggerType) {
             switch (triggerType) {
                 case NUMBER_OF_EVENTS:
                     return "numberOfEvents";

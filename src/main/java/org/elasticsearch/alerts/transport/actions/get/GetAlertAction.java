@@ -5,11 +5,8 @@
  */
 package org.elasticsearch.alerts.transport.actions.get;
 
-import org.elasticsearch.action.ClientAction;
-import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.client.AlertsClientAction;
 import org.elasticsearch.alerts.client.AlertsClientInterface;
-import org.elasticsearch.client.Client;
 
 /**
  */

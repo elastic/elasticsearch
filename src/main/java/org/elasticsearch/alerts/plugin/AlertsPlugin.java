@@ -17,10 +17,11 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 
 public class AlertsPlugin extends AbstractPlugin {
 
-    public static final String THREAD_POOL_NAME = "alerts";
+    public static final String ALERT_THREAD_POOL_NAME = "alerts";
+    public static final String SCHEDULER_THREAD_POOL_NAME = "alerts";
 
     @Override public String name() {
-        return THREAD_POOL_NAME;
+        return ALERT_THREAD_POOL_NAME;
     }
 
     @Override public String description() {
@@ -37,7 +38,9 @@ public class AlertsPlugin extends AbstractPlugin {
     @Override
     public Settings additionalSettings() {
         return settingsBuilder()
-                .put("threadpool."+ THREAD_POOL_NAME + ".type","cached")
+                .put("threadpool." + ALERT_THREAD_POOL_NAME + ".type", "fixed")
+                .put("threadpool." + ALERT_THREAD_POOL_NAME + ".size", 32) // Executing an alert involves a lot of wait time for networking (search, several index requests + optional trigger logic)
+                .put("threadpool." + SCHEDULER_THREAD_POOL_NAME + ".type", "cached")
                 .build();
     }
 

@@ -8,22 +8,31 @@ package org.elasticsearch.alerts.scheduler;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertManager;
+import org.elasticsearch.alerts.plugin.AlertsPlugin;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.simpl.SimpleJobFactory;
 
+import java.util.Properties;
+
 public class AlertScheduler extends AbstractComponent {
+
+    // Not happy about it, but otherwise we're stuck with Quartz's SimpleThreadPool
+    private volatile static ThreadPool threadPool;
 
     private volatile Scheduler scheduler;
     private AlertManager alertManager;
 
     @Inject
-    public AlertScheduler(Settings settings) {
+    public AlertScheduler(Settings settings, ThreadPool threadPool) {
         super(settings);
+        AlertScheduler.threadPool = threadPool;
     }
 
     public void setAlertManager(AlertManager alertManager){
@@ -34,7 +43,9 @@ public class AlertScheduler extends AbstractComponent {
         try {
             logger.info("Starting scheduler");
             // Can't start a scheduler that has been shutdown, so we need to re-create each time start() is invoked
-            SchedulerFactory schFactory = new StdSchedulerFactory();
+            Properties properties = new Properties();
+            properties.setProperty("org.quartz.threadPool.class", AlertQuartzThreadPool.class.getName());
+            SchedulerFactory schFactory = new StdSchedulerFactory(properties);
             scheduler = schFactory.getScheduler();
             scheduler.setJobFactory(new SimpleJobFactory());
             scheduler.start();
@@ -90,6 +101,50 @@ public class AlertScheduler extends AbstractComponent {
             scheduler.scheduleJob(job, cronTrigger);
         } catch (SchedulerException se) {
             logger.error("Failed to schedule job",se);
+        }
+    }
+
+    // This Quartz thread pool will always accept. On this thread we will only index an alert action and add it to the work queue
+    public static final class AlertQuartzThreadPool implements org.quartz.spi.ThreadPool {
+
+        private final EsThreadPoolExecutor executor;
+
+        public AlertQuartzThreadPool() {
+            this.executor = (EsThreadPoolExecutor) threadPool.executor(AlertsPlugin.SCHEDULER_THREAD_POOL_NAME);
+        }
+
+        @Override
+        public boolean runInThread(Runnable runnable) {
+            executor.execute(runnable);
+            return true;
+        }
+
+        @Override
+        public int blockForAvailableThreads() {
+            return 1;
+        }
+
+        @Override
+        public void initialize() throws SchedulerConfigException {
+
+        }
+
+        @Override
+        public void shutdown(boolean waitForJobsToComplete) {
+
+        }
+
+        @Override
+        public int getPoolSize() {
+            return 1;
+        }
+
+        @Override
+        public void setInstanceId(String schedInstId) {
+        }
+
+        @Override
+        public void setInstanceName(String schedName) {
         }
     }
 

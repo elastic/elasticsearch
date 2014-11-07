@@ -310,12 +310,14 @@ public class AlertActionManager extends AbstractComponent {
                         logger.debug("Stopping thread to read from the job queue");
                         return;
                     }
-                    threadPool.executor(AlertsPlugin.THREAD_POOL_NAME).execute(new AlertHistoryRunnable(entry));
+                    threadPool.executor(AlertsPlugin.ALERT_THREAD_POOL_NAME).execute(new AlertHistoryRunnable(entry));
                 }
             } catch (Exception e) {
-                logger.error("Error during reader thread, restarting queue reader thread...", e);
-                if (started()) {
+                if (started() && !(e instanceof InterruptedException)) {
+                    logger.error("Error during reader thread, restarting queue reader thread...", e);
                     threadPool.executor(ThreadPool.Names.GENERIC).execute(new QueueReaderThread());
+                } else {
+                    logger.error("Error during reader thread", e);
                 }
             }
         }

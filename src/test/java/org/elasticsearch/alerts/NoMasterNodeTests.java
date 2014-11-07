@@ -6,11 +6,7 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.alerts.actions.AlertActionManager;
-import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,9 +21,6 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,22 +53,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
         alertsClient.prepareIndexAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
-
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                IndicesExistsResponse indicesExistsResponse = client().admin().indices().prepareExists(AlertActionManager.ALERT_HISTORY_INDEX).get();
-                assertThat(indicesExistsResponse.isExists(), is(true));
-
-                SearchResponse searchResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX)
-                        .setQuery(termQuery("state", AlertActionState.ACTION_PERFORMED.toString()))
-                        .addField("response.hits.total")
-                        .setSize(1)
-                        .get();
-                assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-                assertThat((Integer) searchResponse.getHits().getAt(0).field("response.hits.total").getValue(), equalTo(1));
-            }
-        }, 30, TimeUnit.SECONDS);
+        assertAlertTriggered("my-first-alert");
 
         // Stop the elected master, no new master will be elected b/c of m_m_n is set to 2
         internalCluster().stopCurrentMasterNode();
@@ -107,18 +85,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
         alertsClient.prepareIndexAlert("my-second-alert")
                 .setAlertSource(alertSource)
                 .get();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                SearchResponse searchResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX)
-                        .setQuery(boolQuery().must(termQuery("state", AlertActionState.ACTION_PERFORMED.toString())).must(termQuery("alert_name", "my-second-alert")))
-                        .addField("response.hits.total")
-                        .setSize(1)
-                        .get();
-                assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-                assertThat((Integer) searchResponse.getHits().getAt(0).field("response.hits.total").getValue(), equalTo(1));
-            }
-        }, 30, TimeUnit.SECONDS);
+        assertAlertTriggered("my-second-alert");
     }
 
 }

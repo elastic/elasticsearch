@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cloud.aws.blobstore;
 
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3Object;
@@ -68,9 +69,12 @@ public class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean deleteBlob(String blobName) throws IOException {
-        blobStore.client().deleteObject(blobStore.bucket(), buildKey(blobName));
-        return true;
+    public void deleteBlob(String blobName) throws IOException {
+        try {
+            blobStore.client().deleteObject(blobStore.bucket(), buildKey(blobName));
+        } catch (AmazonClientException e) {
+            throw new IOException("Exception when deleting blob [" + blobName + "]", e);
+        }
     }
 
     @Override

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.RoutingMissingException;
+
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -285,7 +287,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 String concreteIndex = concreteIndices.getConcreteIndex(updateRequest.index());
                 MappingMetaData mappingMd = clusterState.metaData().index(concreteIndex).mappingOrDefault(updateRequest.type());
                 if (mappingMd != null && mappingMd.routing().required() && updateRequest.routing() == null) {
-                    continue; // What to do?
+                    //Bulk update child doc, NPE error message when parent is not specified #8365 
+                    throw new RoutingMissingException(concreteIndex, updateRequest.type(), updateRequest.id());
                 }
                 ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, updateRequest.type(), updateRequest.id(), updateRequest.routing()).shardId();
                 List<BulkItemRequest> list = requestsByShard.get(shardId);

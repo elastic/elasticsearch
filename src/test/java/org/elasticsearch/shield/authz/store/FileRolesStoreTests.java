@@ -7,7 +7,6 @@ package org.elasticsearch.shield.authz.store;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -45,19 +44,20 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
     @Test
     public void testParseFile() throws Exception {
         Path path = Paths.get(getClass().getResource("roles.yml").toURI());
-        Map<String, Permission.Global> roles = FileRolesStore.parseFile(path, logger, mock(AuthorizationService.class));
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, logger, mock(AuthorizationService.class));
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(3));
 
-        Permission.Global permission = roles.get("role1");
-        assertThat(permission, notNullValue());
-        assertThat(permission.cluster(), notNullValue());
-        assertThat(permission.cluster().privilege(), is(Privilege.Cluster.ALL));
-        assertThat(permission.indices(), notNullValue());
-        assertThat(permission.indices().groups(), notNullValue());
-        assertThat(permission.indices().groups().length, is(2));
+        Permission.Global.Role role = roles.get("role1");
+        assertThat(role, notNullValue());
+        assertThat(role.name(), equalTo("role1"));
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.cluster().privilege(), is(Privilege.Cluster.ALL));
+        assertThat(role.indices(), notNullValue());
+        assertThat(role.indices().groups(), notNullValue());
+        assertThat(role.indices().groups().length, is(2));
 
-        Permission.Global.Indices.Group group = permission.indices().groups()[0];
+        Permission.Global.Indices.Group group = role.indices().groups()[0];
         assertThat(group.indices(), notNullValue());
         assertThat(group.indices().length, is(2));
         assertThat(group.indices()[0], equalTo("idx1"));
@@ -65,29 +65,31 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         assertThat(group.privilege(), notNullValue());
         assertThat(group.privilege(), is(Privilege.Index.READ));
 
-        group = permission.indices().groups()[1];
+        group = role.indices().groups()[1];
         assertThat(group.indices(), notNullValue());
         assertThat(group.indices().length, is(1));
         assertThat(group.indices()[0], equalTo("idx3"));
         assertThat(group.privilege(), notNullValue());
         assertThat(group.privilege(), is(Privilege.Index.CRUD));
 
-        permission = roles.get("role2");
-        assertThat(permission, notNullValue());
-        assertThat(permission.cluster(), notNullValue());
-        assertThat(permission.cluster().privilege(), is(Privilege.Cluster.ALL)); // MONITOR is collapsed into ALL
-        assertThat(permission.indices(), notNullValue());
-        assertThat(permission.indices(), is(Permission.Global.Indices.NONE));
+        role = roles.get("role2");
+        assertThat(role, notNullValue());
+        assertThat(role.name(), equalTo("role2"));
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.cluster().privilege(), is(Privilege.Cluster.ALL)); // MONITOR is collapsed into ALL
+        assertThat(role.indices(), notNullValue());
+        assertThat(role.indices(), is(Permission.Indices.Core.NONE));
 
-        permission = roles.get("role3");
-        assertThat(permission, notNullValue());
-        assertThat(permission.cluster(), notNullValue());
-        assertThat(permission.cluster(), is(Permission.Global.Cluster.NONE));
-        assertThat(permission.indices(), notNullValue());
-        assertThat(permission.indices().groups(), notNullValue());
-        assertThat(permission.indices().groups().length, is(1));
+        role = roles.get("role3");
+        assertThat(role, notNullValue());
+        assertThat(role.name(), equalTo("role3"));
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
+        assertThat(role.indices(), notNullValue());
+        assertThat(role.indices().groups(), notNullValue());
+        assertThat(role.indices().groups().length, is(1));
 
-        group = permission.indices().groups()[0];
+        group = role.indices().groups()[0];
         assertThat(group.indices(), notNullValue());
         assertThat(group.indices().length, is(1));
         assertThat(group.indices()[0], equalTo("/.*_.*/"));
@@ -101,7 +103,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
     @Test
     public void testDefaultRolesFile() throws Exception {
         Path path = Paths.get(getClass().getResource("default_roles.yml").toURI());
-        Map<String, Permission.Global> roles = FileRolesStore.parseFile(path, logger, mock(AuthorizationService.class));
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, logger, mock(AuthorizationService.class));
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(8));
 
@@ -140,10 +142,10 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
                 }
             });
 
-            Permission.Global permission = store.permission("role1");
-            assertThat(permission, notNullValue());
-            permission = store.permission("role4");
-            assertThat(permission, nullValue());
+            Permission.Global.Role role = store.role("role1");
+            assertThat(role, notNullValue());
+            role = store.role("role4");
+            assertThat(role, nullValue());
 
             watcherService.start();
 
@@ -159,10 +161,11 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
                 fail("Waited too long for the updated file to be picked up");
             }
 
-            permission = store.permission("role4");
-            assertThat(permission, notNullValue());
-            assertThat(permission.check(null, "cluster:monitor/foo/bar", null, null), is(true));
-            assertThat(permission.check(null, "cluster:admin/foo/bar", null, null), is(false));
+            role = store.role("role4");
+            assertThat(role, notNullValue());
+            assertThat(role.name(), equalTo("role4"));
+            assertThat(role.cluster().check("cluster:monitor/foo/bar"), is(true));
+            assertThat(role.cluster().check("cluster:admin/foo/bar"), is(false));
 
         } finally {
             if (watcherService != null) {
@@ -178,7 +181,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
         File file = tempFolder.newFile();
         com.google.common.io.Files.write("#".getBytes(Charsets.UTF_8), file);
-        Map<String, Permission.Global> roles = FileRolesStore.parseFile(file.toPath(), logger, mock(AuthorizationService.class));
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(file.toPath(), logger, mock(AuthorizationService.class));
         assertThat(roles.keySet(), is(empty()));
     }
 

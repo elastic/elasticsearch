@@ -13,34 +13,21 @@ import org.junit.Test;
 
 import static org.elasticsearch.shield.authz.Privilege.Index.*;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
 
 /**
  *
  */
 public class PermissionTests extends ElasticsearchTestCase {
 
-    private Permission.Global permission;
+    private Permission.Global.Role permission;
 
     @Before
     public void init() {
-        Permission.Global.Builder builder = Permission.Global.builder(mock(AuthorizationService.class));
+        Permission.Global.Role.Builder builder = Permission.Global.Role.builder("test");
         builder.add(union(SEARCH, MONITOR), "test_*", "/foo.*/");
         builder.add(union(READ), "baz_*foo", "/fool.*bar/");
         builder.add(union(MONITOR), "/bar.*/");
         permission = builder.build();
-    }
-
-    @Test
-    public void testAllowedIndicesMatcher_Privilege() throws Exception {
-        testAllowedIndicesMatcher(permission.indices().allowedIndicesMatcher(GET));
-    }
-
-    @Test
-    public void testAllowedIndicesMatcher_Privilege_Caching() throws Exception {
-        Predicate<String> matcher1 = permission.indices().allowedIndicesMatcher(GET.plus(SEARCH).plus(WRITE));
-        Predicate<String> matcher2 = permission.indices().allowedIndicesMatcher(GET.plus(SEARCH).plus(WRITE));
-        assertThat(matcher1, is(matcher2));
     }
 
     @Test

@@ -50,7 +50,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
     private final Path file;
     private final Listener listener;
 
-    private volatile ImmutableMap<String, Permission.Global> permissions;
+    private volatile ImmutableMap<String, Permission.Global.Role> permissions;
 
     @Inject
     public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, AuthorizationService authzService) {
@@ -68,7 +68,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
     }
 
     @Override
-    public Permission.Global permission(String role) {
+    public Permission.Global.Role role(String role) {
         return permissions.get(role);
     }
 
@@ -81,7 +81,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
         return Paths.get(location);
     }
 
-    public static ImmutableMap<String, Permission.Global> parseFile(Path path, ESLogger logger, AuthorizationService authzService) {
+    public static ImmutableMap<String, Permission.Global.Role> parseFile(Path path, ESLogger logger, AuthorizationService authzService) {
         if (logger != null) {
             logger.trace("Reading roles file located at [{}]", path);
         }
@@ -90,7 +90,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
             return ImmutableMap.of();
         }
 
-        ImmutableMap.Builder<String, Permission.Global> roles = ImmutableMap.builder();
+        ImmutableMap.Builder<String, Permission.Global.Role> roles = ImmutableMap.builder();
         try (InputStream input = Files.newInputStream(path, StandardOpenOption.READ)) {
             XContentParser parser = YamlXContent.yamlXContent.createParser(input);
             XContentParser.Token token;
@@ -100,7 +100,7 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
                     String roleName = currentFieldName;
-                    Permission.Global.Builder permission = Permission.Global.builder(authzService);
+                    Permission.Global.Role.Builder permission = Permission.Global.Role.builder(roleName);
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
@@ -174,17 +174,17 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
         }
     }
 
-    public static void writeFile(Map<String, Permission.Global> roles, Path path) {
+    public static void writeFile(Map<String, Permission.Global.Role> roles, Path path) {
         try (OutputStream output = Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
             XContentBuilder builder = XContentFactory.yamlBuilder(output);
-            for (Map.Entry<String, Permission.Global> entry : roles.entrySet()) {
+            for (Map.Entry<String, Permission.Global.Role> entry : roles.entrySet()) {
                 builder.startObject(entry.getKey());
-                Permission.Global permission = entry.getValue();
-                Permission.Cluster cluster = permission.cluster();
+                Permission.Global.Role permission = entry.getValue();
+                Permission.Cluster.Core cluster = permission.cluster();
                 if (cluster != null && cluster.privilege() != Privilege.Cluster.NONE) {
                     builder.field("cluster", cluster.privilege().name());
                 }
-                Permission.Indices indices = permission.indices();
+                Permission.Indices.Core indices = permission.indices();
                 if (indices != null) {
                     Permission.Global.Indices.Group[] groups = indices.groups();
                     if (groups != null && groups.length > 0) {

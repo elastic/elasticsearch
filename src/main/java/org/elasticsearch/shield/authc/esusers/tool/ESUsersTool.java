@@ -348,7 +348,7 @@ public class ESUsersTool extends CliTool {
 
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
-            ImmutableMap<String, Permission.Global> knownRoles = loadRoles(terminal, settings, env);
+            ImmutableMap<String, Permission.Global.Role> knownRoles = loadRoles(terminal, settings, env);
             Path userRolesFilePath = FileUserRolesStore.resolveFile(settings, env);
             Map<String, String[]> userRoles = FileUserRolesStore.parseFile(userRolesFilePath, null);
             Path userFilePath = FileUserPasswdStore.resolveFile(settings, env);
@@ -402,7 +402,7 @@ public class ESUsersTool extends CliTool {
         }
     }
 
-    private static ImmutableMap<String, Permission.Global> loadRoles(Terminal terminal, Settings settings, Environment env) {
+    private static ImmutableMap<String, Permission.Global.Role> loadRoles(Terminal terminal, Settings settings, Environment env) {
         Path rolesFile = FileRolesStore.resolveFile(settings, env);
         try {
             return FileRolesStore.parseFile(rolesFile, null, new DummyAuthzService());
@@ -429,7 +429,7 @@ public class ESUsersTool extends CliTool {
     }
 
     private static void verifyRoles(Terminal terminal, Settings settings, Environment env, String[] roles) {
-        ImmutableMap<String, Permission.Global> knownRoles = loadRoles(terminal, settings, env);
+        ImmutableMap<String, Permission.Global.Role> knownRoles = loadRoles(terminal, settings, env);
         if (knownRoles == null) {
             return;
         }

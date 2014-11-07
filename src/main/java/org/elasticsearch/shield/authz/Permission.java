@@ -5,24 +5,18 @@
  */
 package org.elasticsearch.shield.authz;
 
-import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.cache.LoadingCache;
 import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.shield.User;
-import org.elasticsearch.shield.authz.indicesresolver.DefaultIndicesResolver;
-import org.elasticsearch.shield.authz.indicesresolver.IndicesResolver;
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.collect.UnmodifiableIterator;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
-import org.elasticsearch.transport.TransportRequest;
 
-import java.util.Collection;
 import java.util.Collections;
-import java.util.Set;
+import java.util.Iterator;
 
 /**
  * Represents a permission in the system. There are 3 types of permissions:
@@ -42,16 +36,12 @@ import java.util.Set;
  */
 public interface Permission {
 
-    boolean check(User user, String action, TransportRequest request, MetaData metaData);
+    boolean isEmpty();
 
-    static class Global implements Permission {
+    static abstract class Global implements Permission {
 
         private final Cluster cluster;
         private final Indices indices;
-
-        Global() {
-            this(null, null);
-        }
 
         Global(Cluster cluster, Indices indices) {
             this.cluster = cluster;
@@ -66,191 +56,293 @@ public interface Permission {
             return indices;
         }
 
-        public boolean check(User user, String action, TransportRequest request, MetaData metaData) {
-            if (Privilege.Cluster.ACTION_MATCHER.apply(action)) {
-                return cluster != null && cluster.check(user, action, request, metaData);
-            }
-            if (Privilege.Index.ACTION_MATCHER.apply(action)) {
-                return indices != null && indices.check(user, action, request, metaData);
-            }
-            return false;
-        }
-
-        public static Builder builder(AuthorizationService authzService) {
-            return new Builder(authzService);
-        }
-
-        public static class Builder {
-
-            private final AuthorizationService authzService;
-
-            private Cluster cluster = Cluster.NONE;
-            private ImmutableList.Builder<Indices.Group> groups;
-
-            private Builder(AuthorizationService authzService) {
-                this.authzService = authzService;
-            }
-
-            public Builder set(Privilege.Cluster privilege) {
-                cluster = new Cluster(privilege);
-                return this;
-            }
-
-            public Builder add(Privilege.Index privilege, String... indices) {
-                if (groups == null) {
-                    groups = ImmutableList.builder();
-                }
-                groups.add(new Indices.Group(privilege, indices));
-                return this;
-            }
-
-            public Global build() {
-                Indices indices = groups != null ? new Indices(authzService, groups.build()) : Indices.NONE;
-                return new Global(cluster, indices);
-            }
-        }
-    }
-
-    static class Cluster implements Permission {
-
-        public static final Cluster NONE = new Cluster(Privilege.Cluster.NONE) {
-            @Override
-            public boolean check(User user, String action, TransportRequest request, MetaData metaData) {
-                return false;
-            }
-        };
-
-        private final Privilege.Cluster privilege;
-        private final Predicate<String> predicate;
-
-        private Cluster(Privilege.Cluster privilege) {
-            this.privilege = privilege;
-            this.predicate = privilege.predicate();
-        }
-
-        public Privilege.Cluster privilege() {
-            return privilege;
-        }
-
         @Override
-        public boolean check(User user, String action, TransportRequest request, MetaData metaData) {
-            return predicate.apply(action);
+        public boolean isEmpty() {
+            return (cluster == null || cluster.isEmpty()) && (indices == null || indices.isEmpty());
+        }
+
+        public static class Role extends Global {
+
+            private final String name;
+
+            private Role(String name, Cluster.Core cluster, Indices.Core indices) {
+                super(cluster, indices);
+                this.name = name;
+            }
+
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public Cluster.Core cluster() {
+                return (Cluster.Core) super.cluster();
+            }
+
+            @Override
+            public Indices.Core indices() {
+                return (Indices.Core) super.indices();
+            }
+
+            public static Builder builder(String name) {
+                return new Builder(name);
+            }
+
+            public static class Builder {
+
+                private final String name;
+                private Cluster.Core cluster = Cluster.Core.NONE;
+                private ImmutableList.Builder<Indices.Group> groups = ImmutableList.builder();
+
+                private Builder(String name) {
+                    this.name = name;
+                }
+
+                public Builder set(Privilege.Cluster privilege) {
+                    cluster = new Cluster.Core(privilege);
+                    return this;
+                }
+
+                public Builder add(Privilege.Index privilege, String... indices) {
+                    groups.add(new Indices.Group(privilege, indices));
+                    return this;
+                }
+
+                public Role build() {
+                    ImmutableList<Indices.Group> list = groups.build();
+                    Indices.Core indices = list.isEmpty() ? Indices.Core.NONE : new Indices.Core(list.toArray(new Indices.Group[list.size()]));
+                    return new Role(name, cluster, indices);
+                }
+            }
+        }
+
+        static class Compound extends Global {
+
+            public Compound(ImmutableList<Global> globals) {
+                super(new Cluster.Globals(globals), new Indices.Globals(globals));
+            }
+
+            public static Builder builder() {
+                return new Builder();
+            }
+
+            public static class Builder {
+
+                private ImmutableList.Builder<Global> globals = ImmutableList.builder();
+
+                private Builder() {
+                }
+
+                public Builder add(Global global) {
+                    globals.add(global);
+                    return this;
+                }
+
+                public Compound build() {
+                    return new Compound(globals.build());
+                }
+            }
         }
     }
 
-    static class Indices implements Permission {
+    static interface Cluster extends Permission {
 
-        public static final Indices NONE = new Indices() {
+        boolean check(String action);
+
+        public static class Core implements Cluster {
+
+            public static final Core NONE = new Core(Privilege.Cluster.NONE) {
+                @Override
+                public boolean check(String action) {
+                    return false;
+                }
+
+                @Override
+                public boolean isEmpty() {
+                    return true;
+                }
+            };
+
+            private final Privilege.Cluster privilege;
+            private final Predicate<String> predicate;
+
+            private Core(Privilege.Cluster privilege) {
+                this.privilege = privilege;
+                this.predicate = privilege.predicate();
+            }
+
+            public Privilege.Cluster privilege() {
+                return privilege;
+            }
+
+            public boolean check(String action) {
+                return predicate.apply(action);
+            }
+
             @Override
-            public boolean check(User user, String action, TransportRequest request, MetaData metaData) {
+            public boolean isEmpty() {
                 return false;
             }
-        };
-
-        private final LoadingCache<String, Predicate<String>> allowedIndicesMatchersForAction = CacheBuilder.newBuilder()
-                .build(new CacheLoader<String, Predicate<String>>() {
-                    @Override
-                    public Predicate<String> load(String action) throws Exception {
-                        ImmutableList.Builder<String> indices = ImmutableList.builder();
-                        for (Group group : groups) {
-                            if (group.actionMatcher.apply(action)) {
-                                indices.add(group.indices);
-                            }
-                        }
-                        return new AutomatonPredicate(Automatons.patterns(indices.build()));
-                    }
-                });
-
-        private final LoadingCache<Privilege.Index, Predicate<String>> allowedIndicesMatchersForPrivilege = CacheBuilder.newBuilder()
-                .build(new CacheLoader<Privilege.Index, Predicate<String>>() {
-                    @Override
-                    public Predicate<String> load(Privilege.Index privilege) throws Exception {
-                        ImmutableList.Builder<String> indices = ImmutableList.builder();
-                        for (Group group : groups) {
-                            if (group.privilege.implies(privilege)) {
-                                indices.add(group.indices);
-                            }
-                        }
-                        return new AutomatonPredicate(Automatons.patterns(indices.build()));
-                    }
-                });
-
-        private final IndicesResolver[] indicesResolvers;
-        private final Group[] groups;
-
-        private Indices() {
-            this.indicesResolvers = new IndicesResolver[0];
-            this.groups = new Group[0];
         }
 
-        public Indices(AuthorizationService authzService, Collection<Group> groups) {
-            this.groups = groups.toArray(new Group[groups.size()]);
-            this.indicesResolvers = new IndicesResolver[] {
-                    // add special resolvers here
-                    new DefaultIndicesResolver(authzService)
-            };
-        }
+        static class Globals implements Cluster {
 
-        public Group[] groups() {
-            return groups;
-        }
+            private final ImmutableList<Global> globals;
 
-        /**
-         * @return  A predicate that will match all the indices that this permission
-         *          has the given privilege for.
-         */
-        public Predicate<String> allowedIndicesMatcher(Privilege.Index privilege) {
-            return allowedIndicesMatchersForPrivilege.getUnchecked(privilege);
-        }
-
-        /**
-         * @return  A predicate that will match all the indices that this permission
-         *          has the privilege for executing the given action on.
-         */
-        public Predicate<String> allowedIndicesMatcher(String action) {
-            return allowedIndicesMatchersForAction.getUnchecked(action);
-        }
-
-        @Override @SuppressWarnings("unchecked")
-        public boolean check(User user, String action, TransportRequest request, MetaData metaData) {
-
-            // some APIs are indices requests that are not actually associated with indices. For example,
-            // search scroll request, is categorized under the indices context, but doesn't hold indices names
-            // (in this case, the security check on the indices was done on the search request that initialized
-            // the scroll... and we rely on the signed scroll id to provide security over this request).
-            //
-            // so we only check indices if indeed the request is an actual IndicesRequest, if it's not, we only
-            // perform the check on the action name.
-            Set<String> indices = null;
-            if (request instanceof IndicesRequest || request instanceof CompositeIndicesRequest) {
-                indices = Collections.emptySet();
-                for (IndicesResolver resolver : indicesResolvers) {
-                    if (resolver.requestType().isInstance(request)) {
-                        indices = resolver.resolve(user, action, request, metaData);
-                        break;
-                    }
-                }
+            public Globals(ImmutableList<Global> globals) {
+                this.globals = globals;
             }
 
-            if (indices == null) {
+            @Override
+            public boolean check(String action) {
+                if (globals == null) {
+                    return false;
+                }
+                for (Global global : globals) {
+                    if (global.cluster().check(action)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            @Override
+            public boolean isEmpty() {
+                if (globals == null || globals.isEmpty()) {
+                    return true;
+                }
+                for (Global global : globals) {
+                    if (!global.isEmpty()) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+
+    }
+
+    static interface Indices extends Permission, Iterable<Indices.Group> {
+
+        public static class Core implements Indices {
+
+            public static final Core NONE = new Core() {
+                @Override
+                public Iterator<Group> iterator() {
+                    return Collections.emptyIterator();
+                }
+
+                @Override
+                public boolean isEmpty() {
+                    return true;
+                }
+            };
+
+            private final LoadingCache<String, Predicate<String>> allowedIndicesMatchersForAction = CacheBuilder.newBuilder()
+                    .build(new CacheLoader<String, Predicate<String>>() {
+                        @Override
+                        public Predicate<String> load(String action) throws Exception {
+                            ImmutableList.Builder<String> indices = ImmutableList.builder();
+                            for (Group group : groups) {
+                                if (group.actionMatcher.apply(action)) {
+                                    indices.add(group.indices);
+                                }
+                            }
+                            return new AutomatonPredicate(Automatons.patterns(indices.build()));
+                        }
+                    });
+
+            private final Group[] groups;
+
+            public Core(Group... groups) {
+                this.groups = groups;
+            }
+
+            @Override
+            public Iterator<Group> iterator() {
+                return Iterators.forArray(groups);
+            }
+
+            public Group[] groups() {
+                return groups;
+            }
+
+            @Override
+            public boolean isEmpty() {
+                return groups == null || groups.length == 0;
+            }
+
+            /**
+             * @return A predicate that will match all the indices that this permission
+             * has the privilege for executing the given action on.
+             */
+            public Predicate<String> allowedIndicesMatcher(String action) {
+                return allowedIndicesMatchersForAction.getUnchecked(action);
+            }
+        }
+
+        public static class Globals implements Indices {
+
+            private final ImmutableList<Global> globals;
+
+            public Globals(ImmutableList<Global> globals) {
+                this.globals = globals;
+            }
+
+            @Override
+            public Iterator<Group> iterator() {
+                return globals == null || globals.isEmpty() ?
+                        Collections.<Group>emptyIterator() :
+                        new Iter(globals);
+            }
+
+            @Override
+            public boolean isEmpty() {
+                if (globals == null || globals.isEmpty()) {
+                    return true;
+                }
+                for (Global global : globals) {
+                    if (!global.indices().isEmpty()) {
+                        return false;
+                    }
+                }
                 return true;
             }
 
-            // for every index, at least one group should match it... otherwise denied
-            for (String index : indices) {
-                boolean grant = false;
-                for (Group group : groups) {
-                    if (group.check(action, index)) {
-                        grant = true;
-                        break;
-                    }
+            static class Iter extends UnmodifiableIterator<Group> {
+
+                private final Iterator<Global> globals;
+                private Iterator<Group> current;
+
+                Iter(ImmutableList<Global> globals) {
+                    this.globals = globals.iterator();
+                    advance();
                 }
-                if (!grant) {
-                    return false;
+
+                @Override
+                public boolean hasNext() {
+                    return current != null && current.hasNext();
+                }
+
+                @Override
+                public Group next() {
+                    Group group = current.next();
+                    advance();
+                    return group;
+                }
+
+                private void advance() {
+                    if (current != null && current.hasNext()) {
+                        return;
+                    }
+                    if (!globals.hasNext()) {
+                        // we've reached the end of the globals array
+                        current = null;
+                        return;
+                    }
+                    current = globals.next().indices().iterator();
                 }
             }
-
-            return true;
         }
 
         public static class Group {

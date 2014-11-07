@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authz;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.shield.support.AutomatonPredicate;

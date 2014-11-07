@@ -435,17 +435,22 @@ public class Version implements Serializable {
         if (!Strings.hasLength(version)) {
             return Version.CURRENT;
         }
-
+        final boolean snapshot;
+        if (snapshot = version.endsWith("-SNAPSHOT")) {
+            version = version.substring(0, version.length() - 9);
+        }
         String[] parts = version.split("\\.");
         if (parts.length < 3 || parts.length > 4) {
             throw new IllegalArgumentException("the version needs to contain major, minor and revision, and optionally the build");
         }
 
         try {
+
             //we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
-            int major = Integer.parseInt(parts[0]) * 1000000;
-            int minor = Integer.parseInt(parts[1]) * 10000;
-            int revision = Integer.parseInt(parts[2]) * 100;
+            final int major = Integer.parseInt(parts[0]) * 1000000;
+            final int minor = Integer.parseInt(parts[1]) * 10000;
+            final int revision = Integer.parseInt(parts[2]) * 100;
+
 
             int build = 99;
             if (parts.length == 4) {
@@ -458,7 +463,11 @@ public class Version implements Serializable {
                 }
             }
 
-            return fromId(major + minor + revision + build);
+            final Version versionFromId = fromId(major + minor + revision + build);
+            if (snapshot != versionFromId.snapshot()) {
+                return new Version(versionFromId.id, snapshot, versionFromId.luceneVersion);
+            }
+            return versionFromId;
 
         } catch(NumberFormatException e) {
             throw new IllegalArgumentException("unable to parse version " + version, e);

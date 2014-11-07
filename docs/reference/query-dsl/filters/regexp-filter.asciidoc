@@ -31,7 +31,7 @@ Regular expressions are dangerous because it's easy to write one that
 requires an exponential number of internal determinized automaton
 states (and corresponding RAM and CPU) for Lucene to execute.  To
 prevent this, use the the `max_determinized_states` setting (defaults
-to 10000) to limit how many states may be executd.  If the regexp
+to 10000) to limit how many states may be executed.  If the regexp
 exceeds this count, an exception is thrown and the query will fail.
 
 You have to enable caching explicitly in order to have the

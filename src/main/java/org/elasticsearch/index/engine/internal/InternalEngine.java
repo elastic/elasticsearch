@@ -1327,10 +1327,15 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     }
                     // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                     if (indexWriter != null) {
+                        long t0 = System.nanoTime();
                         try {
                             indexWriter.rollback();
                         } catch (AlreadyClosedException e) {
                             // ignore
+                        }
+                        long t1 = System.nanoTime();
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("indexWriter.rollback took {} nanoseconds", t1-t0);
                         }
                     }
                 } catch (Throwable e) {

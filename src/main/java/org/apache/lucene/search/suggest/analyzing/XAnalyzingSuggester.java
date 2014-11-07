@@ -311,7 +311,8 @@ public class XAnalyzingSuggester extends Lookup {
   protected Automaton convertAutomaton(Automaton a) {
     if (queryPrefix != null) {
       a = Operations.concatenate(Arrays.asList(queryPrefix, a));
-      a = Operations.determinize(a);
+      // This automaton should not blow up during determinize:
+      a = Operations.determinize(a, Integer.MAX_VALUE);
     }
     return a;
   }
@@ -952,14 +953,16 @@ public class XAnalyzingSuggester extends Lookup {
       try {
           automaton = getTokenStreamToAutomaton().toAutomaton(ts);
       } finally {
-        IOUtils.closeWhileHandlingException(ts);
+          IOUtils.closeWhileHandlingException(ts);
       }
 
       automaton = replaceSep(automaton);
 
       // TODO: we can optimize this somewhat by determinizing
       // while we convert
-      automaton = Operations.determinize(automaton);
+
+      // This automaton should not blow up during determinize:
+      automaton = Operations.determinize(automaton, Integer.MAX_VALUE);
       return automaton;
   }
   

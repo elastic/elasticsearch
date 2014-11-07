@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
 import java.io.IOException;
+
+import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 /**
  * A Query that does fuzzy matching for a specific value.
@@ -37,6 +38,8 @@ public class RegexpQueryBuilder extends BaseQueryBuilder implements BoostableQue
     private float boost = -1;
     private String rewrite;
     private String queryName;
+    private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+    private boolean maxDetermizedStatesSet;
 
     /**
      * Constructs a new term query.
@@ -71,6 +74,15 @@ public class RegexpQueryBuilder extends BaseQueryBuilder implements BoostableQue
         return this;
     }
 
+    /**
+     * Sets the regexp maxDeterminizedStates.
+     */
+    public RegexpQueryBuilder maxDeterminizedStates(int value) {
+        this.maxDeterminizedStates = value;
+        this.maxDetermizedStatesSet = true;
+        return this;
+    }
+
     public RegexpQueryBuilder rewrite(String rewrite) {
         this.rewrite = rewrite;
         return this;
@@ -94,6 +106,9 @@ public class RegexpQueryBuilder extends BaseQueryBuilder implements BoostableQue
             builder.field("value", regexp);
             if (flags != -1) {
                 builder.field("flags_value", flags);
+            }
+            if (maxDetermizedStatesSet) {
+                builder.field("max_determinized_states", maxDeterminizedStates);
             }
             if (boost != -1) {
                 builder.field("boost", boost);

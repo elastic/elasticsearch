@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
 import java.io.IOException;
+
+import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 /**
  * A filter that restricts search results to values that have a matching regular expression in a given
@@ -34,6 +35,8 @@ public class RegexpFilterBuilder extends BaseFilterBuilder {
     private final String name;
     private final String regexp;
     private int flags = -1;
+    private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+    private boolean maxDetermizedStatesSet;
 
     private Boolean cache;
     private String cacheKey;
@@ -76,6 +79,15 @@ public class RegexpFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
+     * Sets the regexp maxDeterminizedStates.
+     */
+    public RegexpFilterBuilder maxDeterminizedStates(int value) {
+        this.maxDeterminizedStates = value;
+        this.maxDetermizedStatesSet = true;
+        return this;
+    }
+
+    /**
      * Should the filter be cached or not. Defaults to <tt>false</tt>.
      */
     public RegexpFilterBuilder cache(boolean cache) {
@@ -96,8 +108,11 @@ public class RegexpFilterBuilder extends BaseFilterBuilder {
         } else {
             builder.startObject(name)
                     .field("value", regexp)
-                    .field("flags_value", flags)
-                    .endObject();
+                    .field("flags_value", flags);
+            if (maxDetermizedStatesSet) {
+                builder.field("max_determinized_states", maxDeterminizedStates);
+            }
+            builder.endObject();
         }
 
         if (filterName != null) {

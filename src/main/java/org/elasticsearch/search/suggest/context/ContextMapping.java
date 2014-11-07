@@ -259,7 +259,10 @@ public abstract class ContextMapping implements ToXContent {
             for (ContextQuery query : queries) {
                 a = Operations.concatenate(Arrays.asList(query.toAutomaton(), gap, a));
             }
-            return Operations.determinize(a);
+
+            // TODO: should we limit this?  Do any of our ContextQuery impls really create exponential regexps?  GeoQuery looks safe (union
+            // of strings).
+            return Operations.determinize(a, Integer.MAX_VALUE);
         }
 
         /**

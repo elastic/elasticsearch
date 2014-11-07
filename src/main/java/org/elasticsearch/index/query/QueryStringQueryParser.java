@@ -156,6 +156,8 @@ public class QueryStringQueryParser implements QueryParser {
                     qpSettings.allowLeadingWildcard(parser.booleanValue());
                 } else if ("auto_generate_phrase_queries".equals(currentFieldName) || "autoGeneratePhraseQueries".equals(currentFieldName)) {
                     qpSettings.autoGeneratePhraseQueries(parser.booleanValue());
+                } else if ("max_determinized_states".equals(currentFieldName) || "maxDeterminizedStates".equals(currentFieldName)) {
+                    qpSettings.maxDeterminizedStates(parser.intValue());
                 } else if ("lowercase_expanded_terms".equals(currentFieldName) || "lowercaseExpandedTerms".equals(currentFieldName)) {
                     qpSettings.lowercaseExpandedTerms(parser.booleanValue());
                 } else if ("enable_position_increments".equals(currentFieldName) || "enablePositionIncrements".equals(currentFieldName)) {

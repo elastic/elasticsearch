@@ -260,9 +260,9 @@ public interface FieldMapper<T> extends Mapper {
 
     Filter prefixFilter(Object value, @Nullable QueryParseContext context);
 
-    Query regexpQuery(Object value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
+    Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
 
-    Filter regexpFilter(Object value, int flags, @Nullable QueryParseContext parseContext);
+    Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext parseContext);
 
     /**
      * A term query to use when parsing a query string. Can return <tt>null</tt>.

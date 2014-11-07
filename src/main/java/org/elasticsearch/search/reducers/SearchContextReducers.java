@@ -24,7 +24,7 @@ public class SearchContextReducers {
         private final ReducerFactories factories;
 
         /**
-         * Creates a new aggregation context with the parsed aggregator factories
+         * Creates a new reduction context with the parsed reducer factories
          */
         public SearchContextReducers(ReducerFactories factories) {
             this.factories = factories;

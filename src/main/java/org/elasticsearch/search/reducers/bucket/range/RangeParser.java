@@ -110,7 +110,7 @@ public class RangeParser implements Reducer.Parser{
         }
 
         if (ranges == null) {
-            throw new SearchParseException(context, "Missing [ranges] in ranges aggregator [" + reducerName + "]");
+            throw new SearchParseException(context, "Missing [ranges] in ranges reducer [" + reducerName + "]");
         }
 
         return new RangeReducer.Factory(reducerName, buckets, fieldName, ranges);

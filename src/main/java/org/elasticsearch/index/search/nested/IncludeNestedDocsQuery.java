@@ -112,7 +112,8 @@ public class IncludeNestedDocsQuery extends Query {
                 return null;
             }
 
-            DocIdSet parents = parentsFilter.getDocIdSet(context, acceptDocs);
+            // we pass null here, because acceptDocs are applied above to parentScorer
+            DocIdSet parents = parentsFilter.getDocIdSet(context, null);
             if (parents == null) {
                 // No matches
                 return null;

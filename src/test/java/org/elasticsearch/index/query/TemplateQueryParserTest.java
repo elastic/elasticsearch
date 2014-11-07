@@ -166,10 +166,4 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
         assertTrue(templateContext.template().replace(" ", "").equals("{\"query\":{\"match_all\":{}},\"filter\":{}}"));
     }
     
-    public static void main (String[] args) throws IOException {
-        TemplateQueryParserTest tqpt = new TemplateQueryParserTest();
-        tqpt.testParserWithConditionalClause();
-        tqpt.testParserWithConditionalClause2();
-    }
-    
 }

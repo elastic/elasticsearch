@@ -1,0 +1,7 @@
+{
+  "template" : "{ {{#use_size}} \"size\": \"{{size}}\", {{/use_size}} \"query\":{\"match_all\":{}}}",
+  "params":{
+    "size":2,
+    "use_size": true
+  }
+}

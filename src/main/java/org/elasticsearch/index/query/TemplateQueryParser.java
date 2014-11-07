@@ -33,11 +33,15 @@ import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 
 /**
- * In the simplest case, parse template string and variables from the request, compile the template and
- * execute the template against the given variables.
+ * In the simplest case, parse template string and variables from the request,
+ * compile the template and execute the template against the given variables.
  * */
 public class TemplateQueryParser implements QueryParser {
 
@@ -50,11 +54,11 @@ public class TemplateQueryParser implements QueryParser {
 
     private final ScriptService scriptService;
 
-    private final static Map<String,ScriptService.ScriptType> parametersToTypes = new HashMap<>();
+    private final static Map<String, ScriptService.ScriptType> parametersToTypes = new HashMap<>();
     static {
-        parametersToTypes.put("query",ScriptService.ScriptType.INLINE);
-        parametersToTypes.put("file",ScriptService.ScriptType.FILE);
-        parametersToTypes.put("id",ScriptService.ScriptType.INDEXED);
+        parametersToTypes.put("query", ScriptService.ScriptType.INLINE);
+        parametersToTypes.put("file", ScriptService.ScriptType.FILE);
+        parametersToTypes.put("id", ScriptService.ScriptType.INDEXED);
     }
 
     @Inject
@@ -64,21 +68,24 @@ public class TemplateQueryParser implements QueryParser {
 
     @Override
     public String[] names() {
-        return new String[] {NAME};
+        return new String[] { NAME };
     }
 
     /**
-     * Parses the template query replacing template parameters with provided values.
-     * Handles both submitting the template as part of the request as well as
-     * referencing only the template name.
-     * @param parseContext parse context containing the templated query.
+     * Parses the template query replacing template parameters with provided
+     * values. Handles both submitting the template as part of the request as
+     * well as referencing only the template name.
+     * 
+     * @param parseContext
+     *            parse context containing the templated query.
      */
     @Override
     @Nullable
     public Query parse(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         TemplateContext templateContext = parse(parser, PARAMS, parametersToTypes);
-        ExecutableScript executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.scriptType(), templateContext.params());
+        ExecutableScript executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.scriptType(),
+                templateContext.params());
 
         BytesReference querySource = (BytesReference) executable.run();
 
@@ -90,20 +97,21 @@ public class TemplateQueryParser implements QueryParser {
         }
     }
 
-    public static TemplateContext parse(XContentParser parser, String paramsFieldname, String ... parameters) throws IOException {
+    public static TemplateContext parse(XContentParser parser, String paramsFieldname, String... parameters) throws IOException {
 
-        Map<String,ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
+        Map<String, ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
         for (String parameter : parameters) {
             parameterMap.put(parameter, ScriptService.ScriptType.INLINE);
         }
-        return parse(parser,paramsFieldname,parameterMap);
+        return parse(parser, paramsFieldname, parameterMap);
     }
 
     public static TemplateContext parse(XContentParser parser, String paramsFieldname) throws IOException {
-        return parse(parser,paramsFieldname,parametersToTypes);
+        return parse(parser, paramsFieldname, parametersToTypes);
     }
 
-    public static TemplateContext parse(XContentParser parser, String paramsFieldname, Map<String,ScriptService.ScriptType> parameterMap) throws IOException {
+    public static TemplateContext parse(XContentParser parser, String paramsFieldname, Map<String, ScriptService.ScriptType> parameterMap)
+            throws IOException {
         Map<String, Object> params = null;
         String templateNameOrTemplateContent = null;
 
@@ -149,13 +157,77 @@ public class TemplateQueryParser implements QueryParser {
             return template;
         }
 
-        public ScriptService.ScriptType scriptType(){
+        public ScriptService.ScriptType scriptType() {
             return type;
         }
 
         @Override
-        public String toString(){
+        public String toString() {
             return type + " " + template;
+        }
+
+        /*
+         * Search Template - conditional clauses not rendering correctly #8308
+         */
+        public void reduceConditionalClauses() throws IOException {
+            if (params != null && params.size() > 0) {
+                StringBuffer templateSb = new StringBuffer(template);
+                reduceConditionalClauses(templateSb, params);
+                template = templateSb.toString();
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private void reduceConditionalClauses(StringBuffer templateSb, Map<String, Object> params) throws IOException {
+            Iterator<?> it = params.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, Object> pairs = (Map.Entry<String, Object>) it.next();
+                String openTag = "{{#" + pairs.getKey() + "}}";
+                String closeTag = "{{/" + pairs.getKey() + "}}";
+                // System.out.println(openClause + ", " + closeClause);
+                Object v = pairs.getValue();
+                if (v instanceof Boolean && !((Boolean) v)) {
+                    removeTwoTagsFromStringContents(templateSb, openTag, closeTag, true);
+                } else {
+                    removeTwoTagsFromStringContents(templateSb, openTag, closeTag, false);
+                    if (v instanceof Map<?, ?>) {
+                        reduceConditionalClauses(templateSb, (Map<String, Object>) v);      
+                    }
+                }
+
+            }
+        }
+
+        private static void removeTwoTagsFromStringContents(StringBuffer sb, String openTag, String closeTag,
+                boolean shouldRemoveContentsInBewteen) throws IOException {
+            while (true) {
+                int posOpen = sb.indexOf(openTag);
+                if (posOpen > -1) {
+                    if (!shouldRemoveContentsInBewteen)
+                        sb = sb.replace(posOpen, posOpen + openTag.length(), "");
+                } else {
+                    break;
+                }
+                int posClose = sb.indexOf(closeTag);
+                if (posClose > -1) {
+                    if (posOpen < 0) {
+                        throw new IOException("Search template is missing the opening tag: " + openTag
+                                + ", which was calculated from the template params.");
+                    } else if (posOpen > posClose) {
+                        throw new IOException("Search template is having opening tag: " + openTag + " placed after the closing tag: "
+                                + closeTag + "!");
+                    }
+                    if (!shouldRemoveContentsInBewteen)
+                        sb = sb.replace(posClose, posClose + closeTag.length(), "");
+                } else {
+                    if (posOpen > -1)
+                        throw new IOException("Search template is missing the closing tag: " + closeTag
+                                + ", which was calculated from the template params.");
+                }
+                if (shouldRemoveContentsInBewteen) {
+                    sb = sb.replace(posOpen, posClose+closeTag.length(), "");
+                }
+            }
         }
     }
 }

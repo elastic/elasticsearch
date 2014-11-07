@@ -1,0 +1,7 @@
+{
+    "template": "{ \"query\":{\"match_all\":{}}, \"filter\":{ {{#line_no}} \"range\": { \"line_no\": { {{#start}} \"gte\": \"{{start}}\" {{#end}},{{/end}}  {{/start}} {{#end}} \"lte\": \"{{end}}\" {{/end}} } } {{/line_no}} }}",
+    "params": {
+        "text": "words to search for",
+        "line_no": false
+    }
+}

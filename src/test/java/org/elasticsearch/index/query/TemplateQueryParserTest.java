@@ -56,6 +56,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
+
 /**
  * Test parsing and executing a template request.
  */
@@ -133,4 +135,41 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
         Query query = parser.parse(context);
         assertTrue("Parsing template query failed.", query instanceof ConstantScoreQuery);
     }
+    
+    @Test
+    public void testParserWithConditionalClause() throws IOException {
+        String templateString = copyToStringFromClasspath("/org/elasticsearch/index/query/search-template_conditional-clause-1-on.json");
+        XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
+        TemplateQueryParser.TemplateContext templateContext = TemplateQueryParser.parse(templateSourceParser, "params", "template");
+        templateContext.reduceConditionalClauses();
+        assertTrue(templateContext.template().replace(" ", "").equals("{\"size\":\"{{size}}\",\"query\":{\"match_all\":{}}}"));
+        
+        templateString = copyToStringFromClasspath("/org/elasticsearch/index/query/search-template_conditional-clause-1-off.json");
+        templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
+        templateContext = TemplateQueryParser.parse(templateSourceParser, "params", "template");
+        templateContext.reduceConditionalClauses();
+        assertTrue(templateContext.template().replace(" ", "").equals("{\"query\":{\"match_all\":{}}}"));
+    }
+    
+    @Test
+    public void testParserWithConditionalClause2() throws IOException {
+        String templateString = copyToStringFromClasspath("/org/elasticsearch/index/query/search-template_conditional-clause-2-on.json");
+        XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
+        TemplateQueryParser.TemplateContext templateContext = TemplateQueryParser.parse(templateSourceParser, "params", "template");
+        templateContext.reduceConditionalClauses();
+        assertTrue(templateContext.template().replace(" ", "").equals("{\"query\":{\"match_all\":{}},\"filter\":{\"range\":{\"line_no\":{\"gte\":\"{{start}}\",\"lte\":\"{{end}}\"}}}}"));
+        
+        templateString = copyToStringFromClasspath("/org/elasticsearch/index/query/search-template_conditional-clause-2-off.json");
+        templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
+        templateContext = TemplateQueryParser.parse(templateSourceParser, "params", "template");
+        templateContext.reduceConditionalClauses();
+        assertTrue(templateContext.template().replace(" ", "").equals("{\"query\":{\"match_all\":{}},\"filter\":{}}"));
+    }
+    
+    public static void main (String[] args) throws IOException {
+        TemplateQueryParserTest tqpt = new TemplateQueryParserTest();
+        tqpt.testParserWithConditionalClause();
+        tqpt.testParserWithConditionalClause2();
+    }
+    
 }

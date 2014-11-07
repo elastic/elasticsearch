@@ -611,6 +611,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             try {
                 parser = XContentFactory.xContent(request.templateSource()).createParser(request.templateSource());
                 templateContext = TemplateQueryParser.parse(parser, "params", "template");
+                templateContext.reduceConditionalClauses();
 
                 if (templateContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
                     //Try to double parse for nested template id/file

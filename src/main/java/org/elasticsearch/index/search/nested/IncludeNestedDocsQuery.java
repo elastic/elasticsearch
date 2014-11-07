@@ -112,7 +112,7 @@ public class IncludeNestedDocsQuery extends Query {
                 return null;
             }
 
-            FixedBitSet parents = parentsFilter.getDocIdSet(context, acceptDocs);
+            FixedBitSet parents = parentsFilter.getDocIdSet(context, null);
             if (parents == null) {
                 // No matches
                 return null;

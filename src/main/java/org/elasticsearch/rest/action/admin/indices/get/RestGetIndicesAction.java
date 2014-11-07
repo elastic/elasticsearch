@@ -20,8 +20,10 @@ package org.elasticsearch.rest.action.admin.indices.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -34,7 +36,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
@@ -58,15 +65,16 @@ public class RestGetIndicesAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        String[] features = request.paramAsStringArray("type", null);
+        String[] featureParams = request.paramAsStringArray("type", null);
         // Work out if the indices is a list of features
-        if (features == null && indices.length > 0 && indices[0] != null && indices[0].startsWith("_") && !"_all".equals(indices[0])) {
-            features = indices;
+        if (featureParams == null && indices.length > 0 && indices[0] != null && indices[0].startsWith("_") && !"_all".equals(indices[0])) {
+            featureParams = indices;
             indices = new String[] {"_all"};
         }
         final GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(indices);
-        if (features != null) {
+        if (featureParams != null) {
+            Feature[] features = Feature.convertToFeatures(featureParams);
             getIndexRequest.features(features);
         }
         // The order of calls to the request is important here. We must set the indices and features before 
@@ -79,27 +87,24 @@ public class RestGetIndicesAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(GetIndexResponse response, XContentBuilder builder) throws Exception {
 
-                String[] features = getIndexRequest.features();
+                Feature[] features = getIndexRequest.featuresAsEnums();
                 String[] indices = response.indices();
 
                 builder.startObject();
                 for (String index : indices) {
                     builder.startObject(index);
-                    for (String feature : features) {
+                    for (Feature feature : features) {
                         switch (feature) {
-                        case "_alias":
-                        case "_aliases":
+                        case ALIASES:
                             writeAliases(response.aliases().get(index), builder, request);
                             break;
-                        case "_mapping":
-                        case "_mappings":
+                        case MAPPINGS:
                             writeMappings(response.mappings().get(index), builder, request);
                             break;
-                        case "_settings":
+                        case SETTINGS:
                             writeSettings(response.settings().get(index), builder, request);
                             break;
-                        case "_warmer":
-                        case "_warmers":
+                        case WARMERS:
                             writeWarmers(response.warmers().get(index), builder, request);
                             break;
                         default:

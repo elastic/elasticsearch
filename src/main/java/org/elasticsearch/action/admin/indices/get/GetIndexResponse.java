@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -57,10 +58,18 @@ public class GetIndexResponse extends ActionResponse {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings,
             ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliases, ImmutableOpenMap<String, Settings> settings) {
         this.indices = indices;
-        this.warmers = warmers;
-        this.mappings = mappings;
-        this.aliases = aliases;
-        this.settings = settings;
+        if (warmers != null) {
+            this.warmers = warmers;
+        }
+        if (mappings != null) {
+            this.mappings = mappings;
+        }
+        if (aliases != null) {
+            this.aliases = aliases;
+        }
+        if (settings != null) {
+            this.settings = settings;
+        }
     }
 
     GetIndexResponse() {

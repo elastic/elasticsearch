@@ -501,27 +501,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
 
         @Override
-        public IndexInput openInput(String name, IOContext context) throws IOException {
-            IndexInput in = super.openInput(name, context);
-            boolean success = false;
-            try {
-                // Only for backward comp. since we now use Lucene codec compression
-                if (name.endsWith(".fdt") || name.endsWith(".tvf")) {
-                    Compressor compressor = CompressorFactory.compressor(in);
-                    if (compressor != null) {
-                        in = compressor.indexInput(in);
-                    }
-                }
-                success = true;
-            } finally {
-                if (!success) {
-                    IOUtils.closeWhileHandlingException(in);
-                }
-            }
-            return in;
-        }
-
-        @Override
         public void close() throws IOException {
             assert false : "Nobody should close this directory except of the Store itself";
         }

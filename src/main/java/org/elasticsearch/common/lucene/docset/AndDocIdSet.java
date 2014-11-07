@@ -19,17 +19,21 @@
 
 package org.elasticsearch.common.lucene.docset;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.lucene.search.XDocIdSetIterator;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -78,18 +82,21 @@ public class AndDocIdSet extends DocIdSet {
     public DocIdSetIterator iterator() throws IOException {
         // we try and be smart here, if we can iterate through docsets quickly, prefer to iterate
         // over them as much as possible, before actually going to "bits" based ones to check
-        List<DocIdSet> iterators = new ArrayList<>(sets.length);
+        List<DocIdSetIterator> iterators = new ArrayList<>(sets.length);
         List<Bits> bits = new ArrayList<>(sets.length);
         for (DocIdSet set : sets) {
-            if (DocIdSets.isFastIterator(set)) {
-                iterators.add(set);
+            if (DocIdSets.isEmpty(set)) {
+                return DocIdSetIterator.empty();
+            }
+            DocIdSetIterator it = set.iterator();
+            if (it == null) {
+                return DocIdSetIterator.empty();
+            }
+            Bits bit = set.bits();
+            if (bit != null && DocIdSets.isBroken(it)) {
+                bits.add(bit);
             } else {
-                Bits bit = set.bits();
-                if (bit != null) {
-                    bits.add(bit);
-                } else {
-                    iterators.add(set);
-                }
+                iterators.add(it);
             }
         }
         if (bits.isEmpty()) {
@@ -131,38 +138,25 @@ public class AndDocIdSet extends DocIdSet {
         }
     }
 
-    static class IteratorBasedIterator extends DocIdSetIterator {
+    static class IteratorBasedIterator extends XDocIdSetIterator {
         private int doc = -1;
         private final DocIdSetIterator lead;
         private final DocIdSetIterator[] otherIterators;
 
 
-        public static DocIdSetIterator newDocIdSetIterator(Collection<DocIdSet> sets) throws IOException {
-            if (sets.isEmpty()) {
-                return  DocIdSetIterator.empty();
+        public static DocIdSetIterator newDocIdSetIterator(Collection<DocIdSetIterator> iterators) throws IOException {
+            if (iterators.isEmpty()) {
+                return DocIdSetIterator.empty();
             }
-            final DocIdSetIterator[] iterators = new DocIdSetIterator[sets.size()];
-            int j = 0;
-            for (DocIdSet set : sets) {
-                if (set == null) {
-                    return DocIdSetIterator.empty();
-                } else {
-                    DocIdSetIterator docIdSetIterator = set.iterator();
-                    if (docIdSetIterator == null) {
-                        return DocIdSetIterator.empty();// non matching
-                    }
-                    iterators[j++] = docIdSetIterator;
-                }
-            }
-            if (sets.size() == 1) {
+            if (iterators.size() == 1) {
                // shortcut if there is only one valid iterator.
-               return iterators[0];
+               return iterators.iterator().next();
             }
             return new IteratorBasedIterator(iterators);
         }
 
-        private IteratorBasedIterator(DocIdSetIterator[] iterators) throws IOException {
-            final DocIdSetIterator[] sortedIterators = Arrays.copyOf(iterators, iterators.length);
+        private IteratorBasedIterator(Collection<DocIdSetIterator> iterators) throws IOException {
+            final DocIdSetIterator[] sortedIterators = iterators.toArray(new DocIdSetIterator[iterators.size()]);
             new InPlaceMergeSorter() {
 
                 @Override
@@ -178,6 +172,16 @@ public class AndDocIdSet extends DocIdSet {
             }.sort(0, sortedIterators.length);
             lead = sortedIterators[0];
             this.otherIterators = Arrays.copyOfRange(sortedIterators, 1, sortedIterators.length);
+        }
+
+        @Override
+        public boolean isBroken() {
+            for (DocIdSetIterator it : Iterables.concat(Collections.singleton(lead), Arrays.asList(otherIterators))) {
+                if (DocIdSets.isBroken(it)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override

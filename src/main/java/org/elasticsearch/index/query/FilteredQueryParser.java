@@ -76,8 +76,8 @@ public class FilteredQueryParser implements QueryParser {
         @Override
         public Scorer filteredScorer(LeafReaderContext context, Weight weight, DocIdSet docIdSet) throws IOException {
             // CHANGE: If threshold is 0, always pass down the accept docs, don't pay the price of calling nextDoc even...
+            final Bits filterAcceptDocs = docIdSet.bits();
             if (threshold == 0) {
-                final Bits filterAcceptDocs = docIdSet.bits();
                 if (filterAcceptDocs != null) {
                     return weight.scorer(context, filterAcceptDocs);
                 } else {
@@ -88,7 +88,8 @@ public class FilteredQueryParser implements QueryParser {
             // CHANGE: handle "default" value
             if (threshold == -1) {
                 // default  value, don't iterate on only apply filter after query if its not a "fast" docIdSet
-                if (!DocIdSets.isFastIterator(docIdSet)) {
+                // TODO: is there a way we could avoid creating an iterator here?
+                if (filterAcceptDocs != null && DocIdSets.isBroken(docIdSet.iterator())) {
                     return FilteredQuery.QUERY_FIRST_FILTER_STRATEGY.filteredScorer(context, weight, docIdSet);
                 }
             }

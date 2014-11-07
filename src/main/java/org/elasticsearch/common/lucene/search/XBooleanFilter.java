@@ -124,29 +124,29 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
                     // continue, but we recorded that there is at least one should clause
                     // so that if all iterators are null we know that nothing matches this
                     // filter since at least one SHOULD clause needs to match
-                } else if (bits == null || DocIdSets.isFastIterator(set)) {
-                    shouldIterators.add(it);
-                } else {
+                } else if (bits != null && DocIdSets.isBroken(it)) {
                     shouldBits.add(bits);
+                } else {
+                    shouldIterators.add(it);
                 }
                 break;
             case MUST:
                 if (it == null) {
                     // no documents matched a clause that is compulsory, then nothing matches at all
                     return null;
-                } else if (bits == null || DocIdSets.isFastIterator(set)) {
-                    requiredIterators.add(it);
-                } else {
+                } else if (bits != null && DocIdSets.isBroken(it)) {
                     requiredBits.add(bits);
+                } else {
+                    requiredIterators.add(it);
                 }
                 break;
             case MUST_NOT:
                 if (it == null) {
                     // ignore
-                } else if (bits == null || DocIdSets.isFastIterator(set)) {
-                    excludedIterators.add(it);
-                } else {
+                } else if (bits != null && DocIdSets.isBroken(it)) {
                     excludedBits.add(bits);
+                } else {
+                    excludedIterators.add(it);
                 }
                 break;
             default:

@@ -22,7 +22,7 @@ import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
-import org.elasticsearch.alerts.triggers.ScriptedAlertTrigger;
+import org.elasticsearch.alerts.triggers.ScriptedTrigger;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -84,7 +84,12 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         DateTime scheduledFireTime = new DateTime(DateTimeZone.UTC);
 
         Map<String, Object> triggerMap = new HashMap<>();
-        triggerMap.put("numberOfEvents", ">1");
+        Map<String, Object> scriptTriggerMap = new HashMap<>();
+        scriptTriggerMap.put("script", "hits.total>1");
+        scriptTriggerMap.put("script_lang", "groovy");
+        triggerMap.put("script", scriptTriggerMap );
+
+
         Map<String,Object> actionMap = new HashMap<>();
         Map<String,Object> emailParamMap = new HashMap<>();
         List<String> addresses = new ArrayList<>();
@@ -113,9 +118,10 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         builder.field(AlertActionManager.ACTIONS_FIELD, actionMap);
         builder.field(AlertActionState.FIELD_NAME, AlertActionState.SEARCH_NEEDED.toString());
         builder.endObject();
-        AlertActionRegistry alertActionRegistry = internalCluster().getInstance(AlertActionRegistry.class, internalCluster().getMasterName());
-        AlertActionEntry actionEntry = AlertActionManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry);
+        final AlertActionRegistry alertActionRegistry = internalCluster().getInstance(AlertActionRegistry.class, internalCluster().getMasterName());
+        final AlertActionManager alertManager = internalCluster().getInstance(AlertActionManager.class, internalCluster().getMasterName());
 
+        AlertActionEntry actionEntry = alertManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry);
         assertEquals(actionEntry.getVersion(), 0);
         assertEquals(actionEntry.getAlertName(), "testName");
         assertEquals(actionEntry.isTriggered(), true);
@@ -123,9 +129,6 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         assertEquals(actionEntry.getFireTime(), fireTime);
         assertEquals(actionEntry.getEntryState(), AlertActionState.SEARCH_NEEDED);
         assertEquals(actionEntry.getSearchResponse().getHits().getTotalHits(), 10);
-        assertEquals(actionEntry.getTrigger(),
-                new AlertTrigger(AlertTrigger.SimpleTrigger.GREATER_THAN, AlertTrigger.TriggerType.NUMBER_OF_EVENTS, 1));
-
     }
 
     @Test
@@ -164,16 +167,6 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
             }
 
             @Override
-            public void writeTo(StreamOutput out) throws IOException {
-
-            }
-
-            @Override
-            public void readFrom(StreamInput in) throws IOException {
-
-            }
-
-            @Override
             public boolean doAction(Alert alert, TriggerResult actionEntry) {
                 logger.info("Alert {} invoked: {}", alert.alertName(), actionEntry);
                 alertActionInvoked.set(true);
@@ -187,13 +180,9 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
                 parser.nextToken();
                 return alertAction;
             }
-
-            @Override
-            public AlertAction readFrom(StreamInput in) throws IOException {
-                return alertAction;
-            }
         });
-        AlertTrigger alertTrigger = new AlertTrigger(new ScriptedAlertTrigger("return true", ScriptService.ScriptType.INLINE, "groovy"));
+
+        AlertTrigger alertTrigger = new ScriptedTrigger("return true", ScriptService.ScriptType.INLINE, "groovy");
 
 
         Alert alert = new Alert(

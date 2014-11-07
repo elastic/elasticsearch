@@ -62,13 +62,15 @@ public class AlertsStore extends AbstractComponent {
     private final ThreadPool threadPool;
     private final ConcurrentMap<String,Alert> alertMap;
     private final AlertActionRegistry alertActionRegistry;
+    private final TriggerManager triggerManager;
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
 
     private final int scrollSize;
     private final TimeValue scrollTimeout;
 
     @Inject
-    public AlertsStore(Settings settings, Client client, ThreadPool threadPool, AlertActionRegistry alertActionRegistry) {
+    public AlertsStore(Settings settings, Client client, ThreadPool threadPool, AlertActionRegistry alertActionRegistry,
+                       TriggerManager triggerManager) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
@@ -77,6 +79,7 @@ public class AlertsStore extends AbstractComponent {
         // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
         this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
         this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
+        this.triggerManager = triggerManager;
     }
 
     /**
@@ -247,7 +250,7 @@ public class AlertsStore extends AbstractComponent {
         return alert;
     }
 
-    private Alert parseAlert(String alertName, BytesReference source) {
+    protected Alert parseAlert(String alertName, BytesReference source) {
         Alert alert = new Alert();
         alert.alertName(alertName);
         try (XContentParser parser = XContentHelper.createParser(source)) {
@@ -259,7 +262,7 @@ public class AlertsStore extends AbstractComponent {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (TRIGGER_FIELD.match(currentFieldName)) {
-                        alert.trigger(TriggerManager.parseTrigger(parser));
+                        alert.trigger(triggerManager.instantiateAlertTrigger(parser));
                     } else if (ACTION_FIELD.match(currentFieldName)) {
                         List<AlertAction> actions = alertActionRegistry.instantiateAlertActions(parser);
                         alert.actions(actions);

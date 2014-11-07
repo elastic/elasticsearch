@@ -72,30 +72,6 @@ public class EmailAlertAction implements AlertAction {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(displayField);
-        out.writeInt(emailAddresses.size());
-        for (Address emailAddress : emailAddresses) {
-            out.writeString(emailAddress.toString());
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        displayField = in.readOptionalString();
-        int numberOfEmails = in.readInt();
-        emailAddresses = new ArrayList<>(numberOfEmails);
-        for (int i=0; i<numberOfEmails; ++i) {
-            String address = in.readString();
-            try {
-                emailAddresses.add(InternetAddress.parse(address)[0]);
-            } catch (AddressException ae) {
-                throw new IOException("Unable to parse [" + address + "] as an email adderss", ae);
-            }
-        }
-    }
-
-    @Override
     public boolean doAction(Alert alert, TriggerResult result) {
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");

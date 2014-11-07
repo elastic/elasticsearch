@@ -20,10 +20,5 @@ public interface AlertAction extends ToXContent {
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
 
-    public void writeTo(StreamOutput out) throws IOException;
-    public void readFrom(StreamInput in) throws IOException;
-
     public boolean doAction(Alert alert, TriggerResult result);
-
-
 }

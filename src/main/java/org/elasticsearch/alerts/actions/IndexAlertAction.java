@@ -47,17 +47,6 @@ public class IndexAlertAction implements AlertAction, ToXContent {
         return builder;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
-        out.writeString(type);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        index = in.readString();
-        type = in.readString();
-    }
 
     @Override
     public boolean doAction(Alert alert, TriggerResult result) {
@@ -68,7 +57,7 @@ public class IndexAlertAction implements AlertAction, ToXContent {
             XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
             resultBuilder.startObject();
             resultBuilder = result.getResponse().toXContent(resultBuilder, ToXContent.EMPTY_PARAMS);
-            //resultBuilder.field("timestamp", result.getFireTime()); ///@TODO FIXME
+            //resultBuilder.field("timestamp", result.); ///@TODO FIXME
             resultBuilder.endObject();
             indexRequest.source(resultBuilder);
         } catch (IOException ie) {

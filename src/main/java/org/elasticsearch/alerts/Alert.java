@@ -34,6 +34,7 @@ public class Alert implements ToXContent {
     private long version;
     private boolean enabled;
 
+
     public Alert() {
     }
 
@@ -69,52 +70,14 @@ public class Alert implements ToXContent {
         }
         if (trigger != null) {
             builder.field(AlertsStore.TRIGGER_FIELD.getPreferredName());
+            builder.startObject();
+            builder.field(trigger.getTriggerName());
             trigger.toXContent(builder, params);
+            builder.endObject();
         }
         builder.endObject();
         return builder;
     }
-
-    public void readFrom(StreamInput in) throws IOException {
-        alertName = in.readString();
-        searchRequest = new SearchRequest();
-        searchRequest.readFrom(in);
-        trigger = AlertTrigger.readFrom(in);
-        int numActions = in.readInt();
-        actions = new ArrayList<>(numActions);
-        for (int i=0; i<numActions; ++i) {
-            actions.add(AlertActionRegistry.readFrom(in));
-        }
-        schedule = in.readOptionalString();
-        if (in.readBoolean()) {
-            lastActionFire = new DateTime(in.readLong(), DateTimeZone.UTC);
-        }
-        version = in.readLong();
-        enabled = in.readBoolean();
-    }
-
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(alertName);
-        searchRequest.writeTo(out);
-        AlertTrigger.writeTo(trigger, out);
-        if (actions == null) {
-            out.writeInt(0);
-        } else {
-            out.writeInt(actions.size());
-            for (AlertAction action : actions) {
-                action.writeTo(out);
-            }
-        }
-        out.writeOptionalString(schedule);
-        if (lastActionFire == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeLong(lastActionFire.toDateTime(DateTimeZone.UTC).getMillis());
-        }
-        out.writeLong(version);
-        out.writeBoolean(enabled);
-    }
-
 
     /**
      * @return The last time this alert ran.
@@ -203,4 +166,38 @@ public class Alert implements ToXContent {
     public void schedule(String schedule) {
         this.schedule = schedule;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Alert alert = (Alert) o;
+
+        if (enabled != alert.enabled) return false;
+        if (version != alert.version) return false;
+        if (!actions.equals(alert.actions)) return false;
+        if (!alertName.equals(alert.alertName)) return false;
+        if (lastActionFire != null ? !lastActionFire.equals(alert.lastActionFire) : alert.lastActionFire != null)
+            return false;
+        if (!schedule.equals(alert.schedule)) return false;
+        if (!searchRequest.equals(alert.searchRequest)) return false;
+        if (!trigger.equals(alert.trigger)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = alertName.hashCode();
+        result = 31 * result + searchRequest.hashCode();
+        result = 31 * result + trigger.hashCode();
+        result = 31 * result + actions.hashCode();
+        result = 31 * result + schedule.hashCode();
+        result = 31 * result + (lastActionFire != null ? lastActionFire.hashCode() : 0);
+        result = 31 * result + (int) (version ^ (version >>> 32));
+        result = 31 * result + (enabled ? 1 : 0);
+        return result;
+    }
+
 }

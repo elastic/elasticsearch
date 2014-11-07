@@ -50,19 +50,4 @@ public class EmailAlertActionFactory implements AlertActionFactory {
         return new EmailAlertAction(display, addresses.toArray(new String[addresses.size()]));
     }
 
-    @Override
-    public AlertAction readFrom(StreamInput in) throws IOException{
-
-        String displayField = in.readOptionalString();
-
-        int numberOfEmails = in.readInt();
-        String[] emailAddresses = new String[numberOfEmails];
-        for (int i=0; i<numberOfEmails; ++i) {
-            String address = in.readString();
-            emailAddresses[i] = address;
-        }
-
-        EmailAlertAction emailAction = new EmailAlertAction(displayField, emailAddresses);
-        return emailAction;
-    }
 }

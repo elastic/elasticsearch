@@ -15,7 +15,4 @@ public interface AlertActionFactory {
 
     AlertAction createAction(XContentParser parser) throws IOException;
 
-
-    AlertAction readFrom(StreamInput in) throws IOException;
-
 }

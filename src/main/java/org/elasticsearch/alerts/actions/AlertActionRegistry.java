@@ -67,19 +67,4 @@ public class AlertActionRegistry extends AbstractComponent {
         }
     }
 
-    public static void writeTo(AlertAction action, StreamOutput out) throws IOException {
-        out.writeString(action.getActionName());
-        action.writeTo(out);
-    }
-
-    public static AlertAction readFrom(StreamInput in) throws IOException {
-        String actionName = in.readString();
-        AlertActionFactory factory = actionImplemented.get(actionName);
-        if (factory != null) {
-            return factory.readFrom(in);
-        } else {
-            throw new ElasticsearchIllegalArgumentException("No action exists with the name [" + actionName + "]");
-        }
-    }
-
 }

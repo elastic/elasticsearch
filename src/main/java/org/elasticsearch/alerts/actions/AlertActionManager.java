@@ -62,6 +62,7 @@ public class AlertActionManager extends AbstractComponent {
     private final ThreadPool threadPool;
     private final AlertsStore alertsStore;
     private final AlertActionRegistry actionRegistry;
+    private final TriggerManager triggerManager;
     private AlertManager alertManager;
 
     private final BlockingQueue<AlertActionEntry> actionsToBeProcessed = new LinkedBlockingQueue<>();
@@ -73,12 +74,14 @@ public class AlertActionManager extends AbstractComponent {
     private static AlertActionEntry END_ENTRY = new AlertActionEntry();
 
     @Inject
-    public AlertActionManager(Settings settings, Client client, AlertActionRegistry actionRegistry, ThreadPool threadPool, AlertsStore alertsStore) {
+    public AlertActionManager(Settings settings, Client client, AlertActionRegistry actionRegistry,
+                              ThreadPool threadPool, AlertsStore alertsStore, TriggerManager triggerManager) {
         super(settings);
         this.client = client;
         this.actionRegistry = actionRegistry;
         this.threadPool = threadPool;
         this.alertsStore = alertsStore;
+        this.triggerManager = triggerManager;
         // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
         this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
         this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
@@ -167,7 +170,7 @@ public class AlertActionManager extends AbstractComponent {
         logger.info("Loaded [{}] actions from the alert history index into actions queue", actionsToBeProcessed.size());
     }
 
-    static AlertActionEntry parseHistory(String historyId, BytesReference source, long version, AlertActionRegistry actionRegistry) {
+    AlertActionEntry parseHistory(String historyId, BytesReference source, long version, AlertActionRegistry actionRegistry) {
         AlertActionEntry entry = new AlertActionEntry();
         entry.setId(historyId);
         entry.setVersion(version);
@@ -179,12 +182,13 @@ public class AlertActionManager extends AbstractComponent {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
+                    logger.error("START_OBJECT");
                     switch (currentFieldName) {
                         case ACTIONS_FIELD:
                             entry.setActions(actionRegistry.instantiateAlertActions(parser));
                             break;
                         case TRIGGER_FIELD:
-                            entry.setTrigger(TriggerManager.parseTrigger(parser));
+                            entry.setTrigger(triggerManager.instantiateAlertTrigger(parser));
                             break;
                         case "response":
                             // Ignore this, the binary form is already read
@@ -194,6 +198,7 @@ public class AlertActionManager extends AbstractComponent {
                             throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
+                    logger.error("IS_VALUE");
                     switch (currentFieldName) {
                         case ALERT_NAME_FIELD:
                             entry.setAlertName(parser.text());

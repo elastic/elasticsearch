@@ -6,16 +6,25 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
+import org.elasticsearch.alerts.triggers.ScriptedTrigger;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
+
+import java.util.ArrayList;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**

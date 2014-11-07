@@ -92,9 +92,9 @@ public class GetIndexBackwardsCompatibilityTests extends ElasticsearchBackwardsC
     @Test
     public void testGetWarmers() throws Exception {
         createIndex("test");
-        ensureSearchable("test");
+        ensureYellow("test");
         assertAcked(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch("test")).get());
-        ensureSearchable("test");
+        ensureYellow("test");
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("test").addFeatures("_warmers")
                 .execute().actionGet();
         ImmutableOpenMap<String, ImmutableList<Entry>> warmersMap = getIndexResponse.warmers();

@@ -21,10 +21,12 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.settings.bar.BarTestClass;
 import org.elasticsearch.common.settings.foo.FooTestClass;
+import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -216,6 +218,110 @@ public class ImmutableSettingsTests extends ElasticsearchTestCase {
         assertThat(names.size(), equalTo(2));
         assertTrue(names.contains("bar"));
         assertTrue(names.contains("baz"));
+    }
 
+    @Test
+    public void testThatArraysAreOverriddenCorrectly() throws IOException {
+        // overriding a single value with an array
+        Settings settings = settingsBuilder()
+                .put(settingsBuilder().putArray("value", "1").build())
+                .put(settingsBuilder().putArray("value", "2", "3").build())
+                .build();
+        assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
+
+        settings = settingsBuilder()
+                .put(settingsBuilder().put("value", "1").build())
+                .put(settingsBuilder().putArray("value", "2", "3").build())
+                .build();
+        assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
+
+        settings = settingsBuilder()
+                .put(new YamlSettingsLoader().load("value: 1"))
+                .put(new YamlSettingsLoader().load("value: [ 2, 3 ]"))
+                .build();
+        assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
+
+        settings = settingsBuilder()
+                .put(settingsBuilder().put("value.with.deep.key", "1").build())
+                .put(settingsBuilder().putArray("value.with.deep.key", "2", "3").build())
+                .build();
+        assertThat(settings.getAsArray("value.with.deep.key"), arrayContaining("2", "3"));
+
+        // overriding an array with a shorter array
+        settings = settingsBuilder()
+                .put(settingsBuilder().putArray("value", "1", "2").build())
+                .put(settingsBuilder().putArray("value", "3").build())
+                .build();
+        assertThat(settings.getAsArray("value"), arrayContaining("3"));
+
+        settings = settingsBuilder()
+                .put(settingsBuilder().putArray("value", "1", "2", "3").build())
+                .put(settingsBuilder().putArray("value", "4", "5").build())
+                .build();
+        assertThat(settings.getAsArray("value"), arrayContaining("4", "5"));
+
+        settings = settingsBuilder()
+                .put(settingsBuilder().putArray("value.deep.key", "1", "2", "3").build())
+                .put(settingsBuilder().putArray("value.deep.key", "4", "5").build())
+                .build();
+        assertThat(settings.getAsArray("value.deep.key"), arrayContaining("4", "5"));
+
+        // overriding an array with a longer array
+        settings = settingsBuilder()
+                .put(settingsBuilder().putArray("value", "1", "2").build())
+                .put(settingsBuilder().putArray("value", "3", "4", "5").build())
+                .build();
+        assertThat(settings.getAsArray("value"), arrayContaining("3", "4", "5"));
+
+        settings = settingsBuilder()
+                .put(settingsBuilder().putArray("value.deep.key", "1", "2", "3").build())
+                .put(settingsBuilder().putArray("value.deep.key", "4", "5").build())
+                .build();
+        assertThat(settings.getAsArray("value.deep.key"), arrayContaining("4", "5"));
+
+        // overriding an array with a single value
+        settings = settingsBuilder()
+                .put(settingsBuilder().putArray("value", "1", "2").build())
+                .put(settingsBuilder().put("value", "3").build())
+                .build();
+        assertThat(settings.getAsArray("value"), arrayContaining("3"));
+
+        settings = settingsBuilder()
+                .put(settingsBuilder().putArray("value.deep.key", "1", "2").build())
+                .put(settingsBuilder().put("value.deep.key", "3").build())
+                .build();
+        assertThat(settings.getAsArray("value.deep.key"), arrayContaining("3"));
+
+        // test that other arrays are not overridden
+        settings = settingsBuilder()
+                .put(settingsBuilder().putArray("value", "1", "2", "3").putArray("a", "b", "c").build())
+                .put(settingsBuilder().putArray("value", "4", "5").putArray("d", "e", "f").build())
+                .build();
+        assertThat(settings.getAsArray("value"), arrayContaining("4", "5"));
+        assertThat(settings.getAsArray("a"), arrayContaining("b", "c"));
+        assertThat(settings.getAsArray("d"), arrayContaining("e", "f"));
+
+        settings = settingsBuilder()
+                .put(settingsBuilder().putArray("value.deep.key", "1", "2", "3").putArray("a", "b", "c").build())
+                .put(settingsBuilder().putArray("value.deep.key", "4", "5").putArray("d", "e", "f").build())
+                .build();
+        assertThat(settings.getAsArray("value.deep.key"), arrayContaining("4", "5"));
+        assertThat(settings.getAsArray("a"), notNullValue());
+        assertThat(settings.getAsArray("d"), notNullValue());
+
+        // overriding a deeper structure with an array
+        settings = settingsBuilder()
+                .put(settingsBuilder().put("value.data", "1").build())
+                .put(settingsBuilder().putArray("value", "4", "5").build())
+                .build();
+        assertThat(settings.getAsArray("value"), arrayContaining("4", "5"));
+
+        // overriding an array with a deeper structure
+        settings = settingsBuilder()
+                .put(settingsBuilder().putArray("value", "4", "5").build())
+                .put(settingsBuilder().put("value.data", "1").build())
+                .build();
+        assertThat(settings.get("value.data"), is("1"));
+        assertThat(settings.get("value"), is(nullValue()));
     }
 }

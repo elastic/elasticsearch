@@ -122,6 +122,74 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
         assertTrue("Parsing template query failed.", query instanceof ConstantScoreQuery);
     }
 
+    /**
+     * Test that the template query parser can parse and evaluate template expressed as a single string
+     * with conditional clause.
+     */
+    @Test
+    public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
+        String templateString = "{" +
+                "  \"template\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," +
+                "  \"params\":{" +
+                "    \"template\":\"all\"," +
+                "    \"use_it\": true" +
+                "  }" +
+                "}";
+
+        XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
+        context.reset(templateSourceParser);
+
+        TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
+        Query query = parser.parse(context);
+        assertTrue("Parsing template query failed.", query instanceof ConstantScoreQuery);
+    }
+
+    /**
+     * Test that the template query parser can parse and evaluate template expressed as a single string
+     * but still it expects only the query specification (thus this test should fail with specific exception).
+     */
+    @Test(expected = QueryParsingException.class)
+    public void testParseTemplateFailsToParseCompleteQueryAsSingleString() throws IOException {
+        String templateString = "{" +
+                "  \"template\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\"," +
+                "  \"params\":{" +
+                "    \"size\":2" +
+                "  }\n" +
+                "}";
+
+        XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
+        context.reset(templateSourceParser);
+
+        TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
+        parser.parse(context);
+    }
+
+    /**
+     * Test that the template query parser can parse and evaluate template expressed as a single string
+     * but still it expects only the query specification (thus this test should fail with specific exception).
+     *
+     * Compared to {@link #testParseTemplateFailsToParseCompleteQueryAsSingleString} this test verify
+     * that it will fail correctly even if the query specification is wrapped by the "query: { ... }".
+     * The point is that if it were to accept such input then it could silently ignore additional content
+     * such as "size: X, from: Y" following the "query" without letting user know leading to hard-to-spot issues.
+     * In fact this logic can be also sensitive to internal implementation of parser.
+     */
+    @Test(expected = QueryParsingException.class)
+    public void testParseTemplateFailsToParseCompleteQueryAsSingleString2() throws IOException {
+        String templateString = "{" +
+                "  \"template\" : \"{ \\\"query\\\":{\\\"match_{{template}}\\\":{}}}\"," +
+                "  \"params\":{" +
+                "    \"template\":\"all\"" +
+                "  }" +
+                "}";
+
+        XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
+        context.reset(templateSourceParser);
+
+        TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
+        parser.parse(context);
+    }
+
     @Test
     public void testParserCanExtractTemplateNames() throws Exception {
         String templateString = "{ \"template\": { \"file\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } } ";

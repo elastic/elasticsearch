@@ -19,12 +19,9 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -113,17 +110,25 @@ public class TemplateQueryParser implements QueryParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parameterMap.containsKey(currentFieldName)) {
-                type = parameterMap.get(currentFieldName);
-                if (token == XContentParser.Token.START_OBJECT) {
-                    XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
-                    builder.copyCurrentStructure(parser);
-                    templateNameOrTemplateContent = builder.string();
-                } else {
-                    templateNameOrTemplateContent = parser.text();
+            } else {
+                // template can be expresses as a single string value (see #8393)
+                boolean isTemplateString = ("template".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING);
+                if (parameterMap.containsKey(currentFieldName) || isTemplateString) {
+                    if (isTemplateString) {
+                        type = ScriptService.ScriptType.INLINE;
+                    } else {
+                        type = parameterMap.get(currentFieldName);
+                    }
+                    if (token == XContentParser.Token.START_OBJECT) {
+                        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+                        builder.copyCurrentStructure(parser);
+                        templateNameOrTemplateContent = builder.string();
+                    } else {
+                        templateNameOrTemplateContent = parser.text();
+                    }
+                } else if (paramsFieldname.equals(currentFieldName)) {
+                    params = parser.map();
                 }
-            } else if (paramsFieldname.equals(currentFieldName)) {
-                params = parser.map();
             }
         }
 

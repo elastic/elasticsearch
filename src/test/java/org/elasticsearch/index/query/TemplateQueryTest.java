@@ -196,6 +196,84 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
     }
 
+
+    @Test
+    public void testSearchTemplateQueryFromFile() throws Exception {
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indices("_all");
+        String templateString = "{" +
+                "  \"template\" : { \"file\": \"full-query-template\" }," +
+                "  \"params\":{" +
+                "    \"mySize\": 2," +
+                "    \"myField\": \"text\"," +
+                "    \"myValue\": \"value1\"" +
+                "  }" +
+                "}";
+        BytesReference bytesRef = new BytesArray(templateString);
+        searchRequest.templateSource(bytesRef, false);
+        SearchResponse searchResponse = client().search(searchRequest).get();
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+    }
+
+    /**
+     * Test that template can be expressed as a single escaped string.
+     */
+    @Test
+    public void testTemplateQueryAsEscapedString() throws Exception {
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indices("_all");
+        String templateString = "{" +
+                "  \"template\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\"," +
+                "  \"params\":{" +
+                "    \"size\": 1" +
+                "  }" +
+                "}";
+        BytesReference bytesRef = new BytesArray(templateString);
+        searchRequest.templateSource(bytesRef, false);
+        SearchResponse searchResponse = client().search(searchRequest).get();
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+    }
+
+    /**
+     * Test that template can contain conditional clause. In this case it is at the beginning of the string.
+     */
+    @Test
+    public void testTemplateQueryAsEscapedStringStartingWithConditionalClause() throws Exception {
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indices("_all");
+        String templateString = "{" +
+                "  \"template\" : \"{ {{#use_size}} \\\"size\\\": \\\"{{size}}\\\", {{/use_size}} \\\"query\\\":{\\\"match_all\\\":{}}}\"," +
+                "  \"params\":{" +
+                "    \"size\": 1," +
+                "    \"use_size\": true" +
+                "  }" +
+                "}";
+        BytesReference bytesRef = new BytesArray(templateString);
+        searchRequest.templateSource(bytesRef, false);
+        SearchResponse searchResponse = client().search(searchRequest).get();
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+    }
+
+    /**
+     * Test that template can contain conditional clause. In this case it is at the end of the string.
+     */
+    @Test
+    public void testTemplateQueryAsEscapedStringWithConditionalClauseAtEnd() throws Exception {
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indices("_all");
+        String templateString = "{" +
+                "  \"template\" : \"{ \\\"query\\\":{\\\"match_all\\\":{}} {{#use_size}}, \\\"size\\\": \\\"{{size}}\\\" {{/use_size}} }\"," +
+                "  \"params\":{" +
+                "    \"size\": 1," +
+                "    \"use_size\": true" +
+                "  }" +
+                "}";
+        BytesReference bytesRef = new BytesArray(templateString);
+        searchRequest.templateSource(bytesRef, false);
+        SearchResponse searchResponse = client().search(searchRequest).get();
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+    }
+
     @Test
     public void testThatParametersCanBeSet() throws Exception {
         index("test", "type", "1", jsonBuilder().startObject().field("theField", "foo").endObject());

@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 
@@ -647,10 +648,17 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         templateContext = new TemplateQueryParser.TemplateContext(ScriptService.ScriptType.FILE, templateContext.template(), templateContext.params());
                     }
                     if (parser != null) {
-                        TemplateQueryParser.TemplateContext innerContext = TemplateQueryParser.parse(parser, "params");
-                        if (hasLength(innerContext.template()) && !innerContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
-                            //An inner template referring to a filename or id
-                            templateContext = new TemplateQueryParser.TemplateContext(innerContext.scriptType(), innerContext.template(), templateContext.params());
+                        try {
+                            TemplateQueryParser.TemplateContext innerContext = TemplateQueryParser.parse(parser, "params");
+                            if (hasLength(innerContext.template()) && !innerContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
+                                //An inner template referring to a filename or id
+                                templateContext = new TemplateQueryParser.TemplateContext(innerContext.scriptType(), innerContext.template(), templateContext.params());
+                            }
+                        } catch (JsonParseException e) { // TODO: consider throwing better exception, dependency on Jackson exception is not ideal
+                            // If template is provided as a single string then it can contain conditional clauses.
+                            // In such case the parsing is expected to fail, it is ok to ignore the exception here because
+                            // the string is going to be processes by scripting engine and if it is invalid then
+                            // relevant exception will be fired by scripting engine later.
                         }
                     }
                 }

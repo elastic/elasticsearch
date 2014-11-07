@@ -32,7 +32,7 @@
 
     <properties>
         <lucene.version>5.0.0</lucene.version>
-        <lucene.maven.version>5.0.0-snapshot-1636426</lucene.maven.version>
+        <lucene.maven.version>5.0.0-snapshot-1637347</lucene.maven.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -53,6 +53,10 @@
         <repository>
             <id>Lucene snapshots</id>
             <url>https://download.elasticsearch.org/lucenesnapshots/maven/</url> 
+        </repository>
+        <repository>
+            <id>Temporary</id>
+            <url>http://people.apache.org/~mikemccand/fake_staging_area/repo/</url> 
         </repository>
     </repositories>
 

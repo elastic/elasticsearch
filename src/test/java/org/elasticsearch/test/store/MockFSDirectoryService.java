@@ -120,6 +120,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
 
     public void checkIndex(Store store, ShardId shardId) throws IndexShardException {
         try {
+            logger.info("start check index");
             Directory dir = store.directory();
             if (!Lucene.indexExists(dir)) {
                 return;

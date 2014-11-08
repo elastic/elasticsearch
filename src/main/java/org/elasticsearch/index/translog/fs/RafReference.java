@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog.fs;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.io.FileSystemUtils;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -78,7 +77,7 @@ public class RafReference {
                 // ignore
             } finally {
                 if (delete) {
-                    FileSystemUtils.deleteFilesIgnoringExceptions(file.toPath());
+                    IOUtils.deleteFilesIgnoringExceptions(file.toPath());
                 }
             }
 

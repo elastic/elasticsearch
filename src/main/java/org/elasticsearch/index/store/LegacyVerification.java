@@ -51,14 +51,13 @@ class LegacyVerification {
      * verifies Adler32 + length for index files before lucene 4.8
      */
     static class Adler32VerifyingIndexOutput extends VerifyingIndexOutput {
-        final IndexOutput delegate;
         final String adler32;
         final long length;
         final Checksum checksum = new BufferedChecksum(new Adler32());
         long written;
         
-        public Adler32VerifyingIndexOutput(IndexOutput delegate, String adler32, long length) {
-            this.delegate = delegate;
+        public Adler32VerifyingIndexOutput(IndexOutput in, String adler32, long length) {
+            super(in);
             this.adler32 = adler32;
             this.length = length;
         }
@@ -67,46 +66,25 @@ class LegacyVerification {
         public void verify() throws IOException {
             if (written != length) {
                 throw new CorruptIndexException("expected length=" + length + " != actual length: " + written + " : file truncated?" + 
-                                                " (resource=" + delegate + ")");
+                                                " (resource=" + in + ")");
             }
             final String actualChecksum = Store.digestToString(checksum.getValue());
             if (!adler32.equals(actualChecksum)) {
                 throw new CorruptIndexException("checksum failed (hardware problem?) : expected=" + adler32 +
-                                                " actual=" + actualChecksum + " resource=(" + delegate + ")");
+                                                " actual=" + actualChecksum + " resource=(" + in + ")");
             }
         }
 
         @Override
-        public void close() throws IOException {
-            delegate.close();
-        }
-
-        @Override
-        @Deprecated
-        public void flush() throws IOException {
-            delegate.flush(); // we dont buffer, but whatever
-        }
-
-        @Override
-        public long getChecksum() throws IOException {
-            return delegate.getChecksum();
-        }
-
-        @Override
-        public long getFilePointer() {
-            return delegate.getFilePointer();
-        }
-
-        @Override
         public void writeByte(byte b) throws IOException {
-            delegate.writeByte(b);
+            in.writeByte(b);
             checksum.update(b);
             written++;
         }
 
         @Override
         public void writeBytes(byte[] bytes, int offset, int length) throws IOException {
-            delegate.writeBytes(bytes, offset, length);
+            in.writeBytes(bytes, offset, length);
             checksum.update(bytes, offset, length);
             written += length;
         }
@@ -116,12 +94,11 @@ class LegacyVerification {
      * verifies length for index files before lucene 4.8
      */
     static class LengthVerifyingIndexOutput extends VerifyingIndexOutput {
-        final IndexOutput delegate;
         final long length;
         long written;
         
-        public LengthVerifyingIndexOutput(IndexOutput delegate, long length) {
-            this.delegate = delegate;
+        public LengthVerifyingIndexOutput(IndexOutput in, long length) {
+            super(in);
             this.length = length;
         }
 
@@ -129,40 +106,19 @@ class LegacyVerification {
         public void verify() throws IOException {
             if (written != length) {
                 throw new CorruptIndexException("expected length=" + length + " != actual length: " + written + " : file truncated?" + 
-                                                " (resource=" + delegate + ")");
+                                                " (resource=" + in + ")");
             }
         }
 
         @Override
-        public void close() throws IOException {
-            delegate.close();
-        }
-
-        @Override
-        @Deprecated
-        public void flush() throws IOException {
-            delegate.flush(); // we dont buffer, but whatever
-        }
-
-        @Override
-        public long getChecksum() throws IOException {
-            return delegate.getChecksum();
-        }
-
-        @Override
-        public long getFilePointer() {
-            return delegate.getFilePointer();
-        }
-
-        @Override
         public void writeByte(byte b) throws IOException {
-            delegate.writeByte(b);
+            in.writeByte(b);
             written++;
         }
 
         @Override
         public void writeBytes(byte[] bytes, int offset, int length) throws IOException {
-            delegate.writeBytes(bytes, offset, length);
+            in.writeBytes(bytes, offset, length);
             written += length;
         }
     }

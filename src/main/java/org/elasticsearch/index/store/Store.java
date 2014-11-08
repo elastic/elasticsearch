@@ -885,40 +885,14 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     static class LuceneVerifyingIndexOutput extends VerifyingIndexOutput {
 
         private final StoreFileMetaData metadata;
-        private final IndexOutput output;
         private long writtenBytes;
         private final long checksumPosition;
         private String actualChecksum;
 
-        LuceneVerifyingIndexOutput(StoreFileMetaData metadata, IndexOutput actualOutput) {
+        LuceneVerifyingIndexOutput(StoreFileMetaData metadata, IndexOutput in) {
+            super(in);
             this.metadata = metadata;
-            this.output = actualOutput;
             checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum
-        }
-
-        @Override
-        public void flush() throws IOException {
-            output.flush();
-        }
-
-        @Override
-        public void close() throws IOException {
-            output.close();
-        }
-
-        @Override
-        public long getFilePointer() {
-            return output.getFilePointer();
-        }
-
-        @Override
-        public long getChecksum() throws IOException {
-            return output.getChecksum();
-        }
-
-        @Override
-        public long length() throws IOException {
-            return output.length();
         }
 
         @Override
@@ -936,7 +910,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             if (writtenBytes++ == checksumPosition) {
                 readAndCompareChecksum();
             }
-            output.writeByte(b);
+            in.writeByte(b);
         }
 
         private void readAndCompareChecksum() throws IOException {
@@ -953,13 +927,13 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             if (writtenBytes + length > checksumPosition && actualChecksum == null) {
                 assert writtenBytes <= checksumPosition;
                 final int bytesToWrite = (int)(checksumPosition-writtenBytes);
-                output.writeBytes(b, offset, bytesToWrite);
+                in.writeBytes(b, offset, bytesToWrite);
                 readAndCompareChecksum();
                 offset += bytesToWrite;
                 length -= bytesToWrite;
                 writtenBytes += bytesToWrite;
             }
-            output.writeBytes(b, offset, length);
+            in.writeBytes(b, offset, length);
             writtenBytes += length;
         }
 

@@ -28,7 +28,7 @@ Elasticsearch is a distributed RESTful search engine built for the cloud. Featur
 ** All the power of Lucene easily exposed through simple configuration / plugins.
 * Per operation consistency
 ** Single document level operations are atomic, consistent, isolated and durable.
-* Open Source under Apache 2 License.
+* Open Source under the Apache License, version 2 ("ALv2")
 
 h2. Getting Started
 

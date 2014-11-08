@@ -1314,12 +1314,14 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     @Override
     public void close() throws ElasticsearchException {
         try (InternalLock _ = writeLock.acquire()) {
+            logger.debug("close acquired writeLock");
             if (!closed) {
                 try {
                     closed = true;
                     indexSettingsService.removeListener(applySettings);
                     this.versionMap.clear();
                     this.failedEngineListeners.clear();
+                    logger.debug("close searcherManager");
                     try {
                         IOUtils.close(searcherManager);
                     } catch (Throwable t) {
@@ -1327,11 +1329,13 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     }
                     // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                     if (indexWriter != null) {
+                        logger.debug("rollback indexWriter");
                         try {
                             indexWriter.rollback();
                         } catch (AlreadyClosedException e) {
                             // ignore
                         }
+                        logger.debug("rollback indexWriter done");
                     }
                 } catch (Throwable e) {
                     logger.warn("failed to rollback writer on close", e);

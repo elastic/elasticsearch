@@ -1,5 +1,6 @@
 package org.elasticsearch.examples.nativescript.script;
 
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -8,6 +9,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.ScriptException;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -36,21 +38,33 @@ public class PopularityScoreScriptFactory implements NativeScriptFactory {
 
         private final String field;
 
+        private Scorer scorer;
+
         public PopularityScoreScript(String field) {
             this.field = field;
         }
 
         @Override
+        public void setScorer(Scorer scorer) {
+            this.scorer = scorer;
+        }
+
+        @Override
         public float runAsFloat() {
-            ScriptDocValues docValue = (ScriptDocValues) doc().get(field);
-            if (docValue != null && !docValue.isEmpty()) {
-                ScriptDocValues.Longs fieldData = (ScriptDocValues.Longs) docValue;
-                double boost = 1 + Math.log10(fieldData.getValue() + 1);
-                // Because this script is used in custom_score script the value of score() is populated.
-                // In all other cases doc().getScore() should be used instead.
-                return (float) boost * score();
+            try {
+                ScriptDocValues docValue = (ScriptDocValues) doc().get(field);
+                if (docValue != null && !docValue.isEmpty()) {
+                    ScriptDocValues.Longs fieldData = (ScriptDocValues.Longs) docValue;
+                    double boost = 1 + Math.log10(fieldData.getValue() + 1);
+                    // Because this script is used in custom_score script the value of score() is populated.
+                    // In all other cases doc().getScore() should be used instead.
+                    return (float) boost * scorer.score();
+
+                }
+                return scorer.score();
+            } catch (IOException ex) {
+                return 0.0f;
             }
-            return score();
         }
     }
 }

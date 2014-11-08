@@ -13,7 +13,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 /**
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
-public class AbstractSearchScriptTests extends ElasticsearchIntegrationTest {
+public abstract class AbstractSearchScriptTests extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings indexSettings() {

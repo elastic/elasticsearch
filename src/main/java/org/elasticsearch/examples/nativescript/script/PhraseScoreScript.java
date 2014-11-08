@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Map;
 
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -28,6 +29,11 @@ public class PhraseScoreScript extends AbstractSearchScript {
     ArrayList<String> terms = null;
 
     final static public String SCRIPT_NAME = "phrase_script_score";
+
+    @Override
+    public void setScorer(Scorer scorer) {
+        // ignore
+    }
 
     /**
      * Factory that is registered in

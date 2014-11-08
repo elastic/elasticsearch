@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
 
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ScriptException;
 
 import org.elasticsearch.common.Nullable;
@@ -31,6 +32,11 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
     ArrayList<Double> weights = null;
 
     final static public String SCRIPT_NAME = "cosine_sim_script_score";
+
+    @Override
+    public void setScorer(Scorer scorer) {
+        // ignore
+    }
 
     /**
      * Factory that is registered in

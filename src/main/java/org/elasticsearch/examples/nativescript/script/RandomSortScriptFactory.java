@@ -1,5 +1,6 @@
 package org.elasticsearch.examples.nativescript.script;
 
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -50,6 +51,11 @@ public class RandomSortScriptFactory implements NativeScriptFactory {
         public long runAsLong() {
             return random.nextLong();
         }
+
+        @Override
+        public void setScorer(Scorer scorer) {
+            // we are not using it - ignore
+        }
     }
 
     private static class PseudoRandomSortScript extends AbstractLongSearchScript {
@@ -78,6 +84,11 @@ public class RandomSortScriptFactory implements NativeScriptFactory {
             } catch (NoSuchAlgorithmException ex) {
                 return -1;
             }
+        }
+
+        @Override
+        public void setScorer(Scorer scorer) {
+            // we are not using it - ignore
         }
     }
 }

@@ -57,7 +57,7 @@ public class IncludeNestedDocsQuery extends Query {
         this.parentFilter = parentFilter;
     }
 
-    // For rewritting
+    // For rewriting
     IncludeNestedDocsQuery(Query rewrite, Query originalQuery, IncludeNestedDocsQuery previousInstance) {
         this.origParentQuery = originalQuery;
         this.parentQuery = rewrite;

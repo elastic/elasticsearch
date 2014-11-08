@@ -18,7 +18,7 @@ as defined for the field mapping.
 ==== Filter Format
 
 The Filter supports two ways of defining the Filter shape, either by
-providing a whole shape defintion, or by referencing the name of a shape
+providing a whole shape definition, or by referencing the name of a shape
 pre-indexed in another index. Both formats are defined below with
 examples.
 

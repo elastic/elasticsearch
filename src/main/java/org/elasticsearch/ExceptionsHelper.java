@@ -135,7 +135,7 @@ public final class ExceptionsHelper {
     public static <T extends Throwable> void rethrowAndSuppress(List<T> exceptions) throws T {
         T main = null;
         for (T ex : exceptions) {
-            main = useOrSupress(main, ex);
+            main = useOrSuppress(main, ex);
         }
         if (main != null) {
             throw main;
@@ -149,14 +149,14 @@ public final class ExceptionsHelper {
     public static <T extends Throwable> void maybeThrowRuntimeAndSuppress(List<T> exceptions) {
         T main = null;
         for (T ex : exceptions) {
-            main = useOrSupress(main, ex);
+            main = useOrSuppress(main, ex);
         }
         if (main != null) {
             throw new ElasticsearchException(main.getMessage(), main);
         }
     }
 
-    public static <T extends Throwable> T useOrSupress(T first, T second) {
+    public static <T extends Throwable> T useOrSuppress(T first, T second) {
         if (first == null) {
             return second;
         } else {

@@ -248,7 +248,7 @@ public final class TermVectorFields extends Fields {
                         // realloc.
                         growBuffers();
                         // finally, read the values into the arrays
-                        // curentPosition etc. so that we can just iterate
+                        // currentPosition etc. so that we can just iterate
                         // later
                         writeInfos(perFieldTermVectorInput);
                         return spare.get();

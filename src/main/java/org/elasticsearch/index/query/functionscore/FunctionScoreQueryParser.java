@@ -51,7 +51,7 @@ import java.util.Arrays;
 public class FunctionScoreQueryParser implements QueryParser {
 
     public static final String NAME = "function_score";
-    ScoreFunctionParserMapper funtionParserMapper;
+    ScoreFunctionParserMapper functionParserMapper;
     // For better readability of error message
     static final String MISPLACED_FUNCTION_MESSAGE_PREFIX = "You can either define \"functions\":[...] or a single function, not both. ";
     static final String MISPLACED_BOOST_FUNCTION_MESSAGE_SUFFIX = " Did you mean \"boost\" instead?";
@@ -59,8 +59,8 @@ public class FunctionScoreQueryParser implements QueryParser {
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
 
     @Inject
-    public FunctionScoreQueryParser(ScoreFunctionParserMapper funtionParserMapper) {
-        this.funtionParserMapper = funtionParserMapper;
+    public FunctionScoreQueryParser(ScoreFunctionParserMapper functionParserMapper) {
+        this.functionParserMapper = functionParserMapper;
     }
 
     @Override
@@ -129,7 +129,7 @@ public class FunctionScoreQueryParser implements QueryParser {
                     // we try to parse a score function. If there is no score
                     // function for the current field name,
                     // functionParserMapper.get() will throw an Exception.
-                    scoreFunction = funtionParserMapper.get(parseContext.index(), currentFieldName).parse(parseContext, parser);
+                    scoreFunction = functionParserMapper.get(parseContext.index(), currentFieldName).parse(parseContext, parser);
                 }
                 if (functionArrayFound) {
                     String errorString = "Found \"functions\": [...] already, now encountering \"" + currentFieldName + "\".";
@@ -202,9 +202,9 @@ public class FunctionScoreQueryParser implements QueryParser {
                             filter = parseContext.parseInnerFilter();
                         } else {
                             // do not need to check null here,
-                            // funtionParserMapper throws exception if parser
+                            // functionParserMapper throws exception if parser
                             // non-existent
-                            ScoreFunctionParser functionParser = funtionParserMapper.get(parseContext.index(), currentFieldName);
+                            ScoreFunctionParser functionParser = functionParserMapper.get(parseContext.index(), currentFieldName);
                             scoreFunction = functionParser.parse(parseContext, parser);
                         }
                     }

@@ -387,12 +387,18 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         IndexOutput output = directory().createOutput(fileName, context);
         boolean success = false;
         try {
-            if (metadata.hasLegacyChecksum() || metadata.checksum() == null) {
-                logger.debug("create legacy output for {}", fileName);
+            if (metadata.hasLegacyChecksum()) {
+                logger.debug("create legacy adler32 output for {}", fileName);
+                output = new LegacyVerification.Adler32VerifyingIndexOutput(output, metadata.checksum(), metadata.length());
+            } else if (metadata.checksum() == null) {
+                // TODO: when the file is a segments_N, we can still CRC-32 + length for more safety
+                // its had that checksum forever.
+                logger.debug("create legacy length-only output for {}", fileName);
+                output = new LegacyVerification.LengthVerifyingIndexOutput(output, metadata.length());
             } else {
                 assert metadata.writtenBy() != null;
                 assert metadata.writtenBy().onOrAfter(Version.LUCENE_48);
-                output = new VerifyingIndexOutput(metadata, output);
+                output = new LuceneVerifyingIndexOutput(metadata, output);
             }
             success = true;
         } finally {
@@ -876,7 +882,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
 
-    static class VerifyingIndexOutput extends IndexOutput {
+    static class LuceneVerifyingIndexOutput extends VerifyingIndexOutput {
 
         private final StoreFileMetaData metadata;
         private final IndexOutput output;
@@ -884,7 +890,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         private final long checksumPosition;
         private String actualChecksum;
 
-        VerifyingIndexOutput(StoreFileMetaData metadata, IndexOutput actualOutput) {
+        LuceneVerifyingIndexOutput(StoreFileMetaData metadata, IndexOutput actualOutput) {
             this.metadata = metadata;
             this.output = actualOutput;
             checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum
@@ -915,10 +921,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             return output.length();
         }
 
-        /**
-         * Verifies the checksum and compares the written length with the expected file length. This method should bec
-         * called after all data has been written to this output.
-         */
+        @Override
         public void verify() throws IOException {
             if (metadata.checksum().equals(actualChecksum) && writtenBytes == metadata.length()) {
                 return;

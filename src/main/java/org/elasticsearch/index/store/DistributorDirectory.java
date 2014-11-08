@@ -22,13 +22,12 @@ import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.math.MathUtils;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.store.distributor.Distributor;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.concurrent.ConcurrentMap;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -38,7 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class DistributorDirectory extends BaseDirectory {
 
     private final Distributor distributor;
-    private final ConcurrentMap<String, Directory> nameDirMapping = ConcurrentCollections.newConcurrentMap();
+    private final HashMap<String, Directory> nameDirMapping = new HashMap<>();
 
     /**
      * Creates a new DistributorDirectory from multiple directories. Note: The first directory in the given array
@@ -80,12 +79,12 @@ public final class DistributorDirectory extends BaseDirectory {
     }
 
     @Override
-    public final String[] listAll() throws IOException {
-        return nameDirMapping.keySet().toArray(new String[0]);
+    public synchronized final String[] listAll() throws IOException {
+        return nameDirMapping.keySet().toArray(new String[nameDirMapping.size()]);
     }
 
     @Override
-    public boolean fileExists(String name) throws IOException {
+    public synchronized boolean fileExists(String name) throws IOException {
         try {
             return getDirectory(name).fileExists(name);
         } catch (FileNotFoundException ex) {
@@ -94,36 +93,37 @@ public final class DistributorDirectory extends BaseDirectory {
     }
 
     @Override
-    public void deleteFile(String name) throws IOException {
+    public synchronized void deleteFile(String name) throws IOException {
         getDirectory(name, true).deleteFile(name);
         Directory remove = nameDirMapping.remove(name);
         assert remove != null : "Tried to delete file " + name + " but couldn't";
     }
 
     @Override
-    public long fileLength(String name) throws IOException {
+    public synchronized long fileLength(String name) throws IOException {
         return getDirectory(name).fileLength(name);
     }
 
     @Override
-    public IndexOutput createOutput(String name, IOContext context) throws IOException {
+    public synchronized IndexOutput createOutput(String name, IOContext context) throws IOException {
         return getDirectory(name, false).createOutput(name, context);
     }
 
     @Override
     public void sync(Collection<String> names) throws IOException {
+        // no need to sync this operation it could be long running too
         for (Directory dir : distributor.all()) {
             dir.sync(names);
         }
     }
 
     @Override
-    public IndexInput openInput(String name, IOContext context) throws IOException {
+    public synchronized IndexInput openInput(String name, IOContext context) throws IOException {
         return getDirectory(name).openInput(name, context);
     }
 
     @Override
-    public void close() throws IOException {
+    public synchronized void close() throws IOException {
         IOUtils.close(distributor.all());
     }
 
@@ -132,7 +132,7 @@ public final class DistributorDirectory extends BaseDirectory {
      *
      * @throws IOException if the name has not yet been associated with any directory ie. fi the file does not exists
      */
-    private Directory getDirectory(String name) throws IOException {
+    Directory getDirectory(String name) throws IOException { // pkg private for testing
         return getDirectory(name, true);
     }
 
@@ -141,36 +141,34 @@ public final class DistributorDirectory extends BaseDirectory {
      * if failIfNotAssociated is set to false.
      */
     private Directory getDirectory(String name, boolean failIfNotAssociated) throws IOException {
-        Directory directory = nameDirMapping.get(name);
+        final Directory directory = nameDirMapping.get(name);
         if (directory == null) {
             if (failIfNotAssociated) {
                 throw new FileNotFoundException("No such file [" + name + "]");
             }
             // Pick a directory and associate this new file with it:
             final Directory dir = distributor.any();
-            directory = nameDirMapping.putIfAbsent(name, dir);
-            if (directory == null) {
-                // putIfAbsent did in fact put dir:
-                directory = dir;
-            }
+            assert nameDirMapping.containsKey(name) == false;
+            nameDirMapping.put(name, dir);
+            return dir;
         }
             
         return directory;
     }
 
     @Override
-    public void setLockFactory(LockFactory lockFactory) throws IOException {
+    public synchronized void setLockFactory(LockFactory lockFactory) throws IOException {
         distributor.primary().setLockFactory(lockFactory);
         super.setLockFactory(new DistributorLockFactoryWrapper(distributor.primary()));
     }
 
     @Override
-    public String getLockID() {
+    public synchronized String getLockID() {
         return distributor.primary().getLockID();
     }
 
     @Override
-    public String toString() {
+    public synchronized String toString() {
         return distributor.toString();
     }
 
@@ -178,26 +176,20 @@ public final class DistributorDirectory extends BaseDirectory {
      * Renames the given source file to the given target file unless the target already exists.
      *
      * @param directoryService the DirectoryService to use.
-     * @param from the source file name.
-     * @param to the target file name
+     * @param source the source file name.
+     * @param dest the target file name
      * @throws IOException if the target file already exists.
      */
-    public void renameFile(DirectoryService directoryService, String from, String to) throws IOException {
-        Directory directory = getDirectory(from);
-        if (nameDirMapping.putIfAbsent(to, directory) != null) {
-            throw new IOException("Can't rename file from " + from
-                    + " to: " + to + ": target file already exists");
+    public synchronized void renameFile(DirectoryService directoryService, String source, String dest) throws IOException {
+        final Directory directory = getDirectory(source);
+        final Directory targetDir = nameDirMapping.get(dest);
+        if (targetDir != null && targetDir != directory) {
+            throw new IOException("Can't rename file from " + source
+                    + " to: " + dest + ": target file already exists in a different directory");
         }
-        boolean success = false;
-        try {
-            directoryService.renameFile(directory, from, to);
-            nameDirMapping.remove(from);
-            success = true;
-        } finally {
-            if (!success) {
-                nameDirMapping.remove(to);
-            }
-        }
+        directoryService.renameFile(directory, source, dest);
+        nameDirMapping.remove(source);
+        nameDirMapping.put(dest, directory);
     }
 
     Distributor getDistributor() {
@@ -208,36 +200,38 @@ public final class DistributorDirectory extends BaseDirectory {
      * Basic checks to ensure the internal mapping is consistent - should only be used in assertions
      */
     static boolean assertConsistency(ESLogger logger, DistributorDirectory dir) throws IOException {
-        boolean consistent = true;
-        StringBuilder builder = new StringBuilder();
-        try {
-            Directory[] all = dir.distributor.all();
-            for (Directory d : all) {
-                for (String file : d.listAll()) {
-                final Directory directory = dir.nameDirMapping.get(file);
-                    if (directory == null) {
-                        consistent = false;
-                        builder.append("File ").append(file)
-                                .append(" was not mapped to a directory but exists in one of the distributors directories")
-                                .append(System.lineSeparator());
-                    } else if (directory != d) {
-                        consistent = false;
-                        builder.append("File ").append(file).append(" was  mapped to a directory ").append(directory)
-                                .append(" but exists in another distributor directory").append(d)
-                                .append(System.lineSeparator());
-                    }
+        synchronized (dir) {
+            boolean consistent = true;
+            try {
+                StringBuilder builder = new StringBuilder();
+                Directory[] all = dir.distributor.all();
+                for (Directory d : all) {
+                    for (String file : d.listAll()) {
+                        final Directory directory = dir.nameDirMapping.get(file);
+                        if (directory == null) {
+                            consistent = false;
+                            builder.append("File ").append(file)
+                                    .append(" was not mapped to a directory but exists in one of the distributors directories")
+                                    .append(System.lineSeparator());
+                        } else if (directory != d) {
+                            consistent = false;
+                            builder.append("File ").append(file).append(" was  mapped to a directory ").append(directory)
+                                    .append(" but exists in another distributor directory").append(d)
+                                    .append(System.lineSeparator());
+                        }
 
+                    }
                 }
+                if (consistent == false) {
+                    logger.info(builder.toString());
+                }
+                assert consistent : builder.toString();
+            } catch (NoSuchDirectoryException ex) {
+                // that's fine - we can't check the directory since we might have already been wiped by a shutdown or
+                // a test cleanup ie the directory is not there anymore.
             }
-            if (consistent == false) {
-                logger.info(builder.toString());
-            }
-            assert consistent: builder.toString();
-        } catch (NoSuchDirectoryException ex) {
-            // that's fine - we can't check the directory since we might have already been wiped by a shutdown or
-            // a test cleanup ie the directory is not there anymore.
+            return consistent; // return boolean so it can be easily be used in asserts
         }
-        return consistent; // return boolean so it can be easily be used in asserts
     }
 
     /**
@@ -300,8 +294,12 @@ public final class DistributorDirectory extends BaseDirectory {
             public boolean obtain() throws IOException {
                 if (delegateLock.obtain()) {
                     if (writesFiles) {
-                        assert (nameDirMapping.containsKey(name) == false || nameDirMapping.get(name) == dir);
-                        nameDirMapping.putIfAbsent(name, dir);
+                        synchronized (DistributorDirectory.this) {
+                            assert (nameDirMapping.containsKey(name) == false || nameDirMapping.get(name) == dir);
+                            if (nameDirMapping.get(name) == null) {
+                                nameDirMapping.put(name, dir);
+                            }
+                        }
                     }
                     return true;
                 } else {

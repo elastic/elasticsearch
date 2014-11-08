@@ -415,19 +415,28 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             CodecUtil.writeFooter(output);
             output.close();
         }
-        try {
-            store.renameFile("foo.bar", "bar.foo");
-            fail("targe file already exists");
-        } catch (IOException ex) {
-            // expected
-        }
+        DistributorDirectory distributorDirectory = DirectoryUtils.getLeaf(store.directory(), DistributorDirectory.class);
+        assertNotNull(distributorDirectory);
+        if (distributorDirectory.getDirectory("foo.bar") != distributorDirectory.getDirectory("bar.foo")) {
+            try {
+                store.renameFile("foo.bar", "bar.foo");
+                fail("target file already exists in a different directory");
+            } catch (IOException ex) {
+                // expected
+            }
 
-        try (IndexInput input = store.directory().openInput("bar.foo", IOContext.DEFAULT)) {
-            assertThat(lastChecksum, equalTo(CodecUtil.checksumEntireFile(input)));
+            try (IndexInput input = store.directory().openInput("bar.foo", IOContext.DEFAULT)) {
+                assertThat(lastChecksum, equalTo(CodecUtil.checksumEntireFile(input)));
+            }
+            assertThat(store.directory().listAll().length, is(2));
+            assertDeleteContent(store, directoryService);
+            IOUtils.close(store);
+        } else {
+            store.renameFile("foo.bar", "bar.foo");
+            assertThat(store.directory().listAll().length, is(1));
+            assertDeleteContent(store, directoryService);
+            IOUtils.close(store);
         }
-        assertThat(store.directory().listAll().length, is(2));
-        assertDeleteContent(store, directoryService);
-        IOUtils.close(store);
     }
 
     public void testCheckIntegrity() throws IOException {

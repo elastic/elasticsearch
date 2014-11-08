@@ -24,7 +24,10 @@ Requesting bucket intervals of a month.
 }
 --------------------------------------------------
 
-fractional values are allowed, for example 1.5 hours:
+Available expressions for interval: `year`, `quarter`, `month`, `week`, `day`, `hour`, `minute`, `second`
+
+
+Fractional values are allowed for seconds, minutes, hours, days and weeks. For example 1.5 hours:
 
 [source,js]
 --------------------------------------------------
@@ -40,7 +43,7 @@ fractional values are allowed, for example 1.5 hours:
 }
 --------------------------------------------------
 
-Available expressions for interval: `year`, `quarter`, `month`, `week`, `day`, `hour`, `minute`, `second`
+See <<time-units>> for accepted abbreviations.
 
 ==== Time Zone
 

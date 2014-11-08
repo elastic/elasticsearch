@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.triggers.TriggerManager;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -131,7 +133,7 @@ public class AlertsStore extends AbstractComponent {
     public DeleteResponse deleteAlert(String name) {
         Alert alert = alertMap.remove(name);
         if (alert == null) {
-            return null;
+            return new DeleteResponse(ALERT_INDEX, ALERT_TYPE, name, Versions.MATCH_ANY, false);
         }
 
         DeleteResponse deleteResponse = client.prepareDelete(ALERT_INDEX, ALERT_TYPE, name)
@@ -269,6 +271,7 @@ public class AlertsStore extends AbstractComponent {
                     } else if (REQUEST_FIELD.match(currentFieldName)) {
                         String searchRequestFieldName = null;
                         SearchRequest searchRequest = new SearchRequest();
+                        searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen()); // TODO: make options configurable
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 searchRequestFieldName = parser.currentName();

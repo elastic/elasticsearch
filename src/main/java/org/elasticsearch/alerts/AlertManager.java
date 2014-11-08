@@ -73,12 +73,11 @@ public class AlertManager extends AbstractComponent {
 
     public DeleteResponse deleteAlert(String name) throws InterruptedException, ExecutionException {
         ensureStarted();
-        if (alertsStore.hasAlert(name)) {
-            assert scheduler.remove(name);
-            return alertsStore.deleteAlert(name);
-        } else {
-            return null;
+        DeleteResponse deleteResponse = alertsStore.deleteAlert(name);
+        if (deleteResponse.isFound()) {
+            scheduler.remove(name);
         }
+        return deleteResponse;
     }
 
     public IndexResponse addAlert(String alertName, BytesReference alertSource) {

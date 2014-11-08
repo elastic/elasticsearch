@@ -40,6 +40,23 @@ public class BasicAlertingTest extends AbstractAlertingTests {
     }
 
     @Test
+    public void testIndexAlert_registerAlertBeforeTargetIndex() throws Exception {
+        AlertsClientInterface alertsClient = alertClient();
+        SearchRequest searchRequest = new SearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
+        alertsClient.prepareIndexAlert("my-first-alert")
+                .setAlertSource(alertSource)
+                .get();
+
+        // The alert can't trigger because there is no data that matches with the query
+        assertNoAlertTrigger("my-first-alert");
+
+        // Index sample doc after we register the alert and the alert should get triggered
+        client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
+        assertAlertTriggered("my-first-alert");
+    }
+
+    @Test
     public void testDeleteAlert() throws Exception {
         AlertsClientInterface alertsClient = alertClient();
         createIndex("my-index");
@@ -59,6 +76,12 @@ public class BasicAlertingTest extends AbstractAlertingTests {
 
         refresh();
         assertHitCount(client().prepareCount(AlertsStore.ALERT_INDEX).get(), 0l);
+
+        // Deleting the same alert for the second time
+        deleteAlertRequest = new DeleteAlertRequest("my-first-alert");
+        deleteAlertResponse = alertsClient.deleteAlert(deleteAlertRequest).actionGet();
+        assertNotNull(deleteAlertResponse.deleteResponse());
+        assertFalse(deleteAlertResponse.deleteResponse().isFound());
     }
 
 }

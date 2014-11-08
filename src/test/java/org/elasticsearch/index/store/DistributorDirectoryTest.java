@@ -158,14 +158,15 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
             try (IndexOutput out = dd.createOutput("foo.bar", IOContext.DEFAULT)) {
                 out.writeInt(1);
             }
-            try {
-                dd.renameFile("foo.bar", file);
-                fail("target file already exists");
-            } catch (IOException ex) {
-                // target file already exists
+            assertNotNull(dd);
+            if (dd.getDirectory("foo.bar") != dd.getDirectory(file)) {
+                try {
+                    dd.renameFile("foo.bar", file);
+                    fail("target file already exists in a different directory");
+                } catch (IOException ex) {
+                    // target file already exists
+                }
             }
-
-            theDir.deleteFile(file);
             assertTrue(DistributorDirectory.assertConsistency(logger, dd));
             IOUtils.close(dd);
         }

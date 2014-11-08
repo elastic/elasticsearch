@@ -119,11 +119,11 @@ There are many more options to perform search, after all, it's a search product 
 
 h3. Multi Tenant - Indices and Types
 
-Maan, that twitter index might get big (in this case, index size == valuation). Let's see if we can structure our twitter system a bit differently in order to support such large amount of data.
+Maan, that twitter index might get big (in this case, index size == valuation). Let's see if we can structure our twitter system a bit differently in order to support such large amounts of data.
 
-Elasticsearch support multiple indices, as well as multiple types per index. In the previous example we used an index called @twitter@, with two types, @user@ and @tweet@.
+Elasticsearch supports multiple indices, as well as multiple types per index. In the previous example we used an index called @twitter@, with two types, @user@ and @tweet@.
 
-Another way to define our simple twitter system is to have a different index per user (though note that an index has an overhead). Here is the indexing curl's in this case:
+Another way to define our simple twitter system is to have a different index per user (note, though that each index has an overhead). Here is the indexing curl's in this case:
 
 <pre>
 curl -XPUT 'http://localhost:9200/kimchy/info/1' -d '{ "name" : "Shay Banon" }'
@@ -143,7 +143,7 @@ curl -XPUT 'http://localhost:9200/kimchy/tweet/2' -d '
 }'
 </pre>
 
-The above index information into the @kimchy@ index, with two types, @info@ and @tweet@. Each user will get his own special index.
+The above will index information into the @kimchy@ index, with two types, @info@ and @tweet@. Each user will get his own special index.
 
 Complete control on the index level is allowed. As an example, in the above case, we would want to change from the default 5 shards with 1 replica per index, to only 1 shard with 1 replica per index (== per twitter user). Here is how this can be done (the configuration can be in yaml as well):
 
@@ -180,7 +180,7 @@ curl -XGET 'http://localhost:9200/_search?pretty=true' -d '
 }'
 </pre>
 
-{One liner teaser}: And the cool part about that? You can easily search on multiple twitter users (indices), with different boost levels per user (index), making social search so much simpler (results from my friends rank higher than results from my friends friends).
+{One liner teaser}: And the cool part about that? You can easily search on multiple twitter users (indices), with different boost levels per user (index), making social search so much simpler (results from my friends rank higher than results from friends of my friends).
 
 h3. Distributed, Highly Available
 
@@ -188,7 +188,7 @@ Let's face it, things will fail....
 
 Elasticsearch is a highly available and distributed search engine. Each index is broken down into shards, and each shard can have one or more replica. By default, an index is created with 5 shards and 1 replica per shard (5/1). There are many topologies that can be used, including 1/10 (improve search performance), or 20/1 (improve indexing performance, with search executed in a map reduce fashion across shards).
 
-In order to play with Elasticsearch distributed nature, simply bring more nodes up and shut down nodes. The system will continue to serve requests (make sure you use the correct http port) with the latest data indexed.
+In order to play with the distributed nature of Elasticsearch, simply bring more nodes up and shut down nodes. The system will continue to serve requests (make sure you use the correct http port) with the latest data indexed.
 
 h3. Where to go from here?
 

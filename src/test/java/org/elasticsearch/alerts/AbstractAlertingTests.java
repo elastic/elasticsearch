@@ -53,6 +53,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("scroll.size", randomIntBetween(1, 100))
                 .put("plugin.types", AlertsPlugin.class.getName())
+                // TODO: Figure out why Guice errors occur if zen discovery isn't configured
                 .put("discovery.type", "zen")
                 .build();
     }

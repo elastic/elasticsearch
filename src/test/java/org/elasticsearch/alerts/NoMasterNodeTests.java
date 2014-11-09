@@ -19,6 +19,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -32,11 +33,15 @@ import static org.hamcrest.core.Is.is;
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numClientNodes = 0, transportClientRatio = 0, numDataNodes = 0)
 public class NoMasterNodeTests extends AbstractAlertingTests {
 
+    private ClusterDiscoveryConfiguration.UnicastZen config;
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = super.nodeSettings(nodeOrdinal);
+        Settings unicastSettings = config.node(nodeOrdinal);
         return ImmutableSettings.builder()
                 .put(settings)
+                .put(unicastSettings)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)
                 .put("discovery.type", "zen")
                 .build();
@@ -44,6 +49,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
 
     @Test
     public void testSimpleFailure() throws Exception {
+        config = new ClusterDiscoveryConfiguration.UnicastZen(2);
         internalTestCluster().startNodesAsync(2).get();
         AlertsClientInterface alertsClient = alertClient();
         createIndex("my-index");

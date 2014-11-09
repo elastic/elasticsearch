@@ -56,6 +56,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.zip.Adler32;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -431,12 +432,33 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     }
 
     public boolean checkIntegrity(StoreFileMetaData md) {
-        if (md.writtenBy() != null && md.writtenBy().onOrAfter(Version.LUCENE_4_8_0)) {
-            try (IndexInput input = directory().openInput(md.name(), IOContext.READONCE)) {
-                CodecUtil.checksumEntireFile(input);
-            } catch (IOException  e) {
+        return checkIntegrity(md, directory());
+    }
+
+    public static boolean checkIntegrity(final StoreFileMetaData md, final Directory directory) {
+        try (IndexInput input = directory.openInput(md.name(), IOContext.READONCE)) {
+            if (input.length() != md.length()) { // first check the length no matter how old this file is
                 return false;
             }
+            if (md.writtenBy() != null && md.writtenBy().onOrAfter(Version.LUCENE_4_8_0)) {
+                return Store.digestToString(CodecUtil.checksumEntireFile(input)).equals(md.checksum());
+            } else if (md.hasLegacyChecksum()) {
+                // legacy checksum verification - no footer that we need to omit in the checksum!
+                final Checksum checksum = new Adler32();
+                final byte[] buffer = new byte[md.length() > 4096 ? 4096 : (int) md.length()];
+                final long len = input.length();
+                long read = 0;
+                while (len > read) {
+                    final long bytesLeft = len - read;
+                    final int bytesToRead = bytesLeft < buffer.length ? (int) bytesLeft : buffer.length;
+                    input.readBytes(buffer, 0, bytesToRead, false);
+                    checksum.update(buffer, 0, bytesToRead);
+                    read += bytesToRead;
+                }
+                return Store.digestToString(checksum.getValue()).equals(md.checksum());
+            }
+        } catch (IOException ex) {
+            return false;
         }
         return true;
     }

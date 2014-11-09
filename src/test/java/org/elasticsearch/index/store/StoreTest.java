@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.store;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.*;
@@ -40,6 +41,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
+import java.util.zip.Adler32;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static org.hamcrest.Matchers.*;
@@ -426,6 +428,79 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         assertThat(store.directory().listAll().length, is(2));
         assertDeleteContent(store, directoryService);
         IOUtils.close(store);
+    }
+
+    public void testCheckIntegrity() throws IOException {
+        Directory dir = newDirectory();
+        long luceneFileLength = 0;
+
+        try (IndexOutput output = dir.createOutput("lucene_checksum.bin", IOContext.DEFAULT)) {
+            int iters = scaledRandomIntBetween(10, 100);
+            for (int i = 0; i < iters; i++) {
+                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
+                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                luceneFileLength += bytesRef.length;
+            }
+            CodecUtil.writeFooter(output);
+            luceneFileLength += CodecUtil.footerLength();
+
+        }
+
+        final Adler32 adler32 = new Adler32();
+        long legacyFileLength = 0;
+        try (IndexOutput output = dir.createOutput("legacy.bin", IOContext.DEFAULT)) {
+            int iters = scaledRandomIntBetween(10, 100);
+            for (int i = 0; i < iters; i++) {
+                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
+                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                adler32.update(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                legacyFileLength += bytesRef.length;
+            }
+        }
+        final long luceneChecksum;
+        final long adler32LegacyChecksum = adler32.getValue();
+        try(IndexInput indexInput = dir.openInput("lucene_checksum.bin", IOContext.DEFAULT)) {
+            assertEquals(luceneFileLength, indexInput.length());
+            luceneChecksum = CodecUtil.retrieveChecksum(indexInput);
+        }
+
+        { // positive check
+            StoreFileMetaData lucene = new StoreFileMetaData("lucene_checksum.bin", luceneFileLength, Store.digestToString(luceneChecksum), Version.LUCENE_4_8_0);
+            StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum));
+            assertTrue(legacy.hasLegacyChecksum());
+            assertFalse(lucene.hasLegacyChecksum());
+            assertTrue(Store.checkIntegrity(lucene, dir));
+            assertTrue(Store.checkIntegrity(legacy, dir));
+        }
+
+        { // negative check - wrong checksum
+            StoreFileMetaData lucene = new StoreFileMetaData("lucene_checksum.bin", luceneFileLength, Store.digestToString(luceneChecksum+1), Version.LUCENE_4_8_0);
+            StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum+1));
+            assertTrue(legacy.hasLegacyChecksum());
+            assertFalse(lucene.hasLegacyChecksum());
+            assertFalse(Store.checkIntegrity(lucene, dir));
+            assertFalse(Store.checkIntegrity(legacy, dir));
+        }
+
+        { // negative check - wrong length
+            StoreFileMetaData lucene = new StoreFileMetaData("lucene_checksum.bin", luceneFileLength+1, Store.digestToString(luceneChecksum), Version.LUCENE_4_8_0);
+            StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength+1, Store.digestToString(adler32LegacyChecksum));
+            assertTrue(legacy.hasLegacyChecksum());
+            assertFalse(lucene.hasLegacyChecksum());
+            assertFalse(Store.checkIntegrity(lucene, dir));
+            assertFalse(Store.checkIntegrity(legacy, dir));
+        }
+
+        { // negative check - wrong file
+            StoreFileMetaData lucene = new StoreFileMetaData("legacy.bin", luceneFileLength, Store.digestToString(luceneChecksum), Version.LUCENE_4_8_0);
+            StoreFileMetaData legacy = new StoreFileMetaData("lucene_checksum.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum));
+            assertTrue(legacy.hasLegacyChecksum());
+            assertFalse(lucene.hasLegacyChecksum());
+            assertFalse(Store.checkIntegrity(lucene, dir));
+            assertFalse(Store.checkIntegrity(legacy, dir));
+        }
+        dir.close();
+
     }
 
     @Test

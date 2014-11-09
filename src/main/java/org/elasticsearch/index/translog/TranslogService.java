@@ -94,7 +94,7 @@ public class TranslogService extends AbstractIndexShardComponent {
 
     public void close() {
         indexSettingsService.removeListener(applySettings);
-        this.future.cancel(true);
+        this.future.cancel(false);
     }
 
 

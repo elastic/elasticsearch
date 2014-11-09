@@ -889,8 +889,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         private final long checksumPosition;
         private String actualChecksum;
 
-        LuceneVerifyingIndexOutput(StoreFileMetaData metadata, IndexOutput in) {
-            super(in);
+        LuceneVerifyingIndexOutput(StoreFileMetaData metadata, IndexOutput out) {
+            super(out);
             this.metadata = metadata;
             checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum
         }
@@ -910,7 +910,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             if (writtenBytes++ == checksumPosition) {
                 readAndCompareChecksum();
             }
-            in.writeByte(b);
+            out.writeByte(b);
         }
 
         private void readAndCompareChecksum() throws IOException {
@@ -927,13 +927,13 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             if (writtenBytes + length > checksumPosition && actualChecksum == null) {
                 assert writtenBytes <= checksumPosition;
                 final int bytesToWrite = (int)(checksumPosition-writtenBytes);
-                in.writeBytes(b, offset, bytesToWrite);
+                out.writeBytes(b, offset, bytesToWrite);
                 readAndCompareChecksum();
                 offset += bytesToWrite;
                 length -= bytesToWrite;
                 writtenBytes += bytesToWrite;
             }
-            in.writeBytes(b, offset, length);
+            out.writeBytes(b, offset, length);
             writtenBytes += length;
         }
 

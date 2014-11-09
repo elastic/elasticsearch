@@ -29,11 +29,11 @@ import org.apache.lucene.store.IndexOutput;
  */
 // do NOT optimize this class for performance
 public abstract class VerifyingIndexOutput extends IndexOutput {
-    protected final IndexOutput in;
+    protected final IndexOutput out;
     
     /** Sole constructor */
-    VerifyingIndexOutput(IndexOutput in) {
-        this.in = in;
+    VerifyingIndexOutput(IndexOutput out) {
+        this.out = out;
     }
     
     /**
@@ -46,27 +46,27 @@ public abstract class VerifyingIndexOutput extends IndexOutput {
     
     @Override
     public final void close() throws IOException {
-        in.close();
+        out.close();
     }
 
     @Override
     @Deprecated
     public final void flush() throws IOException {
-        in.flush(); // we dont buffer, but whatever
+        out.flush(); // we dont buffer, but whatever
     }
 
     @Override
     public final long getChecksum() throws IOException {
-        return in.getChecksum();
+        return out.getChecksum();
     }
 
     @Override
     public final long getFilePointer() {
-        return in.getFilePointer();
+        return out.getFilePointer();
     }
     
     @Override
     public final long length() throws IOException {
-        return in.length();
+        return out.length();
     }
 }

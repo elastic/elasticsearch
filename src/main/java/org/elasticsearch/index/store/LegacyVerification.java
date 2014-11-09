@@ -56,8 +56,8 @@ class LegacyVerification {
         final Checksum checksum = new BufferedChecksum(new Adler32());
         long written;
         
-        public Adler32VerifyingIndexOutput(IndexOutput in, String adler32, long length) {
-            super(in);
+        public Adler32VerifyingIndexOutput(IndexOutput out, String adler32, long length) {
+            super(out);
             this.adler32 = adler32;
             this.length = length;
         }
@@ -66,25 +66,25 @@ class LegacyVerification {
         public void verify() throws IOException {
             if (written != length) {
                 throw new CorruptIndexException("expected length=" + length + " != actual length: " + written + " : file truncated?" + 
-                                                " (resource=" + in + ")");
+                                                " (resource=" + out + ")");
             }
             final String actualChecksum = Store.digestToString(checksum.getValue());
             if (!adler32.equals(actualChecksum)) {
                 throw new CorruptIndexException("checksum failed (hardware problem?) : expected=" + adler32 +
-                                                " actual=" + actualChecksum + " resource=(" + in + ")");
+                                                " actual=" + actualChecksum + " resource=(" + out + ")");
             }
         }
 
         @Override
         public void writeByte(byte b) throws IOException {
-            in.writeByte(b);
+            out.writeByte(b);
             checksum.update(b);
             written++;
         }
 
         @Override
         public void writeBytes(byte[] bytes, int offset, int length) throws IOException {
-            in.writeBytes(bytes, offset, length);
+            out.writeBytes(bytes, offset, length);
             checksum.update(bytes, offset, length);
             written += length;
         }
@@ -97,8 +97,8 @@ class LegacyVerification {
         final long length;
         long written;
         
-        public LengthVerifyingIndexOutput(IndexOutput in, long length) {
-            super(in);
+        public LengthVerifyingIndexOutput(IndexOutput out, long length) {
+            super(out);
             this.length = length;
         }
 
@@ -106,19 +106,19 @@ class LegacyVerification {
         public void verify() throws IOException {
             if (written != length) {
                 throw new CorruptIndexException("expected length=" + length + " != actual length: " + written + " : file truncated?" + 
-                                                " (resource=" + in + ")");
+                                                " (resource=" + out + ")");
             }
         }
 
         @Override
         public void writeByte(byte b) throws IOException {
-            in.writeByte(b);
+            out.writeByte(b);
             written++;
         }
 
         @Override
         public void writeBytes(byte[] bytes, int offset, int length) throws IOException {
-            in.writeBytes(bytes, offset, length);
+            out.writeBytes(bytes, offset, length);
             written += length;
         }
     }

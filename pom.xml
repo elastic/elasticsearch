@@ -79,6 +79,14 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Remove this when LocalDiscovery gets fixed in core -->
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>18.0</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Regular dependencies -->
 
         <dependency>

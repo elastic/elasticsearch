@@ -317,12 +317,13 @@ public class AlertActionManager extends AbstractComponent {
             } catch (Exception e) {
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
-                }
-                if (started()) {
-                    logger.error("Error during reader thread, restarting queue reader thread...", e);
-                    threadPool.executor(ThreadPool.Names.GENERIC).execute(new QueueReaderThread());
                 } else {
-                    logger.error("Error during reader thread", e);
+                    if (started()) {
+                        logger.error("Error during reader thread, restarting queue reader thread...", e);
+                        threadPool.executor(ThreadPool.Names.GENERIC).execute(new QueueReaderThread());
+                    } else {
+                        logger.error("Error during reader thread", e);
+                    }
                 }
             }
         }

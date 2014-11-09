@@ -30,7 +30,6 @@ import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -135,7 +134,9 @@ public class AlertManager extends AbstractComponent {
     public void stop() {
         if (started.compareAndSet(true, false)) {
             logger.info("Stopping alert manager...");
-            scheduler.stop();
+            synchronized (scheduler) {
+                scheduler.stop();
+            }
             actionManager.stop();
             alertsStore.stop();
             logger.info("Alert manager has stopped");
@@ -153,12 +154,6 @@ public class AlertManager extends AbstractComponent {
     private void ensureStarted() {
         if (!started.get()) {
             throw new ElasticsearchIllegalStateException("not started");
-        }
-    }
-
-    private void sendAlertsToScheduler() {
-        for (Map.Entry<String, Alert> entry : alertsStore.getAlerts().entrySet()) {
-            scheduler.add(entry.getKey(), entry.getValue());
         }
     }
 
@@ -206,8 +201,7 @@ public class AlertManager extends AbstractComponent {
         private void startIfReady() {
             if (alertsStore.started() && actionManager.started()) {
                 if (started.compareAndSet(false, true)) {
-                    scheduler.start();
-                    sendAlertsToScheduler();
+                    scheduler.start(alertsStore.getAlerts());
                 }
             }
         }

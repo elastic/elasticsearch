@@ -19,6 +19,7 @@ import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.simpl.SimpleJobFactory;
 
+import java.util.Map;
 import java.util.Properties;
 
 public class AlertScheduler extends AbstractComponent {
@@ -39,7 +40,13 @@ public class AlertScheduler extends AbstractComponent {
         this.alertManager = alertManager;
     }
 
-    public void start() {
+    /**
+     * Starts the scheduler and schedules the specified alerts before returning.
+     *
+     * Both the start and stop are synchronized to avoid that scheduler gets stopped while previously stored alerts
+     * are being loaded.
+     */
+    public synchronized void start(Map<String, Alert> alerts) {
         try {
             logger.info("Starting scheduler");
             // Can't start a scheduler that has been shutdown, so we need to re-create each time start() is invoked
@@ -49,18 +56,22 @@ public class AlertScheduler extends AbstractComponent {
             scheduler = schFactory.getScheduler();
             scheduler.setJobFactory(new SimpleJobFactory());
             scheduler.start();
+            for (Map.Entry<String, Alert> entry : alerts.entrySet()) {
+                add(entry.getKey(), entry.getValue());
+            }
         } catch (SchedulerException se){
             logger.error("Failed to start quartz scheduler", se);
         }
     }
 
-    public void stop() {
+    /**
+     * Stops the scheduler.
+     */
+    public synchronized void stop() {
         try {
-            if (!scheduler.isShutdown()) {
-                scheduler.clear();
-                scheduler.shutdown(false);
-                logger.info("Stopped scheduler");
-            }
+            scheduler.clear();
+            scheduler.shutdown(true);
+            logger.info("Stopped scheduler");
         } catch (SchedulerException se){
             logger.error("Failed to stop quartz scheduler", se);
         }

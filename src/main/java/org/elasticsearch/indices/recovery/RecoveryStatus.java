@@ -117,7 +117,7 @@ public class RecoveryStatus {
             return null;
         }
         final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
-        IndexOutput indexOutput = store.createVerifyingOutput(fileName, IOContext.DEFAULT, metaData);
+        IndexOutput indexOutput = store.createVerifyingOutput(fileName, metaData, IOContext.DEFAULT);
         outputs.put(key, indexOutput);
         return indexOutput;
     }

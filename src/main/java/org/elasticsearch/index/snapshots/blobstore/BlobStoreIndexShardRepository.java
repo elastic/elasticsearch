@@ -880,7 +880,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             try {
                 // we create an output with no checksum, this is because the pure binary data of the file is not
                 // the checksum (because of seek). We will create the checksum file once copying is done
-                indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), IOContext.DEFAULT, fileInfo.metadata());
+                indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT);
             } catch (IOException e) {
                 try {
                     failures.add(e);

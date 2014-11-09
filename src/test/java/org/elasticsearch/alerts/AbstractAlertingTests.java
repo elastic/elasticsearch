@@ -53,7 +53,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("scroll.size", randomIntBetween(1, 100))
                 .put("plugin.types", AlertsPlugin.class.getName())
-                .put("node.mode", "network")
+                .put("discovery.type", "zen")
                 .build();
     }
 

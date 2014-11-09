@@ -20,22 +20,29 @@
 package org.elasticsearch.index.search.nested;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.PrefixFilter;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.NotFilter;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.io.IOException;
 
 /**
  * A filter that returns all root (non nested) documents.
+ *
  * Root documents have an unique id, a type and optionally have a _source and other indexed and stored fields.
+ * A nested document is a sub documents that belong to a root document.
+ * Nested documents share the unique id and type and optionally the _source with root documents.
  */
 public class NonNestedDocsFilter extends Filter {
 
     public static final NonNestedDocsFilter INSTANCE = new NonNestedDocsFilter();
 
-    private final Filter filter = new NotFilter(NestedDocsFilter.nestedFilter());
+    private final Filter filter = new NotFilter(nestedFilter());
     private final int hashCode = filter.hashCode();
 
     private NonNestedDocsFilter() {
@@ -54,5 +61,12 @@ public class NonNestedDocsFilter extends Filter {
     @Override
     public boolean equals(Object obj) {
         return obj == INSTANCE;
+    }
+
+    /**
+     * @return a filter that returns all nested documents.
+     */
+    private static Filter nestedFilter() {
+        return new PrefixFilter(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
     }
 }

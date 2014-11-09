@@ -1313,6 +1313,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public void close() throws ElasticsearchException {
+        logger.debug("close now acquire writeLock");
         try (InternalLock _ = writeLock.acquire()) {
             logger.debug("close acquired writeLock");
             if (!closed) {

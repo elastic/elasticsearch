@@ -13,18 +13,28 @@ import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.TestCluster;
 import org.junit.After;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -47,10 +57,18 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                 .build();
     }
 
+    @Override
+    protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        // This overwrites the wipe logic of the test cluster to not remove the alerts and alerthistory templates. By default all templates are removed
+        // TODO: We should have the notion of a hidden template (like hidden index / type) that only gets removed when specifically mentioned.
+        final TestCluster testCluster = super.buildTestCluster(scope, seed);
+        return new AlertingWrappingCluster(seed, testCluster);
+    }
+
     @After
     public void clearAlerts() {
         // Clear all in-memory alerts on all nodes, perhaps there isn't an elected master at this point
-        for (AlertManager manager : internalCluster().getInstances(AlertManager.class)) {
+        for (AlertManager manager : internalTestCluster().getInstances(AlertManager.class)) {
             manager.clear();
         }
     }
@@ -86,7 +104,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     }
 
     protected AlertsClient alertClient() {
-        return internalCluster().getInstance(AlertsClient.class);
+        return internalTestCluster().getInstance(AlertsClient.class);
     }
 
     protected void assertAlertTriggered(final String alertName) throws Exception {
@@ -135,4 +153,103 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         });
     }
 
+    protected static InternalTestCluster internalTestCluster() {
+        return (InternalTestCluster) ((AlertingWrappingCluster) cluster()).testCluster;
+    }
+
+    private static class AlertingWrappingCluster extends TestCluster {
+
+        private final TestCluster testCluster;
+
+        private AlertingWrappingCluster(long seed, TestCluster testCluster) {
+            super(seed);
+            this.testCluster = testCluster;
+        }
+
+        @Override
+        public void beforeTest(Random random, double transportClientRatio) throws IOException {
+            testCluster.beforeTest(random, transportClientRatio);
+        }
+
+        @Override
+        public void wipe() {
+            wipeIndices("_all");
+            wipeRepositories();
+
+            if (size() > 0) {
+                List<String> templatesToWipe = new ArrayList<>();
+                ClusterState state = client().admin().cluster().prepareState().get().getState();
+                for (ObjectObjectCursor<String, IndexTemplateMetaData> cursor : state.getMetaData().templates()) {
+                    if (cursor.key.equals("alerts") || cursor.key.equals("alerthistory")) {
+                        continue;
+                    }
+                    templatesToWipe.add(cursor.key);
+                }
+                if (!templatesToWipe.isEmpty()) {
+                    wipeTemplates(templatesToWipe.toArray(new String[templatesToWipe.size()]));
+                }
+            }
+        }
+
+        @Override
+        public void afterTest() throws IOException {
+            testCluster.afterTest();
+        }
+
+        @Override
+        public Client client() {
+            return testCluster.client();
+        }
+
+        @Override
+        public int size() {
+            return testCluster.size();
+        }
+
+        @Override
+        public int numDataNodes() {
+            return testCluster.numDataNodes();
+        }
+
+        @Override
+        public int numDataAndMasterNodes() {
+            return testCluster.numDataAndMasterNodes();
+        }
+
+        @Override
+        public int numBenchNodes() {
+            return testCluster.numBenchNodes();
+        }
+
+        @Override
+        public InetSocketAddress[] httpAddresses() {
+            return testCluster.httpAddresses();
+        }
+
+        @Override
+        public void close() throws IOException {
+            testCluster.close();
+        }
+
+        @Override
+        public void ensureEstimatedStats() {
+            testCluster.ensureEstimatedStats();
+        }
+
+        @Override
+        public boolean hasFilterCache() {
+            return testCluster.hasFilterCache();
+        }
+
+        @Override
+        public String getClusterName() {
+            return testCluster.getClusterName();
+        }
+
+        @Override
+        public Iterator<Client> iterator() {
+            return testCluster.iterator();
+        }
+
+    }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
@@ -169,6 +170,10 @@ public class AlertManager extends AbstractComponent {
                 // We're not the master
                 stop();
             } else {
+                if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+                    return; // wait until the gateway has recovered from disk
+                }
+
                 if (started.get()) {
                     return; // We're already started
                 }

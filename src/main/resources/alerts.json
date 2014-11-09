@@ -1,0 +1,46 @@
+{
+  "template": ".alerts",
+  "order": 0,
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1,
+    "alerts.template_version": 1
+  },
+  "mappings": {
+    "alert": {
+      "dynamic" : "strict",
+      "properties": {
+        "enable": {
+          "type": "boolean"
+        },
+        "schedule": {
+          "type": "string"
+        },
+        "last_fire_time": {
+          "type": "date"
+        },
+        "last_action_fire": {
+          "type": "date"
+        },
+        "trigger": {
+          "type": "object",
+          "enabled" : false,
+          "dynamic" : true
+        },
+        "actions": {
+          "type" : "object",
+          "enabled" : false,
+          "dynamic" : true
+        },
+        "request_binary": {
+          "type" : "binary"
+        },
+        "request": {
+          "type" : "object",
+          "enabled" : false,
+          "dynamic" : true
+        }
+      }
+    }
+  }
+}

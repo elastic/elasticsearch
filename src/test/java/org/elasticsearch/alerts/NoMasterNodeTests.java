@@ -43,7 +43,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
 
     @Test
     public void testSimpleFailure() throws Exception {
-        internalCluster().startNodesAsync(2).get();
+        internalTestCluster().startNodesAsync(2).get();
         AlertsClientInterface alertsClient = alertClient();
         createIndex("my-index");
         // Have a sample document in the index, the alert is going to evaluate
@@ -56,7 +56,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
         assertAlertTriggered("my-first-alert");
 
         // Stop the elected master, no new master will be elected b/c of m_m_n is set to 2
-        internalCluster().stopCurrentMasterNode();
+        internalTestCluster().stopCurrentMasterNode();
         assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
@@ -75,7 +75,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
         }
 
         // Bring back the 2nd node and wait for elected master node to come back and alerting to work as expected.
-        internalCluster().startNode();
+        internalTestCluster().startNode();
         ensureGreen();
 
         // Delete an existing alert

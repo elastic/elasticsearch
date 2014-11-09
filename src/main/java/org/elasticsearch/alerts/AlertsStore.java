@@ -66,17 +66,19 @@ public class AlertsStore extends AbstractComponent {
     private final AlertActionRegistry alertActionRegistry;
     private final TriggerManager triggerManager;
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
+    private final TemplateHelper templateHelper;
 
     private final int scrollSize;
     private final TimeValue scrollTimeout;
 
     @Inject
     public AlertsStore(Settings settings, Client client, ThreadPool threadPool, AlertActionRegistry alertActionRegistry,
-                       TriggerManager triggerManager) {
+                       TriggerManager triggerManager, TemplateHelper templateHelper) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
         this.alertActionRegistry = alertActionRegistry;
+        this.templateHelper = templateHelper;
         this.alertMap = ConcurrentCollections.newConcurrentMap();
         // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
         this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
@@ -162,7 +164,7 @@ public class AlertsStore extends AbstractComponent {
         return alertMap;
     }
 
-    public void start(ClusterState state, final LoadingListener listener) {
+    public void start(final ClusterState state, final LoadingListener listener) {
         IndexMetaData alertIndexMetaData = state.getMetaData().index(ALERT_INDEX);
         if (alertIndexMetaData != null) {
             logger.info("Previous alerting index");
@@ -175,6 +177,7 @@ public class AlertsStore extends AbstractComponent {
                         public void run() {
                             boolean success = false;
                             try {
+                                templateHelper.checkAndUploadIndexTemplate(state, "alerts");
                                 loadAlerts();
                                 success = true;
                             } catch (Exception e) {
@@ -195,8 +198,9 @@ public class AlertsStore extends AbstractComponent {
                 }
             }
         } else {
-            logger.info("No previous .alert index");
             if (AlertsStore.this.state.compareAndSet(State.STOPPED, State.STARTED)) {
+                logger.info("No previous .alert index");
+                templateHelper.checkAndUploadIndexTemplate(state, "alerts");
                 listener.onSuccess();
             }
         }

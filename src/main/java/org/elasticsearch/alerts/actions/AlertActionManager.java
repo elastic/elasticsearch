@@ -12,10 +12,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.AlertManager;
-import org.elasticsearch.alerts.AlertsStore;
-import org.elasticsearch.alerts.LoadingListener;
+import org.elasticsearch.alerts.*;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
@@ -63,6 +60,7 @@ public class AlertActionManager extends AbstractComponent {
     private final AlertsStore alertsStore;
     private final AlertActionRegistry actionRegistry;
     private final TriggerManager triggerManager;
+    private final TemplateHelper templateHelper;
     private AlertManager alertManager;
 
     private final BlockingQueue<AlertActionEntry> actionsToBeProcessed = new LinkedBlockingQueue<>();
@@ -75,13 +73,15 @@ public class AlertActionManager extends AbstractComponent {
 
     @Inject
     public AlertActionManager(Settings settings, Client client, AlertActionRegistry actionRegistry,
-                              ThreadPool threadPool, AlertsStore alertsStore, TriggerManager triggerManager) {
+                              ThreadPool threadPool, AlertsStore alertsStore, TriggerManager triggerManager,
+                              TemplateHelper templateHelper) {
         super(settings);
         this.client = client;
         this.actionRegistry = actionRegistry;
         this.threadPool = threadPool;
         this.alertsStore = alertsStore;
         this.triggerManager = triggerManager;
+        this.templateHelper = templateHelper;
         // Not using component settings, to let AlertsStore and AlertActionManager share the same settings
         this.scrollSize = settings.getAsInt("alerts.scroll.size", 100);
         this.scrollTimeout = settings.getAsTime("alerts.scroll.timeout", TimeValue.timeValueSeconds(30));
@@ -91,7 +91,7 @@ public class AlertActionManager extends AbstractComponent {
         this.alertManager = alertManager;
     }
 
-    public void start(ClusterState state, final LoadingListener listener) {
+    public void start(final ClusterState state, final LoadingListener listener) {
         IndexMetaData indexMetaData = state.getMetaData().index(ALERT_HISTORY_INDEX);
         if (indexMetaData != null) {
             if (state.routingTable().index(ALERT_HISTORY_INDEX).allPrimaryShardsActive()) {
@@ -107,6 +107,7 @@ public class AlertActionManager extends AbstractComponent {
                                 logger.error("Unable to load unfinished jobs into the job queue", e);
                             } finally {
                                 if (success) {
+                                    templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
                                     if (AlertActionManager.this.state.compareAndSet(State.LOADING, State.STARTED)) {
                                         doStart();
                                         listener.onSuccess();
@@ -123,6 +124,7 @@ public class AlertActionManager extends AbstractComponent {
             }
         } else {
             if (this.state.compareAndSet(State.STOPPED, State.STARTED)) {
+                templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
                 doStart();
                 listener.onSuccess();
             }
@@ -313,7 +315,10 @@ public class AlertActionManager extends AbstractComponent {
                     threadPool.executor(AlertsPlugin.ALERT_THREAD_POOL_NAME).execute(new AlertHistoryRunnable(entry));
                 }
             } catch (Exception e) {
-                if (started() && !(e instanceof InterruptedException)) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                if (started()) {
                     logger.error("Error during reader thread, restarting queue reader thread...", e);
                     threadPool.executor(ThreadPool.Names.GENERIC).execute(new QueueReaderThread());
                 } else {

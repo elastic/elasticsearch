@@ -11,10 +11,6 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
@@ -36,11 +32,9 @@ public class ScriptedTriggerFactory implements TriggerFactory {
         String scriptLang = null;
         String script = null;
         ScriptService.ScriptType scriptType = null;
-        ESLogger logger = Loggers.getLogger(this.getClass());
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-                logger.error("FOOOBAR : [{}]", currentFieldName);
             } else if (token.isValue()) {
                 switch (currentFieldName) {
                     case "script_id" :

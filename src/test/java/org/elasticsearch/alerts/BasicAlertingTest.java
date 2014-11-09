@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.alerts;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -84,4 +86,20 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         assertFalse(deleteAlertResponse.deleteResponse().isFound());
     }
 
+    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    public void testMalformedAlert() throws Exception {
+        AlertsClientInterface alertsClient = alertClient();
+        createIndex("my-index");
+        // Have a sample document in the index, the alert is going to evaluate
+        client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
+        BytesReference alertSource = jsonBuilder().startObject()
+                .field("schedule", "0/5 * * * * ? *")
+                .startObject("trigger").startObject("script").field("script", "return trie").endObject().endObject()
+                .field("enable", true)
+                .field("malformed_field", "x")
+                .endObject().bytes();
+        alertsClient.prepareIndexAlert("my-first-alert")
+                .setAlertSource(alertSource)
+                .get();
+    }
 }

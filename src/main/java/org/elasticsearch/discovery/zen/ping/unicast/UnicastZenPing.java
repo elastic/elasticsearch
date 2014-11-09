@@ -36,6 +36,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
@@ -251,6 +252,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                     sendPingsHandler.close();
                 }
             });
+        } catch (EsRejectedExecutionException ex) { // TODO: remove this once ScheduledExecutor has support for AbstractRunnable
+            sendPingsHandler.close();
+            // we are shutting down
         } catch (Exception e) {
             sendPingsHandler.close();
             throw new ElasticsearchException("Ping execution failed", e);

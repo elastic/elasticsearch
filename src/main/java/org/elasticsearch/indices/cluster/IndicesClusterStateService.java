@@ -67,7 +67,10 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.*;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -340,7 +343,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // we only create / update here
                 continue;
             }
-            List<String> typesToRefresh = null;
+            List<String> typesToRefresh = Lists.newArrayList();
             String index = indexMetaData.index();
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {
@@ -350,7 +353,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             MapperService mapperService = indexService.mapperService();
             // first, go over and update the _default_ mapping (if exists)
             if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                processMapping(index, mapperService, MapperService.DEFAULT_MAPPING, indexMetaData.mapping(MapperService.DEFAULT_MAPPING).source());
+                boolean requireRefresh = processMapping(index, mapperService, MapperService.DEFAULT_MAPPING, indexMetaData.mapping(MapperService.DEFAULT_MAPPING).source());
+                if (requireRefresh) {
+                    typesToRefresh.add(MapperService.DEFAULT_MAPPING);
+                }
             }
 
             // go over and add the relevant mappings (or update them)
@@ -363,19 +369,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 boolean requireRefresh = processMapping(index, mapperService, mappingType, mappingSource);
                 if (requireRefresh) {
-                    if (typesToRefresh == null) {
-                        typesToRefresh = Lists.newArrayList();
-                    }
                     typesToRefresh.add(mappingType);
                 }
             }
-            if (typesToRefresh != null) {
-                if (sendRefreshMapping) {
-                    nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
-                            new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.uuid(),
-                                    typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId())
-                    );
-                }
+            if (!typesToRefresh.isEmpty() && sendRefreshMapping) {
+                nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
+                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.uuid(),
+                                typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId())
+                );
             }
             // go over and remove mappings
             for (DocumentMapper documentMapper : mapperService.docMappers(true)) {

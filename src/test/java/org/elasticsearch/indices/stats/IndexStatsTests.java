@@ -358,12 +358,8 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
             //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
             done = stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis() > 0;
             if (System.currentTimeMillis() - start > 300*1000) { //Wait 5 minutes for throttling to kick in
-                break;
+                fail("index throttling didn't kick in after 5 minutes of intense merging");
             }
-        }
-        stats = client().admin().indices().prepareStats().execute().actionGet();
-        if (done) {
-            assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), greaterThan(0l));
         }
     }
 

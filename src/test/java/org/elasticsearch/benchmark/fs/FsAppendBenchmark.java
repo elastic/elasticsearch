@@ -20,7 +20,6 @@ package org.elasticsearch.benchmark.fs;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.File;
@@ -36,7 +35,7 @@ import java.util.Random;
 public class FsAppendBenchmark {
 
     public static void main(String[] args) throws Exception {
-        FileSystemUtils.deleteFilesIgnoringExceptions(Paths.get("work/test.log"));
+        IOUtils.deleteFilesIgnoringExceptions(Paths.get("work/test.log"));
         RandomAccessFile raf = new RandomAccessFile("work/test.log", "rw");
         raf.setLength(0);
 

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.MultiFields;
@@ -66,6 +66,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
@@ -341,6 +342,29 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
             fail("we expect a QueryParsingException as we are providing an unknown time_zome");
         } catch (QueryParsingException e) {
             // We expect this one
+        }
+    }
+
+    @Test
+    public void testQueryStringRegexp() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/query-regexp-max-determinized-states.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(RegexpQuery.class));
+        RegexpQuery regexpQuery = (RegexpQuery) parsedQuery;
+        assertTrue(regexpQuery.toString().contains("/foo*bar/"));
+    }
+
+    @Test
+    public void testQueryStringRegexpTooManyDeterminizedStates() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/query-regexp-too-many-determinized-states.json");
+        try {
+            queryParser.parse(query).query();
+            fail("did not hit exception");
+        } catch (QueryParsingException qpe) {
+            // expected
+            assertTrue(qpe.getCause() instanceof TooComplexToDeterminizeException);
         }
     }
 
@@ -675,9 +699,32 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
+    public void testRegexpQueryWithMaxDeterminizedStates() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-max-determinized-states.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(RegexpQuery.class));
+        RegexpQuery regexpQuery = (RegexpQuery) parsedQuery;
+        assertThat(regexpQuery.getField(), equalTo("name.first"));
+    }
+
+    @Test
     public void testRegexpFilteredQuery() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-filter.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        Filter filter = ((FilteredQuery) parsedQuery).getFilter();
+        assertThat(filter, instanceOf(RegexpFilter.class));
+        RegexpFilter regexpFilter = (RegexpFilter) filter;
+        assertThat(regexpFilter.field(), equalTo("name.first"));
+        assertThat(regexpFilter.regexp(), equalTo("s.*y"));
+    }
+
+    @Test
+    public void testRegexpFilteredQueryWithMaxDeterminizedStates() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-filter-max-determinized-states.json");
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         Filter filter = ((FilteredQuery) parsedQuery).getFilter();

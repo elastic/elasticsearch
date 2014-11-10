@@ -96,20 +96,15 @@
 
         <dependency>
             <groupId>com.amazonaws</groupId>
-            <artifactId>aws-java-sdk</artifactId>
+            <artifactId>aws-java-sdk-ec2</artifactId>
             <version>${amazonaws.version}</version>
             <scope>compile</scope>
-            <exclusions>
-                <!-- jackson is optional -->
-                <exclusion>
-                    <groupId>org.codehaus.jackson</groupId>
-                    <artifactId>jackson-core-asl</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.codehaus.jackson</groupId>
-                    <artifactId>jackson-mapper-asl</artifactId>
-                </exclusion>
-            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-s3</artifactId>
+            <version>${amazonaws.version}</version>
+            <scope>compile</scope>
         </dependency>
 
         <!-- We need to explicitly set the common codec version since aws-java-sdk pulls the wrong version -->

@@ -49,6 +49,11 @@ public class TestAwsS3Service extends InternalAwsS3Service {
         return cachedWrapper(super.client(region, account, key));
     }
 
+    @Override
+    public synchronized AmazonS3 client(String region, String account, String key, Integer maxRetries) {
+        return cachedWrapper(super.client(region, account, key, maxRetries));
+    }
+
     private AmazonS3 cachedWrapper(AmazonS3 client) {
         TestAmazonS3 wrapper = clients.get(client);
         if (wrapper == null) {

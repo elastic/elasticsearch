@@ -60,7 +60,8 @@ public abstract class AbstractAwsTest extends ElasticsearchIntegrationTest {
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .put(AwsModule.S3_SERVICE_TYPE_KEY, TestAwsS3Service.class)
                 .put("cloud.aws.test.random", randomInt())
-                .put("cloud.aws.test.write_failures", 0.1);
+                .put("cloud.aws.test.write_failures", 0.1)
+                .put("cloud.aws.test.read_failures", 0.1);
 
         Environment environment = new Environment();
 

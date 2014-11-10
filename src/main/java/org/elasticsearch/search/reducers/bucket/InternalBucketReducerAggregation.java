@@ -168,6 +168,7 @@ public abstract class InternalBucketReducerAggregation extends InternalMultiBuck
             }
             this.buckets = buckets;
             this.bucketMap = null;
+            this.aggregations = InternalAggregations.readAggregations(in);
         }
 
         @Override
@@ -179,6 +180,7 @@ public abstract class InternalBucketReducerAggregation extends InternalMultiBuck
             for (MultiBucketsAggregation.Bucket bucket : buckets) {
                 bucket.writeTo(out);
             }
+            aggregations.writeTo(out);
         }
 
         @Override

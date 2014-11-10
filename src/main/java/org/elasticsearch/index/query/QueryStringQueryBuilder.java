@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
+
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -92,6 +93,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
     private Boolean lenient;
 
     private String queryName;
+
+    /** To limit effort spent determinizing regexp queries. */
+    private Integer maxDeterminizedStates;
 
     public QueryStringQueryBuilder(String queryString) {
         this.queryString = queryString;
@@ -195,6 +199,14 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
      */
     public QueryStringQueryBuilder autoGeneratePhraseQueries(boolean autoGeneratePhraseQueries) {
         this.autoGeneratePhraseQueries = autoGeneratePhraseQueries;
+        return this;
+    }
+
+    /**
+     * Protects against too-difficult regular expression queries.
+     */
+    public QueryStringQueryBuilder maxDeterminizedStates(int maxDeterminizedStates) {
+        this.maxDeterminizedStates = maxDeterminizedStates;
         return this;
     }
 
@@ -353,6 +365,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         }
         if (autoGeneratePhraseQueries != null) {
             builder.field("auto_generate_phrase_queries", autoGeneratePhraseQueries);
+        }
+        if (maxDeterminizedStates != null) {
+            builder.field("max_determinized_states", maxDeterminizedStates);
         }
         if (allowLeadingWildcard != null) {
             builder.field("allow_leading_wildcard", allowLeadingWildcard);

@@ -25,6 +25,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.MultiTermQueryWrapperFilter;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 
 import java.io.IOException;
@@ -47,7 +48,11 @@ public class RegexpFilter extends Filter {
     }
 
     public RegexpFilter(Term term, int flags) {
-        filter = new InternalFilter(term, flags);
+        this(term, flags, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+    }
+
+    public RegexpFilter(Term term, int flags, int maxDeterminizedStates) {
+        filter = new InternalFilter(term, flags, maxDeterminizedStates);
         this.term = term;
         this.flags = flags;
     }
@@ -97,12 +102,8 @@ public class RegexpFilter extends Filter {
 
     static class InternalFilter extends MultiTermQueryWrapperFilter<RegexpQuery> {
 
-        public InternalFilter(Term term) {
-            super(new RegexpQuery(term));
-        }
-
-        public InternalFilter(Term term, int flags) {
-            super(new RegexpQuery(term, flags));
+        public InternalFilter(Term term, int flags, int maxDeterminizedStates) {
+            super(new RegexpQuery(term, flags, maxDeterminizedStates));
         }
     }
 

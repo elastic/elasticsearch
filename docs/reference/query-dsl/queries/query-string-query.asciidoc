@@ -61,7 +61,11 @@ phrase matches are required. Default value is `0`.
 not analyzed. By setting this value to `true`, a best effort will be
 made to analyze those as well.
 
-|`auto_generate_phrase_queries` |Default to `false`.
+|`auto_generate_phrase_queries` |Defaults to `false`.
+
+|`max_determinized_states` |Limit on how many automaton states regexp
+queries are allowed to create.  This protects against too-difficult
+(e.g. exponentially hard) regexps.  Defaults to 10000.
 
 |`minimum_should_match` |A value controlling how many "should" clauses
 in the resulting boolean query should match. It can be an absolute value

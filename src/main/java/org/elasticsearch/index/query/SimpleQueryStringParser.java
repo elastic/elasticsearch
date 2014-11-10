@@ -178,6 +178,8 @@ public class SimpleQueryStringParser implements QueryParser {
                     sqsSettings.lowercaseExpandedTerms(parser.booleanValue());
                 } else if ("lenient".equals(currentFieldName)) {
                     sqsSettings.lenient(parser.booleanValue());
+                } else if ("analyze_wildcard".equals(currentFieldName)) {
+                    sqsSettings.analyzeWildcard(parser.booleanValue());
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {

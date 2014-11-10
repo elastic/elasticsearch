@@ -39,6 +39,7 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
     private int flags = -1;
     private Boolean lowercaseExpandedTerms;
     private Boolean lenient;
+    private Boolean analyzeWildcard;
     private Locale locale;
 
     /**
@@ -128,6 +129,11 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
         return this;
     }
 
+    public SimpleQueryStringBuilder analyzeWildcard(boolean analyzeWildcard) {
+        this.analyzeWildcard = analyzeWildcard;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(SimpleQueryStringParser.NAME);
@@ -166,6 +172,10 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
 
         if (lenient != null) {
             builder.field("lenient", lenient);
+        }
+
+        if (analyzeWildcard != null) {
+            builder.field("analyze_wildcard", analyzeWildcard);
         }
 
         if (locale != null) {

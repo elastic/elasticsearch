@@ -19,9 +19,14 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -109,7 +114,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
 
     /**
      * Dispatches to Lucene's SimpleQueryParser's newPrefixQuery, optionally
-     * lowercasing the term first
+     * lowercasing the term first or trying to analyze terms
      */
     @Override
     public Query newPrefixQuery(String text) {
@@ -119,14 +124,57 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         BooleanQuery bq = new BooleanQuery(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
-                PrefixQuery prefix = new PrefixQuery(new Term(entry.getKey(), text));
-                prefix.setBoost(entry.getValue());
-                bq.add(prefix, BooleanClause.Occur.SHOULD);
+                if (settings.analyzeWildcard()) {
+                    Query analyzedQuery = newPossiblyAnalyzedQuery(entry.getKey(), text);
+                    analyzedQuery.setBoost(entry.getValue());
+                    bq.add(analyzedQuery, BooleanClause.Occur.SHOULD);
+                } else {
+                    PrefixQuery prefix = new PrefixQuery(new Term(entry.getKey(), text));
+                    prefix.setBoost(entry.getValue());
+                    bq.add(prefix, BooleanClause.Occur.SHOULD);
+                }
             } catch (RuntimeException e) {
                 return rethrowUnlessLenient(e);
             }
         }
         return super.simplify(bq);
+    }
+
+    private Query newPossiblyAnalyzedQuery(String field, String termStr) {
+        TokenStream source;
+        try {
+            source = getAnalyzer().tokenStream(field, termStr);
+            source.reset();
+        } catch (IOException e) {
+            return new PrefixQuery(new Term(field, termStr));
+        }
+        List<String> tlist = new ArrayList<>();
+        CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
+        while (true) {
+            try {
+                if (!source.incrementToken()) {
+                    break;
+                }
+            } catch (IOException e) {
+                break;
+            }
+            tlist.add(termAtt.toString());
+        }
+        try {
+            source.close();
+        } catch (IOException e) {
+            // ignore
+        }
+        if (tlist.size() == 1) {
+            return new PrefixQuery(new Term(field, tlist.get(0)));
+        } else {
+            // build a boolean query with prefix on each one...
+            BooleanQuery bq = new BooleanQuery();
+            for (String token : tlist) {
+                bq.add(new BooleanClause(new PrefixQuery(new Term(field, token)), BooleanClause.Occur.SHOULD));
+            }
+            return bq;
+        }
     }
 
     /**
@@ -137,6 +185,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         private Locale locale = Locale.ROOT;
         private boolean lowercaseExpandedTerms = true;
         private boolean lenient = false;
+        private boolean analyzeWildcard = false;
 
         public Settings() {
 
@@ -164,6 +213,14 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
 
         public boolean lenient() {
             return this.lenient;
+        }
+
+        public void analyzeWildcard(boolean analyzeWildcard) {
+            this.analyzeWildcard = analyzeWildcard;
+        }
+
+        public boolean analyzeWildcard() {
+            return analyzeWildcard;
         }
     }
 }

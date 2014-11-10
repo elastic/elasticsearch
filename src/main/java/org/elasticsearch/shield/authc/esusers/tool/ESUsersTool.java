@@ -385,11 +385,11 @@ public class ESUsersTool extends CliTool {
                 }
                 // list users without roles
                 Set<String> usersWithoutRoles = Sets.newHashSet(users);
-                if (usersWithoutRoles.removeAll(userRoles.keySet())) {
-                    for (String user : usersWithoutRoles) {
-                        terminal.println("%-15s: -", user);
-                    }
+                usersWithoutRoles.removeAll(userRoles.keySet());
+                for (String user : usersWithoutRoles) {
+                    terminal.println("%-15s: -", user);
                 }
+
                 if (unknownRolesFound) {
                     // at least one role is marked... so printing the legend
                     Path rolesFile = FileRolesStore.resolveFile(settings, env).toAbsolutePath();

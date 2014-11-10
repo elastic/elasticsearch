@@ -598,7 +598,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     @Test
-    public void testListUsersAndRoles_Cmd_testThatUsersWithoutRolesAreListed() throws Exception {
+    public void testListUsersAndRoles_Cmd_testThatUsersWithAndWithoutRolesAreListed() throws Exception {
         File usersFile = writeFile("admin:{plain}changeme\nuser:{plain}changeme\nno-roles-user:{plain}changeme\n");
         File usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
         File rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
@@ -616,6 +616,28 @@ public class ESUsersToolTests extends CliToolTestCase {
         assertThat(catchTerminalOutput.getTerminalOutput(), hasSize(greaterThanOrEqualTo(3)));
         assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(containsString("admin")));
         assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("user"), containsString("user,foo,bar"))));
+        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("no-roles-user"), containsString("-"))));
+    }
+
+    @Test
+    public void testListUsersAndRoles_Cmd_testThatUsersWithoutRolesAreListed() throws Exception {
+        File usersFile = writeFile("admin:{plain}changeme\nuser:{plain}changeme\nno-roles-user:{plain}changeme\n");
+        File usersRoleFile = writeFile("");
+        File rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
+        Settings settings = ImmutableSettings.builder()
+                .put("shield.authc.esusers.files.users_roles", usersRoleFile)
+                .put("shield.authc.esusers.files.users", usersFile)
+                .put("shield.authz.store.files.roles", rolesFile)
+                .build();
+
+        CaptureOutputTerminal catchTerminalOutput = new CaptureOutputTerminal();
+        ESUsersTool.ListUsersAndRoles cmd = new ESUsersTool.ListUsersAndRoles(catchTerminalOutput, null);
+        CliTool.ExitStatus status = execute(cmd, settings);
+
+        assertThat(status, is(CliTool.ExitStatus.OK));
+        assertThat(catchTerminalOutput.getTerminalOutput(), hasSize(greaterThanOrEqualTo(3)));
+        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("admin"), containsString("-"))));
+        assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("user"), containsString("-"))));
         assertThat(catchTerminalOutput.getTerminalOutput(), hasItem(allOf(containsString("no-roles-user"), containsString("-"))));
     }
 

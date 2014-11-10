@@ -3,9 +3,8 @@
 
 Returns information and statistics on terms in the fields of a particular
 document. The document could be stored in the index or artificially provided
-by the user coming[1.4.0]. Term vectors are now <<realtime,realtime>>, as opposed to
-previously near realtime coming[1.5.0]. The functionality is disabled by setting
-`realtime` parameter to `false`.
+by the user. Term vectors are <<realtime,realtime>> by default, not near
+realtime. This can be changed by setting `realtime` parameter to `false`.
 
 [source,js]
 --------------------------------------------------
@@ -281,7 +280,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_termvector' -d '{
 
 [float]
 [[docs-termvectors-per-field-analyzer]]
-=== Example 4 coming[1.5.0]
+=== Example 4
 
 Additionally, a different analyzer than the one at the field may be provided
 by using the `per_field_analyzer` parameter. This is useful in order to

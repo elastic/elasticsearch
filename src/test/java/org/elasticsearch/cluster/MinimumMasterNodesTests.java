@@ -322,13 +322,12 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 .put("discovery.initial_state_timeout", "500ms")
                 .put("gateway.type", "local");
 
-        if (randomBoolean()) {
-            // sometime set an initial value
-            settings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, randomIntBetween(1, nodeCount));
-        }
+        // set an initial value which is at least quorum to avoid split brains during initial startup
+        int initialMinMasterNodes = randomIntBetween(nodeCount / 2 + 1, nodeCount);
+        settings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, initialMinMasterNodes);
 
 
-        logger.info("--> starting [{}] nodes", nodeCount);
+        logger.info("--> starting [{}] nodes. min_master_nodes set to [{}]", nodeCount, initialMinMasterNodes);
         internalCluster().startNodesAsync(nodeCount, settings.build()).get();
 
         logger.info("--> waiting for nodes to join");

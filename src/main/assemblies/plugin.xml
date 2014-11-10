@@ -19,7 +19,9 @@
             <useProjectArtifact>true</useProjectArtifact>
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
-                <include>com.amazonaws:aws-java-sdk</include>
+                <include>com.amazonaws:aws-java-sdk-core</include>
+                <include>com.amazonaws:aws-java-sdk-ec2</include>
+                <include>com.amazonaws:aws-java-sdk-s3</include>
                 <include>commons-codec:commons-codec</include>
             </includes>
         </dependencySet>

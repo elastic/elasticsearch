@@ -90,7 +90,7 @@ public class S3BlobContainer extends AbstractBlobContainer {
                 } else {
                     if (e instanceof AmazonS3Exception) {
                         if (404 == ((AmazonS3Exception) e).getStatusCode()) {
-                            throw new FileNotFoundException(e.getMessage());
+                            throw new FileNotFoundException("Blob object [" + blobName + "] not found: " + e.getMessage());
                         }
                     }
                     throw e;

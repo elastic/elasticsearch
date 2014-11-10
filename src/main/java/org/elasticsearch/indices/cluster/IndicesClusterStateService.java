@@ -372,7 +372,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     typesToRefresh.add(mappingType);
                 }
             }
-            if (typesToRefresh.size() > 0 && sendRefreshMapping) {
+            if (!typesToRefresh.isEmpty() && sendRefreshMapping) {
                 nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.uuid(),
                                 typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId())

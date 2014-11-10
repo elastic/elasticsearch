@@ -331,9 +331,13 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void throttleStats() throws Exception {
+        String luceneIWLevel = Loggers.getLogger("lucene.iw").getLevel();
         Loggers.getLogger("lucene.iw").setLevel("TRACE");
+        String msLevel = Loggers.getLogger("index.merge.scheduler").getLevel();
         Loggers.getLogger("index.merge.scheduler").setLevel("TRACE");
+        String indexShardLevel = Loggers.getLogger("index.shard.service").getLevel();
         Loggers.getLogger("index.shard.service").setLevel("TRACE");
+        String engineLevel = Loggers.getLogger("test.engine").getLevel();
         Loggers.getLogger("test.engine").setLevel("TRACE");
 
         try {
@@ -377,10 +381,10 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
                 }
             }
         } finally {
-            Loggers.getLogger("lucene.iw").setLevel("DEBUG");
-            Loggers.getLogger("index.merge.scheduler").setLevel("DEBUG");
-            Loggers.getLogger("index.shard.service").setLevel("DEBUG");
-            Loggers.getLogger("test.engine").setLevel("DEBUG");
+            Loggers.getLogger("lucene.iw").setLevel(luceneIWLevel);
+            Loggers.getLogger("index.merge.scheduler").setLevel(msLevel);
+            Loggers.getLogger("index.shard.service").setLevel(indexShardLevel);
+            Loggers.getLogger("test.engine").setLevel(engineLevel);
         }
     }
 

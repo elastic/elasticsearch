@@ -173,8 +173,6 @@ to 30 seconds and can be changed dynamically through the
 [[no-master-block]]
 ==== No master block
 
-coming[1.4.0.Beta1]
-
 For a node to be fully operational, it must have an active master. The `discovery.zen.no_master_block` settings controls
 what operations should be rejected when there is no active master.
 

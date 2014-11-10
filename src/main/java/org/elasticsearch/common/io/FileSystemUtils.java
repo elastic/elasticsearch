@@ -132,22 +132,6 @@ public class FileSystemUtils {
     private FileSystemUtils() {}
 
     /**
-     * Temporary solution until LUCENE-6051 is fixed
-     * @see org.apache.lucene.util.IOUtils#deleteFilesIgnoringExceptions(java.nio.file.Path...)
-     */
-    public static void deleteFilesIgnoringExceptions(Path... files) {
-        for (Path name : files) {
-            if (name != null) {
-                try {
-                    Files.delete(name);
-                } catch (Throwable ignored) {
-                    // ignore
-                }
-            }
-        }
-    }
-
-    /**
      * This utility copy a full directory content (excluded) under
      * a new directory but without overwriting existing files.
      *

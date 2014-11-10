@@ -21,6 +21,7 @@ package org.apache.lucene.queryparser.classic;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -123,6 +124,7 @@ public class MapperQueryParser extends QueryParser {
         setMultiTermRewriteMethod(settings.rewriteMethod());
         setEnablePositionIncrements(settings.enablePositionIncrements());
         setAutoGeneratePhraseQueries(settings.autoGeneratePhraseQueries());
+        setMaxDeterminizedStates(settings.maxDeterminizedStates());
         setAllowLeadingWildcard(settings.allowLeadingWildcard());
         setLowercaseExpandedTerms(settings.lowercaseExpandedTerms());
         setPhraseSlop(settings.phraseSlop());
@@ -814,12 +816,12 @@ public class MapperQueryParser extends QueryParser {
                         if (fieldMappers.explicitTypeInNameWithDocMapper()) {
                             String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{fieldMappers.docMapper().type()});
                             try {
-                                query = currentMapper.regexpQuery(termStr, RegExp.ALL, multiTermRewriteMethod, parseContext);
+                                query = currentMapper.regexpQuery(termStr, RegExp.ALL, maxDeterminizedStates, multiTermRewriteMethod, parseContext);
                             } finally {
                                 QueryParseContext.setTypes(previousTypes);
                             }
                         } else {
-                            query = currentMapper.regexpQuery(termStr, RegExp.ALL, multiTermRewriteMethod, parseContext);
+                            query = currentMapper.regexpQuery(termStr, RegExp.ALL, maxDeterminizedStates, multiTermRewriteMethod, parseContext);
                         }
                     }
                     if (query == null) {

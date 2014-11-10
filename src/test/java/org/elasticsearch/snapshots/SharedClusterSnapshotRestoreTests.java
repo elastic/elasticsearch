@@ -46,7 +46,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.store.support.AbstractIndexStore;
@@ -735,8 +734,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         File testIndex1 = new File(indices, "test-idx-1");
         File testIndex2 = new File(indices, "test-idx-2");
         File testIndex2Shard0 = new File(testIndex2, "0");
-        FileSystemUtils.deleteFilesIgnoringExceptions(new File(testIndex1, "snapshot-test-snap-1").toPath());
-        FileSystemUtils.deleteFilesIgnoringExceptions(new File(testIndex2Shard0, "snapshot-test-snap-1").toPath());
+        IOUtils.deleteFilesIgnoringExceptions(new File(testIndex1, "snapshot-test-snap-1").toPath());
+        IOUtils.deleteFilesIgnoringExceptions(new File(testIndex2Shard0, "snapshot-test-snap-1").toPath());
 
         logger.info("--> delete snapshot");
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();

@@ -48,7 +48,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  */
 @LuceneTestCase.SuppressCodecs({"Lucene3x", "MockFixedIntBlock", "MockVariableIntBlock", "MockSep", "MockRandom", "Lucene40", "Lucene41", "Appending", "Lucene42", "Lucene45", "Lucene46", "Lucene49"})
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
-public class OldIndexBackwardCompatibilityTests extends ElasticsearchIntegrationTest {
+public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrationTest {
+    
     public File prepareBackwardsDataDir(File backwardsIndex) throws IOException {
         File dataDir = new File(newTempDir(), "data");
         TestUtil.unzip(backwardsIndex, dataDir);
@@ -66,29 +67,26 @@ public class OldIndexBackwardCompatibilityTests extends ElasticsearchIntegration
         return dataDir;
     }
 
-    public void testUpgrade_0_20() throws Exception {
-        logger.info("starting test");
+    public void loadIndex(String index) throws Exception {
+        logger.info("Checking static index");
         // If this assert trips it means we are not suppressing enough codecs up above:
         assertFalse("test infra is broken!", LuceneTestCase.OLD_FORMAT_IMPERSONATION_IS_ACTIVE);
-        File dataDir = prepareBackwardsDataDir(new File(getClass().getResource("index-1.3.1.zip").toURI()));
+        File dataDir = prepareBackwardsDataDir(new File(getClass().getResource(index).toURI()));
         internalCluster().startNode(ImmutableSettings.builder()
-            .put("path.data", dataDir.getPath())
-            .put("gateway.type", "local") // this is important we need to recover from gateway
-            .put(InternalNode.HTTP_ENABLED, true)
-            .build());
+                         .put("path.data", dataDir.getPath())
+                         .put("gateway.type", "local") // this is important we need to recover from gateway
+                         .put(InternalNode.HTTP_ENABLED, true)
+                         .build());
         ensureGreen("test");
-
         assertIndexSanity();
-
-        internalCluster().stopRandomDataNode(); // we only have 1 data node, so this should shut it down
-        HttpRequestBuilder httpClient = httpClient();
+    }
+    
+    public void unloadIndex() throws Exception {
+        internalCluster().stopRandomDataNode(); // we only have 1 data node, so this should shut it down, for the next call
     }
 
     void assertIndexSanity() {
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().get();
-        logger.info("Found indices: {}", Arrays.toString(getIndexResponse.indices()));
-        logger.info("index 1: " + getIndexResponse.indices()[0]);
-        logger.info("index 2: " + getIndexResponse.indices()[1]);
         assertEquals(1, getIndexResponse.indices().length);
         assertEquals("test", getIndexResponse.indices()[0]);
         ensureYellow("test");
@@ -96,7 +94,7 @@ public class OldIndexBackwardCompatibilityTests extends ElasticsearchIntegration
         assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1l));
     }
 
-    static HttpRequestBuilder httpClient() {
+    protected static HttpRequestBuilder httpClient() {
         NodeInfo info = nodeInfo(client());
         info.getHttp().address().boundAddress();
         TransportAddress publishAddress = info.getHttp().address().publishAddress();

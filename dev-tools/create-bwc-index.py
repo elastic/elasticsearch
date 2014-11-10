@@ -127,12 +127,12 @@ def create_client(http_port, timeout=30):
     try:
       client = Elasticsearch([{'host': '127.0.0.1', 'port': http_port}])
       client.cluster.health(wait_for_nodes=1)
-      client.count(index='test') # can we actually search or do we get a 503? -- anyway retry
+      client.count() # can we actually search or do we get a 503? -- anyway retry
       return client
     except (ConnectionError, TransportError):
       pass
     time.sleep(1)
-  assert False, 'Timed out waiting for %s nodes for %s seconds' % (num_nodes, timeout)
+  assert False, 'Timed out waiting for node for %s seconds' % timeout
 
 def generate_index(client):
   client.indices.delete(index='test', ignore=404)

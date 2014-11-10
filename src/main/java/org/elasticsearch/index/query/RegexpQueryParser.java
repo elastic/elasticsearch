@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -64,6 +65,7 @@ public class RegexpQueryParser implements QueryParser {
         Object value = null;
         float boost = 1.0f;
         int flagsValue = -1;
+        int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
         String queryName = null;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -86,6 +88,8 @@ public class RegexpQueryParser implements QueryParser {
                         if (flagsValue < 0) {
                             flagsValue = RegExp.ALL;
                         }
+                    } else if ("maxDeterminizedStates".equals(currentFieldName)) {
+                        maxDeterminizedStates = parser.intValue();
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     }
@@ -111,16 +115,16 @@ public class RegexpQueryParser implements QueryParser {
             if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
-                    query = smartNameFieldMappers.mapper().regexpQuery(value, flagsValue, method, parseContext);
+                    query = smartNameFieldMappers.mapper().regexpQuery(value, flagsValue, maxDeterminizedStates, method, parseContext);
                 } finally {
                     QueryParseContext.setTypes(previousTypes);
                 }
             } else {
-                query = smartNameFieldMappers.mapper().regexpQuery(value, flagsValue, method, parseContext);
+                query = smartNameFieldMappers.mapper().regexpQuery(value, flagsValue, maxDeterminizedStates, method, parseContext);
             }
         }
         if (query == null) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), flagsValue);
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), flagsValue, maxDeterminizedStates);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }

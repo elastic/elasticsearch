@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.collect.Iterables;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -232,13 +233,14 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public Query regexpQuery(Object value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+    public Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
         if (fieldType.indexed() || context == null) {
-            return super.regexpQuery(value, flags, method, context);
+            return super.regexpQuery(value, flags, maxDeterminizedStates, method, context);
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))), flags);
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))),
+                                                      flags, maxDeterminizedStates);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -246,7 +248,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         }
         BooleanQuery query = new BooleanQuery();
         for (String queryType : queryTypes) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags);
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags, maxDeterminizedStates);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -255,17 +257,19 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         return query;
     }
 
-    public Filter regexpFilter(Object value, int flags, @Nullable QueryParseContext context) {
+    public Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext context) {
         if (fieldType.indexed() || context == null) {
-            return super.regexpFilter(value, flags, context);
+            return super.regexpFilter(value, flags, maxDeterminizedStates, context);
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            return new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))), flags);
+            return new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))),
+                                    flags, maxDeterminizedStates);
         }
         XBooleanFilter filter = new XBooleanFilter();
         for (String queryType : queryTypes) {
-            filter.add(new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags), BooleanClause.Occur.SHOULD);
+            filter.add(new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))),
+                                        flags, maxDeterminizedStates), BooleanClause.Occur.SHOULD);
         }
         return filter;
     }

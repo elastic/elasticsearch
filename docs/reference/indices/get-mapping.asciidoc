@@ -29,8 +29,6 @@ curl -XGET 'http://localhost:9200/_all/_mapping/tweet,book'
 If you want to get mappings of all indices and types then the following
 two examples are equivalent:
 
-added[1.4.0.Beta1,The API will always include a `mappings` section, even if there aren't any mappings. Previous versions would not return the `mappings` section]
-
 [source,js]
 --------------------------------------------------
 curl -XGET 'http://localhost:9200/_all/_mapping'

@@ -160,8 +160,6 @@ on high-cardinality fields as this will kill both your CPU since terms need to b
 
 ==== Calculating Document Count Error
 
-added[1.4.0.Beta1]
-
 There are two error values which can be shown on the terms aggregation.  The first gives a value for the aggregation as
 a whole which represents the maximum potential document count for a term which did not make it into the final list of
 terms. This is calculated as the sum of the document count from the last term returned from each shard .For the example
@@ -349,8 +347,6 @@ PATH                :=  <AGG_NAME>[<AGG_SEPARATOR><AGG_NAME>]*[<METRIC_SEPARATOR
 --------------------------------------------------
 
 The above will sort the countries buckets based on the average height among the female population.
-
-coming[1.4.0]
 
 Multiple criteria can be used to order the buckets by providing an array of order criteria such as the following:
 

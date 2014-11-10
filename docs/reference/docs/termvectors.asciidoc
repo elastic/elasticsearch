@@ -3,9 +3,8 @@
 
 Returns information and statistics on terms in the fields of a particular
 document. The document could be stored in the index or artificially provided
-by the user added[1.4.0.Beta1]. Term vectors are now <<realtime,realtime>>, as opposed to
-previously near realtime coming[1.5.0]. The functionality is disabled by setting
-`realtime` parameter to `false`.
+by the user. Term vectors are <<realtime,realtime>> by default, not near
+realtime. This can be changed by setting `realtime` parameter to `false`.
 
 [source,js]
 --------------------------------------------------
@@ -22,7 +21,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?fields=text,...'
 
 or by adding the requested fields in the request body (see
 example below). Fields can also be specified with wildcards
-in similar way to the <<query-dsl-multi-match-query,multi match query>> added[1.4.0.Beta1].
+in similar way to the <<query-dsl-multi-match-query,multi match query>>.
 
 [float]
 === Return values
@@ -42,8 +41,6 @@ statistics are returned for all fields but no term statistics.
 If the requested information wasn't stored in the index, it will be
 computed on the fly if possible. Additionally, term vectors could be computed
 for documents not even existing in the index, but instead provided by the user.
-
-added[1.4.0.Beta1,The ability to computed term vectors on the fly as well as support for artificial documents is only available from 1.4.0 onwards (see below example 2 and 3 respectively)]
 
 [WARNING]
 ======
@@ -230,7 +227,7 @@ Response:
 --------------------------------------------------
 
 [float]
-=== Example 2 added[1.4.0.Beta1]
+=== Example 2
 
 Term vectors which are not explicitly stored in the index are automatically
 computed on the fly. The following request returns all information and statistics for the
@@ -249,7 +246,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true' -d '{
 --------------------------------------------------
 
 [float]
-=== Example 3 added[1.4.0.Beta1]
+=== Example 3
 
 Term vectors can also be generated for artificial documents,
 that is for documents not present in the index. The syntax is similar to the

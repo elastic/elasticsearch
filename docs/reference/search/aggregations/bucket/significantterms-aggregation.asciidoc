@@ -302,8 +302,6 @@ Per default, the assumption is that the documents in the bucket are also contain
 
 
 ===== Chi square
-added[1.4.0.Beta1]
-
 Chi square as described in "Information Retrieval", Manning et al., Chapter 13.5.2 can be used as significance score by adding the parameter
 	
 [source,js]
@@ -317,8 +315,6 @@ Chi square behaves like mutual information and can be configured with the same p
 
 
 ===== google normalized distance
-added[1.4.0.Beta1]
-
 Google normalized distance  as described in "The Google Similarity Distance", Cilibrasi and Vitanyi, 2007 (http://arxiv.org/pdf/cs/0412098v3.pdf) can be used as significance score by adding the parameter
 	
 [source,js]

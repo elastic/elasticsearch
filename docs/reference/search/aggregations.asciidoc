@@ -128,8 +128,6 @@ define fixed number of multiple buckets, and others dynamically create the bucke
 [float]
 === Caching heavy aggregations
 
-added[1.4.0.Beta1]
-
 Frequently used aggregations (e.g. for display on the home page of a website)
 can be cached for faster responses. These cached results are the same results
 that would be returned by an uncached aggregation -- you will never get stale

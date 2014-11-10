@@ -3,7 +3,7 @@
 
 Multi termvectors API allows to get multiple termvectors at once. The
 documents from which to retrieve the term vectors are specified by an index,
-type and id. But the documents could also be artificially provided added[1.4.0.Beta1].
+type and id. But the documents could also be artificially provided.
 The response includes a `docs`
 array with all the fetched termvectors, each element having the structure
 provided by the <<docs-termvectors,termvectors>>
@@ -92,7 +92,7 @@ curl 'localhost:9200/testidx/test/_mtermvectors' -d '{
 }'
 --------------------------------------------------
 
-Additionally added[1.4.0.Beta1], just like for the <<docs-termvectors,termvectors>>
+Additionally, just like for the <<docs-termvectors,termvectors>>
 API, term vectors could be generated for user provided documents. The syntax
 is similar to the <<search-percolate,percolator>> API. The mapping used is
 determined by `_index` and `_type`.

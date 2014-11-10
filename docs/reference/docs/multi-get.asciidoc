@@ -201,8 +201,6 @@ curl 'localhost:9200/test/type/_mget?fields=field1,field2' -d '{
 [float]
 === Generated fields
 
-added[1.4.0.Beta1]
-
 See <<generated-fields>> for fields are generated only when indexing. 
 
 [float]

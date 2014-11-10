@@ -32,8 +32,6 @@ The `range` query accepts the following parameters:
 [float]
 ==== Date options
 
-added[1.4.0.Beta1]
-
 When applied on `date` fields the `range` filter accepts also a `time_zone` parameter.
 The `time_zone` parameter will be applied to your input lower and upper bounds and will
 move them to UTC time based date:

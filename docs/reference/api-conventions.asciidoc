@@ -51,7 +51,7 @@ specified to expand to all indices.
 +
 If `none` is specified then wildcard expansion will be disabled and if `all` 
 is specified, wildcard expressions will expand to all indices (this is equivalent 
-to specifying `open,closed`). added[1.4.0.Beta1]
+to specifying `open,closed`).
 
 The defaults settings for the above parameters depend on the api being used.
 

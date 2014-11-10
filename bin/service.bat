@@ -130,7 +130,7 @@ call:convertxm %ES_MAX_MEM% JVM_XMX
 REM java_opts might be empty - init to avoid tripping commons daemon (if the command starts with ;)
 if "%JAVA_OPTS%" == "" set JAVA_OPTS=-XX:+UseParNewGC
 
-CALL %ES_HOME%\bin\elasticsearch.in.bat
+CALL "%ES_HOME%\bin\elasticsearch.in.bat"
 
 rem thread stack size
 set JVM_SS=256

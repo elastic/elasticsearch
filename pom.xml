@@ -54,10 +54,6 @@
             <id>Lucene snapshots</id>
             <url>https://download.elasticsearch.org/lucenesnapshots/1637347</url> 
         </repository>
-        <repository>
-            <id>Temporary</id>
-            <url>http://people.apache.org/~mikemccand/fake_staging_area/repo/</url> 
-        </repository>
     </repositories>
 
     <dependencies>

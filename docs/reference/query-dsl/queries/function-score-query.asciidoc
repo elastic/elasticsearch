@@ -308,6 +308,10 @@ In contrast to the normal and exponential decay, this function actually
 sets the score to 0 if the field value exceeds twice the user given
 scale value.
 
+For single functions the three decay functions together with their parameters can be visualized like this (the field in this example called "age"):
+
+image:images/decay_2d.png[width=600]
+
 ===== Multiple values:
 
 If a field used for computing the decay contains multiple values, per default the value closest to the origin is chosen for determining the distance.

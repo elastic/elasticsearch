@@ -533,8 +533,8 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
     public void register(String feature, TrialLicenseOptions trialLicenseOptions, Listener listener) {
         final ListenerHolder listenerHolder = new ListenerHolder(feature, trialLicenseOptions, listener);
         // don't trust the clusterState for blocks just yet!
-        final Lifecycle.State state = clusterService.lifecycleState();
-        if (state != Lifecycle.State.STARTED) {
+        final Lifecycle.State clusterServiceState = clusterService.lifecycleState();
+        if (clusterServiceState != Lifecycle.State.STARTED) {
             pendingListeners.add(listenerHolder);
         } else {
             if (!registerListener(listenerHolder)) {
@@ -559,7 +559,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             return false;
         }
 
-        LicensesMetaData currentMetaData = currentState.metaData().custom(LicensesMetaData.TYPE);
+        final LicensesMetaData currentMetaData = currentState.metaData().custom(LicensesMetaData.TYPE);
         if (expiryDateForFeature(listenerHolder.feature, currentMetaData) == -1l) {
             // does not have any license so generate a trial license
             TrialLicenseOptions options = listenerHolder.trialLicenseOptions;
@@ -595,7 +595,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         return true;
     }
 
-    private long expiryDateForFeature(String feature, LicensesMetaData currentLicensesMetaData) {
+    private long expiryDateForFeature(String feature, final LicensesMetaData currentLicensesMetaData) {
         final Map<String, ESLicense> effectiveLicenses = getEffectiveLicenses(currentLicensesMetaData);
         ESLicense featureLicense;
         if ((featureLicense = effectiveLicenses.get(feature)) != null) {
@@ -604,7 +604,7 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         return -1l;
     }
 
-    private Map<String, ESLicense> getEffectiveLicenses(LicensesMetaData metaData) {
+    private Map<String, ESLicense> getEffectiveLicenses(final LicensesMetaData metaData) {
         Map<String, ESLicense> map = new HashMap<>();
         if (metaData != null) {
             Set<ESLicense> esLicenses = new HashSet<>();
@@ -670,9 +670,9 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
             logger.debug("Performing LicensingClientNotificationJob");
 
             // next clusterChanged event will deal with the missed notifications
-            ClusterState currentClusterState = clusterService.state();
+            final ClusterState currentClusterState = clusterService.state();
             if (!currentClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-                LicensesMetaData currentLicensesMetaData = currentClusterState.metaData().custom(LicensesMetaData.TYPE);
+                final LicensesMetaData currentLicensesMetaData = currentClusterState.metaData().custom(LicensesMetaData.TYPE);
                 notifyFeaturesAndScheduleNotification(currentLicensesMetaData);
             } else if (logger.isDebugEnabled()) {
                 logger.debug("skip notification [STATE_NOT_RECOVERED_BLOCK]");

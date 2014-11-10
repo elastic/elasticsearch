@@ -244,7 +244,7 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
             assertThat(getActionMsg(true, enableLatch.getCount(), actions), enableLatch.await((cumulativeTimeoutMillis.get() * 2), TimeUnit.MILLISECONDS), equalTo(true));
         }
         if (expectedDisableCount.get() > 0) {
-            assertThat(disableLatch.await((cumulativeTimeoutMillis.get() * 2), TimeUnit.MILLISECONDS), equalTo(true));
+            assertThat(getActionMsg(false, disableLatch.getCount(), actions), disableLatch.await((cumulativeTimeoutMillis.get() * 2), TimeUnit.MILLISECONDS), equalTo(true));
         }
     }
 

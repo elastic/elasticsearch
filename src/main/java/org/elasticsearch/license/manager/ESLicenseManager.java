@@ -85,8 +85,6 @@ public class ESLicenseManager {
                 // verify all readable license fields
                 verifyLicenseFields(license, esLicense);
             }
-        } catch (ExpiredLicenseException e) {
-            throw new InvalidLicenseException("Expired License");
         } catch (InvalidLicenseException e) {
             throw new InvalidLicenseException("Invalid License");
         }

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.merge.policy.TieredMergePolicyProvider;
@@ -330,48 +331,56 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void throttleStats() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(ImmutableSettings.builder()
-                                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
-                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
-                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                                .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
-                                .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
-                                .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
-                                .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "1")
-                                .put("index.merge.policy.type", "tiered")
+        Loggers.getLogger("lucene.iw").setLevel("TRACE");
+        Loggers.getLogger("index.merge.scheduler").setLevel("TRACE");
+        Loggers.getLogger("index.shard.service").setLevel("TRACE");
+        Loggers.getLogger("test.engine").setLevel("TRACE");
 
-                ));
-        ensureGreen();
-        long termUpto = 0;
-        IndicesStatsResponse stats;
-        // make sure we see throttling kicking in:
-        boolean done = false;
-        long start = System.currentTimeMillis();
-        while (!done) {
-            for(int i=0; i<100; i++) {
-                // Provoke slowish merging by making many unique terms:
-                StringBuilder sb = new StringBuilder();
-                for(int j=0; j<100; j++) {
-                    sb.append(' ');
-                    sb.append(termUpto++);
+        try {
+            assertAcked(prepareCreate("test")
+                        .setSettings(ImmutableSettings.builder()
+                                     .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "merge")
+                                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "1")
+                                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+                                     .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, "2")
+                                     .put(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, "2")
+                                     .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
+                                     .put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, "1")
+                                     .put("index.merge.policy.type", "tiered")
+
+                                     ));
+            ensureGreen();
+            long termUpto = 0;
+            IndicesStatsResponse stats;
+            // make sure we see throttling kicking in:
+            boolean done = false;
+            long start = System.currentTimeMillis();
+            while (!done) {
+                for(int i=0; i<100; i++) {
+                    // Provoke slowish merging by making many unique terms:
+                    StringBuilder sb = new StringBuilder();
+                    for(int j=0; j<100; j++) {
+                        sb.append(' ');
+                        sb.append(termUpto++);
+                    }
+                    client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
+                    if (i % 2 == 0) {
+                        refresh();
+                    }
                 }
-                client().prepareIndex("test", "type", ""+termUpto).setSource("field" + (i%10), sb.toString()).get();
-                if (i % 2 == 0) {
-                    refresh();
+                refresh();
+                stats = client().admin().indices().prepareStats().execute().actionGet();
+                //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+                done = stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis() > 0;
+                if (System.currentTimeMillis() - start > 300*1000) { //Wait 5 minutes for throttling to kick in
+                    fail("index throttling didn't kick in after 5 minutes of intense merging");
                 }
             }
-            refresh();
-            stats = client().admin().indices().prepareStats().execute().actionGet();
-            //nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
-            done = stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis() > 0;
-            if (System.currentTimeMillis() - start > 300*1000) { //Wait 5 minutes for throttling to kick in
-                break;
-            }
-        }
-        stats = client().admin().indices().prepareStats().execute().actionGet();
-        if (done) {
-            assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTimeInMillis(), greaterThan(0l));
+        } finally {
+            Loggers.getLogger("lucene.iw").setLevel("DEBUG");
+            Loggers.getLogger("index.merge.scheduler").setLevel("DEBUG");
+            Loggers.getLogger("index.shard.service").setLevel("DEBUG");
+            Loggers.getLogger("test.engine").setLevel("DEBUG");
         }
     }
 

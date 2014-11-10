@@ -11,7 +11,10 @@ a tool to verify issued signed license(s) and generate effective license file fr
 see [License Tools Usage & Reference] (https://github.com/elasticsearch/elasticsearch-license/tree/es_integration/docs/private/license-tools.asciidoc)
 
 ## Licensing Consumer Interface
-TODO
+
+Licensing Consumer Interface defines how consumer plugins should enforce licensing on a feature in question using the license-plugin.
+
+see [Licensing Consumer Interface] (https://github.com/elasticsearch/elasticsearch-license/tree/es_integration/docs/private/license-consumer-interface.asciidoc)
 
 ## Licensing Plugin
 TODO

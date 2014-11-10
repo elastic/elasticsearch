@@ -62,7 +62,7 @@ public class LicenseVerificationTests extends AbstractLicensingTestBase {
             esLicenseManager.verifyLicenses(licenseMap);
             fail("verifyLicenses should throw InvalidLicenseException [expired license]");
         } catch (InvalidLicenseException e) {
-            assertThat(e.getMessage(), containsString("Expired License"));
+            assertThat(e.getMessage(), containsString("Invalid License"));
         }
 
         licenseMap.clear();

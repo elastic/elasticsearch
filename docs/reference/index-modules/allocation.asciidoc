@@ -131,6 +131,11 @@ also be set to an absolute byte value (similar to the low watermark)
 to relocate shards once less than the configured amount of space is
 available on the node.
 
+NOTE: Percentage values refer to used disk space, while byte values refer to
+free disk space. This can be confusing, since it flips the meaning of
+high and low. For example, it makes sense to set the low watermark to 10gb
+and the high watermark to 5gb, but not the other way around.
+
 Both watermark settings can be changed dynamically using the cluster
 settings API. By default, Elasticsearch will retrieve information
 about the disk usage of the nodes every 30 seconds. This can also be

@@ -72,6 +72,7 @@ def index_documents(es, index_name, type, num_docs):
       es.indices.flush(index=index_name, force=frequently())
   if rarely():
       es.indices.optimize(index=index_name)
+  logging.info('Flushing index')
   es.indices.flush(index=index_name)
 
 def run_basic_asserts(es, index_name, type, num_docs):
@@ -109,15 +110,15 @@ def start_node(version, release_dir, data_dir, tcp_port, http_port):
     os.path.join(release_dir, 'bin/elasticsearch'),
     '-Des.path.data=%s' % data_dir,
     '-Des.path.logs=logs',
-    '-Des.cluster.name=bwc_index',  
+    '-Des.cluster.name=bwc_index_' + version,  
     '-Des.network.host=localhost', 
     '-Des.discovery.zen.ping.multicast.enabled=false',
     '-Des.script.disable_dynamic=true',
     '-Des.transport.tcp.port=%s' % tcp_port,
     '-Des.http.port=%s' % http_port
   ]
-  if version.startswith('0.90.'):
-    cmd.append('-f') # 0.90.x starts in background automatically
+  if version.startswith('0.') or version == '1.0.0.Beta1':
+    cmd.append('-f') # version before 1.0 start in background automatically
   return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 def create_client(http_port, timeout=30):
@@ -153,14 +154,14 @@ def generate_index(client):
   logging.info('Running basic asserts on the data added')
   run_basic_asserts(client, 'test', 'doc', num_docs)
 
-def compress_index(version, data_dir, output_dir):
+def compress_index(version, tmp_dir, output_dir):
   abs_output_dir = os.path.abspath(output_dir)
   zipfile = os.path.join(abs_output_dir, 'index-%s.zip' % version)
   if os.path.exists(zipfile):
     os.remove(zipfile)
   logging.info('Compressing index into %s', zipfile)
   olddir = os.getcwd()
-  os.chdir(data_dir)
+  os.chdir(tmp_dir)
   subprocess.check_call('zip -r %s *' % zipfile, shell=True)
   os.chdir(olddir)
 
@@ -191,7 +192,8 @@ def parse_config():
   if not os.path.exists(cfg.output_dir):
     parser.error('Output directory does not exist: %s' % cfg.output_dir)
 
-  cfg.data_dir = tempfile.mkdtemp()
+  cfg.tmp_dir = tempfile.mkdtemp()
+  cfg.data_dir = os.path.join(cfg.tmp_dir, 'data')
   logging.info('Temp data dir: %s' % cfg.data_dir)
 
   return cfg
@@ -208,8 +210,10 @@ def main():
     client = create_client(cfg.http_port)
     generate_index(client)
   finally:
-    node.terminate()
-  compress_index(cfg.version, cfg.data_dir, cfg.output_dir)
+    if 'node' in vars():
+      logging.info('Shutting down node with pid %d', node.pid)
+      node.terminate()
+  compress_index(cfg.version, cfg.tmp_dir, cfg.output_dir)
 
 if __name__ == '__main__':
   try:

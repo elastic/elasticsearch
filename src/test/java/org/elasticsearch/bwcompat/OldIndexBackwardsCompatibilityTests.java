@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bwcompat;
 
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -37,13 +38,41 @@ import java.util.Map;
 public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardCompatibilityTest {
     
     List<String> indexes = Arrays.asList(
-        "index-0.20.5.zip",
+        "index-0.90.0.zip",
+        "index-0.90.1.zip",
+        "index-0.90.2.zip",
+        "index-0.90.3.zip",
+        "index-0.90.4.zip",
+        "index-0.90.5.zip",
+        "index-0.90.6.zip",
+        "index-0.90.7.zip",
+        "index-0.90.8.zip",
+        "index-0.90.9.zip",
+        "index-0.90.10.zip",
+        "index-0.90.12.zip",
+        "index-0.90.13.zip",
+        "index-1.0.0.Beta1.zip",
+        "index-1.0.0.zip",
+        "index-1.0.1.zip",
+        "index-1.0.2.zip",
+        "index-1.0.3.zip",
+        "index-1.1.0.zip",
+        "index-1.1.1.zip",
         "index-1.1.2.zip",
+        "index-1.2.1.zip",
+        "index-1.2.2.zip",
+        "index-1.2.3.zip",
         "index-1.2.4.zip",
         "index-1.3.1.zip",
         "index-1.3.2.zip",
+        "index-1.3.3.zip",
         "index-1.3.4.zip",
-        "index-1.4.0.Beta1.zip"
+        "index-1.4.0.Beta1.zip",
+        "index-1.4.0.zip"
+    );
+    
+    List<String> tooOldIndexes = Arrays.asList(
+        "index-0.20.5.zip"
     );
 
     public void testOldIndexes() throws Exception {
@@ -53,6 +82,19 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         for (int i = 0; i < numToTest; ++i) {
             logger.info("Testing old index " + indexes.get(i));
             assertOldIndexWorks(indexes.get(i));
+        }
+    }
+    
+    public void testTooOldIndexes() throws Exception {
+        Collections.shuffle(tooOldIndexes, getRandom());
+        for (String index : tooOldIndexes) {
+            logger.info("Testing too old index " + index);
+            try {
+                assertOldIndexWorks(index);
+                fail("Expected index to throw lucene    format exception");
+            } catch (IndexFormatTooOldException e) {
+                // expected
+            }
         }
     }
 

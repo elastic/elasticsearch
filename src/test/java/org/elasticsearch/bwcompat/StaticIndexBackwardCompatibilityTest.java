@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.internal.InternalNode;
@@ -51,7 +52,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
 public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrationTest {
     
-    public File prepareBackwardsDataDir(File backwardsIndex) throws IOException {
+    /*public File prepareBackwardsDataDir(File backwardsIndex) throws IOException {
         File dataDir = new File(newTempDir(), "data");
         TestUtil.unzip(backwardsIndex, dataDir);
         assertTrue(dataDir.exists());
@@ -66,18 +67,17 @@ public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrati
         assertFalse(src.exists());
         assertTrue(dest.exists());
         return dataDir;
-    }
+    }*/
 
     public void loadIndex(String index) throws Exception {
         logger.info("Checking static index");
-        // If this assert trips it means we are not suppressing enough codecs up above:
-        assertFalse("test infra is broken!", LuceneTestCase.OLD_FORMAT_IMPERSONATION_IS_ACTIVE);
-        File dataDir = prepareBackwardsDataDir(new File(getClass().getResource(index).toURI()));
-        internalCluster().startNode(ImmutableSettings.builder()
+        //File dataDir = prepareBackwardsDataDir(new File(getClass().getResource(index).toURI()));
+        Settings settings = prepareBackwardsDataDir(new File(getClass().getResource(index).toURI()));
+        internalCluster().startNode(settings);/*ImmutableSettings.builder()
                          .put("path.data", dataDir.getPath())
                          .put("gateway.type", "local") // this is important we need to recover from gateway
                          .put(InternalNode.HTTP_ENABLED, true)
-                         .build());
+                         .build());*/
         ensureGreen("test");
         assertIndexSanity();
     }

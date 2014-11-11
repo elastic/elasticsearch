@@ -69,12 +69,11 @@ root and inner object types:
 
 added[1.4.0.Beta1]
 
-Queries and filters can refer to fields which don't exist in a mapping, except
-when registering a new <<search-percolate,percolator query>> or when creating
-a <<filtered,filtered alias>>.  In these two cases, any fields referred to in
-the query or filter must already exist in the mapping, otherwise there is a
-chance that the wrong field type will be used.
+Queries and filters can refer to fields that don't exist in a mapping. Whether this
+is allowed is controlled by the `index.query.parse.allow_unmapped_fields` setting.
+This setting defaults to `true`. Setting it to `false` will disallow the usage of
+unmapped fields in queries.
 
-This requirement can be disabled by setting
-`index.query.parse.allow_unmapped_fields` to `true`, in which case you run the
-risk that your query or filter might not work correctly.
+When registering a new <<search-percolate,percolator query>> or creating
+a <<filtered,filtered alias>> then the `index.query.parse.allow_unmapped_fields` setting
+is forcefully overwritten to disallowed unmapped fields.

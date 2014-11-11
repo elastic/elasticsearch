@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -71,9 +72,8 @@ public class AbstractLicensingTestBase {
 
 
     public static LicenseSpec generateRandomLicenseSpec() {
+        boolean datesInMillis = randomBoolean();
         long now = System.currentTimeMillis();
-        String issueDate = dateMathString("now", now);
-        String expiryDate = dateMathString("now+10d/d", now);
         String uid = UUID.randomUUID().toString();
         String feature = "feature__" + randomInt();
         String issuer = "issuer__"  + randomInt();
@@ -81,8 +81,15 @@ public class AbstractLicensingTestBase {
         String type = randomFrom("subscription", "internal", "development");
         String subscriptionType = randomFrom("none", "gold", "silver", "platinum");
         int maxNodes = randomIntBetween(5, 100);
-
-        return new LicenseSpec(uid, feature, issueDate, expiryDate, type, subscriptionType, issuedTo, issuer, maxNodes);
+        if (datesInMillis) {
+            long issueDateInMillis = dateMath("now", now);
+            long expiryDateInMillis = dateMath("now+10d/d", now);
+            return new LicenseSpec(uid, feature, issueDateInMillis, expiryDateInMillis, type, subscriptionType, issuedTo, issuer, maxNodes);
+        } else {
+            String issueDate = dateMathString("now", now);
+            String expiryDate = dateMathString("now+10d/d", now);
+            return new LicenseSpec(uid, feature, issueDate, expiryDate, type, subscriptionType, issuedTo, issuer, maxNodes);
+        }
     }
 
     public static String generateESLicenseSpecString(List<LicenseSpec> licenseSpecs) throws IOException {
@@ -96,11 +103,20 @@ public class AbstractLicensingTestBase {
                     .field("subscription_type", licenseSpec.subscriptionType)
                     .field("issued_to", licenseSpec.issuedTo)
                     .field("issuer", licenseSpec.issuer)
-                    .field("issue_date", licenseSpec.issueDate)
-                    .field("expiry_date", licenseSpec.expiryDate)
                     .field("feature", licenseSpec.feature)
-                    .field("max_nodes", licenseSpec.maxNodes)
-                    .endObject();
+                    .field("max_nodes", licenseSpec.maxNodes);
+
+            if (licenseSpec.issueDate != null) {
+                licenses.field("issue_date", licenseSpec.issueDate);
+            } else {
+                licenses.field("issue_date_in_millis", licenseSpec.issueDateInMillis);
+            }
+            if (licenseSpec.expiryDate != null) {
+                licenses.field("expiry_date", licenseSpec.expiryDate);
+            } else {
+                licenses.field("expiry_date_in_millis", licenseSpec.expiryDateInMillis);
+            }
+            licenses.endObject();
         }
         licenses.endArray();
         licenses.endObject();
@@ -111,18 +127,26 @@ public class AbstractLicensingTestBase {
         ESLicenseSigner signer = new ESLicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
         Set<ESLicense> unSignedLicenses = new HashSet<>();
         for (LicenseSpec spec : licenseSpecs) {
-            unSignedLicenses.add(ESLicense.builder()
-                            .uid(spec.uid)
-                            .feature(spec.feature)
-                            .expiryDate(DateUtils.endOfTheDay(spec.expiryDate))
-                            .issueDate(DateUtils.beginningOfTheDay(spec.issueDate))
-                            .type(spec.type)
-                            .subscriptionType(spec.subscriptionType)
-                            .issuedTo(spec.issuedTo)
-                            .issuer(spec.issuer)
-                            .maxNodes(spec.maxNodes)
-                            .build()
-            );
+            ESLicense.Builder builder = ESLicense.builder()
+                    .uid(spec.uid)
+                    .feature(spec.feature)
+                    .type(spec.type)
+                    .subscriptionType(spec.subscriptionType)
+                    .issuedTo(spec.issuedTo)
+                    .issuer(spec.issuer)
+                    .maxNodes(spec.maxNodes);
+
+            if (spec.expiryDate != null) {
+                builder.expiryDate(DateUtils.endOfTheDay(spec.expiryDate));
+            } else {
+                builder.expiryDate(spec.expiryDateInMillis);
+            }
+            if (spec.issueDate != null) {
+                builder.issueDate(DateUtils.beginningOfTheDay(spec.issueDate));
+            } else {
+                builder.issueDate(spec.issueDateInMillis);
+            }
+            unSignedLicenses.add(builder.build());
         }
         return signer.sign(unSignedLicenses);
     }
@@ -152,7 +176,9 @@ public class AbstractLicensingTestBase {
     public static class LicenseSpec {
         public final String feature;
         public final String issueDate;
+        public final long issueDateInMillis;
         public final String expiryDate;
+        public final long expiryDateInMillis;
         public final String uid;
         public final String type;
         public final String subscriptionType;
@@ -164,11 +190,28 @@ public class AbstractLicensingTestBase {
             this(UUID.randomUUID().toString(), feature, issueDate, expiryDate, "trial", "none", "customer", "elasticsearch", 5);
         }
 
+        public LicenseSpec(String uid, String feature, long issueDateInMillis, long expiryDateInMillis, String type,
+                           String subscriptionType, String issuedTo, String issuer, int maxNodes) {
+            this.feature = feature;
+            this.issueDateInMillis = issueDateInMillis;
+            this.issueDate = null;
+            this.expiryDateInMillis = expiryDateInMillis;
+            this.expiryDate = null;
+            this.uid = uid;
+            this.type = type;
+            this.subscriptionType = subscriptionType;
+            this.issuedTo = issuedTo;
+            this.issuer = issuer;
+            this.maxNodes = maxNodes;
+        }
+
         public LicenseSpec(String uid, String feature, String issueDate, String expiryDate, String type,
                            String subscriptionType, String issuedTo, String issuer, int maxNodes) {
             this.feature = feature;
             this.issueDate = issueDate;
+            this.issueDateInMillis = -1;
             this.expiryDate = expiryDate;
+            this.expiryDateInMillis = -1;
             this.uid = uid;
             this.type = type;
             this.subscriptionType = subscriptionType;
@@ -186,7 +229,15 @@ public class AbstractLicensingTestBase {
         assertThat(license.type(), equalTo(spec.type));
         assertThat(license.subscriptionType(), equalTo(spec.subscriptionType));
         assertThat(license.maxNodes(), equalTo(spec.maxNodes));
-        assertThat(license.issueDate(), equalTo(DateUtils.beginningOfTheDay(spec.issueDate)));
-        assertThat(license.expiryDate(), equalTo(DateUtils.endOfTheDay(spec.expiryDate)));
+        if (spec.issueDate != null) {
+            assertThat(license.issueDate(), equalTo(DateUtils.beginningOfTheDay(spec.issueDate)));
+        } else {
+            assertThat(license.issueDate(), equalTo(spec.issueDateInMillis));
+        }
+        if (spec.expiryDate != null) {
+            assertThat(license.expiryDate(), equalTo(DateUtils.endOfTheDay(spec.expiryDate)));
+        } else {
+            assertThat(license.expiryDate(), equalTo(spec.expiryDateInMillis));
+        }
     }
 }

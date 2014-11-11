@@ -44,7 +44,7 @@ public class ESLicense implements ToXContent {
 
 
     /**
-     * @return a unique identifier for a license (currently just a UUID)
+     * @return a unique identifier for a license
      */
     public String uid() {
         return uid;
@@ -170,7 +170,11 @@ public class ESLicense implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        boolean restViewMode = params.paramAsBoolean(ESLicenses.REST_VIEW_MODE, false);
         builder.startObject();
+        if (restViewMode) {
+            builder.field(XFields.STATUS, ((expiryDate - System.currentTimeMillis()) > 0l) ? "active" : "expired");
+        }
         builder.field(XFields.UID, uid);
         builder.field(XFields.TYPE, type);
         builder.field(XFields.SUBSCRIPTION_TYPE, subscriptionType);
@@ -180,7 +184,7 @@ public class ESLicense implements ToXContent {
         builder.field(XFields.MAX_NODES, maxNodes);
         builder.field(XFields.ISSUED_TO, issuedTo);
         builder.field(XFields.ISSUER, issuer);
-        if (signature != null && !params.paramAsBoolean(ESLicenses.OMIT_SIGNATURE, false)) {
+        if (signature != null && !restViewMode) {
             builder.field(XFields.SIGNATURE, signature);
         }
         builder.endObject();
@@ -190,6 +194,7 @@ public class ESLicense implements ToXContent {
     private final static int VERSION = 1;
 
     final static class Fields {
+        static final String STATUS = "status";
         static final String UID = "uid";
         static final String TYPE = "type";
         static final String SUBSCRIPTION_TYPE = "subscription_type";
@@ -205,6 +210,7 @@ public class ESLicense implements ToXContent {
     }
 
     private final static class XFields {
+        static final XContentBuilderString STATUS = new XContentBuilderString(Fields.STATUS);
         static final XContentBuilderString UID = new XContentBuilderString(Fields.UID);
         static final XContentBuilderString TYPE = new XContentBuilderString(Fields.TYPE);
         static final XContentBuilderString SUBSCRIPTION_TYPE = new XContentBuilderString(Fields.SUBSCRIPTION_TYPE);
@@ -249,7 +255,7 @@ public class ESLicense implements ToXContent {
         private String feature;
         private String signature;
         private long expiryDate = -1;
-        private int maxNodes;
+        private int maxNodes = -1;
 
 
         public Builder uid(String uid) {

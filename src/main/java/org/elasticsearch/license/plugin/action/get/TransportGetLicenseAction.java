@@ -15,12 +15,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.List;
 
 public class TransportGetLicenseAction extends TransportMasterNodeReadOperationAction<GetLicenseRequest, GetLicenseResponse> {
 
@@ -55,7 +52,6 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadOperationA
 
     @Override
     protected void masterOperation(final GetLicenseRequest request, ClusterState state, final ActionListener<GetLicenseResponse> listener) throws ElasticsearchException {
-        final List<ESLicense> currentLicenses = licensesManagerService.getLicenses();
-        listener.onResponse(new GetLicenseResponse(currentLicenses));
+        listener.onResponse(new GetLicenseResponse(licensesManagerService.getLicenses()));
     }
 }

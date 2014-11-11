@@ -56,8 +56,7 @@ public class TransportPutLicenseAction extends TransportMasterNodeOperationActio
 
     @Override
     protected void masterOperation(final PutLicenseRequest request, ClusterState state, final ActionListener<PutLicenseResponse> listener) throws ElasticsearchException {
-        final PutLicenseRequestHolder requestHolder = new PutLicenseRequestHolder(request, "put licenses []");
-        licensesManagerService.registerLicenses(requestHolder, new ActionListener<LicensesUpdateResponse>() {
+        licensesManagerService.registerLicenses(new PutLicenseRequestHolder(request, "put licenses []"), new ActionListener<LicensesUpdateResponse>() {
             @Override
             public void onResponse(LicensesUpdateResponse licensesUpdateResponse) {
                 listener.onResponse(new PutLicenseResponse(licensesUpdateResponse.isAcknowledged(), licensesUpdateResponse.status()));

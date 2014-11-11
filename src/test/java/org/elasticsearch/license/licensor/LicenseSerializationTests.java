@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.license.licensor;
 
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.license.AbstractLicensingTestBase;
 import org.elasticsearch.license.core.DateUtils;
 import org.elasticsearch.license.core.ESLicense;
@@ -17,6 +19,7 @@ import java.util.*;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
+import static org.hamcrest.core.IsNull.nullValue;
 import static org.junit.Assert.assertThat;
 
 public class LicenseSerializationTests extends AbstractLicensingTestBase {
@@ -71,6 +74,38 @@ public class LicenseSerializationTests extends AbstractLicensingTestBase {
             LicenseSpec spec = licenseSpecs.get(license.feature());
             assertThat(spec, notNullValue());
             assertLicenseSpec(spec, license);
+        }
+    }
+
+    @Test
+    public void testLicenseRestView() throws Exception {
+        long now = System.currentTimeMillis();
+        String expiredLicenseExpiryDate = dateMathString("now-1d/d", now);
+        String validLicenseIssueDate = dateMathString("now-10d/d", now);
+        String validLicenseExpiryDate = dateMathString("now+1d/d", now);
+        Set<ESLicense> licenses = generateSignedLicenses(Arrays.asList(new LicenseSpec("expired_feature", validLicenseIssueDate, expiredLicenseExpiryDate)
+                , new LicenseSpec("valid_feature", validLicenseIssueDate, validLicenseExpiryDate)));
+
+        assertThat(licenses.size(), equalTo(2));
+        for (ESLicense license : licenses) {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            license.toXContent(builder, new ToXContent.MapParams(ImmutableMap.of(ESLicenses.REST_VIEW_MODE, "true")));
+            builder.flush();
+            Map<String, Object> map = XContentHelper.convertToMap(builder.bytesStream().bytes(), false).v2();
+            assertThat(map.get("status"), notNullValue());
+            if (license.feature().equals("valid_feature")) {
+                assertThat((String) map.get("status"), equalTo("active"));
+            } else {
+                assertThat((String) map.get("status"), equalTo("expired"));
+            }
+        }
+
+        for (ESLicense license : licenses) {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            license.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.flush();
+            Map<String, Object> map = XContentHelper.convertToMap(builder.bytesStream().bytes(), false).v2();
+            assertThat(map.get("status"), nullValue());
         }
     }
 }

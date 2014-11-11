@@ -36,6 +36,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
      * {
      *   "licenses" : [
      *     {
+     *       "status": "active" | "expired",
      *       "uid" : ...,
      *       "type" : ...,
      *       "subscription_type" :...,
@@ -47,7 +48,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
      *     },
      * {...}
      *   ]
-     * }p
+     * }
      * <p/>
      * There will be only one license displayed per feature, the selected license will have the latest expiry_date
      * out of all other licenses for the feature.
@@ -57,7 +58,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        final Map<String, String> overrideParams = ImmutableMap.of(ESLicenses.OMIT_SIGNATURE, "true");
+        final Map<String, String> overrideParams = ImmutableMap.of(ESLicenses.REST_VIEW_MODE, "true");
         final ToXContent.Params params = new ToXContent.DelegatingMapParams(overrideParams, request);
         GetLicenseRequest getLicenseRequest = new GetLicenseRequest();
         getLicenseRequest.local(request.paramAsBoolean("local", getLicenseRequest.local()));

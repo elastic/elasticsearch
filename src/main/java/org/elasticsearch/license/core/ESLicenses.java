@@ -17,7 +17,7 @@ import java.util.*;
 
 public class ESLicenses {
 
-    public static final String OMIT_SIGNATURE = "rest_api";
+    public static final String REST_VIEW_MODE = "rest_api";
 
     private final static class Fields {
         static final String LICENSES = "licenses";

@@ -69,8 +69,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class PercolatorQueriesRegistry extends AbstractIndexShardComponent implements Closeable{
 
-    public final static String ALLOW_UNMAPPED_FIELDS = "index.percolator.allow_unmapped_fields";
-
     // This is a shard level service, but these below are index level service:
     private final IndexQueryParserService queryParserService;
     private final MapperService mapperService;
@@ -86,7 +84,6 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
     private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
-    private final boolean allowUnmappedFields;
 
     private CloseableThreadLocal<QueryParseContext> cache = new CloseableThreadLocal<QueryParseContext>() {
         @Override
@@ -107,7 +104,6 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
         this.indexCache = indexCache;
         this.indexFieldDataService = indexFieldDataService;
         this.shardPercolateService = shardPercolateService;
-        this.allowUnmappedFields = indexSettings.getAsBoolean(ALLOW_UNMAPPED_FIELDS, false);
 
         indicesLifecycle.addListener(shardLifecycleListener);
         mapperService.addTypeListener(percolateTypeListener);
@@ -204,7 +200,16 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
         QueryParseContext context = cache.get();
         try {
             context.reset(parser);
-            context.setAllowUnmappedFields(allowUnmappedFields);
+            // This means that fields in the query need to exist in the mapping prior to registering this query
+            // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
+            //
+            // Even worse when fields mentioned in percolator queries do go added to map after the queries have been registered
+            // then the percolator queries don't work as expected any more.
+            //
+            // Query parsing can't introduce new fields in mappings (which happens when registering a percolator query),
+            // because field type can't be inferred from queries (like document do) so the best option here is to disallow
+            // the usage of unmapped fields in percolator queries to avoid unexpected behaviour
+            context.setAllowUnmappedFields(false);
             return queryParserService.parseInnerQuery(context);
         } catch (IOException e) {
             throw new QueryParsingException(queryParserService.index(), "Failed to parse", e);

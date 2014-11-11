@@ -19,14 +19,14 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -140,40 +140,67 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         return super.simplify(bq);
     }
 
+    /**
+     * Analyze the given string using its analyzer, constructing either a
+     * {@code PrefixQuery} or a {@code BooleanQuery} made up
+     * of {@code PrefixQuery}s
+     */
     private Query newPossiblyAnalyzedQuery(String field, String termStr) {
-        TokenStream source;
-        try {
-            source = getAnalyzer().tokenStream(field, termStr);
+        try (TokenStream source = getAnalyzer().tokenStream(field, termStr)) {
             source.reset();
-        } catch (IOException e) {
-            return new PrefixQuery(new Term(field, termStr));
-        }
-        List<String> tlist = new ArrayList<>();
-        CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
-        while (true) {
-            try {
-                if (!source.incrementToken()) {
-                    break;
+            // Use the analyzer to get all the tokens, and then build a TermQuery,
+            // PhraseQuery, or nothing based on the term count
+            CachingTokenFilter buffer = new CachingTokenFilter(source);
+            buffer.reset();
+
+            TermToBytesRefAttribute termAtt = null;
+            int numTokens = 0;
+            boolean hasMoreTokens = false;
+            termAtt = buffer.getAttribute(TermToBytesRefAttribute.class);
+            if (termAtt != null) {
+                try {
+                    hasMoreTokens = buffer.incrementToken();
+                    while (hasMoreTokens) {
+                        numTokens++;
+                        hasMoreTokens = buffer.incrementToken();
+                    }
+                } catch (IOException e) {
+                    // ignore
                 }
-            } catch (IOException e) {
-                break;
             }
-            tlist.add(termAtt.toString());
-        }
-        try {
-            source.close();
+
+            // rewind buffer
+            buffer.reset();
+
+            BytesRef bytes = termAtt == null ? null : termAtt.getBytesRef();
+            if (numTokens == 0) {
+                return null;
+            } else if (numTokens == 1) {
+                try {
+                    boolean hasNext = buffer.incrementToken();
+                    assert hasNext == true;
+                    termAtt.fillBytesRef();
+                } catch (IOException e) {
+                    // safe to ignore, because we know the number of tokens
+                }
+                return new PrefixQuery(new Term(field, BytesRef.deepCopyOf(bytes)));
+            } else {
+                BooleanQuery bq = new BooleanQuery();
+                for (int i = 0; i < numTokens; i++) {
+                    try {
+                        boolean hasNext = buffer.incrementToken();
+                        assert hasNext == true;
+                        termAtt.fillBytesRef();
+                    } catch (IOException e) {
+                        // safe to ignore, because we know the number of tokens
+                    }
+                    bq.add(new BooleanClause(new PrefixQuery(new Term(field, BytesRef.deepCopyOf(bytes))), BooleanClause.Occur.SHOULD));
+                }
+                return bq;
+            }
         } catch (IOException e) {
-            // ignore
-        }
-        if (tlist.size() == 1) {
-            return new PrefixQuery(new Term(field, tlist.get(0)));
-        } else {
-            // build a boolean query with prefix on each one...
-            BooleanQuery bq = new BooleanQuery();
-            for (String token : tlist) {
-                bq.add(new BooleanClause(new PrefixQuery(new Term(field, token)), BooleanClause.Occur.SHOULD));
-            }
-            return bq;
+            // Bail on any exceptions, going with a regular prefix query
+            return new PrefixQuery(new Term(field, termStr));
         }
     }
 

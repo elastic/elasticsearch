@@ -29,3 +29,6 @@ see [Licensing REST APIs] (https://github.com/elasticsearch/elasticsearch-licens
 
 see [Licensing Plugin Design] (https://github.com/elasticsearch/elasticsearch-license/blob/es_integration/docs/private/license-plugin-design.asciidoc)
 
+## Licensing Test Plan [PRIVATE]
+
+see [Licensing Test Plan] (https://github.com/elasticsearch/elasticsearch-license/blob/es_integration/docs/private/license-plugin-guarantees.asciidoc)

@@ -32,7 +32,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 @ClusterScope(scope = TEST, numDataNodes = 10)
-public class LicenseTransportTests extends AbstractLicensesIntegrationTests {
+public class LicensesTransportTests extends AbstractLicensesIntegrationTests {
 
     @After
     public void beforeTest() throws Exception {

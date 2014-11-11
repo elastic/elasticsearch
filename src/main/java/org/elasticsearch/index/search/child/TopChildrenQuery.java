@@ -193,7 +193,7 @@ public class TopChildrenQuery extends Query {
                 AtomicReader indexReader = atomicReaderContext.reader();
                 FixedBitSet nonNestedDocs = null;
                 if (nonNestedDocsFilter != null) {
-                    nonNestedDocs = (FixedBitSet) nonNestedDocsFilter.getDocIdSet(atomicReaderContext, indexReader.getLiveDocs());
+                    nonNestedDocs = nonNestedDocsFilter.getDocIdSet(atomicReaderContext, indexReader.getLiveDocs());
                 }
 
                 Terms terms = indexReader.terms(UidFieldMapper.NAME);

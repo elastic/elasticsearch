@@ -89,7 +89,11 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTe
         }
     }
 
-    static FixedBitSetFilter wrap(Filter filter) {
+    static Filter wrap(Filter filter) {
+        return SearchContext.current().filterCache().cache(filter);
+    }
+
+    static FixedBitSetFilter wrapWithFixedBitSetFilter(Filter filter) {
         return SearchContext.current().fixedBitSetFilterCache().getFixedBitSetFilter(filter);
     }
 

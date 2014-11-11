@@ -35,7 +35,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -74,7 +73,7 @@ public class ParentQueryTests extends AbstractChildTests {
         Query parentQuery = new TermQuery(new Term("field", "value"));
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        FixedBitSetFilter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
+        Filter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
         Query query = new ParentQuery(parentChildIndexFieldData, parentQuery, "parent", childrenFilter);
         QueryUtils.check(query);
     }
@@ -161,7 +160,7 @@ public class ParentQueryTests extends AbstractChildTests {
 
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        FixedBitSetFilter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
+        Filter childrenFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "child")));
         Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueParentValues / 4;
         for (int i = 0; i < max; i++) {

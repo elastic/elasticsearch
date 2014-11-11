@@ -134,7 +134,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
                         .fieldsProducer(state);
                 int numBlooms = bloomIn.readInt();
 
-                boolean load = true;
+                boolean load = false;
                 Store.StoreDirectory storeDir = DirectoryUtils.getStoreDirectory(state.directory);
                 if (storeDir != null && storeDir.codecService() != null) {
                     load = storeDir.codecService().isLoadBloomFilter();

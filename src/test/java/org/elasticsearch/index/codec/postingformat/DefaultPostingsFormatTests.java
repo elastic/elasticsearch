@@ -75,7 +75,7 @@ public class DefaultPostingsFormatTests extends ElasticsearchTestCase {
 
         assertThat(terms.size(), equalTo(1l));
         assertThat(terms, not(instanceOf(BloomFilterPostingsFormat.BloomFilteredTerms.class)));
-        assertThat(uidTerms, instanceOf(BloomFilterPostingsFormat.BloomFilteredTerms.class));
+        assertThat(uidTerms, not(instanceOf(BloomFilterPostingsFormat.BloomFilteredTerms.class)));
 
         reader.close();
         writer.close();

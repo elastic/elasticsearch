@@ -33,6 +33,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 
 import java.io.File;
@@ -82,7 +83,8 @@ public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrati
     }
     
     public void unloadIndex() throws Exception {
-        internalCluster().stopRandomDataNode(); // we only have 1 data node, so this should shut it down, for the next call
+        ElasticsearchAssertions.assertAcked(client().admin().indices().prepareDelete("test").get());
+        while (internalCluster().stopRandomDataNode()) {} // stop all data nodes
     }
 
     void assertIndexSanity() {

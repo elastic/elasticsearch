@@ -156,6 +156,8 @@ def generate_index(client):
 def compress_index(version, data_dir, output_dir):
   abs_output_dir = os.path.abspath(output_dir)
   zipfile = os.path.join(abs_output_dir, 'index-%s.zip' % version)
+  if os.path.exists(zipfile):
+    os.remove(zipfile)
   logging.info('Compressing index into %s', zipfile)
   olddir = os.getcwd()
   os.chdir(data_dir)

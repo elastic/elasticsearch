@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license.plugin.consumer;
 
-import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
@@ -25,12 +24,17 @@ public class LazyLicenseRegistrationConsumerPlugin extends TestConsumerPluginBas
     }
 
     @Override
-    protected Class<? extends LifecycleComponent> service() {
+    public Class<? extends TestPluginServiceBase> service() {
         return LazyLicenseRegistrationPluginService.class;
     }
 
     @Override
     protected String pluginName() {
         return NAME;
+    }
+
+    @Override
+    public String featureName() {
+        return LazyLicenseRegistrationPluginService.FEATURE_NAME;
     }
 }

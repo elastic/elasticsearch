@@ -47,7 +47,9 @@ public abstract class TestConsumerPluginBase extends AbstractPlugin {
         return services;
     }
 
-    protected abstract Class<? extends LifecycleComponent> service();
+    public abstract Class<? extends TestPluginServiceBase> service();
 
     protected abstract String pluginName();
+
+    public abstract String featureName();
 }

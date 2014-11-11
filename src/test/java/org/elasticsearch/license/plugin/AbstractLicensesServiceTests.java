@@ -19,6 +19,7 @@ import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Before;
+import org.junit.Ignore;
 
 import java.util.HashSet;
 import java.util.List;
@@ -29,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.license.plugin.core.LicensesService.LicensesUpdateResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AbstractLicensesServiceTests extends AbstractLicensesIntegrationTests {
+public abstract class AbstractLicensesServiceTests extends AbstractLicensesIntegrationTests {
 
     private static String node = null;
     private static String[] nodes;

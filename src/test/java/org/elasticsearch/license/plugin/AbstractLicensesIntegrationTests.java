@@ -27,6 +27,7 @@ import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
+import org.junit.Ignore;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,8 +40,6 @@ import static org.elasticsearch.license.AbstractLicensingTestBase.getTestPubKeyP
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-/**
- */
 public abstract class AbstractLicensesIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -146,14 +145,17 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
 
     protected void assertLazyConsumerPluginNotification(final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
         final List<TestPluginServiceBase> consumerPluginServices = consumerLazyPluginServices();
-        assertThat("At least one instance has to be present", consumerPluginServices.size(), greaterThan(0));
-        assertConsumerPluginNotification("LazyConsumer should have license status of: " + expectedEnabled, consumerPluginServices, expectedEnabled, timeoutInSec);
+        assertConsumerPluginNotification(consumerPluginServices, expectedEnabled, timeoutInSec);
     }
 
     protected void assertEagerConsumerPluginNotification(final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
         final List<TestPluginServiceBase> consumerPluginServices = consumerEagerPluginServices();
+        assertConsumerPluginNotification(consumerPluginServices, expectedEnabled, timeoutInSec);
+    }
+
+    protected void assertConsumerPluginNotification(final List<TestPluginServiceBase> consumerPluginServices, final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {
         assertThat("At least one instance has to be present", consumerPluginServices.size(), greaterThan(0));
-        assertConsumerPluginNotification("EagerConsumer should have license status of: " + expectedEnabled, consumerPluginServices, expectedEnabled, timeoutInSec);
+        assertConsumerPluginNotification(consumerPluginServices.get(0).getClass().getName() + " should have license status of: " + expectedEnabled, consumerPluginServices, expectedEnabled, timeoutInSec);
     }
 
     private void assertConsumerPluginNotification(String msg, final Iterable<TestPluginServiceBase> consumerPluginServices, final boolean expectedEnabled, int timeoutInSec) throws InterruptedException {

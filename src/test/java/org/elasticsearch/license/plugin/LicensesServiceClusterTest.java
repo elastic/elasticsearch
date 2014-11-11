@@ -17,11 +17,14 @@ import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
 import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationConsumerPlugin;
 import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginService;
+import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationConsumerPlugin;
+import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationPluginService;
+import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.node.internal.InternalNode;
 import org.junit.Test;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -32,7 +35,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0)
 public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests {
 
-    private final String FEATURE_NAME = EagerLicenseRegistrationPluginService.FEATURE_NAME;
+    private final String[] FEATURES = {EagerLicenseRegistrationPluginService.FEATURE_NAME, LazyLicenseRegistrationPluginService.FEATURE_NAME};
 
     private final int trialLicenseDurationInSeconds = 2;
 
@@ -53,7 +56,8 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
                 .put("node.data", true)
                 .put("format", "json")
                 .put(EagerLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", trialLicenseDurationInSeconds)
-                .putArray("plugin.types", LicensePlugin.class.getName(), EagerLicenseRegistrationConsumerPlugin.class.getName())
+                .put(LazyLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", trialLicenseDurationInSeconds)
+                .putArray("plugin.types", LicensePlugin.class.getName(), EagerLicenseRegistrationConsumerPlugin.class.getName(), LazyLicenseRegistrationConsumerPlugin.class.getName())
                 .put(InternalNode.HTTP_ENABLED, true);
     }
 
@@ -69,14 +73,14 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
         ensureGreen();
 
         logger.info("--> put signed license");
-        final ESLicense esLicense = generateAndPutLicense();
-        getAndCheckLicense(esLicense);
+        final List<ESLicense> licenses = generateAndPutLicenses();
+        getAndCheckLicense(licenses);
         logger.info("--> restart all nodes");
         internalCluster().fullRestart();
         ensureYellow();
 
         logger.info("--> get and check signed license");
-        getAndCheckLicense(esLicense);
+        getAndCheckLicense(licenses);
 
         wipeAllLicenses();
     }
@@ -85,35 +89,81 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
     public void testClusterNotRecovered() throws Exception {
         logger.info("--> start one master out of two [recovery state]");
         internalCluster().startNode(nodeSettingsBuilder(0).put("discovery.zen.minimum_master_nodes", 2).put("node.master", true));
-        assertLicenseManagerDisabledFeatureFor(FEATURE_NAME);
-        assertEagerConsumerPluginDisableNotification(1);
+        // license plugin should not be active when cluster is still recovering
+        assertLicenseManagerFeatureDisabled();
+        assertConsumerPluginDisabledNotification(1);
 
         logger.info("--> start second master out of two [recovered state]");
         internalCluster().startNode(nodeSettingsBuilder(1).put("discovery.zen.minimum_master_nodes", 2).put("node.master", true));
-        assertLicenseManagerEnabledFeatureFor(FEATURE_NAME);
-        assertEagerConsumerPluginEnableNotification(1);
+        assertLicenseManagerFeatureEnabled();
+        assertConsumerPluginEnabledNotification(1);
     }
 
-    private ESLicense generateAndPutLicense() throws Exception {
+    @Test
+    public void testAtMostOnceTrialLicenseGeneration() throws Exception {
+        wipeAllLicenses();
+        logger.info("--> start one node [trial license should be generated & enabled]");
+        internalCluster().startNode(nodeSettingsBuilder(0));
+        assertLicenseManagerFeatureEnabled();
+        assertConsumerPluginEnabledNotification(1);
+
+        logger.info("--> start another node [trial license should be propagated from the old master not generated]");
+        internalCluster().startNode(nodeSettings(1));
+        assertLicenseManagerFeatureEnabled();
+        assertConsumerPluginEnabledNotification(1);
+
+        logger.info("--> check if multiple trial licenses are found for a feature");
+        LicensesMetaData licensesMetaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
+        assertThat(licensesMetaData.getEncodedTrialLicenses().size(), equalTo(FEATURES.length));
+
+        wipeAllLicenses();
+    }
+
+    private List<ESLicense> generateAndPutLicenses() throws Exception {
         ClusterAdminClient cluster = internalCluster().client().admin().cluster();
-        ESLicense license = generateSignedLicense(FEATURE_NAME, TimeValue.timeValueMinutes(1));
+        List<ESLicense> putLicenses = new ArrayList<>(FEATURES.length);
+        for (String feature : FEATURES) {
+             putLicenses.add(generateSignedLicense(feature, TimeValue.timeValueMinutes(1)));
+        }
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(cluster);
-        final List<ESLicense> putLicenses = Arrays.asList(license);
         putLicenseRequestBuilder.setLicense(putLicenses);
         ensureGreen();
 
-        final PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.execute().get();
+        final PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
 
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
 
-        return license;
+        return putLicenses;
     }
 
-    private void getAndCheckLicense(ESLicense license) {
+    private void getAndCheckLicense(List<ESLicense> licenses) {
         ClusterAdminClient cluster = internalCluster().client().admin().cluster();
         final GetLicenseResponse response = new GetLicenseRequestBuilder(cluster).get();
-        assertThat(response.licenses().size(), equalTo(1));
-        TestUtils.isSame(license, response.licenses().iterator().next());
+        assertThat(response.licenses().size(), equalTo(licenses.size()));
+        TestUtils.isSame(licenses, response.licenses());
     }
+
+    private void assertLicenseManagerFeatureEnabled() throws Exception {
+       for (String feature : FEATURES) {
+           assertLicenseManagerEnabledFeatureFor(feature);
+       }
+    }
+
+    private void assertLicenseManagerFeatureDisabled() throws Exception {
+        for (String feature : FEATURES) {
+            assertLicenseManagerDisabledFeatureFor(feature);
+        }
+    }
+
+    private void assertConsumerPluginEnabledNotification(int timeoutInSec) throws InterruptedException {
+        assertEagerConsumerPluginEnableNotification(timeoutInSec);
+        assertLazyConsumerPluginEnableNotification(timeoutInSec);
+    }
+
+    private void assertConsumerPluginDisabledNotification(int timeoutInSec) throws InterruptedException {
+        assertEagerConsumerPluginDisableNotification(timeoutInSec);
+        assertLazyConsumerPluginDisableNotification(timeoutInSec);
+    }
+
 }

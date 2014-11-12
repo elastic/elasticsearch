@@ -6,6 +6,8 @@
 package org.elasticsearch.alerts.actions;
 
 
+import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -14,5 +16,7 @@ import java.io.IOException;
 public interface AlertActionFactory {
 
     AlertAction createAction(XContentParser parser) throws IOException;
+
+    public boolean doAction(AlertAction action, Alert alert, TriggerResult result);
 
 }

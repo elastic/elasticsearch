@@ -5,33 +5,20 @@
  */
 package org.elasticsearch.alerts.actions;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 
 public class IndexAlertAction implements AlertAction, ToXContent {
-    private String index;
-    private String type;
-    private Client client = null;
-    ESLogger logger = Loggers.getLogger(IndexAlertAction.class);
+    private final String index;
+    private final String type;
 
     public IndexAlertAction(String index, String type, Client client){
         this.index = index;
         this.type = type;
-        this.client = client;
     }
-
 
     @Override
     public String getActionName() {
@@ -47,22 +34,12 @@ public class IndexAlertAction implements AlertAction, ToXContent {
         return builder;
     }
 
-
-    @Override
-    public boolean doAction(Alert alert, TriggerResult result) {
-        IndexRequest indexRequest = new IndexRequest();
-        indexRequest.index(index);
-        indexRequest.type(type);
-        try {
-            XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
-            resultBuilder.startObject();
-            resultBuilder = result.getResponse().toXContent(resultBuilder, ToXContent.EMPTY_PARAMS);
-            //resultBuilder.field("timestamp", result.); ///@TODO FIXME
-            resultBuilder.endObject();
-            indexRequest.source(resultBuilder);
-        } catch (IOException ie) {
-            throw new ElasticsearchException("Unable to create XContentBuilder",ie);
-        }
-        return client.index(indexRequest).actionGet().isCreated();
+    public String getType() {
+        return type;
     }
+
+    public String getIndex() {
+        return index;
+    }
+
 }

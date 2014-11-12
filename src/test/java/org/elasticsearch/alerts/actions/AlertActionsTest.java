@@ -166,12 +166,6 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
                 return builder;
             }
 
-            @Override
-            public boolean doAction(Alert alert, TriggerResult actionEntry) {
-                logger.info("Alert {} invoked: {}", alert.alertName(), actionEntry);
-                alertActionInvoked.set(true);
-                return true;
-            }
         };
         AlertActionRegistry alertActionRegistry = internalCluster().getInstance(AlertActionRegistry.class, internalCluster().getMasterName());
         alertActionRegistry.registerAction("test", new AlertActionFactory() {
@@ -180,6 +174,14 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
                 parser.nextToken();
                 return alertAction;
             }
+
+            @Override
+            public boolean doAction(AlertAction action, Alert alert, TriggerResult actionEntry) {
+                logger.info("Alert {} invoked: {}", alert.alertName(), actionEntry);
+                alertActionInvoked.set(true);
+                return true;
+            }
+
         });
 
         AlertTrigger alertTrigger = new ScriptedTrigger("return true", ScriptService.ScriptType.INLINE, "groovy");

@@ -5,11 +5,18 @@
  */
 package org.elasticsearch.alerts.actions;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
-import org.elasticsearch.common.io.stream.StreamInput;
 
 /**
  */
@@ -48,5 +55,30 @@ public class IndexAlertActionFactory implements AlertActionFactory {
         }
         return new IndexAlertAction(index, type, client);
     }
+
+    @Override
+    public boolean doAction(AlertAction action, Alert alert, TriggerResult result) {
+        if (!(action instanceof IndexAlertAction)) {
+            throw new ElasticsearchIllegalStateException("Bad action [" + action.getClass() + "] passed to IndexAlertActionFactory expected [" + IndexAlertAction.class + "]");
+        }
+
+        IndexAlertAction indexAlertAction = (IndexAlertAction) action;
+
+        IndexRequest indexRequest = new IndexRequest();
+        indexRequest.index(indexAlertAction.getIndex());
+        indexRequest.type(indexAlertAction.getType());
+        try {
+            XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
+            resultBuilder.startObject();
+            resultBuilder = result.getResponse().toXContent(resultBuilder, ToXContent.EMPTY_PARAMS);
+            resultBuilder.field("timestamp", alert.lastActionFire()); ///@TODO FIXME the firetime should be in the result ?
+            resultBuilder.endObject();
+            indexRequest.source(resultBuilder);
+        } catch (IOException ie) {
+            throw new ElasticsearchException("Unable to create XContentBuilder",ie);
+        }
+        return client.index(indexRequest).actionGet().isCreated();
+    }
+
 
 }

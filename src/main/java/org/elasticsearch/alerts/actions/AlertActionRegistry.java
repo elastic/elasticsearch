@@ -63,7 +63,12 @@ public class AlertActionRegistry extends AbstractComponent {
 
     public void doAction(Alert alert, TriggerResult actionEntry){
         for (AlertAction action : alert.actions()) {
-            action.doAction(alert, actionEntry);
+            AlertActionFactory factory = actionImplemented.get(action.getActionName());
+            if (factory != null) {
+                factory.doAction(action, alert, actionEntry);
+            } else {
+                throw new ElasticsearchIllegalArgumentException("No action exists with the name [" + action.getActionName() + "]");
+            }
         }
     }
 

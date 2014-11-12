@@ -95,10 +95,9 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public boolean deleteBlob(String blobName) throws IOException {
+    public void deleteBlob(String blobName) throws IOException {
         try {
             blobStore.client().deleteBlob(blobStore.container(), buildKey(blobName));
-            return true;
         } catch (URISyntaxException e) {
             logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore.container(), e.getMessage());
             throw new IOException(e);

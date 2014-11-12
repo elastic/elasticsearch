@@ -123,10 +123,17 @@ public class AlertActionManager extends AbstractComponent {
                 }
             }
         } else {
-            if (this.state.compareAndSet(State.STOPPED, State.STARTED)) {
-                templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
-                doStart();
-                listener.onSuccess();
+            if (this.state.compareAndSet(State.STOPPED, State.LOADING)) {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
+                        if (AlertActionManager.this.state.compareAndSet(State.LOADING, State.STARTED)) {
+                            doStart();
+                            listener.onSuccess();
+                        }
+                    }
+                });
             }
         }
     }

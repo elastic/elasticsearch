@@ -52,17 +52,17 @@ public class AlertsStore extends AbstractComponent {
     public static final String ALERT_INDEX = ".alerts";
     public static final String ALERT_TYPE = "alert";
 
-    public static final ParseField SCHEDULE_FIELD =  new ParseField("schedule");
+    public static final ParseField SCHEDULE_FIELD = new ParseField("schedule");
     public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
     public static final ParseField ACTION_FIELD = new ParseField("actions");
     public static final ParseField LAST_ACTION_FIRE = new ParseField("last_action_fire");
     public static final ParseField ENABLE = new ParseField("enable");
-    public static final ParseField REQUEST_BINARY_FIELD =  new ParseField("request_binary");
-    public static final ParseField REQUEST_FIELD =  new ParseField("request");
+    public static final ParseField REQUEST_BINARY_FIELD = new ParseField("request_binary");
+    public static final ParseField REQUEST_FIELD = new ParseField("request");
 
     private final Client client;
     private final ThreadPool threadPool;
-    private final ConcurrentMap<String,Alert> alertMap;
+    private final ConcurrentMap<String, Alert> alertMap;
     private final AlertActionRegistry alertActionRegistry;
     private final TriggerManager triggerManager;
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
@@ -198,10 +198,17 @@ public class AlertsStore extends AbstractComponent {
                 }
             }
         } else {
-            if (AlertsStore.this.state.compareAndSet(State.STOPPED, State.STARTED)) {
+            if (AlertsStore.this.state.compareAndSet(State.STOPPED, State.LOADING)) {
                 logger.info("No previous .alert index");
-                templateHelper.checkAndUploadIndexTemplate(state, "alerts");
-                listener.onSuccess();
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        templateHelper.checkAndUploadIndexTemplate(state, "alerts");
+                        if (AlertsStore.this.state.compareAndSet(State.LOADING, State.STARTED)) {
+                            listener.onSuccess();
+                        }
+                    }
+                });
             }
         }
     }

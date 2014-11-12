@@ -11,10 +11,10 @@ import org.elasticsearch.rest.RestStatus;
 /**
  * Exception to be thrown when a feature action requires a valid license
  */
-public class ExpiredLicenseException extends ElasticsearchException {
+public class LicenseExpiredException extends ElasticsearchException {
 
-    public ExpiredLicenseException(String feature) {
-        super(feature + " license has expired");
+    public LicenseExpiredException(String feature) {
+        super("license expired for feature [" + feature + "]");
     }
 
     @Override

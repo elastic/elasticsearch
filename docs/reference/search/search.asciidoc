@@ -40,7 +40,7 @@ placeholder:
 
 [source,js]
 --------------------------------------------------
-$ curl - XGET 'http://localhost:9200/_all/tweet/_search?q=tag:wow'
+$ curl -XGET 'http://localhost:9200/_all/tweet/_search?q=tag:wow'
 --------------------------------------------------
 
 Or even search across all indices and all types:

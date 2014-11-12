@@ -8,12 +8,6 @@
     <artifactId>elasticsearch-license</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 
-    <parent>
-        <groupId>org.sonatype.oss</groupId>
-        <artifactId>oss-parent</artifactId>
-        <version>7</version>
-    </parent>
-
     <properties>
         <elasticsearch.version>1.4.0</elasticsearch.version>
         <lucene.version>4.10.2</lucene.version>

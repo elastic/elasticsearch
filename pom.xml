@@ -175,9 +175,6 @@
                     </compilerArgs>
                 </configuration>
             </plugin>
-            <!-- ============================================================= -->
-            <!-- Optional. This plugin is using surefire plugin to run tests.  -->
-            <!-- ============================================================= -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -190,9 +187,6 @@
                     </includes>
                 </configuration>
             </plugin>
-            <!-- ============================================================= -->
-            <!-- This plugin assembles plugin .zip package.                     -->
-            <!-- ============================================================= -->
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <version>2.4</version>
@@ -301,18 +295,41 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>2.5</version>
+                <configuration>
+                    <header>dev-tools/elasticsearch_license_header.txt</header>
+                    <headerDefinitions>
+                        <headerDefinition>dev-tools/license_header_definition.xml</headerDefinition>
+                    </headerDefinitions>
+                    <includes>
+                        <include>src/main/java/org/elasticsearch/**/*.java</include>
+                        <include>src/test/java/org/elasticsearch/**/*.java</include>
+                    </includes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
     <profiles>
-      <profile>
-        <id>artifactory-private</id>
-        <distributionManagement>
-          <snapshotRepository>
-            <id>snapshots</id>
-            <name>artifactory.elasticsearch.org-snapshots</name>
-            <url>https://artifactory.elasticsearch.org/artifactory/libs-snapshot-local</url>
-          </snapshotRepository>
-        </distributionManagement>
-      </profile>
+        <profile>
+            <id>artifactory-private</id>
+            <distributionManagement>
+                <snapshotRepository>
+                    <id>snapshots</id>
+                    <name>artifactory.elasticsearch.org-snapshots</name>
+                    <url>https://artifactory.elasticsearch.org/artifactory/libs-snapshot-local</url>
+                </snapshotRepository>
+            </distributionManagement>
+        </profile>
     </profiles>
 </project>

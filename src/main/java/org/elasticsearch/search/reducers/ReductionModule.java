@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.search.reducers.bucket.range.RangeParser;
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowParser;
+import org.elasticsearch.search.reducers.bucket.union.UnionParser;
 import org.elasticsearch.search.reducers.metric.avg.AvgParser;
 import org.elasticsearch.search.reducers.metric.delta.DeltaParser;
 import org.elasticsearch.search.reducers.metric.max.MaxParser;
@@ -39,6 +40,7 @@ public class ReductionModule extends AbstractModule {
 
     public ReductionModule() {
         parsers.add(SlidingWindowParser.class);
+        parsers.add(UnionParser.class);
         parsers.add(DeltaParser.class);
         parsers.add(AvgParser.class);
         parsers.add(MaxParser.class);

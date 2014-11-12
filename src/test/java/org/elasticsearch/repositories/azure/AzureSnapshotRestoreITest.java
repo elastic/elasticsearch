@@ -22,7 +22,6 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.windowsazure.services.core.ServiceException;
 import com.microsoft.windowsazure.services.core.storage.StorageException;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -327,7 +326,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
     /**
      * For issue #21: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/21
      */
-    @Test @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/21")
+    @Test
     public void testForbiddenContainerName() {
         checkContainerName("", false);
         checkContainerName("es", false);

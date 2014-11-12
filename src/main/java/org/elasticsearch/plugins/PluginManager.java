@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -33,13 +34,8 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -50,9 +46,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.*;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.io.FileSystemUtils.moveFilesWithoutOverwriting;
@@ -102,31 +109,6 @@ public class PluginManager {
         this.url = url;
         this.outputMode = outputMode;
         this.timeout = timeout;
-
-        TrustManager[] trustAllCerts = new TrustManager[]{
-                new X509TrustManager() {
-                    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                        return null;
-                    }
-
-                    public void checkClientTrusted(
-                            java.security.cert.X509Certificate[] certs, String authType) {
-                    }
-
-                    public void checkServerTrusted(
-                            java.security.cert.X509Certificate[] certs, String authType) {
-                    }
-                }
-        };
-
-        // Install the all-trusting trust manager
-        try {
-            SSLContext sc = SSLContext.getInstance("SSL");
-            sc.init(null, trustAllCerts, new java.security.SecureRandom());
-            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     public void downloadAndExtract(String name) throws IOException {
@@ -413,6 +395,7 @@ public class PluginManager {
         String pluginName = null;
         TimeValue timeout = DEFAULT_TIMEOUT;
         int action = ACTION.NONE;
+        boolean insecure = false;
 
         if (args.length < 1) {
             displayHelp(null);
@@ -475,6 +458,9 @@ public class PluginManager {
                     case "--list":
                         action = ACTION.LIST;
                         break;
+                    case "--insecure":
+                        insecure = true;
+                        break;
                     case "-h":
                     case "--help":
                         displayHelp(null);
@@ -489,6 +475,35 @@ public class PluginManager {
             displayHelp("Error while parsing options: " + e.getClass().getSimpleName() +
                     ": " + e.getMessage());
             System.exit(EXIT_CODE_CMD_USAGE);
+        }
+
+        if (insecure) {
+            // Install an all-trusting trust manager
+            TrustManager[] trustAllCerts = new TrustManager[]{
+                    new X509TrustManager() {
+                        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                            return new X509Certificate[0];
+                        }
+
+                        public void checkClientTrusted(
+                                java.security.cert.X509Certificate[] certs, String authType) {
+                        }
+
+                        public void checkServerTrusted(
+                                java.security.cert.X509Certificate[] certs, String authType) {
+                        }
+                    }
+            };
+
+            try {
+                SSLContext sc = SSLContext.getInstance("SSL");
+                sc.init(null, trustAllCerts, new java.security.SecureRandom());
+                HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+            } catch (Exception e) {
+                displayHelp("Error while configuring insecure mode, reason: " + e.getClass().getSimpleName() +
+                    ": " + e.getMessage());
+                System.exit(EXIT_CODE_ERROR);
+            }
         }
 
         if (action > ACTION.NONE) {
@@ -582,6 +597,7 @@ public class PluginManager {
         System.out.println("    -t, --timeout [duration]          : Timeout setting: 30s, 1m, 1h... (infinite by default)");
         System.out.println("    -r, --remove  [plugin name]       : Removes listed plugins");
         System.out.println("    -l, --list                        : List installed plugins");
+        System.out.println("    --insecure                        : Disable strict validation of SSL certificates");
         System.out.println("    -v, --verbose                     : Prints verbose messages");
         System.out.println("    -s, --silent                      : Run in silent mode");
         System.out.println("    -h, --help                        : Prints this help message");

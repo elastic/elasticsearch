@@ -163,6 +163,20 @@ bin/plugin --install mobz/elasticsearch-head
 -----------------------------------
 
 [float]
+==== Insecure settings
+
+To install a plugin from a HTTPS URL with an invalid or self-signed certificate you must explicitly specify the `--insecure`
+option when invoking the `plugin` script.
+
+This example shows how to install the plugin `example-plugin` from the host `trusted.example.com` that uses a
+self-signed certificate:
+
+[source,shell]
+-----------------------------------
+bin/plugin --install example-plugin --insecure --url https://trusted.example.com/plugins/elasticsearch-example-plugin.zip
+-----------------------------------
+
+[float]
 ==== Lucene version dependent plugins
 
 For some plugins, such as analysis plugins, a specific major Lucene version is

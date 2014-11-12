@@ -32,30 +32,11 @@ public class RestGetLicenseAction extends BaseRestHandler {
     }
 
     /**
-     * Output Format:
-     * {
-     *   "licenses" : [
-     *     {
-     *       "status": "active" | "expired",
-     *       "uid" : ...,
-     *       "type" : ...,
-     *       "subscription_type" :...,
-     *       "issued_to" : ... (cluster name if one-time trial license, else value from signed license),
-     *       "issue_date" : YY-MM-DD (date string in UTC),
-     *       "expiry_date" : YY-MM-DD (date string in UTC),
-     *       "feature" : ...,
-     *       "max_nodes" : ...
-     *     },
-     * {...}
-     *   ]
-     * }
-     * <p/>
      * There will be only one license displayed per feature, the selected license will have the latest expiry_date
      * out of all other licenses for the feature.
      * <p/>
      * The licenses are sorted by latest issue_date
      */
-
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final Map<String, String> overrideParams = ImmutableMap.of(ESLicenses.REST_VIEW_MODE, "true");

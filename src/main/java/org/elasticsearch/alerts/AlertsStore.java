@@ -87,13 +87,6 @@ public class AlertsStore extends AbstractComponent {
     }
 
     /**
-     * Returns whether an alert with the specified name exists.
-     */
-    public boolean hasAlert(String name) {
-        return alertMap.containsKey(name);
-    }
-
-    /**
      * Returns the alert with the specified name otherwise <code>null</code> is returned.
      */
     public Alert getAlert(String name) {
@@ -143,14 +136,6 @@ public class AlertsStore extends AbstractComponent {
                 .get();
         assert deleteResponse.isFound();
         return deleteResponse;
-    }
-
-    /**
-     * Clears the in-memory representation of the alerts and loads the alerts from the .alerts index.
-     */
-    public void reload() {
-        clear();
-        loadAlerts();
     }
 
     /**

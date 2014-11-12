@@ -307,6 +307,15 @@ All of the index level configuration can be found within each
 === Logging
 
 Elasticsearch uses an internal logging abstraction and comes, out of the
-box, with http://logging.apache.org/log4j/[log4j]. It tries to simplify
+box, with http://logging.apache.org/log4j/1.2/[log4j]. It tries to simplify
 log4j configuration by using http://www.yaml.org/[YAML] to configure it,
-and the logging configuration file is `config/logging.yml` file.
+and the logging configuration file is `config/logging.yml`. The
+http://en.wikipedia.org/wiki/JSON[JSON] and
+http://en.wikipedia.org/wiki/.properties[properties] formats are also
+supported. The logger section contains the java packages and their
+corresponding log level, where it is possible to omit the `org.elasticsearch`
+prefix. The appender section contains the destinations for the logs.
+Extensive information on how to customize logging and all the supported
+appenders can be found on the
+http://logging.apache.org/log4j/1.2/manual.html[log4j documentation].
+

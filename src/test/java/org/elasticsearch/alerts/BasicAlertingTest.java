@@ -86,7 +86,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         assertFalse(deleteAlertResponse.deleteResponse().isFound());
     }
 
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
+    @Test
     public void testMalformedAlert() throws Exception {
         AlertsClientInterface alertsClient = alertClient();
         createIndex("my-index");
@@ -98,8 +98,21 @@ public class BasicAlertingTest extends AbstractAlertingTests {
                 .field("enable", true)
                 .field("malformed_field", "x")
                 .endObject().bytes();
-        alertsClient.prepareIndexAlert("my-first-alert")
-                .setAlertSource(alertSource)
-                .get();
+        try {
+            alertsClient.prepareIndexAlert("my-first-alert")
+                    .setAlertSource(alertSource)
+                    .get();
+            fail();
+        } catch (ElasticsearchIllegalArgumentException e) {
+            // In AlertStore we fail parsing if an alert contains undefined fields.
+        }
+        try {
+            client().prepareIndex(AlertsStore.ALERT_INDEX, AlertsStore.ALERT_TYPE, "my-first-alert")
+                    .setSource(alertSource)
+                    .get();
+            fail();
+        } catch (Exception e) {
+            // The alert index template the mapping is defined as strict
+        }
     }
 }

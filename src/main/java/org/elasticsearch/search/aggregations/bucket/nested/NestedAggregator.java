@@ -20,8 +20,8 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
@@ -44,9 +44,9 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     private final String nestedPath;
     private final Aggregator parentAggregator;
     private FixedBitSetFilter parentFilter;
-    private final FixedBitSetFilter childFilter;
+    private final Filter childFilter;
 
-    private Bits childDocs;
+    private DocIdSetIterator childDocs;
     private FixedBitSet parentDocs;
 
     public NestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parentAggregator) {
@@ -65,7 +65,16 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] is not nested");
         }
 
-        childFilter = aggregationContext.searchContext().fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
+        // TODO: Revise the cache usage for childFilter
+        // Typical usage of the childFilter in this agg is that not all parent docs match and because this agg executes
+        // in order we are maybe better off not caching? We can then iterate over the posting list and benefit from skip pointers.
+        // Even if caching does make sense it is likely that it shouldn't be forced as is today, but based on heuristics that
+        // the filter cache maintains that the childFilter should be cached.
+
+        // By caching the childFilter we're consistent with other features and previous versions.
+        childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter());
+        // The childDocs need to be consumed in docId order, this ensures that:
+        aggregationContext.ensureScoreDocsInOrder();
     }
 
     @Override
@@ -83,13 +92,13 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         }
 
         try {
-            DocIdSet docIdSet = parentFilter.getDocIdSet(reader, null);
+            parentDocs = parentFilter.getDocIdSet(reader, null);
             // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
-            childDocs = DocIdSets.toSafeBits(reader.reader(), childFilter.getDocIdSet(reader, null));
-            if (DocIdSets.isEmpty(docIdSet)) {
-                parentDocs = null;
+            DocIdSet childDocIdSet = childFilter.getDocIdSet(reader, null);
+            if (DocIdSets.isEmpty(childDocIdSet)) {
+                childDocs = null;
             } else {
-                parentDocs = (FixedBitSet) docIdSet;
+                childDocs = childDocIdSet.iterator();
             }
         } catch (IOException ioe) {
             throw new AggregationExecutionException("Failed to aggregate [" + name + "]", ioe);
@@ -98,18 +107,24 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     @Override
     public void collect(int parentDoc, long bucketOrd) throws IOException {
-        // here we translate the parent doc to a list of its nested docs, and then call super.collect for evey one of them
-        // so they'll be collected
-        if (parentDoc == 0 || parentDocs == null) {
+        // here we translate the parent doc to a list of its nested docs, and then call super.collect for evey one of them so they'll be collected
+
+        // if parentDoc is 0 then this means that this parent doesn't have child docs (b/c these appear always before the parent doc), so we can skip:
+        if (parentDoc == 0 || childDocs == null) {
             return;
         }
         int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
+        int childDocId;
+        if (childDocs.docID() > prevParentDoc) {
+            childDocId = childDocs.docID();
+        } else {
+            childDocId = childDocs.advance(prevParentDoc + 1);
+        }
+
         int numChildren = 0;
-        for (int childDocId = prevParentDoc + 1; childDocId < parentDoc; childDocId++) {
-            if (childDocs.get(childDocId)) {
-                ++numChildren;
-                collectBucketNoCounts(childDocId, bucketOrd);
-            }
+        for (; childDocId < parentDoc; childDocId = childDocs.nextDoc()) {
+            numChildren++;
+            collectBucketNoCounts(childDocId, bucketOrd);
         }
         incrementBucketDocCount(bucketOrd, numChildren);
     }

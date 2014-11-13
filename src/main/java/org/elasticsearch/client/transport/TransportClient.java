@@ -48,10 +48,10 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
-import org.elasticsearch.action.termvector.TermVectorRequest;
-import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -446,13 +446,13 @@ public class TransportClient extends AbstractClient {
     }
 
     @Override
-    public ActionFuture<TermVectorResponse> termVector(TermVectorRequest request) {
-        return internalClient.termVector(request);
+    public ActionFuture<TermVectorsResponse> termVectors(TermVectorsRequest request) {
+        return internalClient.termVectors(request);
     }
 
     @Override
-    public void termVector(TermVectorRequest request, ActionListener<TermVectorResponse> listener) {
-        internalClient.termVector(request, listener);
+    public void termVectors(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener) {
+        internalClient.termVectors(request, listener);
     }
 
     @Override

@@ -28,8 +28,8 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvector.TermVectorRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -166,7 +166,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                         if (!token.isValue()) {
                             throw new ElasticsearchIllegalArgumentException("ids array element should only contain ids");
                         }
-                        items.add(newTermVectorRequest().id(parser.text()));
+                        items.add(newTermVectorsRequest().id(parser.text()));
                     }
                 } else if (Fields.DOCUMENTS.match(currentFieldName, parseContext.parseFlags())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -229,7 +229,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         // handle items
         if (!items.isEmpty()) {
             // set default index, type and fields if not specified
-            for (TermVectorRequest item : items) {
+            for (TermVectorsRequest item : items) {
                 if (item.index() == null) {
                     item.index(parseContext.index().name());
                 }
@@ -267,10 +267,10 @@ public class MoreLikeThisQueryParser implements QueryParser {
         return mltQuery;
     }
 
-    private TermVectorRequest parseDocument(XContentParser parser) throws IOException {
-        TermVectorRequest termVectorRequest = newTermVectorRequest();
-        TermVectorRequest.parseRequest(termVectorRequest, parser);
-        return termVectorRequest;
+    private TermVectorsRequest parseDocument(XContentParser parser) throws IOException {
+        TermVectorsRequest termVectorsRequest = newTermVectorsRequest();
+        TermVectorsRequest.parseRequest(termVectorsRequest, parser);
+        return termVectorsRequest;
     }
 
     private void parseLikeField(XContentParser parser, List<String> likeTexts, MultiTermVectorsRequest items) throws IOException {
@@ -283,8 +283,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
         }
     }
 
-    private TermVectorRequest newTermVectorRequest() {
-        return new TermVectorRequest()
+    private TermVectorsRequest newTermVectorsRequest() {
+        return new TermVectorsRequest()
                 .positions(false)
                 .offsets(false)
                 .payloads(false)

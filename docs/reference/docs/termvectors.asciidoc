@@ -160,7 +160,7 @@ The following request returns all information and statistics for field
 [source,js]
 --------------------------------------------------
 
-curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true' -d '{
+curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvectors?pretty=true' -d '{
   "fields" : ["text"],
   "offsets" : true,
   "payloads" : true,
@@ -243,7 +243,7 @@ Note that for the field `text`, the terms are not re-generated.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true' -d '{
+curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvectors?pretty=true' -d '{
   "fields" : ["text", "some_field_without_term_vectors"],
   "offsets" : true,
   "positions" : true,
@@ -270,7 +270,7 @@ mapping will be dynamically created.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/_termvector' -d '{
+curl -XGET 'http://localhost:9200/twitter/tweet/_termvectors' -d '{
   "doc" : {
     "fullname" : "John Doe",
     "text" : "twitter test test test"
@@ -290,7 +290,7 @@ vectors, the term vectors will be re-generated.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/_termvector' -d '{
+curl -XGET 'http://localhost:9200/twitter/tweet/_termvectors' -d '{
   "doc" : {
     "fullname" : "John Doe",
     "text" : "twitter test test test"

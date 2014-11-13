@@ -159,8 +159,8 @@ import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.termvector.*;
-import org.elasticsearch.action.termvector.dfs.TransportDfsOnlyAction;
+import org.elasticsearch.action.termvectors.*;
+import org.elasticsearch.action.termvectors.dfs.TransportDfsOnlyAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -281,10 +281,10 @@ public class ActionModule extends AbstractModule {
 
         registerAction(IndexAction.INSTANCE, TransportIndexAction.class);
         registerAction(GetAction.INSTANCE, TransportGetAction.class);
-        registerAction(TermVectorAction.INSTANCE, TransportSingleShardTermVectorAction.class,
+        registerAction(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class,
                 TransportDfsOnlyAction.class);
         registerAction(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
-                TransportSingleShardMultiTermsVectorAction.class);
+                TransportShardMultiTermsVectorAction.class);
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class,
                 TransportIndexDeleteAction.class, TransportShardDeleteAction.class);
         registerAction(CountAction.INSTANCE, TransportCountAction.class);

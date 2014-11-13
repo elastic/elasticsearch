@@ -58,7 +58,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
-import org.elasticsearch.index.termvectors.ShardTermVectorService;
+import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -126,7 +126,7 @@ public interface IndexShard extends IndexShardComponent {
 
     ShardPercolateService shardPercolateService();
 
-    ShardTermVectorService termVectorService();
+    ShardTermVectorsService termVectorsService();
 
     ShardSuggestService shardSuggestService();
 

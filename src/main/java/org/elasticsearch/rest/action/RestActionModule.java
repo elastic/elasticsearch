@@ -107,8 +107,8 @@ import org.elasticsearch.rest.action.suggest.RestSuggestAction;
 import org.elasticsearch.rest.action.template.RestDeleteSearchTemplateAction;
 import org.elasticsearch.rest.action.template.RestGetSearchTemplateAction;
 import org.elasticsearch.rest.action.template.RestPutSearchTemplateAction;
-import org.elasticsearch.rest.action.termvector.RestMultiTermVectorsAction;
-import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
+import org.elasticsearch.rest.action.termvectors.RestMultiTermVectorsAction;
+import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
 
 import java.util.List;
@@ -203,7 +203,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestDeleteByQueryAction.class).asEagerSingleton();
         bind(org.elasticsearch.rest.action.count.RestCountAction.class).asEagerSingleton();
         bind(RestSuggestAction.class).asEagerSingleton();
-        bind(RestTermVectorAction.class).asEagerSingleton();
+        bind(RestTermVectorsAction.class).asEagerSingleton();
         bind(RestMultiTermVectorsAction.class).asEagerSingleton();
         bind(RestBulkAction.class).asEagerSingleton();
         bind(RestUpdateAction.class).asEagerSingleton();

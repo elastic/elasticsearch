@@ -7,11 +7,11 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
-import org.elasticsearch.shield.transport.ssl.SSLTrustConfig;
+import org.elasticsearch.shield.ssl.SSLService;
 
 import javax.net.SocketFactory;
 import java.io.IOException;
@@ -32,24 +32,23 @@ public class LdapSslSocketFactory extends SocketFactory {
 
     static final String JAVA_NAMING_LDAP_FACTORY_SOCKET = "java.naming.ldap.factory.socket";
     private static ESLogger logger = ESLoggerFactory.getLogger(LdapSslSocketFactory.class.getName());
+
     private static LdapSslSocketFactory instance;
 
     /**
      * This should only be invoked once to establish a static instance that will be used for each constructor.
      */
-    public static void init(Settings settings) {
+    @Inject
+    public static void init(SSLService ssl) {
         if (instance != null) {
             logger.error("LdapSslSocketFactory already configured, this change could lead to threading issues");
         }
-
-        Settings componentSettings = settings.getComponentSettings(LdapSslSocketFactory.class);
-        Settings generalSslSettings = settings.getByPrefix("shield.ssl.");
-        if (generalSslSettings.get("truststore") == null && componentSettings.get("truststore") == null){
-            logger.warn("No truststore has been configured for LDAP");
+        if (ssl == null) {
+            logger.warn("no keystore has been configured for LDAP");
         } else {
-            SSLTrustConfig sslConfig = new SSLTrustConfig(componentSettings, generalSslSettings);
-            instance = new LdapSslSocketFactory(sslConfig.createSSLSocketFactory());
+            instance = new LdapSslSocketFactory(ssl.getSSLSocketFactory());
         }
+
     }
 
     /**
@@ -100,14 +99,7 @@ public class LdapSslSocketFactory extends SocketFactory {
      * @throws org.elasticsearch.shield.ShieldSettingsException if URLs have mixed protocols.
      */
     public static void configureJndiSSL(String[] ldapUrls, ImmutableMap.Builder<String, Serializable> builder) {
-        boolean secureProtocol = ldapUrls[0].toLowerCase(Locale.getDefault()).startsWith("ldaps://");
-        for(String url: ldapUrls){
-            if (secureProtocol != url.toLowerCase(Locale.getDefault()).startsWith("ldaps://")) {
-                //this is because LdapSSLSocketFactory produces only SSL sockets and not clear text sockets
-                throw new ShieldSettingsException("Configured ldap protocols are not all equal " +
-                        "(ldaps://.. and ldap://..): [" + Strings.arrayToCommaDelimitedString(ldapUrls) + "]");
-            }
-        }
+        boolean secureProtocol = secureUrls(ldapUrls);
         if (secureProtocol && instance != null) {
             builder.put(JAVA_NAMING_LDAP_FACTORY_SOCKET, LdapSslSocketFactory.class.getName());
         } else {
@@ -116,5 +108,24 @@ public class LdapSslSocketFactory extends SocketFactory {
                 logger.debug("LdapSslSocketFactory: secureProtocol = [{}], instance != null [{}]", secureProtocol, instance != null);
             }
         }
+    }
+
+    /**
+     * @param ldapUrls URLS in the form of "ldap://..." or "ldaps://..."
+     * @return true if all URLS are ldaps, also true it ldapUrls is empty.  False otherwise
+     */
+    public static boolean secureUrls(String[] ldapUrls) {
+        if (ldapUrls.length == 0) {
+            return true;
+        }
+        boolean secureProtocol = ldapUrls[0].toLowerCase(Locale.getDefault()).startsWith("ldaps://");
+        for(String url: ldapUrls){
+            if (secureProtocol != url.toLowerCase(Locale.getDefault()).startsWith("ldaps://")) {
+                //this is because LdapSSLSocketFactory produces only SSL sockets and not clear text sockets
+                throw new ShieldSettingsException("Configured ldap protocols are not all equal " +
+                        "(ldaps://.. and ldap://..): [" + Strings.arrayToCommaDelimitedString(ldapUrls) + "]");
+            }
+        }
+        return secureProtocol;
     }
 }

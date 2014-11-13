@@ -17,9 +17,7 @@
         "http.ssl": true,
         "ssl" : {
           "keystore" : "src/test/resources/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks",
-          "keystore_password" : "testnode",
-          "truststore" : "src/test/resources/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks",
-          "truststore_password" : "testnode"
+          "keystore_password" : "testnode"
         },
         "authc": {
             "esusers.files" : {
@@ -30,8 +28,6 @@
               "mode" : "active_directory",
               "domain_name" : "ad.test.elasticsearch.com",
               "url" : "ldaps://ad.test.elasticsearch.com:636",
-              "truststore" : "src/test/resources/org/elasticsearch/shield/authc/ldap/ldaptrust.jks",
-              "truststore_password" : "changeit",
               "unmapped_groups_as_roles" : "false",
               "files" : {
                 "role_mapping": ".esvm-shield-config/role_mapping.yml"

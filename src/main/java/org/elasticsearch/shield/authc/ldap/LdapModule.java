@@ -29,13 +29,13 @@ public class LdapModule extends AbstractShieldModule.Node {
     protected void configureNode() {
         if (enabled) {
             /* This socket factory needs to be configured before any LDAP connections are created.  LDAP configuration
-            for JNDI invokes a static getSocketFactory method from LdapSslSocketFactory.  This doesn't mesh well with
-            guice so we set the factory here during startup.  See LdapSslSocketFactory for more details. */
-            LdapSslSocketFactory.init(settings);
+            for JNDI invokes a static getSocketFactory method from LdapSslSocketFactory.  */
+            requestStaticInjection(LdapSslSocketFactory.class);
 
             bind(Realm.class).annotatedWith(named(LdapRealm.TYPE)).to(LdapRealm.class).asEagerSingleton();
             bind(LdapGroupToRoleMapper.class).asEagerSingleton();
             String mode = settings.getComponentSettings(LdapModule.class).get("mode", StandardLdapConnectionFactory.MODE_NAME);
+
             if (StandardLdapConnectionFactory.MODE_NAME.equals(mode)) {
                 bind(LdapConnectionFactory.class).to(StandardLdapConnectionFactory.class);
             } else if (ActiveDirectoryConnectionFactory.MODE_NAME.equals(mode)) {
@@ -49,7 +49,7 @@ public class LdapModule extends AbstractShieldModule.Node {
         }
     }
 
-    static boolean enabled(Settings settings) {
+    public static boolean enabled(Settings settings) {
         Settings authcSettings = settings.getAsSettings("shield.authc");
         if (!authcSettings.names().contains("ldap")) {
             return false;

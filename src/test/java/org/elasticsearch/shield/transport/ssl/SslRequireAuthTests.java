@@ -16,6 +16,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.test.ShieldIntegrationTest;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import javax.net.ssl.*;
@@ -66,6 +67,7 @@ public class SslRequireAuthTests extends ShieldIntegrationTest {
     }
 
 
+    @Ignore //clients-certs are no longer configured for http
     @Test(expected = SSLHandshakeException.class)
     public void testThatRequireClientAuthRejectsWithoutCert() throws Exception {
         TrustManager[] trustAllCerts = new TrustManager[]{

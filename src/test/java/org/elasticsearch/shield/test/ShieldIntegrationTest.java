@@ -158,15 +158,11 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
 
         ImmutableSettings.Builder builder = settingsBuilder()
                 .put("shield.transport.ssl", true)
-                .put("shield.transport.ssl.keystore", store.getPath())
-                .put("shield.transport.ssl.keystore_password", password)
-                .put("shield.transport.ssl.truststore", store.getPath())
-                .put("shield.transport.ssl.truststore_password", password)
-                .put("shield.http.ssl", true)
-                .put("shield.http.ssl.keystore", store.getPath())
-                .put("shield.http.ssl.keystore_password", password)
-                .put("shield.http.ssl.truststore", store.getPath())
-                .put("shield.http.ssl.truststore_password", password);
+                .put("shield.ssl.keystore", store.getPath())
+                .put("shield.ssl.keystore_password", password)
+                .put("shield.ssl.truststore", store.getPath())
+                .put("shield.ssl.truststore_password", password)
+                .put("shield.http.ssl", true);
 
         return builder.build();
     }

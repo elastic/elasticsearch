@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
+import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.BeforeClass;
@@ -26,10 +27,11 @@ public class OpenLdapTests extends ElasticsearchTestCase {
 
     @BeforeClass
     public static void setTrustStore() throws URISyntaxException {
-        //LdapModule will set this up as a singleton normally
-        LdapSslSocketFactory.init(ImmutableSettings.builder()
-                .put(SETTINGS_PREFIX + "truststore", new File(LdapConnectionTests.class.getResource("ldaptrust.jks").toURI()))
-                .build());
+        File filename = new File(LdapConnectionTests.class.getResource("ldaptrust.jks").toURI()).getAbsoluteFile();
+        LdapSslSocketFactory.init(new SSLService(ImmutableSettings.builder()
+                .put("shield.ssl.keystore", filename)
+                .put("shield.ssl.keystore_password", "changeit")
+                .build()));
     }
 
     @Test

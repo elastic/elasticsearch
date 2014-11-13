@@ -14,7 +14,7 @@ import org.elasticsearch.common.netty.handler.ssl.SslHandler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.shield.transport.ssl.SSLConfig;
+import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
 
@@ -27,13 +27,15 @@ public class NettySecuredTransport extends NettyTransport {
 
     private final boolean ssl;
     private final N2NNettyUpstreamHandler shieldUpstreamHandler;
+    private final SSLService sslService;
 
     @Inject
     public NettySecuredTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-                                 @Nullable N2NNettyUpstreamHandler shieldUpstreamHandler) {
+                                 @Nullable N2NNettyUpstreamHandler shieldUpstreamHandler, SSLService sslService) {
         super(settings, threadPool, networkService, bigArrays, version);
         this.shieldUpstreamHandler = shieldUpstreamHandler;
         this.ssl = settings.getAsBoolean("shield.transport.ssl", false);
+        this.sslService = sslService;
     }
 
     @Override
@@ -48,25 +50,17 @@ public class NettySecuredTransport extends NettyTransport {
 
     private class SslServerChannelPipelineFactory extends ServerChannelPipelineFactory {
 
-        private final SSLConfig sslConfig;
-
         public SslServerChannelPipelineFactory(NettyTransport nettyTransport, String name, Settings settings, Settings profileSettings) {
             super(nettyTransport, name, settings);
-            if (ssl) {
-                sslConfig = new SSLConfig(this.settings.getByPrefix("shield.transport.ssl."), this.settings.getByPrefix("shield.ssl."), true);
-                // try to create an SSL engine, so that exceptions lead to early exit
-                sslConfig.createSSLEngine();
-            } else {
-                sslConfig = null;
-            }
         }
 
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
             if (ssl) {
-                SSLEngine serverEngine = sslConfig.createSSLEngine();
+                SSLEngine serverEngine = sslService.createSSLEngine();
                 serverEngine.setUseClientMode(false);
+                serverEngine.setNeedClientAuth(true);
 
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
                 pipeline.replace("dispatcher", "dispatcher", new SecuredMessageChannelHandler(nettyTransport, logger));
@@ -80,24 +74,15 @@ public class NettySecuredTransport extends NettyTransport {
 
     private class SslClientChannelPipelineFactory extends ClientChannelPipelineFactory {
 
-        private final SSLConfig sslConfig;
-
         public SslClientChannelPipelineFactory(NettyTransport transport) {
             super(transport);
-            if (ssl) {
-                sslConfig = new SSLConfig(settings.getByPrefix("shield.transport.ssl."), settings.getByPrefix("shield.ssl."), true);
-                // try to create an SSL engine, so that exceptions lead to early exit
-                sslConfig.createSSLEngine();
-            } else {
-               sslConfig = null;
-            }
         }
 
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
             if (ssl) {
-                SSLEngine clientEngine = sslConfig.createSSLEngine();
+                SSLEngine clientEngine = sslService.createSSLEngine();
                 clientEngine.setUseClientMode(true);
 
                 pipeline.addFirst("ssl", new SslHandler(clientEngine));

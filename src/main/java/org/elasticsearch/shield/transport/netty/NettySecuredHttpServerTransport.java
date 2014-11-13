@@ -14,7 +14,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
-import org.elasticsearch.shield.transport.ssl.SSLConfig;
+import org.elasticsearch.shield.ssl.SSLService;
 
 import javax.net.ssl.SSLEngine;
 
@@ -25,12 +25,14 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
 
     private final boolean ssl;
     private final N2NNettyUpstreamHandler shieldUpstreamHandler;
+    private final SSLService sslService;
 
     @Inject
     public NettySecuredHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                           @Nullable N2NNettyUpstreamHandler shieldUpstreamHandler) {
+                                           @Nullable N2NNettyUpstreamHandler shieldUpstreamHandler, SSLService sslService) {
         super(settings, networkService, bigArrays);
         this.ssl = settings.getAsBoolean("shield.http.ssl", false);
+        this.sslService = sslService;
         this.shieldUpstreamHandler = shieldUpstreamHandler;
     }
 
@@ -41,25 +43,18 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
 
     private class HttpSslChannelPipelineFactory extends HttpChannelPipelineFactory {
 
-        private final SSLConfig sslConfig;
-
         public HttpSslChannelPipelineFactory(NettyHttpServerTransport transport) {
             super(transport);
-            if (ssl) {
-                sslConfig = new SSLConfig(settings.getByPrefix("shield.http.ssl."), settings.getByPrefix("shield.ssl."), false);
-                // try to create an SSL engine, so that exceptions lead to early exit
-                sslConfig.createSSLEngine();
-            } else {
-                sslConfig = null;
-            }
         }
 
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
             if (ssl) {
-                SSLEngine engine = sslConfig.createSSLEngine();
+                SSLEngine engine = sslService.createSSLEngine();
                 engine.setUseClientMode(false);
+                engine.setNeedClientAuth(false);
+
                 pipeline.addFirst("ssl", new SslHandler(engine));
             }
             if (shieldUpstreamHandler != null) {

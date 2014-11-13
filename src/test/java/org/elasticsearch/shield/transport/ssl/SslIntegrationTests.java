@@ -82,7 +82,7 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
                 .put(transportClientSettings())
                 .put("name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
-                .putArray("shield.transport.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"})
+                .putArray("shield.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"})
                 .build())) {
 
             TransportAddress transportAddress = internalCluster().getInstance(Transport.class).boundAddress().boundAddress();

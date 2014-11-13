@@ -14,6 +14,7 @@ import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.shield.key.KeyModule;
+import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 import org.elasticsearch.shield.transport.SecuredRestModule;
 import org.elasticsearch.shield.transport.SecuredTransportModule;
@@ -62,5 +63,8 @@ public class ShieldModule extends AbstractShieldModule.Spawn implements PreProce
 
     @Override
     protected void configure(boolean clientMode) {
+        if (SSLService.isSSLEnabled(settings)) {
+            bind(SSLService.class).asEagerSingleton();
+        }
     }
 }

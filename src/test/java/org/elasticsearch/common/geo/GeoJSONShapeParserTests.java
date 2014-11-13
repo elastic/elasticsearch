@@ -156,6 +156,39 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testParse_invalidPolygon() throws IOException {
+        /**
+         * TODO parser should fail if poly is not composed of an array of LinearRings
+         * This test only checks number of coordinates, not the validity of the LinearRing
+         */
+        // test case 1: create an invalid polygon with only 2 points
+        String invalidPoly1 = XContentFactory.jsonBuilder().startObject().field("type", "polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(-74.011).value(40.753).endArray()
+                .startArray().value(-75.022).value(41.783).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(invalidPoly1);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidParseException(parser);
+
+        // test case 2: create an invalid polygon with only 1 point
+        String invalidPolyGeoJson1 = XContentFactory.jsonBuilder().startObject().field("type", "polygon")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(-74.011).value(40.753).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        parser = JsonXContent.jsonXContent.createParser(invalidPolyGeoJson1);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidParseException(parser);
+    }
+
+    @Test
     public void testParse_polygonWithHole() throws IOException {
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")

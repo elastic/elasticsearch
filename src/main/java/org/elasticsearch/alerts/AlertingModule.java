@@ -8,8 +8,8 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
+import org.elasticsearch.alerts.client.NodeAlertsClient;
 import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.rest.RestAlertsStatsAction;
 import org.elasticsearch.alerts.rest.RestDeleteAlertAction;
 import org.elasticsearch.alerts.rest.RestGetAlertAction;
@@ -41,7 +41,7 @@ public class AlertingModule extends AbstractModule {
         bind(TransportDeleteAlertAction.class).asEagerSingleton();
         bind(TransportGetAlertAction.class).asEagerSingleton();
         bind(TransportAlertStatsAction.class).asEagerSingleton();
-        bind(AlertsClientInterface.class).to(AlertsClient.class).asEagerSingleton();
+        bind(AlertsClient.class).to(NodeAlertsClient.class).asEagerSingleton();
 
         // Rest layer
         bind(RestIndexAlertAction.class).asEagerSingleton();

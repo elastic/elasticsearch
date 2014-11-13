@@ -5,134 +5,141 @@
  */
 package org.elasticsearch.alerts.client;
 
-import org.elasticsearch.action.*;
-import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.alerts.transport.actions.delete.*;
-import org.elasticsearch.alerts.transport.actions.get.*;
-import org.elasticsearch.alerts.transport.actions.index.*;
-import org.elasticsearch.alerts.transport.actions.stats.*;
-import org.elasticsearch.client.support.Headers;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
+import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequestBuilder;
+import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
+import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
+import org.elasticsearch.alerts.transport.actions.get.GetAlertRequestBuilder;
+import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequest;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequestBuilder;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
+import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsRequest;
+import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsRequestBuilder;
+import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
+import org.elasticsearch.client.ElasticsearchClient;
 
-public class AlertsClient implements AlertsClientInterface {
+/**
+ */
+public interface AlertsClient extends ElasticsearchClient<AlertsClient> {
 
-    private final Headers headers;
-    private final ThreadPool threadPool;
-    private final ImmutableMap<GenericAction, TransportAction> internalActions;
+    /**
+     * Creates a request builder that gets an alert by name (id)
+     *
+     * @param alertName the name (id) of the alert
+     * @return The request builder
+     */
+    GetAlertRequestBuilder prepareGetAlert(String alertName);
 
-    @Inject
-    public AlertsClient(ThreadPool threadPool, Headers headers, TransportIndexAlertAction transportIndexAlertAction,
-                        TransportGetAlertAction transportGetAlertAction, TransportDeleteAlertAction transportDeleteAlertAction,
-                        TransportAlertStatsAction transportAlertStatsAction) {
-        this.headers = headers;
-        this.threadPool = threadPool;
-        internalActions = ImmutableMap.<GenericAction, TransportAction>builder()
-                .put(IndexAlertAction.INSTANCE, transportIndexAlertAction)
-                .put(GetAlertAction.INSTANCE, transportGetAlertAction)
-                .put(DeleteAlertAction.INSTANCE, transportDeleteAlertAction)
-                .put(AlertsStatsAction.INSTANCE, transportAlertStatsAction)
-                .build();
-    }
+    /**
+     * Creates a request builder that gets an alert
+     *
+     * @return the request builder
+     */
+    GetAlertRequestBuilder prepareGetAlert();
 
-    @Override
-    public GetAlertRequestBuilder prepareGetAlert(String alertName) {
-        return new GetAlertRequestBuilder(this, alertName);
-    }
+    /**
+     * Gets an alert from the alert index
+     *
+     * @param request The get alert request
+     * @param listener The listener for the get alert response containing the GetResponse for this alert
+     */
+    void getAlert(GetAlertRequest request, ActionListener<GetAlertResponse> listener);
 
-    @Override
-    public GetAlertRequestBuilder prepareGetAlert() {
-        return new GetAlertRequestBuilder(this);
-    }
+    /**
+     * Gets an alert from the alert index
+     *
+     * @param request The get alert request with the alert name (id)
+     * @return The response containing the GetResponse for this alert
+     */
+    ActionFuture<GetAlertResponse> getAlert(GetAlertRequest request);
 
-    public void getAlert(GetAlertRequest request, ActionListener<GetAlertResponse> response){
-        execute(GetAlertAction.INSTANCE, request, response);
-    }
+    /**
+     * Creates a request builder to delete an alert by name (id)
+     *
+     * @param alertName the name (id) of the alert
+     * @return The request builder
+     */
+    DeleteAlertRequestBuilder prepareDeleteAlert(String alertName);
 
-    @Override
-    public ActionFuture<GetAlertResponse> getAlert(GetAlertRequest request) {
-        return execute(GetAlertAction.INSTANCE, request);
-    }
+    /**
+     * Creates a request builder that deletes an alert
+     *
+     * @return The request builder
+     */
+    DeleteAlertRequestBuilder prepareDeleteAlert();
 
-    @Override
-    public DeleteAlertRequestBuilder prepareDeleteAlert(String alertName) {
-        return new DeleteAlertRequestBuilder(this, alertName);
-    }
+    /**
+     * Deletes an alert
+     *
+     * @param request The delete request with the alert name (id) to be deleted
+     * @param listener The listener for the delete alert response containing the DeleteResponse for this action
+     */
+    void deleteAlert(DeleteAlertRequest request, ActionListener<DeleteAlertResponse> listener);
 
-    @Override
-    public DeleteAlertRequestBuilder prepareDeleteAlert() {
-        return new DeleteAlertRequestBuilder(this);
-    }
+    /**
+     * Deletes an alert
+     *
+     * @param request The delete request with the alert name (id) to be deleted
+     * @return The response containing the DeleteResponse for this action
+     */
+    ActionFuture<DeleteAlertResponse> deleteAlert(DeleteAlertRequest request);
 
-    @Override
-    public void deleteAlert(DeleteAlertRequest request, ActionListener<DeleteAlertResponse> response) {
-        execute(DeleteAlertAction.INSTANCE, request, response);
-    }
+    /**
+     * Creates a request builder to build a request to index an alert
+     *
+     * @param alertName The name of the alert to index
+     * @return The builder to create the alert
+     */
+    IndexAlertRequestBuilder prepareIndexAlert(String alertName);
 
-    @Override
-    public ActionFuture<DeleteAlertResponse> deleteAlert(DeleteAlertRequest request) {
-        return execute(DeleteAlertAction.INSTANCE, request);
-    }
+    /**
+     * Creates a request builder to build a request to index an alert
+     *
+     * @return The builder
+     */
+    IndexAlertRequestBuilder prepareIndexAlert();
 
-    @Override
-    public IndexAlertRequestBuilder prepareIndexAlert(String alertName) {
-        return new IndexAlertRequestBuilder(this, alertName);
-    }
+    /**
+     * Indexes an alert and registers it with the scheduler
+     *
+     * @param request The request containing the alert to index and register
+     * @param listener The listener for the response containing the IndexResponse for this alert
+     */
+    void indexAlert(IndexAlertRequest request, ActionListener<IndexAlertResponse> listener);
 
-    @Override
-    public IndexAlertRequestBuilder prepareIndexAlert() {
-        return new IndexAlertRequestBuilder(this, null);
-    }
+    /**
+     * Indexes an alert and registers it with the scheduler
+     *
+     * @param request The request containing the alert to index and register
+     * @return The response containing the IndexResponse for this alert
+     */
+    ActionFuture<IndexAlertResponse> indexAlert(IndexAlertRequest request);
 
-    @Override
-    public void indexAlert(IndexAlertRequest request, ActionListener<IndexAlertResponse> response) {
-        execute(IndexAlertAction.INSTANCE, request, response);
-    }
 
-    @Override
-    public ActionFuture<IndexAlertResponse> indexAlert(IndexAlertRequest request) {
-        return execute(IndexAlertAction.INSTANCE, request);
-    }
+    /**
+     * Gets the alert stats
+     *
+     * @param request The request for the alert stats
+     * @return The response containing the StatsResponse for this action
+     */
+    ActionFuture<AlertsStatsResponse> alertsStats(AlertsStatsRequest request);
 
-    @Override
-    public ActionFuture<AlertsStatsResponse> alertsStats(AlertsStatsRequest request) {
-        return execute(AlertsStatsAction.INSTANCE, request);
-    }
+    /**
+     * Creates a request builder to build a request to get the alerts stats
+     *
+     * @return The builder get the alerts stats
+     */
+    AlertsStatsRequestBuilder prepareAlertsStats();
 
-    @Override
-    public AlertsStatsRequestBuilder prepareAlertsStats() {
-        return new AlertsStatsRequestBuilder(this);
-    }
+    /**
+     * Gets the alert stats
+     *
+     * @param request The request for the alert stats
+     * @param listener The listener for the response containing the AlertsStatsResponse
+     */
+    void alertsStats(AlertsStatsRequest request, ActionListener<AlertsStatsResponse> listener);
 
-    @Override
-    public void alertsStats(AlertsStatsRequest request, ActionListener<AlertsStatsResponse> listener) {
-        execute(AlertsStatsAction.INSTANCE, request, listener);
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, AlertsClientInterface>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, AlertsClientInterface> action, Request request) {
-        headers.applyTo(request);
-        TransportAction<Request, Response> transportAction = internalActions.get((AlertsClientAction)action);
-        return transportAction.execute(request);
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, AlertsClientInterface>> void execute(Action<Request, Response, RequestBuilder, AlertsClientInterface> action, Request request, ActionListener<Response> listener) {
-        headers.applyTo(request);
-        TransportAction<Request, Response> transportAction = internalActions.get((AlertsClientAction)action);
-        transportAction.execute(request, listener);
-    }
-
-    @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, AlertsClientInterface>> RequestBuilder prepareExecute(Action<Request, Response, RequestBuilder, AlertsClientInterface> action) {
-        return action.newRequestBuilder(this);
-    }
-
-    @Override
-    public ThreadPool threadPool() {
-        return threadPool;
-    }
 }

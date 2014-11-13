@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 /**
  * Base alert action class.
  */
-public abstract class AlertsClientAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, AlertsClientInterface>> extends Action<Request, Response, RequestBuilder, AlertsClientInterface> {
+public abstract class AlertsClientAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, AlertsClient>> extends Action<Request, Response, RequestBuilder, AlertsClient> {
 
     protected AlertsClientAction(String name) {
         super(name);

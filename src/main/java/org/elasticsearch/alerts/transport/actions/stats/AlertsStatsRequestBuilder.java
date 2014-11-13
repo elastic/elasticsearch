@@ -7,15 +7,15 @@ package org.elasticsearch.alerts.transport.actions.stats;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.alerts.client.AlertsClientInterface;
+import org.elasticsearch.alerts.client.AlertsClient;
 
 /**
  * An alert stats document action request builder.
  */
 public class AlertsStatsRequestBuilder
-        extends MasterNodeOperationRequestBuilder<AlertsStatsRequest, AlertsStatsResponse, AlertsStatsRequestBuilder, AlertsClientInterface> {
+        extends MasterNodeOperationRequestBuilder<AlertsStatsRequest, AlertsStatsResponse, AlertsStatsRequestBuilder, AlertsClient> {
 
-    public AlertsStatsRequestBuilder(AlertsClientInterface client) {
+    public AlertsStatsRequestBuilder(AlertsClient client) {
         super(client, new AlertsStatsRequest());
     }
 

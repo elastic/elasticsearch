@@ -6,7 +6,7 @@
 package org.elasticsearch.alerts.transport.actions.delete;
 
 import org.elasticsearch.alerts.client.AlertsClientAction;
-import org.elasticsearch.alerts.client.AlertsClientInterface;
+import org.elasticsearch.alerts.client.AlertsClient;
 
 /**
  */
@@ -25,7 +25,7 @@ public class DeleteAlertAction extends AlertsClientAction<DeleteAlertRequest, De
     }
 
     @Override
-    public DeleteAlertRequestBuilder newRequestBuilder(AlertsClientInterface client) {
+    public DeleteAlertRequestBuilder newRequestBuilder(AlertsClient client) {
         return new DeleteAlertRequestBuilder(client);
     }
 }

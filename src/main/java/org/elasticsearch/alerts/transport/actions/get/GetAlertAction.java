@@ -6,7 +6,7 @@
 package org.elasticsearch.alerts.transport.actions.get;
 
 import org.elasticsearch.alerts.client.AlertsClientAction;
-import org.elasticsearch.alerts.client.AlertsClientInterface;
+import org.elasticsearch.alerts.client.AlertsClient;
 
 /**
  */
@@ -25,7 +25,7 @@ public class GetAlertAction extends AlertsClientAction<GetAlertRequest, GetAlert
     }
 
     @Override
-    public GetAlertRequestBuilder newRequestBuilder(AlertsClientInterface client) {
+    public GetAlertRequestBuilder newRequestBuilder(AlertsClient client) {
         return new GetAlertRequestBuilder(client);
     }
 }

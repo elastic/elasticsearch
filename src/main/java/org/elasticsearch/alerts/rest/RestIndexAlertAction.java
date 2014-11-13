@@ -18,7 +18,8 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.rest.RestStatus.CREATED;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */

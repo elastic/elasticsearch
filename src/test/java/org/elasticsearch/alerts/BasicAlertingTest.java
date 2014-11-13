@@ -7,7 +7,7 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.alerts.client.AlertsClientInterface;
+import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
@@ -32,7 +32,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
 
     @Test
     public void testIndexAlert() throws Exception {
-        AlertsClientInterface alertsClient = alertClient();
+        AlertsClient alertsClient = alertClient();
         createIndex("my-index");
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
@@ -46,7 +46,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
 
     @Test
     public void testIndexAlert_registerAlertBeforeTargetIndex() throws Exception {
-        AlertsClientInterface alertsClient = alertClient();
+        AlertsClient alertsClient = alertClient();
         SearchRequest searchRequest = new SearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
         alertsClient.prepareIndexAlert("my-first-alert")
@@ -63,7 +63,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
 
     @Test
     public void testDeleteAlert() throws Exception {
-        AlertsClientInterface alertsClient = alertClient();
+        AlertsClient alertsClient = alertClient();
         createIndex("my-index");
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
@@ -91,7 +91,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
 
     @Test
     public void testMalformedAlert() throws Exception {
-        AlertsClientInterface alertsClient = alertClient();
+        AlertsClient alertsClient = alertClient();
         createIndex("my-index");
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();

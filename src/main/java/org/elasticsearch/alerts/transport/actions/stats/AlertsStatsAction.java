@@ -6,7 +6,7 @@
 package org.elasticsearch.alerts.transport.actions.stats;
 
 import org.elasticsearch.alerts.client.AlertsClientAction;
-import org.elasticsearch.alerts.client.AlertsClientInterface;
+import org.elasticsearch.alerts.client.AlertsClient;
 
 /**
  */
@@ -25,7 +25,7 @@ public class AlertsStatsAction extends AlertsClientAction<AlertsStatsRequest, Al
     }
 
     @Override
-    public AlertsStatsRequestBuilder newRequestBuilder(AlertsClientInterface client) {
+    public AlertsStatsRequestBuilder newRequestBuilder(AlertsClient client) {
         return new AlertsStatsRequestBuilder(client);
     }
 }

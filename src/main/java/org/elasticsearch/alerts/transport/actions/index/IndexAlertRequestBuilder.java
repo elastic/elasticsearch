@@ -7,22 +7,22 @@ package org.elasticsearch.alerts.transport.actions.index;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.alerts.client.AlertsClientInterface;
+import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  */
 public class IndexAlertRequestBuilder
         extends MasterNodeOperationRequestBuilder<IndexAlertRequest, IndexAlertResponse,
-        IndexAlertRequestBuilder, AlertsClientInterface> {
+        IndexAlertRequestBuilder, AlertsClient> {
 
 
-    public IndexAlertRequestBuilder(AlertsClientInterface client) {
+    public IndexAlertRequestBuilder(AlertsClient client) {
         super(client, new IndexAlertRequest());
     }
 
 
-    public IndexAlertRequestBuilder(AlertsClientInterface client, String alertName) {
+    public IndexAlertRequestBuilder(AlertsClient client, String alertName) {
         super(client, new IndexAlertRequest());
         request.setAlertName(alertName);
     }

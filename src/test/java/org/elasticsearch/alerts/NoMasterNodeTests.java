@@ -7,7 +7,7 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.alerts.client.AlertsClientInterface;
+import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.base.Predicate;
@@ -51,7 +51,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
     public void testSimpleFailure() throws Exception {
         config = new ClusterDiscoveryConfiguration.UnicastZen(2);
         internalTestCluster().startNodesAsync(2).get();
-        AlertsClientInterface alertsClient = alertClient();
+        AlertsClient alertsClient = alertClient();
         createIndex("my-index");
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();

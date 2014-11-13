@@ -14,7 +14,6 @@ import org.elasticsearch.alerts.AlertManager;
 import org.elasticsearch.alerts.AlertUtils;
 import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
@@ -197,7 +196,7 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
-        AlertsClientInterface alertsClient = internalCluster().getInstance(AlertsClient.class, internalCluster().getMasterName());
+        AlertsClient alertsClient = internalCluster().getInstance(AlertsClient.class, internalCluster().getMasterName());
 
         IndexAlertRequest alertRequest = alertsClient.prepareIndexAlert().setAlertName("my-first-alert").setAlertSource(jsonBuilder.bytes()).request();
         IndexAlertResponse alertsResponse = alertsClient.indexAlert(alertRequest).actionGet();

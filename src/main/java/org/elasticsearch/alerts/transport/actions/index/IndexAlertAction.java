@@ -6,7 +6,7 @@
 package org.elasticsearch.alerts.transport.actions.index;
 
 import org.elasticsearch.alerts.client.AlertsClientAction;
-import org.elasticsearch.alerts.client.AlertsClientInterface;
+import org.elasticsearch.alerts.client.AlertsClient;
 
 /**
  */
@@ -21,7 +21,7 @@ public class IndexAlertAction extends AlertsClientAction<IndexAlertRequest, Inde
 
 
     @Override
-    public IndexAlertRequestBuilder newRequestBuilder(AlertsClientInterface client) {
+    public IndexAlertRequestBuilder newRequestBuilder(AlertsClient client) {
         return new IndexAlertRequestBuilder(client);
     }
 

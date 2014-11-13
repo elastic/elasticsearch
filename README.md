@@ -3,8 +3,11 @@ elasticsearch-license
 
 Internal Elasticsearch Licensing Plugin
 
+## Getting Started
 
-## Licensing REST APIs [PUBLIC]
+see [Getting Started] (https://github.com/elasticsearch/elasticsearch-license/blob/master/docs/getting-started.asciidoc)
+
+## Licensing REST APIs
 
 Licensing REST APIs enable users to:
 
@@ -13,4 +16,10 @@ Licensing REST APIs enable users to:
 
 see [Licensing REST APIs] (https://github.com/elasticsearch/elasticsearch-license/blob/master/docs/license.asciidoc)
 
-**Note:** see [wiki] (https://github.com/elasticsearch/elasticsearch-license/wiki) for documentation on **Licensing Tools Usage & Reference**, **Licensing Consumer Plugin Interface**, **License Plugin Design** and **Licensing Test plan**
+## Internal Documentation
+see [wiki] (https://github.com/elasticsearch/elasticsearch-license/wiki) for documentation on
+
+ - **Licensing Tools Usage & Reference**
+ - **Licensing Consumer Plugin Interface**
+ - **License Plugin Design**
+ - **Licensing Test plan**

@@ -71,7 +71,7 @@ Each cluster must have an elected master node in order to be fully operational. 
 node it will reject some or all operations.
 
 [float]
-==== Zen discovery
+=== Zen discovery
 
 On versions before `1.4.0.Beta1` all operations are rejected when a node loses its elected master. From `1.4.0.Beta1`
 only write operations will be rejected by default. Read operations will still be served based on the information available
@@ -79,7 +79,14 @@ to the node, which may result in being partial and possibly also stale. If the d
 pre `1.4.0.Beta1` behaviour can be enabled, see: <<modules-discovery-zen,no-master-block>>
 
 [float]
-==== More Like This Field
+=== More Like This Field
 
 The More Like This Field query has been deprecated in favor of the <<query-dsl-mlt-query, More Like This Query>>
 restrained set to a specific `field`. It will be removed in 2.0.
+
+[float]
+=== MVEL is deprecated
+
+Groovy is the new default scripting language in Elasticsearch, and is enabled in `sandbox` mode
+by default.  MVEL has been removed from core, but is available as a plugin: 
+https://github.com/elasticsearch/elasticsearch-lang-mvel

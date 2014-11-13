@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.none.NoneGatewayAllocator;
+import org.elasticsearch.gateway.local.LocalGatewayAllocator;
 
 /**
  */
@@ -37,7 +37,7 @@ public class ShardsAllocatorModule extends AbstractModule {
 
     private Class<? extends ShardsAllocator> shardsAllocator;
 
-    private Class<? extends GatewayAllocator> gatewayAllocator = NoneGatewayAllocator.class;
+    private Class<? extends GatewayAllocator> gatewayAllocator = LocalGatewayAllocator.class;
 
     public ShardsAllocatorModule(Settings settings) {
         this.settings = settings;

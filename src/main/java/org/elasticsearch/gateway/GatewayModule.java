@@ -32,6 +32,8 @@ import org.elasticsearch.gateway.local.LocalGatewayModule;
  */
 public class GatewayModule extends AbstractModule implements SpawnModules {
 
+    public static String GATEWAY_TYPE_SETTING = "gateway.type";
+
     private final Settings settings;
 
     public GatewayModule(Settings settings) {
@@ -40,7 +42,8 @@ public class GatewayModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(Modules.createModule(settings.getAsClass("gateway.type", LocalGatewayModule.class, "org.elasticsearch.gateway.", "GatewayModule"), settings));
+        Class gateway = settings.getAsClass(GATEWAY_TYPE_SETTING, LocalGatewayModule.class, "org.elasticsearch.gateway.", "GatewayModule");
+        return ImmutableList.of(Modules.createModule(gateway, settings));
     }
 
     @Override

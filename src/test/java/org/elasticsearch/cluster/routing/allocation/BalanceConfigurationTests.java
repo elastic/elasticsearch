@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.gateway.none.NoneGatewayAllocator;
+import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.hamcrest.Matchers;
@@ -354,7 +354,7 @@ public class BalanceConfigurationTests extends ElasticsearchAllocationTestCase {
         ImmutableSettings.Builder settings = settingsBuilder();
         AllocationService strategy = new AllocationService(settings.build(), randomAllocationDeciders(settings.build(),
                 new NodeSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS), getRandom()), new ShardsAllocators(settings.build(),
-                new NoneGatewayAllocator(), new ShardsAllocator() {
+                NoopGatewayAllocator.INSTANCE, new ShardsAllocator() {
 
             @Override
             public boolean rebalance(RoutingAllocation allocation) {

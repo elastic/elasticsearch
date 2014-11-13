@@ -21,6 +21,7 @@ package org.elasticsearch.stresstest.indexing;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -29,7 +30,6 @@ import org.elasticsearch.node.Node;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
@@ -39,9 +39,7 @@ public class ConcurrentIndexingVersioningStressTest {
 
     public static void main(String[] args) throws Exception {
 
-        Settings settings = settingsBuilder()
-                .put("gateway.type", "none")
-                .build();
+        Settings settings = ImmutableSettings.EMPTY;
 
         Node node1 = nodeBuilder().settings(settings).node();
         Node node2 = nodeBuilder().settings(settings).node();

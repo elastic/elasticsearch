@@ -336,7 +336,6 @@ public class RollingRestartStressTest {
 
         Settings settings = settingsBuilder()
                 .put("index.shard.check_on_startup", true)
-                .put("gateway.type", "none")
                 .put("path.data", "data/data1,data/data2")
                 .build();
 

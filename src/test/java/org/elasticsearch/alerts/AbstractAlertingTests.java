@@ -40,6 +40,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 
@@ -125,7 +126,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                         .setSize(1)
                         .get();
                 assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-                assertThat((Integer) searchResponse.getHits().getAt(0).field("response.hits.total").getValue(), equalTo(1));
+                assertThat((Integer) searchResponse.getHits().getAt(0).field("response.hits.total").getValue(), greaterThanOrEqualTo(1));
             }
         });
     }

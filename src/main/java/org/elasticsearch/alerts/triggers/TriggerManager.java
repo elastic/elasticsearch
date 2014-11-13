@@ -119,18 +119,21 @@ public class TriggerManager extends AbstractComponent {
     }
 
     private SearchRequest prepareTriggerSearch(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
-        SearchRequest request = alert.getSearchRequest();
-        if (Strings.hasLength(request.source())) {
-            String requestSource = XContentHelper.convertToJson(request.source(), false);
+        SearchRequest triggerSearchRequest = new SearchRequest(alert.getSearchRequest())
+                .indicesOptions(alert.getSearchRequest().indicesOptions())
+                .indices(alert.getSearchRequest().indices());
+        if (Strings.hasLength(alert.getSearchRequest().source())) {
+            String requestSource = XContentHelper.convertToJson(alert.getSearchRequest().source(), false);
             if (requestSource.contains(fireTimePlaceHolder)) {
                 requestSource = requestSource.replace(fireTimePlaceHolder, dateTimeFormatter.printer().print(fireTime));
             }
             if (requestSource.contains(scheduledFireTimePlaceHolder)) {
                 requestSource = requestSource.replace(scheduledFireTimePlaceHolder, dateTimeFormatter.printer().print(scheduledFireTime));
             }
-            request.source(requestSource);
-        } else if (Strings.hasLength(request.templateSource())) {
-            Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(request.templateSource(), false);
+
+            triggerSearchRequest.source(requestSource);
+        } else if (Strings.hasLength(alert.getSearchRequest().templateSource())) {
+            Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(alert.getSearchRequest().templateSource(), false);
             Map<String, Object> templateSourceAsMap = tuple.v2();
             Map<String, Object> templateObject = (Map<String, Object>) templateSourceAsMap.get("template");
             if (templateObject != null) {
@@ -140,17 +143,17 @@ public class TriggerManager extends AbstractComponent {
 
                 XContentBuilder builder = XContentFactory.contentBuilder(tuple.v1());
                 builder.map(templateSourceAsMap);
-                request.templateSource(builder.bytes(), false);
+                triggerSearchRequest.templateSource(builder.bytes(), false);
             }
-        } else if (request.templateName() != null) {
-            MapBuilder<String, String> templateParams = MapBuilder.newMapBuilder(request.templateParams())
+        } else if (alert.getSearchRequest().templateName() != null) {
+            MapBuilder<String, String> templateParams = MapBuilder.newMapBuilder(alert.getSearchRequest().templateParams())
                     .put("scheduled_fire_time", dateTimeFormatter.printer().print(scheduledFireTime))
                     .put("fire_time", dateTimeFormatter.printer().print(fireTime));
-            request.templateParams(templateParams.map());
+            triggerSearchRequest.templateParams(templateParams.map());
         } else {
             throw new ElasticsearchIllegalStateException("Search requests needs either source, template source or template name");
         }
-        return request;
+        return triggerSearchRequest;
     }
 
 

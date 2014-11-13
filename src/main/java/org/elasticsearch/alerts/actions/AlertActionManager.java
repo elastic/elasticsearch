@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.alerts.*;
@@ -48,7 +47,7 @@ public class AlertActionManager extends AbstractComponent {
     public static final String SCHEDULED_FIRE_TIME_FIELD = "scheduled_fire_time";
     public static final String ERROR_MESSAGE = "errorMsg";
     public static final String TRIGGER_FIELD = "trigger";
-    public static final String REQUEST = "request_binary";
+    public static final String REQUEST = "request";
     public static final String RESPONSE = "response_binary";
     public static final String ACTIONS_FIELD = "actions";
 
@@ -199,6 +198,9 @@ public class AlertActionManager extends AbstractComponent {
                         case TRIGGER_FIELD:
                             entry.setTrigger(triggerManager.instantiateAlertTrigger(parser));
                             break;
+                        case REQUEST:
+                            entry.setSearchRequest(AlertUtils.readSearchRequest(parser));
+                            break;
                         case "response":
                             // Ignore this, the binary form is already read
                             parser.skipChildren();
@@ -220,11 +222,6 @@ public class AlertActionManager extends AbstractComponent {
                             break;
                         case SCHEDULED_FIRE_TIME_FIELD:
                             entry.setScheduledTime(DateTime.parse(parser.text()));
-                            break;
-                        case REQUEST:
-                            SearchRequest request = new SearchRequest();
-                            request.readFrom(new BytesStreamInput(parser.binaryValue(), false));
-                            entry.setSearchRequest(request);
                             break;
                         case RESPONSE:
                             SearchResponse response = new SearchResponse();

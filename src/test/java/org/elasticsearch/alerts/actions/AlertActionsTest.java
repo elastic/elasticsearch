@@ -11,50 +11,45 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertManager;
+import org.elasticsearch.alerts.AlertUtils;
 import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequest;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequest;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedTrigger;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.Is.is;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  */
@@ -107,7 +102,8 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         BytesStreamOutput out = new BytesStreamOutput();
         SearchRequest searchRequest = new SearchRequest("test123");
         searchRequest.writeTo(out);
-        builder.field(AlertActionManager.REQUEST, out.bytes());
+        builder.field(AlertActionManager.REQUEST);
+        AlertUtils.writeSearchRequest(searchRequest, builder);
         SearchResponse searchResponse = new SearchResponse(
                 new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 10, 0), null, null, null, false, false),
                 null, 1, 1, 0, new ShardSearchFailure[0]

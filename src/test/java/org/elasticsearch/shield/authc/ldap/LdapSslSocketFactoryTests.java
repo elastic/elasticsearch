@@ -11,6 +11,7 @@ import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -31,8 +32,13 @@ public class LdapSslSocketFactoryTests extends ElasticsearchTestCase {
                 .build()));
     }
 
+    @AfterClass
+    public static void clearTrustStore() {
+        LdapSslSocketFactory.clear();
+    }
+
     @Test
-    public void testConfigure_1https(){
+    public void testConfigure_1ldaps(){
         String[] urls = new String[]{"ldaps://example.com:636"};
 
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder();
@@ -43,7 +49,7 @@ public class LdapSslSocketFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testConfigure_2https(){
+    public void testConfigure_2ldaps(){
         String[] urls = new String[]{"ldaps://primary.example.com:636", "LDAPS://secondary.example.com:10636"};
 
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder();
@@ -53,7 +59,7 @@ public class LdapSslSocketFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testConfigure_2http(){
+    public void testConfigure_2ldap(){
         String[] urls = new String[]{"ldap://primary.example.com:392", "LDAP://secondary.example.com:10392"};
 
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder();
@@ -63,7 +69,7 @@ public class LdapSslSocketFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test(expected = ShieldSettingsException.class)
-    public void testConfigure_1httpS_1http(){
+    public void testConfigure_1ldaps_1ldap(){
         String[] urls = new String[]{"LDAPS://primary.example.com:636", "ldap://secondary.example.com:392"};
 
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder();
@@ -71,7 +77,7 @@ public class LdapSslSocketFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test(expected = ShieldSettingsException.class)
-    public void testConfigure_1http_1https(){
+    public void testConfigure_1ldap_1ldaps(){
         String[] urls = new String[]{"ldap://primary.example.com:392", "ldaps://secondary.example.com:636"};
 
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder();

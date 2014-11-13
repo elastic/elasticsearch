@@ -12,6 +12,7 @@ import org.elasticsearch.shield.ssl.SSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.hamcrest.Matchers;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -37,6 +38,10 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
                 .build()));
     }
 
+    @AfterClass
+    public static void clearTrustStore() {
+        LdapSslSocketFactory.clear();
+    }
 
     @Test
     public void testAdAuth() {

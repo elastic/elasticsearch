@@ -16,7 +16,6 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.test.ShieldIntegrationTest;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import javax.net.ssl.*;
@@ -64,37 +63,6 @@ public class SslRequireAuthTests extends ShieldIntegrationTest {
                 .put(super.transportClientSettings())
                 .put(getSSLSettingsForStore("certs/simple/testclient.jks", "testclient"))
                 .build();
-    }
-
-
-    @Ignore //clients-certs are no longer configured for http
-    @Test(expected = SSLHandshakeException.class)
-    public void testThatRequireClientAuthRejectsWithoutCert() throws Exception {
-        TrustManager[] trustAllCerts = new TrustManager[]{
-                new X509TrustManager() {
-                    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                        return null;
-                    }
-
-                    public void checkClientTrusted(
-                            java.security.cert.X509Certificate[] certs, String authType) {
-                    }
-
-                    public void checkServerTrusted(
-                            java.security.cert.X509Certificate[] certs, String authType) {
-                    }
-                }
-        };
-
-        setupTrustManagers(trustAllCerts);
-
-        TransportAddress transportAddress = internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddress();
-        assertThat(transportAddress, is(instanceOf(InetSocketTransportAddress.class)));
-        InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) transportAddress;
-        String url = String.format(Locale.ROOT, "https://%s:%s/", InetAddresses.toUriString(inetSocketTransportAddress.address().getAddress()), inetSocketTransportAddress.address().getPort());
-
-        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-        connection.connect();
     }
 
     @Test

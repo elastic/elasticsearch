@@ -7,17 +7,15 @@ package org.elasticsearch.shield.ssl;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.hamcrest.Matchers;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
-import java.security.NoSuchAlgorithmException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.is;
 
 public class SSLServiceTests extends ElasticsearchTestCase {
 
@@ -28,19 +26,15 @@ public class SSLServiceTests extends ElasticsearchTestCase {
         testnodeStore = new File(getClass().getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks").toURI());
     }
 
-    @Test
+    @Test(expected = ElasticsearchSSLException.class)
     public void testThatInvalidProtocolThrowsException() throws Exception {
-        try {
-            new SSLService(settingsBuilder()
+        new SSLService(settingsBuilder()
                             .put("shield.ssl.protocol", "non-existing")
                             .put("shield.ssl.keystore", testnodeStore.getPath())
                             .put("shield.ssl.keystore_password", "testnode")
                             .put("shield.ssl.truststore", testnodeStore.getPath())
                             .put("shield.ssl.truststore_password", "testnode")
                         .build());
-        } catch (ElasticsearchSSLException e) {
-            Assert.assertThat(e.getRootCause(), Matchers.instanceOf(NoSuchAlgorithmException.class));
-        }
     }
 
     @Test @Ignore //TODO it appears that setting a specific protocol doesn't make a difference
@@ -52,13 +46,13 @@ public class SSLServiceTests extends ElasticsearchTestCase {
                 .put("shield.ssl.truststore", testnodeStore.getPath())
                 .put("shield.ssl.truststore_password", "testnode")
                 .build());
-        Assert.assertThat(ssl.createSSLEngine().getSSLParameters().getProtocols(), Matchers.arrayContaining("TLSv1.2"));
+        assertThat(ssl.createSSLEngine().getSSLParameters().getProtocols(), arrayContaining("TLSv1.2"));
     }
 
     @Test
-    public void testIsSSLEnabled_allDefaults(){
+    public void testIsSSLDisabled_allDefaults(){
         Settings settings = settingsBuilder().build();
-        assertThat(SSLService.isSSLEnabled(settings), is(false));
+        assertSSLDisabled(settings);
     }
 
     @Test
@@ -70,7 +64,7 @@ public class SSLServiceTests extends ElasticsearchTestCase {
                 .put("shield.authc.ldap.mode", "ldap")
                 .put("shield.authc.ldap.url", "ldap://example.com:389")
                 .build();
-        assertThat(SSLService.isSSLEnabled(settings), is(false));
+        assertSSLDisabled(settings);
     }
 
     @Test
@@ -78,9 +72,9 @@ public class SSLServiceTests extends ElasticsearchTestCase {
         Settings settings = settingsBuilder()
                 .put("shield.transport.ssl", false)
                 .put("shield.http.ssl", false)
-                .put("shield.authc.ldap.mode", "active_dir") //default for missing URL is
+                .put("shield.authc.ldap.mode", "active_dir") //SSL is on by default for a missing URL with active directory
                 .build();
-        assertThat(SSLService.isSSLEnabled(settings), is(true));
+        assertSSLEnabled(settings);
     }
 
     @Test
@@ -91,7 +85,7 @@ public class SSLServiceTests extends ElasticsearchTestCase {
                 .put("shield.authc.ldap.mode", "ldap")
                 .put("shield.authc.ldap.url", "ldaps://example.com:636")
                 .build();
-        assertThat(SSLService.isSSLEnabled(settings), is(true));
+        assertSSLEnabled(settings);
     }
 
     @Test
@@ -103,7 +97,7 @@ public class SSLServiceTests extends ElasticsearchTestCase {
                 .put("shield.authc.ldap.mode", "ldap")
                 .put("shield.authc.ldap.url", "ldap://example.com:389")
                 .build();
-        assertThat(SSLService.isSSLEnabled(settings), is(true));
+        assertSSLEnabled(settings);
     }
 
     @Test
@@ -114,6 +108,14 @@ public class SSLServiceTests extends ElasticsearchTestCase {
                 .put("shield.authc.ldap.mode", "ldap")
                 .put("shield.authc.ldap.url", "ldap://example.com:389")
                 .build();
+        assertSSLEnabled(settings);
+    }
+
+    private void assertSSLEnabled(Settings settings) {
         assertThat(SSLService.isSSLEnabled(settings), is(true));
+    }
+
+    private void assertSSLDisabled(Settings settings) {
+        assertThat(SSLService.isSSLEnabled(settings), is(false));
     }
 }

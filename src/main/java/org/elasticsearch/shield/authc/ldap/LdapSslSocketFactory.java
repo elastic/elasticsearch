@@ -18,7 +18,11 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.util.Locale;
+import java.util.regex.Pattern;
+
+import static java.util.Arrays.asList;
+import static org.elasticsearch.common.base.Predicates.contains;
+import static org.elasticsearch.common.collect.Iterables.all;
 
 /**
  * This factory is needed for JNDI configuration for LDAP connections.  It wraps a single instance of a static
@@ -31,6 +35,9 @@ import java.util.Locale;
 public class LdapSslSocketFactory extends SocketFactory {
 
     static final String JAVA_NAMING_LDAP_FACTORY_SOCKET = "java.naming.ldap.factory.socket";
+    private static final Pattern STARTS_WITH_LDAPS = Pattern.compile("^ldaps:.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern STARTS_WITH_LDAP = Pattern.compile("^ldap:.*", Pattern.CASE_INSENSITIVE);
+
     private static ESLogger logger = ESLoggerFactory.getLogger(LdapSslSocketFactory.class.getName());
 
     private static LdapSslSocketFactory instance;
@@ -48,7 +55,16 @@ public class LdapSslSocketFactory extends SocketFactory {
         } else {
             instance = new LdapSslSocketFactory(ssl.getSSLSocketFactory());
         }
+    }
 
+    /**
+     * This clears the static factory.  There are threading issues with this.  But for
+     * testing this is useful.
+     */
+    @Deprecated
+    static void clear() {
+        logger.error("clear should only be called by tests");
+        instance = null;
     }
 
     /**
@@ -118,14 +134,15 @@ public class LdapSslSocketFactory extends SocketFactory {
         if (ldapUrls.length == 0) {
             return true;
         }
-        boolean secureProtocol = ldapUrls[0].toLowerCase(Locale.getDefault()).startsWith("ldaps://");
-        for(String url: ldapUrls){
-            if (secureProtocol != url.toLowerCase(Locale.getDefault()).startsWith("ldaps://")) {
-                //this is because LdapSSLSocketFactory produces only SSL sockets and not clear text sockets
-                throw new ShieldSettingsException("Configured ldap protocols are not all equal " +
-                        "(ldaps://.. and ldap://..): [" + Strings.arrayToCommaDelimitedString(ldapUrls) + "]");
-            }
+
+        boolean allSecure = all(asList(ldapUrls), contains(STARTS_WITH_LDAPS));
+        boolean allClear = all(asList(ldapUrls), contains(STARTS_WITH_LDAP));
+
+        if (!allSecure && !allClear) {
+            //No mixing is allowed because LdapSSLSocketFactory produces only SSL sockets and not clear text sockets
+            throw new ShieldSettingsException("Configured ldap protocols are not all equal " +
+                    "(ldaps://.. and ldap://..): [" + Strings.arrayToCommaDelimitedString(ldapUrls) + "]");
         }
-        return secureProtocol;
+        return allSecure;
     }
 }

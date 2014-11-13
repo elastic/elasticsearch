@@ -730,18 +730,14 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
         private void enableFeatureIfNeeded() {
             if (enabled.compareAndSet(false, true)) {
                 listener.onEnabled();
-                if (logger.isDebugEnabled()) {
-                    logger.debug("feature: " + feature + " calling onEnabled");
-                }
+                logger.info("license for [" + feature + "] - valid");
             }
         }
 
         private void disableFeatureIfNeeded() {
             if (enabled.compareAndSet(true, false)) {
                 listener.onDisabled();
-                if (logger.isDebugEnabled()) {
-                    logger.debug("feature: " + feature + " calling onDisabled");
-                }
+                logger.info("license for [" + feature + "] - expired");
             }
         }
 

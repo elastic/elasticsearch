@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.ESLicense;
 import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.licensor.tools.LicenseGeneratorTool;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;

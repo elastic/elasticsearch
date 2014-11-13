@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.get;
 import com.google.common.collect.ObjectArrays;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -140,31 +139,19 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_1_4_1)) {
-            Feature.convertToFeatures(in.readStringArray());
-        } else {
-            int size = in.readVInt();
-            features = new Feature[size];
-            for (int i = 0; i < size; i++) {
-                features[i] = Feature.fromId(in.readByte());
-            }
+        int size = in.readVInt();
+        features = new Feature[size];
+        for (int i = 0; i < size; i++) {
+            features[i] = Feature.fromId(in.readByte());
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_1_4_1)) {
-            String[] featureNames = new String[features.length];
-            for (int i = 0; i< features.length; i++) {
-                featureNames[i] = features[i].preferredName();
-            }
-            out.writeStringArray(featureNames);
-        } else {
-            out.writeVInt(features.length);
-            for (Feature feature : features) {
-                out.writeByte(feature.id);
-            }
+        out.writeVInt(features.length);
+        for (Feature feature : features) {
+            out.writeByte(feature.id);
         }
     }
 

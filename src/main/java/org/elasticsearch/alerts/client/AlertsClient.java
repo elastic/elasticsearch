@@ -9,9 +9,11 @@ import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.alerts.AlertManager;
+import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.transport.actions.index.*;
 import org.elasticsearch.alerts.transport.actions.delete.*;
 import org.elasticsearch.alerts.transport.actions.get.*;
+import org.elasticsearch.alerts.transport.actions.stats.*;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.cluster.ClusterService;
@@ -35,7 +37,7 @@ public class AlertsClient implements AlertsClientInterface {
                         Headers headers,
                         ActionFilters filters,
                         TransportService transportService, ClusterService clusterService, AlertManager alertManager,
-                        Client client) {
+                        Client client, AlertActionManager alertActionManager) {
         this.headers = headers;
         internalActions = new HashMap<>();
         this.threadPool = threadPool;
@@ -48,6 +50,11 @@ public class AlertsClient implements AlertsClientInterface {
 
         internalActions.put(DeleteAlertAction.INSTANCE, new TransportDeleteAlertAction(settings,
                 DeleteAlertAction.NAME, transportService, clusterService, threadPool, filters, alertManager));
+
+        internalActions.put(AlertsStatsAction.INSTANCE, new TransportAlertStatsAction(settings,
+                AlertsStatsAction.NAME, transportService, clusterService, threadPool, filters, alertManager,
+                alertActionManager));
+
 
     }
 
@@ -108,6 +115,21 @@ public class AlertsClient implements AlertsClientInterface {
     @Override
     public ActionFuture<IndexAlertResponse> indexAlert(IndexAlertRequest request) {
         return execute(IndexAlertAction.INSTANCE, request);
+    }
+
+    @Override
+    public ActionFuture<AlertsStatsResponse> alertsStats(AlertsStatsRequest request) {
+        return execute(AlertsStatsAction.INSTANCE, request);
+    }
+
+    @Override
+    public AlertsStatsRequestBuilder prepareAlertsStats() {
+        return new AlertsStatsRequestBuilder(this);
+    }
+
+    @Override
+    public void alertsStats(AlertsStatsRequest request, ActionListener<AlertsStatsResponse> listener) {
+        execute(AlertsStatsAction.INSTANCE, request, listener);
     }
 
     @SuppressWarnings("unchecked")

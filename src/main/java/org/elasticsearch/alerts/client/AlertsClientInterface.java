@@ -5,16 +5,20 @@
  */
 package org.elasticsearch.alerts.client;
 
-import org.elasticsearch.action.*;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequest;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequestBuilder;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequestBuilder;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertRequestBuilder;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequest;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequestBuilder;
+import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
+import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsRequest;
+import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsRequestBuilder;
+import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
@@ -113,5 +117,30 @@ public interface AlertsClientInterface extends ElasticsearchClient<AlertsClientI
      * @return The response containing the IndexResponse for this alert
      */
     ActionFuture<IndexAlertResponse> indexAlert(IndexAlertRequest request);
+
+
+    /**
+     * Gets the alert stats
+     *
+     * @param request The request for the alert stats
+     * @return The response containing the StatsResponse for this action
+     */
+    ActionFuture<AlertsStatsResponse> alertsStats(AlertsStatsRequest request);
+
+    /**
+     * Creates a request builder to build a request to get the alerts stats
+     *
+     * @return The builder get the alerts stats
+     */
+    AlertsStatsRequestBuilder prepareAlertsStats();
+
+    /**
+     * Gets the alert stats
+     *
+     * @param request The request for the alert stats
+     * @param listener The listener for the response containing the AlertsStatsResponse
+     */
+    public void alertsStats(AlertsStatsRequest request, ActionListener<AlertsStatsResponse> listener);
+
 
 }

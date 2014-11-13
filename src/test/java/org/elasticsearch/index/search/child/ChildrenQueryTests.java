@@ -29,6 +29,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
@@ -224,7 +225,7 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
             Query childQuery = new ConstantScoreQuery(new TermQuery(new Term("field1", childValue)));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
             ScoreType scoreType = ScoreType.values()[random().nextInt(ScoreType.values().length)];
-            Filter nonNestedDocsFilter = random().nextBoolean() ? SearchContext.current().filterCache().cache(NonNestedDocsFilter.INSTANCE) : null;
+            Filter nonNestedDocsFilter = random().nextBoolean() ? new FixedBitSetCachingWrapperFilter(SearchContext.current().filterCache().cache(NonNestedDocsFilter.INSTANCE)) : null;
 
             // leave min/max set to 0 half the time
             int minChildren = random().nextInt(2) * scaledRandomIntBetween(0, 110);

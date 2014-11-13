@@ -29,7 +29,7 @@ public class RestAlertsStatsAction extends BaseRestHandler {
     protected RestAlertsStatsAction(Settings settings, RestController controller, Client client, AlertsClient alertsClient) {
         super(settings, controller, client);
         this.alertsClient = alertsClient;
-        controller.registerHandler(GET, "/_alert/stats", this);
+        controller.registerHandler(GET, "/_alert/_stats", this);
     }
 
     @Override

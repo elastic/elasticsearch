@@ -10,12 +10,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.alerts.AlertManager;
-import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,7 +62,7 @@ public class TransportAlertStatsAction extends TransportMasterNodeOperationActio
 
     @Override
     protected ClusterBlockException checkBlock(AlertsStatsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX});
+        return null;
     }
 
 

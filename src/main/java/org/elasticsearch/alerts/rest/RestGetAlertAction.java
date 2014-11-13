@@ -12,7 +12,6 @@ import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
@@ -37,13 +36,21 @@ public class RestGetAlertAction extends BaseRestHandler {
 
     @Override
     protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
-        GetAlertRequest getAlertRequest = new GetAlertRequest();
+        final GetAlertRequest getAlertRequest = new GetAlertRequest();
         getAlertRequest.alertName(request.param("name"));
         alertsClient.getAlert(getAlertRequest, new RestBuilderListener<GetAlertResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetAlertResponse result, XContentBuilder builder) throws Exception {
                 GetResponse getResponse = result.getResponse();
-                getResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.startObject()
+                        .field("found", getResponse.isExists())
+                        .field("_index", getResponse.getIndex())
+                        .field("_type", getResponse.getType())
+                        .field("_id", getResponse.getId())
+                        .field("_version", getResponse.getVersion())
+                        .field("alert", getResponse.getSource())
+                        .endObject();
+
                 RestStatus status = OK;
                 if (!getResponse.isExists()) {
                     status = NOT_FOUND;

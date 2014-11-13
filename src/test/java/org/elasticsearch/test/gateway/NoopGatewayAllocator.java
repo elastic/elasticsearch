@@ -17,27 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.gateway.none;
+package org.elasticsearch.test.gateway;
 
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocatorModule;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.PreProcessModule;
-import org.elasticsearch.gateway.Gateway;
+import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.allocator.GatewayAllocator;
 
 /**
+ * An allocator used for tests that doesn't do anything
  */
-public class NoneGatewayModule extends AbstractModule implements PreProcessModule {
+public class NoopGatewayAllocator implements GatewayAllocator {
+
+    public static final NoopGatewayAllocator INSTANCE = new NoopGatewayAllocator();
 
     @Override
-    public void processModule(Module module) {
-        if (module instanceof ShardsAllocatorModule) {
-            ((ShardsAllocatorModule) module).setGatewayAllocator(NoneGatewayAllocator.class);
-        }
+    public void applyStartedShards(StartedRerouteAllocation allocation) {
+        // noop
     }
 
     @Override
-    protected void configure() {
-        bind(Gateway.class).to(NoneGateway.class).asEagerSingleton();
+    public void applyFailedShards(FailedRerouteAllocation allocation) {
+        // noop
+    }
+
+    @Override
+    public boolean allocateUnassigned(RoutingAllocation allocation) {
+        return false;
     }
 }

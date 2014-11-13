@@ -24,8 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -45,11 +43,9 @@ public class ConcurrentSearchSerializationTests {
 
     public static void main(String[] args) throws Exception {
 
-        Settings settings = ImmutableSettings.settingsBuilder().put("gateway.type", "none").build();
-
-        Node node1 = NodeBuilder.nodeBuilder().settings(settings).node();
-        Node node2 = NodeBuilder.nodeBuilder().settings(settings).node();
-        Node node3 = NodeBuilder.nodeBuilder().settings(settings).node();
+        Node node1 = NodeBuilder.nodeBuilder().node();
+        Node node2 = NodeBuilder.nodeBuilder().node();
+        Node node3 = NodeBuilder.nodeBuilder().node();
 
         final Client client = node1.client();
 

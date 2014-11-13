@@ -239,12 +239,8 @@
 # in the gateway, and when the cluster starts up for the first time,
 # it will read its state from the gateway.
 
-# There are several types of gateway implementations. For more information, see
+# For more information, see
 # <http://elasticsearch.org/guide/en/elasticsearch/reference/current/modules-gateway.html>.
-
-# The default gateway type is the "local" gateway (recommended):
-#
-#gateway.type: local
 
 # Settings below control how and when to start the initial recovery process on
 # a full cluster restart (to reuse as much local data as possible when using shared

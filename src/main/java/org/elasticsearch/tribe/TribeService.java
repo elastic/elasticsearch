@@ -100,7 +100,6 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         if (sb.get("cluster.name") == null) {
             sb.put("cluster.name", "tribe_" + Strings.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
         }
-        sb.put("gateway.type", "none"); // we shouldn't store anything locally...
         sb.put(TransportMasterNodeReadOperationAction.FORCE_LOCAL_SETTING, true);
         return sb.build();
     }

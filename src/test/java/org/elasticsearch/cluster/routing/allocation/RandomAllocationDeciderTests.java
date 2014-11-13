@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -60,7 +61,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
         RandomAllocationDecider randomAllocationDecider = new RandomAllocationDecider(getRandom());
         AllocationService strategy = new AllocationService(settingsBuilder().build(), new AllocationDeciders(ImmutableSettings.EMPTY,
                 new HashSet<>(Arrays.asList(new SameShardAllocationDecider(ImmutableSettings.EMPTY),
-                        randomAllocationDecider))), new ShardsAllocators(), ClusterInfoService.EMPTY);
+                        randomAllocationDecider))), new ShardsAllocators(NoopGatewayAllocator.INSTANCE), ClusterInfoService.EMPTY);
         int indices = scaledRandomIntBetween(1, 20);
         Builder metaBuilder = MetaData.builder();
         int maxNumReplicas = 1;

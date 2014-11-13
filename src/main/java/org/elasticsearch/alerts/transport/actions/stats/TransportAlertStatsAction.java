@@ -28,10 +28,10 @@ public class TransportAlertStatsAction extends TransportMasterNodeOperationActio
     private final AlertActionManager alertActionManager;
 
     @Inject
-    public TransportAlertStatsAction(Settings settings, String actionName, TransportService transportService,
-                                     ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                     AlertManager alertManager, AlertActionManager alertActionManager) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters);
+    public TransportAlertStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                     ThreadPool threadPool, ActionFilters actionFilters, AlertManager alertManager,
+                                     AlertActionManager alertActionManager) {
+        super(settings, AlertsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.alertManager = alertManager;
         this.alertActionManager = alertActionManager;
     }

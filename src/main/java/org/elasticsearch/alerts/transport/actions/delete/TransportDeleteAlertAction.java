@@ -29,10 +29,9 @@ public class TransportDeleteAlertAction extends TransportMasterNodeOperationActi
     private final AlertManager alertManager;
 
     @Inject
-    public TransportDeleteAlertAction(Settings settings, String actionName, TransportService transportService,
-                                      ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                      AlertManager alertManager) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters);
+    public TransportDeleteAlertAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                      ThreadPool threadPool, ActionFilters actionFilters, AlertManager alertManager) {
+        super(settings, DeleteAlertAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.alertManager = alertManager;
     }
 

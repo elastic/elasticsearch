@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.alerts.client;
 
-import org.elasticsearch.action.*;
-import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 
 /**
- * Created by brian on 10/29/14.
+ * Base alert action class.
  */
-
-public abstract class AlertsClientAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, AlertsClientInterface>>
-        extends Action<Request, Response, RequestBuilder, AlertsClientInterface> {
+public abstract class AlertsClientAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, AlertsClientInterface>> extends Action<Request, Response, RequestBuilder, AlertsClientInterface> {
 
     protected AlertsClientAction(String name) {
         super(name);

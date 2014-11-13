@@ -29,10 +29,9 @@ public class TransportIndexAlertAction extends TransportMasterNodeOperationActio
     private final AlertManager alertManager;
 
     @Inject
-    public TransportIndexAlertAction(Settings settings, String actionName, TransportService transportService,
-                                     ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                     AlertManager alertManager) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters);
+    public TransportIndexAlertAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                     ThreadPool threadPool, ActionFilters actionFilters, AlertManager alertManager) {
+        super(settings, IndexAlertAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.alertManager = alertManager;
     }
 

@@ -23,9 +23,8 @@ public class TransportGetAlertAction extends TransportAction<GetAlertRequest,  G
     private final Client client;
 
     @Inject
-    public TransportGetAlertAction(Settings settings, String actionName, ThreadPool threadPool,
-                                   ActionFilters actionFilters, Client client) {
-        super(settings, actionName, threadPool, actionFilters);
+    public TransportGetAlertAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters, Client client) {
+        super(settings, GetAlertAction.NAME, threadPool, actionFilters);
         this.client = client;
     }
 

@@ -9,11 +9,16 @@ package org.elasticsearch.alerts;
 import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.rest.RestAlertsStatsAction;
 import org.elasticsearch.alerts.rest.RestDeleteAlertAction;
 import org.elasticsearch.alerts.rest.RestGetAlertAction;
 import org.elasticsearch.alerts.rest.RestIndexAlertAction;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
+import org.elasticsearch.alerts.transport.actions.delete.TransportDeleteAlertAction;
+import org.elasticsearch.alerts.transport.actions.get.TransportGetAlertAction;
+import org.elasticsearch.alerts.transport.actions.index.TransportIndexAlertAction;
+import org.elasticsearch.alerts.transport.actions.stats.TransportAlertStatsAction;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.common.inject.AbstractModule;
 
@@ -22,6 +27,7 @@ public class AlertingModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        // Core components
         bind(TemplateHelper.class).asEagerSingleton();
         bind(AlertsStore.class).asEagerSingleton();
         bind(AlertManager.class).asEagerSingleton();
@@ -29,12 +35,19 @@ public class AlertingModule extends AbstractModule {
         bind(TriggerManager.class).asEagerSingleton();
         bind(AlertScheduler.class).asEagerSingleton();
         bind(AlertActionRegistry.class).asEagerSingleton();
+
+        // Transport and client layer
+        bind(TransportIndexAlertAction.class).asEagerSingleton();
+        bind(TransportDeleteAlertAction.class).asEagerSingleton();
+        bind(TransportGetAlertAction.class).asEagerSingleton();
+        bind(TransportAlertStatsAction.class).asEagerSingleton();
+        bind(AlertsClientInterface.class).to(AlertsClient.class).asEagerSingleton();
+
+        // Rest layer
         bind(RestIndexAlertAction.class).asEagerSingleton();
         bind(RestDeleteAlertAction.class).asEagerSingleton();
         bind(RestAlertsStatsAction.class).asEagerSingleton();
         bind(RestGetAlertAction.class).asEagerSingleton();
-        //bind(AlertsClientInterface.class).to(AlertsClient.class).asEagerSingleton();
-        bind(AlertsClient.class).asEagerSingleton();
     }
 
 }

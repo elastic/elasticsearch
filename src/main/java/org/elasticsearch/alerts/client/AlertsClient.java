@@ -6,56 +6,34 @@
 package org.elasticsearch.alerts.client;
 
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.alerts.AlertManager;
-import org.elasticsearch.alerts.actions.AlertActionManager;
-import org.elasticsearch.alerts.transport.actions.index.*;
 import org.elasticsearch.alerts.transport.actions.delete.*;
 import org.elasticsearch.alerts.transport.actions.get.*;
+import org.elasticsearch.alerts.transport.actions.index.*;
 import org.elasticsearch.alerts.transport.actions.stats.*;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.Headers;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class AlertsClient implements AlertsClientInterface {
 
     private final Headers headers;
-    private final Map<GenericAction, TransportAction> internalActions;
     private final ThreadPool threadPool;
+    private final ImmutableMap<GenericAction, TransportAction> internalActions;
 
     @Inject
-    public AlertsClient(ThreadPool threadPool,
-                        Settings settings,
-                        Headers headers,
-                        ActionFilters filters,
-                        TransportService transportService, ClusterService clusterService, AlertManager alertManager,
-                        Client client, AlertActionManager alertActionManager) {
+    public AlertsClient(ThreadPool threadPool, Headers headers, TransportIndexAlertAction transportIndexAlertAction,
+                        TransportGetAlertAction transportGetAlertAction, TransportDeleteAlertAction transportDeleteAlertAction,
+                        TransportAlertStatsAction transportAlertStatsAction) {
         this.headers = headers;
-        internalActions = new HashMap<>();
         this.threadPool = threadPool;
-
-        internalActions.put(IndexAlertAction.INSTANCE, new TransportIndexAlertAction(settings,
-                IndexAlertAction.NAME, transportService, clusterService, threadPool, filters, alertManager));
-
-        internalActions.put(GetAlertAction.INSTANCE, new TransportGetAlertAction(settings,
-                GetAlertAction.NAME, threadPool, filters, client));
-
-        internalActions.put(DeleteAlertAction.INSTANCE, new TransportDeleteAlertAction(settings,
-                DeleteAlertAction.NAME, transportService, clusterService, threadPool, filters, alertManager));
-
-        internalActions.put(AlertsStatsAction.INSTANCE, new TransportAlertStatsAction(settings,
-                AlertsStatsAction.NAME, transportService, clusterService, threadPool, filters, alertManager,
-                alertActionManager));
-
-
+        internalActions = ImmutableMap.<GenericAction, TransportAction>builder()
+                .put(IndexAlertAction.INSTANCE, transportIndexAlertAction)
+                .put(GetAlertAction.INSTANCE, transportGetAlertAction)
+                .put(DeleteAlertAction.INSTANCE, transportDeleteAlertAction)
+                .put(AlertsStatsAction.INSTANCE, transportAlertStatsAction)
+                .build();
     }
 
     @Override

@@ -24,7 +24,6 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
@@ -35,10 +34,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, enableRandomBenchNodes = false)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, enableRandomBenchNodes = false, numClientNodes = 0)
 public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegrationTest {
 
     private static int randomPort = -1;
@@ -47,7 +43,7 @@ public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegr
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         if (randomPort == -1) {
-            randomPort = randomIntBetween(1025, 65000);
+            randomPort = randomIntBetween(49152, 65525);
             randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort+10);
         }
         return settingsBuilder()
@@ -61,14 +57,13 @@ public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegr
     }
 
     @Test
-    @Network
     public void testThatTransportClientCanConnect() throws Exception {
         Settings settings = settingsBuilder()
                 .put("cluster.name", internalCluster().getClusterName())
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName())
                 .build();
-        try (TransportClient transportClient = new TransportClient(settings)) {
-            transportClient.addTransportAddress(new InetSocketTransportAddress("localhost", randomPort));
+        try (TransportClient transportClient = new TransportClient(settings, false)) {
+            transportClient.addTransportAddress(new InetSocketTransportAddress("127.0.0.1", randomPort));
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();
             assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));
         }

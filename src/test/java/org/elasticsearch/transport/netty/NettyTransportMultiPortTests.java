@@ -31,7 +31,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
-import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Test;
@@ -47,9 +46,6 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 1)
 public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
 
@@ -135,7 +131,6 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
     }
 
     @Test
-    @Network
     public void testThatBindingOnDifferentHostsWorks() throws Exception {
         int[] ports = getRandomPorts(2);
         InetAddress firstNonLoopbackAddress = NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv4);
@@ -155,15 +150,13 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
         assertConnectionRefused(ports[1]);
     }
 
-    // TODO, make sure one can check more settings and that they are applied correctly
-
     private int[] getRandomPorts(int numberOfPorts) {
         IntOpenHashSet ports = new IntOpenHashSet();
 
         for (int i = 0; i < numberOfPorts; i++) {
-            int port = randomIntBetween(1025, 65000);
+            int port = randomIntBetween(49152, 65535);
             while (ports.contains(port)) {
-                port = randomIntBetween(1025, 65000);
+                port = randomIntBetween(49152, 65535);
             }
             ports.add(port);
         }

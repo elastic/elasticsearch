@@ -23,20 +23,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 public class TriggerManager extends AbstractComponent {
 
-
     private static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.Defaults.DATE_TIME_FORMATTER;
 
-    private volatile ImmutableOpenMap<String, TriggerFactory> triggersImplemented;
     private final Client client;
     private final String fireTimePlaceHolder;
     private final String scheduledFireTimePlaceHolder;
-
+    private volatile ImmutableOpenMap<String, TriggerFactory> triggersImplemented;
 
     @Inject
     public TriggerManager(Settings settings, Client client, ScriptService scriptService) {
@@ -60,11 +60,10 @@ public class TriggerManager extends AbstractComponent {
                 .build();
     }
 
-
     /**
      * Reads the contents of parser to create the correct Trigger
      * @param parser The parser containing the trigger definition
-     * @return
+     * @return a new AlertTrigger instance from the parser
      * @throws IOException
      */
     public AlertTrigger instantiateAlertTrigger(XContentParser parser) throws IOException {
@@ -103,7 +102,13 @@ public class TriggerManager extends AbstractComponent {
         }
 
         SearchResponse response = client.search(request).actionGet(); // actionGet deals properly with InterruptedException
-        logger.debug("Ran alert [{}] and got hits : [{}]", alert.alertName(), response.getHits().getTotalHits());
+        if (logger.isDebugEnabled()) {
+            logger.debug("Ran alert [{}] and got hits : [{}]", alert.alertName(), response.getHits().getTotalHits());
+            for (SearchHit hit : response.getHits()) {
+                logger.debug("Hit: {}", XContentHelper.toString(hit));
+            }
+
+        }
         return isTriggered(alert.trigger(), request, response);
     }
 
@@ -135,26 +140,27 @@ public class TriggerManager extends AbstractComponent {
         } else if (Strings.hasLength(alert.getSearchRequest().templateSource())) {
             Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(alert.getSearchRequest().templateSource(), false);
             Map<String, Object> templateSourceAsMap = tuple.v2();
-            Map<String, Object> templateObject = (Map<String, Object>) templateSourceAsMap.get("template");
-            if (templateObject != null) {
-                Map<String, Object> params = (Map<String, Object>) templateObject.get("params");
-                params.put("scheduled_fire_time", dateTimeFormatter.printer().print(scheduledFireTime));
-                params.put("fire_time", dateTimeFormatter.printer().print(fireTime));
-
-                XContentBuilder builder = XContentFactory.contentBuilder(tuple.v1());
-                builder.map(templateSourceAsMap);
-                triggerSearchRequest.templateSource(builder.bytes(), false);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> params = (Map<String, Object>) templateSourceAsMap.get("params");
+            if (params == null) {
+                templateSourceAsMap.put("params", params = new HashMap<>());
             }
+            params.put("SCHEDULED_FIRE_TIME", dateTimeFormatter.printer().print(scheduledFireTime));
+            params.put("FIRE_TIME", dateTimeFormatter.printer().print(fireTime));
+            XContentBuilder builder = XContentFactory.contentBuilder(tuple.v1());
+            builder.map(templateSourceAsMap);
+            triggerSearchRequest.templateSource(builder.bytes(), false);
         } else if (alert.getSearchRequest().templateName() != null) {
             MapBuilder<String, String> templateParams = MapBuilder.newMapBuilder(alert.getSearchRequest().templateParams())
-                    .put("scheduled_fire_time", dateTimeFormatter.printer().print(scheduledFireTime))
-                    .put("fire_time", dateTimeFormatter.printer().print(fireTime));
+                    .put("SCHEDULED_FIRE_TIME", dateTimeFormatter.printer().print(scheduledFireTime))
+                    .put("FIRE_TIME", dateTimeFormatter.printer().print(fireTime));
             triggerSearchRequest.templateParams(templateParams.map());
+            triggerSearchRequest.templateName(alert.getSearchRequest().templateName());
+            triggerSearchRequest.templateType(alert.getSearchRequest().templateType());
         } else {
             throw new ElasticsearchIllegalStateException("Search requests needs either source, template source or template name");
         }
         return triggerSearchRequest;
     }
-
 
 }

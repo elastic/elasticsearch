@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,11 +54,17 @@ public final class AlertUtils {
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
+                XContentBuilder builder;
                 switch (searchRequestFieldName) {
                     case "body":
-                        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+                        builder = XContentBuilder.builder(parser.contentType().xContent());
                         builder.copyCurrentStructure(parser);
                         searchRequest.source(builder);
+                        break;
+                    case "template_source":
+                        builder = XContentBuilder.builder(parser.contentType().xContent());
+                        builder.copyCurrentStructure(parser);
+                        searchRequest.templateSource(builder.bytes(), false);
                         break;
                     default:
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
@@ -66,6 +73,9 @@ public final class AlertUtils {
                 switch (searchRequestFieldName) {
                     case "template_name":
                         searchRequest.templateName(parser.textOrNull());
+                        break;
+                    case "template_type":
+                        searchRequest.templateType(readScriptType(parser.textOrNull()));
                         break;
                     default:
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
@@ -80,13 +90,19 @@ public final class AlertUtils {
     /**
      * Writes the searchRequest to the specified builder.
      */
-    public static void writeSearchRequest(SearchRequest searchRequest, XContentBuilder builder) throws IOException {
+    public static void writeSearchRequest(SearchRequest searchRequest, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         if (Strings.hasLength(searchRequest.source())) {
-            XContentHelper.writeRawField("body", searchRequest.source(), builder, ToXContent.EMPTY_PARAMS);
+            XContentHelper.writeRawField("body", searchRequest.source(), builder, params);
         }
         if (searchRequest.templateName() != null) {
             builder.field("template_name", searchRequest.templateName());
+        }
+        if (searchRequest.templateType() != null) {
+            builder.field("template_type", writeScriptType(searchRequest.templateType()));
+        }
+        if (Strings.hasLength(searchRequest.templateSource())) {
+            XContentHelper.writeRawField("template_source", searchRequest.templateSource(), builder, params);
         }
         builder.startArray("indices");
         for (String index : searchRequest.indices()) {
@@ -94,6 +110,32 @@ public final class AlertUtils {
         }
         builder.endArray();
         builder.endObject();
+    }
+
+    private static ScriptService.ScriptType readScriptType(String value) {
+        switch (value) {
+            case "indexed":
+                return ScriptService.ScriptType.INDEXED;
+            case "inline":
+                return ScriptService.ScriptType.INLINE;
+            case "file":
+                return ScriptService.ScriptType.FILE;
+            default:
+                throw new ElasticsearchIllegalArgumentException("Unknown script_type value [" + value + "]");
+        }
+    }
+
+    private static String writeScriptType(ScriptService.ScriptType value) {
+        switch (value) {
+            case INDEXED:
+                return "indexed";
+            case INLINE:
+                return "inline";
+            case FILE:
+                return "file";
+            default:
+                throw new ElasticsearchIllegalArgumentException("Illegal script_type value [" + value + "]");
+        }
     }
 
 }

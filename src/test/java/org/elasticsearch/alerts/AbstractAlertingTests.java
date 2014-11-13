@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
@@ -76,7 +77,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         builder.field("enable", true);
 
         builder.field("request");
-        AlertUtils.writeSearchRequest(request, builder);
+        AlertUtils.writeSearchRequest(request, builder, ToXContent.EMPTY_PARAMS);
 
         builder.startObject("trigger");
         builder.startObject("script");
@@ -132,15 +133,6 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                 IndexRoutingTable routingTable = state.getRoutingTable().index(AlertActionManager.ALERT_HISTORY_INDEX);
                 assertThat(routingTable, notNullValue());
                 assertThat(routingTable.allPrimaryShardsActive(), is(true));
-
-//                SearchResponse k = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX)
-//                        .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-//                        .setQuery(boolQuery().must(matchQuery("alert_name", alertName)))
-//                        .get();
-//                System.out.println("KK: " + k.getHits().getTotalHits());
-//                for (SearchHit hit : k.getHits()) {
-//                    System.out.println("Hit " + XContentHelper.toString(hit));
-//                }
 
                 SearchResponse searchResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX)
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())

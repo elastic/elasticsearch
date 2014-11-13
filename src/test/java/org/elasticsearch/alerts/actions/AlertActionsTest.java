@@ -103,7 +103,7 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         SearchRequest searchRequest = new SearchRequest("test123");
         searchRequest.writeTo(out);
         builder.field(AlertActionManager.REQUEST);
-        AlertUtils.writeSearchRequest(searchRequest, builder);
+        AlertUtils.writeSearchRequest(searchRequest, builder, ToXContent.EMPTY_PARAMS);
         SearchResponse searchResponse = new SearchResponse(
                 new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 10, 0), null, null, null, false, false),
                 null, 1, 1, 0, new ShardSearchFailure[0]

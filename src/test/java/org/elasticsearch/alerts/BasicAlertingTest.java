@@ -7,12 +7,12 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.client.AlertsClientInterface;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -119,67 +119,77 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         }
     }
 
-    @Test
-    public void testTriggerSearch() throws Exception {
-        assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true", "event_type", "type=string"));
+    private final SearchSourceBuilder searchSourceBuilder = searchSource().query(
+            filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{SCHEDULED_FIRE_TIME}}||-30s").to("{{SCHEDULED_FIRE_TIME}}"))
+    );
 
-        SearchSourceBuilder searchSource = searchSource().query(
-                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{SCHEDULED_FIRE_TIME}}||-30s").to("{{SCHEDULED_FIRE_TIME}}"))
+    @Test
+    public void testTriggerSearchWithSourceSubstituted() throws Exception {
+        testTriggerSearch(
+                new SearchRequest("my-index").source(searchSourceBuilder)
         );
+    }
+
+    @Test
+    public void testTriggerSearchWithTemplateSource() throws Exception {
+        testTriggerSearch(
+                new SearchRequest("my-index")
+                        .templateSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().string())
+        );
+    }
+
+    @Test
+    public void testTriggerSearchWithIndexedTemplate() throws Exception {
         client().preparePutIndexedScript()
                 .setScriptLang("mustache")
                 .setId("my-template")
-                .setSource(jsonBuilder().startObject().field("template").value(searchSource).endObject())
+                .setSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject())
+                .get();
+        SearchRequest searchRequest = new SearchRequest("my-index");
+        searchRequest.templateName("my-template");
+        searchRequest.templateType(ScriptService.ScriptType.INDEXED);
+        testTriggerSearch(searchRequest);
+    }
+
+    private void testTriggerSearch(SearchRequest request) throws Exception {
+        long scheduleTimeInMs = 5000;
+        String alertName = "red-alert";
+        assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true", "event_type", "type=string"));
+
+        alertClient().prepareDeleteAlert(alertName).get();
+        alertClient().prepareIndexAlert(alertName)
+                .setAlertSource(createAlertSource(String.format("0/%s * * * * ? *", (scheduleTimeInMs / 1000)), request, "return hits.total >= 3"))
                 .get();
 
-        String alertName = "red-alert";
-        long scheduleTimeInMs = 5000;
-        SearchRequest[] searchRequests = new SearchRequest[]{
-                new SearchRequest("my-index").source(searchSource)
-//                client().prepareSearch("my-index").setTemplateName("my-template").request()
-                // TODO: add template source based search requests
-        };
+        long time1 = System.currentTimeMillis();
+        client().prepareIndex("my-index", "my-type")
+                .setCreate(true)
+                .setSource("event_type", "a")
+                .get();
+        client().prepareIndex("my-index", "my-type")
+                .setCreate(true)
+                .setSource("event_type", "a")
+                .get();
+        long timeLeft = scheduleTimeInMs - (System.currentTimeMillis() - time1);
+        Thread.sleep(timeLeft);
+        assertNoAlertTrigger(alertName, 1);
 
-        for (SearchRequest request : searchRequests) {
-            logger.info("Running: {}", request);
-            // A clean start. no data to trigger on and alert actions
-            cluster().wipeIndices(AlertActionManager.ALERT_HISTORY_INDEX, "my-index");
+        time1 = System.currentTimeMillis();
+        client().prepareIndex("my-index", "my-type")
+                .setCreate(true)
+                .setSource("event_type", "b")
+                .get();
+        timeLeft = scheduleTimeInMs - (System.currentTimeMillis() - time1);
+        Thread.sleep(timeLeft);
+        assertNoAlertTrigger(alertName, 2);
 
-            alertClient().prepareDeleteAlert(alertName).get();
-            alertClient().prepareIndexAlert(alertName)
-                    .setAlertSource(createAlertSource(String.format("0/%s * * * * ? *", (scheduleTimeInMs / 1000)), request, "return hits.total >= 3"))
-                    .get();
-
-            long time1 = System.currentTimeMillis();
-            client().prepareIndex("my-index", "my-type")
-                    .setCreate(true)
-                    .setSource("event_type", "a")
-                    .get();
-            client().prepareIndex("my-index", "my-type")
-                    .setCreate(true)
-                    .setSource("event_type", "a")
-                    .get();
-            long timeLeft = scheduleTimeInMs - (System.currentTimeMillis() - time1);
-            Thread.sleep(timeLeft);
-            assertNoAlertTrigger(alertName, 1);
-
-            time1 = System.currentTimeMillis();
-            client().prepareIndex("my-index", "my-type")
-                    .setCreate(true)
-                    .setSource("event_type", "b")
-                    .get();
-            timeLeft = scheduleTimeInMs - (System.currentTimeMillis() - time1);
-            Thread.sleep(timeLeft);
-            assertNoAlertTrigger(alertName, 2);
-
-            time1 = System.currentTimeMillis();
-            client().prepareIndex("my-index", "my-type")
-                    .setCreate(true)
-                    .setSource("event_type", "a")
-                    .get();
-            timeLeft = scheduleTimeInMs - (System.currentTimeMillis() - time1);
-            Thread.sleep(timeLeft);
-            assertAlertTriggered(alertName, 1);
-        }
+        time1 = System.currentTimeMillis();
+        client().prepareIndex("my-index", "my-type")
+                .setCreate(true)
+                .setSource("event_type", "a")
+                .get();
+        timeLeft = scheduleTimeInMs - (System.currentTimeMillis() - time1);
+        Thread.sleep(timeLeft);
+        assertAlertTriggered(alertName, 1);
     }
 }

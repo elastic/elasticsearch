@@ -47,7 +47,7 @@ public class Alert implements ToXContent {
         builder.field(AlertsStore.SCHEDULE_FIELD.getPreferredName(), schedule);
         builder.field(AlertsStore.ENABLE.getPreferredName(), enabled);
         builder.field(AlertsStore.REQUEST_FIELD.getPreferredName());
-        AlertUtils.writeSearchRequest(searchRequest, builder);
+        AlertUtils.writeSearchRequest(searchRequest, builder, params);
         if (lastActionFire != null) {
             builder.field(AlertsStore.LAST_ACTION_FIRE.getPreferredName(), lastActionFire);
         }

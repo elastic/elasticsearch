@@ -195,7 +195,7 @@ public class AlertActionEntry implements ToXContent{
 
         if (searchRequest != null) {
             historyEntry.field("request");
-            AlertUtils.writeSearchRequest(searchRequest, historyEntry);
+            AlertUtils.writeSearchRequest(searchRequest, historyEntry, params);
         }
         if (searchResponse != null) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();

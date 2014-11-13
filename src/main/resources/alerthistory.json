@@ -30,8 +30,9 @@
         "errorMsg": {
           "type": "string"
         },
-        "request_binary" : {
-          "type" : "binary"
+        "request" : {
+          "type" : "object",
+          "dynamic" : true
         },
         "response_binary" : {
           "type" : "binary"

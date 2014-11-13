@@ -17,14 +17,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCluster;
@@ -78,19 +75,8 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         builder.field("schedule", cron);
         builder.field("enable", true);
 
-        builder.startObject("request");
-        if (Strings.hasLength(request.source())) {
-            XContentHelper.writeRawField("body", request.source(), builder, ToXContent.EMPTY_PARAMS);
-        }
-        if (request.templateName() != null) {
-            builder.field("template_name", request.templateName());
-        }
-        builder.startArray("indices");
-        for (String index : request.indices()) {
-            builder.value(index);
-        }
-        builder.endArray();
-        builder.endObject();
+        builder.field("request");
+        AlertUtils.writeSearchRequest(request, builder);
 
         builder.startObject("trigger");
         builder.startObject("script");

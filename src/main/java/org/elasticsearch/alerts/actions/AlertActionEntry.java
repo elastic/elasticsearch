@@ -8,6 +8,7 @@ package org.elasticsearch.alerts.actions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.AlertUtils;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.common.io.stream.DataOutputStreamOutput;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -192,14 +193,12 @@ public class AlertActionEntry implements ToXContent{
         historyEntry.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, scheduledTime.toDateTimeISO());
         historyEntry.field("trigger", trigger, params);
 
-        ByteArrayOutputStream out;
         if (searchRequest != null) {
-            out = new ByteArrayOutputStream();
-            searchRequest.writeTo(new DataOutputStreamOutput(new DataOutputStream(out)));
-            historyEntry.field("request_binary", out.toByteArray());
+            historyEntry.field("request");
+            AlertUtils.writeSearchRequest(searchRequest, historyEntry);
         }
         if (searchResponse != null) {
-            out = new ByteArrayOutputStream();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
             searchResponse.writeTo(new DataOutputStreamOutput(new DataOutputStream(out)));
             historyEntry.field("response_binary", out.toByteArray());
             // Serializing it as xcontent allows the search response to be encapsulated in a doc as a json object

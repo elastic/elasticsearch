@@ -45,8 +45,8 @@ public class TriggerManager extends AbstractComponent {
         triggersImplemented = ImmutableOpenMap.<String, TriggerFactory>builder()
                 .fPut("script", new ScriptedTriggerFactory(scriptService))
                 .build();
-        this.fireTimePlaceHolder = settings.get("prefix", "<<<FIRE_TIME>>>");
-        this.scheduledFireTimePlaceHolder = settings.get("postfix", "<<<SCHEDULED_FIRE_TIME>>>");
+        this.fireTimePlaceHolder = settings.get("prefix", "{{FIRE_TIME}}");
+        this.scheduledFireTimePlaceHolder = settings.get("postfix", "{{SCHEDULED_FIRE_TIME}}");
     }
 
     /**

@@ -122,21 +122,20 @@ public class BasicAlertingTest extends AbstractAlertingTests {
     @Test
     public void testTriggerSearch() throws Exception {
         assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true", "event_type", "type=string"));
+
+        SearchSourceBuilder searchSource = searchSource().query(
+                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{SCHEDULED_FIRE_TIME}}||-30s").to("{{SCHEDULED_FIRE_TIME}}"))
+        );
         client().preparePutIndexedScript()
                 .setScriptLang("mustache")
                 .setId("my-template")
-                .setSource(jsonBuilder().startObject().field("template").value(SearchSourceBuilder.searchSource().query(
-                        filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{SCHEDULED_FIRE_TIME}}||-30s").to("{{SCHEDULED_FIRE_TIME}}"))
-                )).endObject())
+                .setSource(jsonBuilder().startObject().field("template").value(searchSource).endObject())
                 .get();
 
         String alertName = "red-alert";
         long scheduleTimeInMs = 5000;
         SearchRequest[] searchRequests = new SearchRequest[]{
-                new SearchRequest("my-index").source(searchSource().query(
-                                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("<<<SCHEDULED_FIRE_TIME>>>||-30s").to("<<<SCHEDULED_FIRE_TIME>>>"))
-                        )
-                )
+                new SearchRequest("my-index").source(searchSource)
 //                client().prepareSearch("my-index").setTemplateName("my-template").request()
                 // TODO: add template source based search requests
         };

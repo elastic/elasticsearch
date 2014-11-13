@@ -17,6 +17,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -39,7 +40,6 @@ import java.util.Random;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
@@ -79,7 +79,12 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         builder.field("enable", true);
 
         builder.startObject("request");
-        XContentHelper.writeRawField("body", request.source(), builder, ToXContent.EMPTY_PARAMS);
+        if (Strings.hasLength(request.source())) {
+            XContentHelper.writeRawField("body", request.source(), builder, ToXContent.EMPTY_PARAMS);
+        }
+        if (request.templateName() != null) {
+            builder.field("template_name", request.templateName());
+        }
         builder.startArray("indices");
         for (String index : request.indices()) {
             builder.value(index);
@@ -107,7 +112,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         return internalTestCluster().getInstance(AlertsClient.class);
     }
 
-    protected void assertAlertTriggered(final String alertName) throws Exception {
+    protected void assertAlertTriggered(final String alertName, final long expectedAlertActionsWithActionPerformed) throws Exception {
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -123,15 +128,14 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", AlertActionState.ACTION_PERFORMED.toString())))
                         .addField("response.hits.total")
-                        .setSize(1)
                         .get();
-                assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+                assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(expectedAlertActionsWithActionPerformed));
                 assertThat((Integer) searchResponse.getHits().getAt(0).field("response.hits.total").getValue(), greaterThanOrEqualTo(1));
             }
         });
     }
 
-    protected void assertNoAlertTrigger(final String alertName) throws Exception {
+    protected void assertNoAlertTrigger(final String alertName, final long expectedAlertActionsWithNoActionNeeded) throws Exception {
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -143,12 +147,20 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                 assertThat(routingTable, notNullValue());
                 assertThat(routingTable.allPrimaryShardsActive(), is(true));
 
+//                SearchResponse k = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX)
+//                        .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+//                        .setQuery(boolQuery().must(matchQuery("alert_name", alertName)))
+//                        .get();
+//                System.out.println("KK: " + k.getHits().getTotalHits());
+//                for (SearchHit hit : k.getHits()) {
+//                    System.out.println("Hit " + XContentHelper.toString(hit));
+//                }
+
                 SearchResponse searchResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX)
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", AlertActionState.NO_ACTION_NEEDED.toString())))
-                        .setSize(1)
                         .get();
-                assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+                assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(expectedAlertActionsWithNoActionNeeded));
             }
         });
     }

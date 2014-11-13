@@ -13,11 +13,9 @@ import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
@@ -43,7 +41,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         alertsClient.prepareIndexAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
-        assertAlertTriggered("my-first-alert");
+        assertAlertTriggered("my-first-alert", 1);
     }
 
     @Test
@@ -56,11 +54,11 @@ public class BasicAlertingTest extends AbstractAlertingTests {
                 .get();
 
         // The alert can't trigger because there is no data that matches with the query
-        assertNoAlertTrigger("my-first-alert");
+        assertNoAlertTrigger("my-first-alert", 1);
 
         // Index sample doc after we register the alert and the alert should get triggered
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        assertAlertTriggered("my-first-alert");
+        assertAlertTriggered("my-first-alert", 1);
     }
 
     @Test
@@ -123,22 +121,31 @@ public class BasicAlertingTest extends AbstractAlertingTests {
 
     @Test
     public void testTriggerSearch() throws Exception {
-        assertAcked(prepareCreate("my-index")
-                .addMapping("my-type", "_timestamp", "enabled=true", "event_type", "type=string"));
+        assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true", "event_type", "type=string"));
+        client().preparePutIndexedScript()
+                .setScriptLang("mustache")
+                .setId("my-template")
+                .setSource(jsonBuilder().startObject().field("template").value(SearchSourceBuilder.searchSource().query(
+                        filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{SCHEDULED_FIRE_TIME}}||-30s").to("{{SCHEDULED_FIRE_TIME}}"))
+                )).endObject())
+                .get();
 
         String alertName = "red-alert";
         long scheduleTimeInMs = 5000;
-        List<SearchRequest> searchRequests = new ArrayList<>();
-        searchRequests.add(
-                new SearchRequest("my-index")
-                    .source(searchSource().query(
-                            filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("<<<SCHEDULED_FIRE_TIME>>>||-30s").to("<<<SCHEDULED_FIRE_TIME>>>"))
-                    )
+        SearchRequest[] searchRequests = new SearchRequest[]{
+                new SearchRequest("my-index").source(searchSource().query(
+                                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("<<<SCHEDULED_FIRE_TIME>>>||-30s").to("<<<SCHEDULED_FIRE_TIME>>>"))
+                        )
                 )
-                // TODO: add template based search requests
-        );
+//                client().prepareSearch("my-index").setTemplateName("my-template").request()
+                // TODO: add template source based search requests
+        };
 
         for (SearchRequest request : searchRequests) {
+            logger.info("Running: {}", request);
+            // A clean start. no data to trigger on and alert actions
+            cluster().wipeIndices(AlertActionManager.ALERT_HISTORY_INDEX, "my-index");
+
             alertClient().prepareDeleteAlert(alertName).get();
             alertClient().prepareIndexAlert(alertName)
                     .setAlertSource(createAlertSource(String.format("0/%s * * * * ? *", (scheduleTimeInMs / 1000)), request, "return hits.total >= 3"))
@@ -155,8 +162,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
                     .get();
             long timeLeft = scheduleTimeInMs - (System.currentTimeMillis() - time1);
             Thread.sleep(timeLeft);
-            assertNoAlertTrigger(alertName);
-            cluster().wipeIndices(AlertActionManager.ALERT_HISTORY_INDEX);
+            assertNoAlertTrigger(alertName, 1);
 
             time1 = System.currentTimeMillis();
             client().prepareIndex("my-index", "my-type")
@@ -165,7 +171,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
                     .get();
             timeLeft = scheduleTimeInMs - (System.currentTimeMillis() - time1);
             Thread.sleep(timeLeft);
-            assertNoAlertTrigger(alertName);
+            assertNoAlertTrigger(alertName, 2);
 
             time1 = System.currentTimeMillis();
             client().prepareIndex("my-index", "my-type")
@@ -174,7 +180,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
                     .get();
             timeLeft = scheduleTimeInMs - (System.currentTimeMillis() - time1);
             Thread.sleep(timeLeft);
-            assertAlertTriggered(alertName);
+            assertAlertTriggered(alertName, 1);
         }
     }
 }

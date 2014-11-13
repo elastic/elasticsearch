@@ -297,6 +297,14 @@ public class AlertsStore extends AbstractComponent {
                                     default:
                                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
                                 }
+                            } else if (token.isValue()) {
+                                switch (searchRequestFieldName) {
+                                    case "template_name":
+                                        searchRequest.templateName(parser.textOrNull());
+                                        break;
+                                    default:
+                                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
+                                }
                             } else {
                                 throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
                             }

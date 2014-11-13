@@ -107,7 +107,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
                 if (topLevelFields == null) {
                     topLevelFields = termVectorsByField;
                 }
-                if (useDfs(request)) {
+                if (termVectorsByField != null && useDfs(request)) {
                     dfs = getAggregatedDfs(termVectorsByField, request);
                 }
                 termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs);
@@ -127,7 +127,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
                 if (selectedFields != null) {
                     termVectorsByField = addGeneratedTermVectors(get, termVectorsByField, request, selectedFields);
                 }
-                if (useDfs(request)) {
+                if (termVectorsByField != null && useDfs(request)) {
                     dfs = getAggregatedDfs(termVectorsByField, request);
                 }
                 termVectorResponse.setFields(termVectorsByField, request.selectedFields(), request.getFlags(), topLevelFields, dfs);

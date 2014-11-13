@@ -90,8 +90,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
 
         ensureYellow();
 
-        // when indexing a field that simply has a question mark, the term
-        // vectors will be null
+        // when indexing a field that simply has a question mark, the term vectors will be null
         client().prepareIndex("test", "type1", "0").setSource("existingfield", "?").execute().actionGet();
         refresh();
         ActionFuture<TermVectorResponse> termVector = client().termVector(new TermVectorRequest(indexOrAlias(), "type1", "0")
@@ -119,12 +118,14 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
 
         ensureYellow();
 
-        // when indexing a field that simply has a question mark, the term
-        // vectors will be null
+        // when indexing a field that simply has a question mark, the term vectors will be null
         client().prepareIndex("test", "type1", "0").setSource("anotherexistingfield", 1).execute().actionGet();
         refresh();
         ActionFuture<TermVectorResponse> termVector = client().termVector(new TermVectorRequest(indexOrAlias(), "type1", "0")
-                .selectedFields(new String[]{"existingfield"}));
+                .selectedFields(randomBoolean() ? new String[]{"existingfield"} : null)
+                .termStatistics(true)
+                .fieldStatistics(true)
+                .dfs(true));
 
         // lets see if the null term vectors are caught...
         TermVectorResponse actionGet = termVector.actionGet();

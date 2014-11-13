@@ -587,10 +587,6 @@ this would typically be too costly in terms of RAM.
 [[search-aggregations-bucket-terms-aggregation-execution-hint]]
 ==== Execution hint
 
-Added the `global_ordinals`, `global_ordinals_hash` and `global_ordinals_low_cardinality` execution modes
-
-Removed the `ordinals` execution mode
-
 There are different mechanisms by which terms aggregations can be executed:
 
  - by using field values directly in order to aggregate data per-bucket (`map`)

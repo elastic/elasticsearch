@@ -10,10 +10,8 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.actions.AlertAction;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
 import org.elasticsearch.alerts.triggers.TriggerManager;
@@ -25,20 +23,17 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -57,7 +52,6 @@ public class AlertsStore extends AbstractComponent {
     public static final ParseField ACTION_FIELD = new ParseField("actions");
     public static final ParseField LAST_ACTION_FIRE = new ParseField("last_action_fire");
     public static final ParseField ENABLE = new ParseField("enable");
-    public static final ParseField REQUEST_BINARY_FIELD = new ParseField("request_binary");
     public static final ParseField REQUEST_FIELD = new ParseField("request");
 
     private final Client client;
@@ -265,51 +259,7 @@ public class AlertsStore extends AbstractComponent {
                         List<AlertAction> actions = alertActionRegistry.instantiateAlertActions(parser);
                         alert.actions(actions);
                     } else if (REQUEST_FIELD.match(currentFieldName)) {
-                        String searchRequestFieldName = null;
-                        SearchRequest searchRequest = new SearchRequest();
-                        searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen()); // TODO: make options configurable
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                searchRequestFieldName = parser.currentName();
-                            } else if (token == XContentParser.Token.START_ARRAY) {
-                                switch (searchRequestFieldName) {
-                                    case "indices":
-                                        List<String> indices = new ArrayList<>();
-                                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                            if (token == XContentParser.Token.VALUE_STRING) {
-                                                indices.add(parser.textOrNull());
-                                            } else {
-                                                throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
-                                            }
-                                        }
-                                        searchRequest.indices(indices.toArray(new String[indices.size()]));
-                                        break;
-                                    default:
-                                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
-                                }
-                            } else if (token == XContentParser.Token.START_OBJECT) {
-                                switch (searchRequestFieldName) {
-                                    case "body":
-                                        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
-                                        builder.copyCurrentStructure(parser);
-                                        searchRequest.source(builder);
-                                        break;
-                                    default:
-                                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
-                                }
-                            } else if (token.isValue()) {
-                                switch (searchRequestFieldName) {
-                                    case "template_name":
-                                        searchRequest.templateName(parser.textOrNull());
-                                        break;
-                                    default:
-                                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
-                                }
-                            } else {
-                                throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
-                            }
-                        }
-                        alert.setSearchRequest(searchRequest);
+                        alert.setSearchRequest(AlertUtils.readSearchRequest(parser));
                     } else {
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
@@ -320,10 +270,6 @@ public class AlertsStore extends AbstractComponent {
                         alert.enabled(parser.booleanValue());
                     } else if (LAST_ACTION_FIRE.match(currentFieldName)) {
                         alert.lastActionFire(DateTime.parse(parser.textOrNull()));
-                    } else if (REQUEST_BINARY_FIELD.match(currentFieldName)) {
-                        SearchRequest searchRequest = new SearchRequest();
-                        searchRequest.readFrom(new BytesStreamInput(parser.binaryValue(), false));
-                        alert.setSearchRequest(searchRequest);
                     } else {
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }

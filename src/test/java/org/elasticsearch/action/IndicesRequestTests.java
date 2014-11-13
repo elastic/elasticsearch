@@ -85,10 +85,10 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.action.termvector.MultiTermVectorsAction;
-import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvector.TermVectorAction;
-import org.elasticsearch.action.termvector.TermVectorRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsAction;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -327,14 +327,14 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testTermVector() {
-        String termVectorShardAction = TermVectorAction.NAME + "[s]";
+        String termVectorShardAction = TermVectorsAction.NAME + "[s]";
         interceptTransportActions(termVectorShardAction);
 
-        TermVectorRequest termVectorRequest = new TermVectorRequest(randomIndexOrAlias(), "type", "id");
-        internalCluster().clientNodeClient().termVector(termVectorRequest).actionGet();
+        TermVectorsRequest termVectorsRequest = new TermVectorsRequest(randomIndexOrAlias(), "type", "id");
+        internalCluster().clientNodeClient().termVectors(termVectorsRequest).actionGet();
 
         clearInterceptedActions();
-        assertSameIndices(termVectorRequest, termVectorShardAction);
+        assertSameIndices(termVectorsRequest, termVectorShardAction);
     }
 
     @Test

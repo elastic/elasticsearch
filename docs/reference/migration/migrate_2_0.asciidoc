@@ -52,3 +52,7 @@ In addition, the following node settings related to routing have been deprecated
 === Store
 
 The `memory` / `ram` store (`index.store.type`) option was removed in Elasticsearch 2.0.
+
+=== Term Vectors API
+
+Usage of `/_termvector` is deprecated, and replaced in favor of `/_termvectors`.

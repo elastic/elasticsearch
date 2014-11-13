@@ -69,8 +69,8 @@ import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvector.TermVectorRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
@@ -1847,7 +1847,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         @Override
         public Fields[] fetch(MultiTermVectorsRequest items) throws IOException {
             List<Fields> likeTexts = new ArrayList<>();
-            for (TermVectorRequest item : items) {
+            for (TermVectorsRequest item : items) {
                 likeTexts.add(generateFields(item.selectedFields().toArray(Strings.EMPTY_ARRAY), item.id()));
             }
             return likeTexts.toArray(Fields.EMPTY_ARRAY);

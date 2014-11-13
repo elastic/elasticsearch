@@ -28,7 +28,7 @@ import org.elasticsearch.action.bench.BenchmarkAction;
 import org.elasticsearch.action.bench.BenchmarkService;
 import org.elasticsearch.action.bench.BenchmarkStatusAction;
 import org.elasticsearch.action.exists.ExistsAction;
-import org.elasticsearch.action.termvector.dfs.TransportDfsOnlyAction;
+import org.elasticsearch.action.termvectors.dfs.TransportDfsOnlyAction;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;

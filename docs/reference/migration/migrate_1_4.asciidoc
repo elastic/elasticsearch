@@ -65,7 +65,7 @@ curl -XGET 'http://localhost:9200/_mappings'
 [float]
 === Bulk UDP
 
-<<docs-bulk-udp,Bulk UDP>> has been deprecated and will be removed in 2.0.
+Bulk UDP has been deprecated and will be removed in 2.0.
 You should use <<docs-bulk,the standard bulk API>> instead.
 Each cluster must have an elected master node in order to be fully operational. Once a node loses its elected master
 node it will reject some or all operations.

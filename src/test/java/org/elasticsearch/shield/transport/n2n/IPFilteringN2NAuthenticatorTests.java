@@ -17,9 +17,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,22 +39,18 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
         }
     };
 
-    @Rule
-    public TemporaryFolder temporaryFolder = new TemporaryFolder();
-
     private final Settings resourceWatcherServiceSettings = settingsBuilder()
             .put("watcher.interval.high", TimeValue.timeValueMillis(200))
             .build();
 
     private ResourceWatcherService resourceWatcherService;
     private File configFile;
-    private Settings settings;
     private IPFilteringN2NAuthenticator ipFilteringN2NAuthenticator;
     private ThreadPool threadPool;
 
     @Before
     public void init() throws Exception {
-        configFile = temporaryFolder.newFile();
+        configFile = newTempFile();
     }
 
     @After
@@ -155,7 +149,7 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
         Files.write(data.getBytes(Charsets.UTF_8), configFile);
         threadPool = new ThreadPool("resourceWatcher");
         resourceWatcherService = new ResourceWatcherService(resourceWatcherServiceSettings, threadPool).start();
-        settings = settingsBuilder().put("shield.transport.n2n.ip_filter.file", configFile.getPath()).build();
+        Settings settings = settingsBuilder().put("shield.transport.n2n.ip_filter.file", configFile.getPath()).build();
         ipFilteringN2NAuthenticator = new IPFilteringN2NAuthenticator(settings, new Environment(), resourceWatcherService);
     }
 

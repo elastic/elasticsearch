@@ -18,9 +18,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.net.InetSocketAddress;
@@ -34,15 +32,12 @@ import static org.hamcrest.Matchers.is;
  */
 public class N2NNettyUpstreamHandlerTests extends ElasticsearchTestCase {
 
-    @Rule
-    public TemporaryFolder temporaryFolder = new TemporaryFolder();
-
     private N2NNettyUpstreamHandler nettyUpstreamHandler;
     private ThreadPool threadPool;
 
     @Before
     public void init() throws Exception {
-        File configFile = temporaryFolder.newFile();
+        File configFile = newTempFile();
         threadPool = new ThreadPool("resourceWatcher");
         ResourceWatcherService resourceWatcherService = new ResourceWatcherService(ImmutableSettings.EMPTY, threadPool).start();
 

@@ -16,9 +16,7 @@ import org.elasticsearch.shield.authz.Privilege;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -37,9 +35,6 @@ import static org.mockito.Mockito.mock;
  *
  */
 public class FileRolesStoreTests extends ElasticsearchTestCase {
-
-    @Rule
-    public TemporaryFolder tempFolder = new TemporaryFolder();
 
     @Test
     public void testParseFile() throws Exception {
@@ -123,7 +118,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         ResourceWatcherService watcherService = null;
         try {
             Path users = Paths.get(getClass().getResource("roles.yml").toURI());
-            Path tmp = tempFolder.newFile().toPath();
+            Path tmp = newTempFile().toPath();
             Files.copy(users, Files.newOutputStream(tmp));
 
             Settings settings = ImmutableSettings.builder()
@@ -179,7 +174,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
 
     @Test
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
-        File file = tempFolder.newFile();
+        File file = newTempFile();
         com.google.common.io.Files.write("#".getBytes(Charsets.UTF_8), file);
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(file.toPath(), logger, mock(AuthorizationService.class));
         assertThat(roles.keySet(), is(empty()));
@@ -187,7 +182,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
 
     @Test(expected = ElasticsearchException.class)
     public void testThatInvalidYAMLThrowsElasticsearchException() throws Exception {
-        File file = tempFolder.newFile();
+        File file = newTempFile();
         com.google.common.io.Files.write("user: cluster: ALL indices: '*': ALL".getBytes(Charsets.UTF_8), file);
         FileRolesStore.parseFile(file.toPath(), logger, mock(AuthorizationService.class));
     }

@@ -30,7 +30,6 @@ import org.apache.directory.server.i18n.I18n;
 import org.apache.directory.server.ldap.LdapServer;
 import org.apache.directory.server.protocol.shared.store.LdifFileLoader;
 import org.apache.directory.server.protocol.shared.transport.TcpTransport;
-import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.net.URISyntaxException;

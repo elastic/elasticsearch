@@ -5,18 +5,17 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.junit.ClassRule;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TemporaryFolder;
 
 @Ignore
 @ThreadLeakFilters(defaultFilters = true, filters = { LdapTest.ApachedsThreadLeakFilter.class })
@@ -24,12 +23,23 @@ public abstract class LdapTest extends ElasticsearchTestCase {
 
     static String SETTINGS_PREFIX = LdapRealm.class.getPackage().getName().substring("com.elasticsearch.".length()) + '.';
 
-    private static final TemporaryFolder temporaryFolder = new TemporaryFolder();
+    private static ApacheDsEmbedded ldap;
 
-    protected static final ApacheDsRule apacheDsRule = new ApacheDsRule(temporaryFolder);
+    @BeforeClass
+    public static void startLdap() throws Exception {
+        ldap = new ApacheDsEmbedded("o=sevenSeas", "seven-seas.ldif", newTempDir(LifecycleScope.SUITE));
+        ldap.startServer();
+    }
 
-    @ClassRule
-    public static final RuleChain ruleChain = RuleChain.outerRule(temporaryFolder).around(apacheDsRule);
+    @AfterClass
+    public static void stopLdap() throws Exception {
+        ldap.stopAndCleanup();
+        ldap = null;
+    }
+
+    protected String ldapUrl() {
+        return ldap.getUrl();
+    }
 
     static Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, boolean isSubTreeSearch) {
         return buildLdapSettings( new String[]{ldapUrl}, new String[]{userTemplate}, groupSearchBase, isSubTreeSearch );

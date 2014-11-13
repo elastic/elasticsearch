@@ -15,9 +15,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.key.InternalKeyService;
 import org.elasticsearch.shield.plugin.ShieldPlugin;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -32,9 +30,6 @@ import static org.mockito.Mockito.when;
  *
  */
 public class SystemKeyToolTests extends CliToolTestCase {
-
-    @Rule
-    public TemporaryFolder tempFolder = new TemporaryFolder();
 
     private Terminal terminal;
     private Environment env;
@@ -55,8 +50,8 @@ public class SystemKeyToolTests extends CliToolTestCase {
 
     @Test
     public void testParse_FileArg() throws Exception {
-        Path path = tempFolder.newFile().toPath();
-        CliTool.Command cmd = new SystemKeyTool().parse("generate", args(path.toAbsolutePath().toString()));
+        Path path = newTempFile().toPath();
+        CliTool.Command cmd = new SystemKeyTool().parse("generate", new String[]{path.toAbsolutePath().toString()});
         assertThat(cmd, instanceOf(Generate.class));
         Generate generate = (Generate) cmd;
         assertThat(Files.isSameFile(generate.path, path), is(true));
@@ -64,7 +59,7 @@ public class SystemKeyToolTests extends CliToolTestCase {
 
     @Test
     public void testGenerate() throws Exception {
-        Path path = tempFolder.newFile().toPath();
+        Path path = newTempFile().toPath();
         Generate generate = new Generate(terminal, path);
         CliTool.ExitStatus status = generate.execute(ImmutableSettings.EMPTY, env);
         assertThat(status, is(CliTool.ExitStatus.OK));
@@ -74,7 +69,7 @@ public class SystemKeyToolTests extends CliToolTestCase {
 
     @Test
     public void testGenerate_PathInSettings() throws Exception {
-        Path path = tempFolder.newFile().toPath();
+        Path path = newTempFile().toPath();
         Settings settings = ImmutableSettings.builder()
                 .put("shield.system_key.file", path.toAbsolutePath().toString())
                 .build();
@@ -87,7 +82,7 @@ public class SystemKeyToolTests extends CliToolTestCase {
 
     @Test
     public void testGenerate_DefaultPath() throws Exception {
-        File config = tempFolder.newFolder();
+        File config = newTempDir();
         File shieldConfig = new File(config, ShieldPlugin.NAME);
         shieldConfig.mkdirs();
         Path path = new File(shieldConfig, "system_key").toPath();

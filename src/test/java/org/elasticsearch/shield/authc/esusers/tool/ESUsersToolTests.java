@@ -17,9 +17,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.esusers.FileUserRolesStore;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,9 +32,6 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class ESUsersToolTests extends CliToolTestCase {
-
-    @Rule
-    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
     public void testUseradd_Parse_AllOptions() throws Exception {
@@ -77,7 +72,7 @@ public class ESUsersToolTests extends CliToolTestCase {
 
     @Test
     public void testUseradd_Cmd_Create() throws Exception {
-        File tmpFolder = temporaryFolder.newFolder();
+        File tmpFolder = newTempDir();
         File userFile = new File(tmpFolder, "users");
         File userRolesFile = new File(tmpFolder, "users_roles");
         Settings settings = ImmutableSettings.builder()
@@ -164,7 +159,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     @Test
     public void testUseradd_Cmd_Append_UserAlreadyExists() throws Exception {
         File userFile = writeFile("user1:hash1");
-        File userRolesFile = temporaryFolder.newFile();
+        File userRolesFile = newTempFile();
         Settings settings = ImmutableSettings.builder()
                 .put("shield.authc.esusers.files.users", userFile)
                 .put("shield.authc.esusers.files.users_roles", userRolesFile)
@@ -242,7 +237,7 @@ public class ESUsersToolTests extends CliToolTestCase {
 
     @Test
     public void testUserdel_Cmd_MissingFiles() throws Exception {
-        File dir = temporaryFolder.newFolder();
+        File dir = newTempDir();
         File userFile = new File(dir, "users");
         File userRolesFile = new File(dir, "users_roles");
         Settings settings = ImmutableSettings.builder()
@@ -332,7 +327,7 @@ public class ESUsersToolTests extends CliToolTestCase {
 
     @Test
     public void testPasswd_Cmd_MissingFiles() throws Exception {
-        File userFile = temporaryFolder.newFile();
+        File userFile = newTempFile();
         Settings settings = ImmutableSettings.builder()
                 .put("shield.authc.esusers.files.users", userFile)
                 .build();
@@ -665,7 +660,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     private File writeFile(String content) throws IOException {
-        File file = temporaryFolder.newFile();
+        File file = newTempFile();
         Files.write(content.getBytes(Charsets.UTF_8), file);
         return file;
     }

@@ -25,7 +25,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -82,7 +81,6 @@ public class FileBasedMappingsTests extends ElasticsearchTestCase {
                     .put("node.name", NAME)
                     .put("path.conf", configDir.getAbsolutePath())
                     .put("http.enabled", false)
-                    .put("gateway.type", "none")
                     .build();
 
             try (Node node = NodeBuilder.nodeBuilder().local(true).data(true).settings(settings).node()) {

@@ -252,7 +252,7 @@ public class ElasticsearchGeoAssertions {
     public static void assertValidParseException(XContentParser parser) {
         try {
             ShapeBuilder.parse(parser);
-            throw new RuntimeException("process completed successfully when parse exception expected");
+            Assert.fail("process completed successfully when parse exception expected");
         } catch (Exception e) {
             assert(e instanceof ElasticsearchParseException): "expected ElasticsearchParse exception but found " + e.getClass().getName();
         }

@@ -154,7 +154,7 @@ public class HasChildFilterParser implements FilterParser {
             nonNestedDocsFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
         }
 
-        BitDocIdSetFilter parentFilter = parseContext.bitsetFilter(parentDocMapper.typeFilter());
+        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
 
         Query childrenQuery;

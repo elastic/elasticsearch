@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.Strings;
@@ -155,7 +156,7 @@ public class HasChildQueryParser implements QueryParser {
         innerQuery = new FilteredQuery(innerQuery, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
         Query query;
-        BitDocIdSetFilter parentFilter = parseContext.bitsetFilter(parentDocMapper.typeFilter());
+        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
         if (minChildren > 1 || maxChildren > 0 || scoreType != ScoreType.NONE) {
             query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, minChildren,

@@ -94,6 +94,9 @@ CONF_FILE=$CONF_DIR/elasticsearch.yml
 # Maximum number of VMA (Virtual Memory Areas) a process can own
 MAX_MAP_COUNT=262144
 
+# Path to the GC log file
+#ES_GC_LOG_FILE=/var/log/elasticsearch/gc.log
+
 # End of variables that can be overwritten in $DEFAULT
 
 # overwrite settings from default file
@@ -110,6 +113,7 @@ export ES_HEAP_SIZE
 export ES_HEAP_NEWSIZE
 export ES_DIRECT_SIZE
 export ES_JAVA_OPTS
+export ES_GC_LOG_FILE
 
 # Check DAEMON exists
 test -x $DAEMON || exit 0

@@ -68,7 +68,7 @@ public class ChildrenQuery extends Query {
     protected final ParentChildIndexFieldData ifd;
     protected final String parentType;
     protected final String childType;
-    protected final BitDocIdSetFilter parentFilter;
+    protected final Filter parentFilter;
     protected final ScoreType scoreType;
     protected Query originalChildQuery;
     protected final int minChildren;
@@ -79,7 +79,7 @@ public class ChildrenQuery extends Query {
     protected Query rewrittenChildQuery;
     protected IndexReader rewriteIndexReader;
 
-    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, BitDocIdSetFilter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, BitDocIdSetFilter nonNestedDocsFilter) {
+    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, BitDocIdSetFilter nonNestedDocsFilter) {
         this.ifd = ifd;
         this.parentType = parentType;
         this.childType = childType;

@@ -22,7 +22,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NotFilter;
@@ -182,7 +181,7 @@ public class HasParentQueryParser implements QueryParser {
 
         // wrap the query with type query
         innerQuery = new FilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
-        BitDocIdSetFilter childrenFilter = parseContext.bitsetFilter(new NotFilter(parentFilter));
+        Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null);
         if (score) {
             return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
         } else {

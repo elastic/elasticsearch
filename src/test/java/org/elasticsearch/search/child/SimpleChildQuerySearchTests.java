@@ -20,7 +20,6 @@ package org.elasticsearch.search.child;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -66,11 +65,9 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.factorFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -348,63 +345,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .prepareStats("test").setFieldData(true).get();
         assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
         assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-    }
-
-    @Test
-    public void testCheckFixedBitSetCache() throws Exception {
-        boolean loadFixedBitSetLazily = randomBoolean();
-        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder().put(indexSettings())
-                .put("index.refresh_interval", -1);
-        if (loadFixedBitSetLazily) {
-            settingsBuilder.put("index.load_fixed_bitset_filters_eagerly", false);
-        }
-        // enforce lazy loading to make sure that p/c stats are not counted as part of field data
-        assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder)
-                .addMapping("parent")
-        );
-
-        client().prepareIndex("test", "parent", "p0").setSource("p_field", "p_value0").get();
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        refresh();
-        ensureSearchable("test");
-
-        // No _parent field yet, there shouldn't be anything in the parent id cache
-        ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
-
-        // Now add mapping + children
-        assertAcked(
-                client().admin().indices().preparePutMapping("test").setType("child").setSource("_parent", "type=parent")
-        );
-
-        // index simple data
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").get();
-        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").get();
-        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").get();
-        refresh();
-        ensureSearchable("test");
-
-        if (loadFixedBitSetLazily) {
-            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-            assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
-
-            // only when querying with has_child the fixed bitsets are loaded
-            SearchResponse searchResponse = client().prepareSearch("test")
-                    // Use setShortCircuitCutoff(0), otherwise the parent filter isn't used.
-                    .setQuery(hasChildQuery("child", termQuery("c_field", "blue")).setShortCircuitCutoff(0))
-                    .get();
-            assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        }
-        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), greaterThan(0l));
-
-        assertAcked(client().admin().indices().prepareDelete("test"));
-        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
     }
 
     @Test

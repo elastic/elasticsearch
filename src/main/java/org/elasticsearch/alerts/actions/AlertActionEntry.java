@@ -216,7 +216,7 @@ public class AlertActionEntry implements ToXContent{
         historyEntry.field(AlertActionState.FIELD_NAME, entryState.toString());
 
         if (errorMsg != null) {
-            historyEntry.field("errorMsg", errorMsg);
+            historyEntry.field("error_msg", errorMsg);
         }
         historyEntry.endObject();
 

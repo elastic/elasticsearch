@@ -45,7 +45,7 @@ public class AlertActionManager extends AbstractComponent {
     public static final String TRIGGERED_FIELD = "triggered";
     public static final String FIRE_TIME_FIELD = "fire_time";
     public static final String SCHEDULED_FIRE_TIME_FIELD = "scheduled_fire_time";
-    public static final String ERROR_MESSAGE = "errorMsg";
+    public static final String ERROR_MESSAGE = "error_msg";
     public static final String TRIGGER_FIELD = "trigger";
     public static final String REQUEST = "request";
     public static final String RESPONSE = "response_binary";

@@ -52,14 +52,18 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
         try (LdapConnection ldap = connectionFactory.bind(userName, SecuredStringTests.build(PASSWORD))) {
             String userDN = ldap.getAuthenticatedUserDn();
 
-            List<String> groups = ldap.getGroupsFromUserAttrs(userDN);
+            List<String> groups = ldap.getGroups();
             assertThat(groups, containsInAnyOrder(
                     containsString("Geniuses"),
                     containsString("Billionaire"),
                     containsString("Playboy"),
                     containsString("Philanthropists"),
                     containsString("Avengers"),
-                    containsString("SHIELD")));
+                    containsString("SHIELD"),
+                    containsString("Users"),
+                    containsString("Domain Users"),
+                    containsString("Supers")
+                    ));
         }
     }
 
@@ -86,13 +90,17 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
         try (LdapConnection ldap = connectionFactory.bind(userName, SecuredStringTests.build(PASSWORD))) {
             String userDN = ldap.getAuthenticatedUserDn();
 
-            List<String> groups = ldap.getGroupsFromUserAttrs(userDN);
+            List<String> groups = ldap.getGroups();
 
             assertThat(groups, containsInAnyOrder(
                     containsString("Avengers"),
                     containsString("SHIELD"),
                     containsString("Geniuses"),
-                    containsString("Philanthropists")));
+                    containsString("Philanthropists"),
+                    containsString("Users"),
+                    containsString("Domain Users"),
+                    containsString("Supers")
+                    ));
         }
     }
 
@@ -105,7 +113,7 @@ public class ActiveDirectoryFactoryTests extends ElasticsearchTestCase {
                 LdapTest.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, isSubTreeSearch));
 
         String user = "Bruce Banner";
-        try (LdapConnection ldap = connectionFactory.bind(user, SecuredStringTests.build(PASSWORD))) {
+        try (GenericLdapConnection ldap = connectionFactory.bind(user, SecuredStringTests.build(PASSWORD))) {
             List<String> groups = ldap.getGroupsFromUserAttrs(ldap.getAuthenticatedUserDn());
             List<String> groups2 = ldap.getGroupsFromSearch(ldap.getAuthenticatedUserDn());
 

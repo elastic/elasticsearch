@@ -52,7 +52,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
 
         String[] users = new String[]{"blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor"};
         for(String user: users) {
-            LdapConnection ldap = connectionFactory.bind(user, SecuredStringTests.build(PASSWORD));
+            GenericLdapConnection ldap = connectionFactory.bind(user, SecuredStringTests.build(PASSWORD));
             assertThat(ldap.getGroups(), hasItem(containsString("Avengers")));
             ldap.close();
         }

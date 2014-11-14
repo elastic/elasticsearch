@@ -73,7 +73,7 @@ public class StandardLdapConnectionFactory extends AbstractComponent implements 
      * @return authenticated exception
      */
     @Override
-    public LdapConnection bind(String username, SecuredString password) {
+    public GenericLdapConnection bind(String username, SecuredString password) {
         //SASL, MD5, etc. all options here stink, we really need to go over ssl + simple authentication
         Hashtable<String, Serializable> ldapEnv = new Hashtable<>(this.sharedLdapEnv);
         ldapEnv.put(Context.SECURITY_AUTHENTICATION, "simple");
@@ -86,7 +86,7 @@ public class StandardLdapConnectionFactory extends AbstractComponent implements 
                 DirContext ctx = new InitialDirContext(ldapEnv);
 
                 //return the first good connection
-                return new LdapConnection(ctx, dn, findGroupsByAttribute, groupSubTreeSearch, groupSearchDN);
+                return new GenericLdapConnection(ctx, dn, findGroupsByAttribute, groupSubTreeSearch, groupSearchDN);
 
             } catch (NamingException e) {
                 logger.warn("Failed ldap authentication with user template [{}], dn [{}]", e, template, dn );

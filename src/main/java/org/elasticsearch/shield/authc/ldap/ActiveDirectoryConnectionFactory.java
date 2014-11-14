@@ -53,6 +53,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder()
                 .put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory")
                 .put(Context.PROVIDER_URL, Strings.arrayToCommaDelimitedString(ldapUrls))
+                .put("java.naming.ldap.attributes.binary", "tokenGroups")
                 .put(Context.REFERRAL, "follow");
 
         LdapSslSocketFactory.configureJndiSSL(ldapUrls, builder);
@@ -66,7 +67,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
      * @return An authenticated
      */
     @Override
-    public LdapConnection bind(String userName, SecuredString password) {
+    public ActiveDirectoryConnection bind(String userName, SecuredString password) {
         String userPrincipal = userName + "@" + this.domainName;
         Hashtable<String, Serializable> ldapEnv = new Hashtable<>(this.sharedLdapEnv);
         ldapEnv.put(Context.SECURITY_AUTHENTICATION, "simple");
@@ -77,7 +78,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
             DirContext ctx = new InitialDirContext(ldapEnv);
             SearchControls searchCtls = new SearchControls();
             searchCtls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-            searchCtls.setReturningAttributes( new String[0] );
+            searchCtls.setReturningAttributes( new String[] {} );
 
             String searchFilter = "(&(objectClass=user)(userPrincipalName={0}))";
             NamingEnumeration<SearchResult> results = ctx.search(userSearchDN, searchFilter, new Object[]{ userPrincipal }, searchCtls);
@@ -87,8 +88,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
                 String name = entry.getNameInNamespace();
 
                 if (!results.hasMore()) {
-                    //isFindGroupsByAttribute=true, group subtree search=false, groupSubtreeDN=null
-                    return new LdapConnection(ctx, name, true, false, null);
+                    return new ActiveDirectoryConnection(ctx, name, userSearchDN);
                 }
                 throw new LdapException("Search for user [" + userName + "] by principle name yielded multiple results");
             }
@@ -107,4 +107,5 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
     String buildDnFromDomain(String domain) {
         return "DC=" + domain.replace(".", ",DC=");
     }
+
 }

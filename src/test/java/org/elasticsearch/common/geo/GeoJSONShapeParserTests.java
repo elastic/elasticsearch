@@ -26,6 +26,8 @@ import com.spatial4j.core.shape.ShapeCollection;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
 import com.vividsolutions.jts.geom.*;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -172,7 +174,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endObject().string();
         XContentParser parser = JsonXContent.jsonXContent.createParser(invalidPoly1);
         parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidParseException(parser);
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
 
         // test case 2: create an invalid polygon with only 1 point
         String invalidPoly2 = XContentFactory.jsonBuilder().startObject().field("type", "polygon")
@@ -185,7 +187,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
         parser = JsonXContent.jsonXContent.createParser(invalidPoly2);
         parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidParseException(parser);
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
 
         // test case 3: create an invalid polygon with 0 points
         String invalidPoly3 = XContentFactory.jsonBuilder().startObject().field("type", "polygon")
@@ -198,7 +200,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
         parser = JsonXContent.jsonXContent.createParser(invalidPoly3);
         parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidParseException(parser);
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
 
         // test case 4: create an invalid polygon with null value points
         String invalidPoly4 = XContentFactory.jsonBuilder().startObject().field("type", "polygon")
@@ -211,7 +213,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
         parser = JsonXContent.jsonXContent.createParser(invalidPoly4);
         parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidParseException(parser);
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchIllegalArgumentException.class);
 
         // test case 5: create an invalid polygon with 1 invalid LinearRing
         String invalidPoly5 = XContentFactory.jsonBuilder().startObject().field("type", "polygon")
@@ -222,7 +224,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
         parser = JsonXContent.jsonXContent.createParser(invalidPoly5);
         parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidParseException(parser);
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchIllegalArgumentException.class);
     }
 
     @Test

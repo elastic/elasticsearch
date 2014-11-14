@@ -249,12 +249,13 @@ public class ElasticsearchGeoAssertions {
         return GeoDistance.ARC.calculate(lat1, lon1, lat2, lon2, DistanceUnit.DEFAULT);
     }
 
-    public static void assertValidParseException(XContentParser parser) {
+    public static void assertValidException(XContentParser parser, Class expectedException) {
         try {
             ShapeBuilder.parse(parser);
-            Assert.fail("process completed successfully when parse exception expected");
+            Assert.fail("process completed successfully when " + expectedException.getName() + " expected");
         } catch (Exception e) {
-            assert(e instanceof ElasticsearchParseException): "expected ElasticsearchParse exception but found " + e.getClass().getName();
+            assert(e.getClass().equals(expectedException)):
+                    "expected " + expectedException.getName() + " but found " + e.getClass().getName();
         }
     }
 }

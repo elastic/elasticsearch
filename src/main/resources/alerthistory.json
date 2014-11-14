@@ -27,7 +27,7 @@
           "type": "string",
           "index": "not_analyzed"
         },
-        "errorMsg": {
+        "error_msg": {
           "type": "string"
         },
         "request" : {

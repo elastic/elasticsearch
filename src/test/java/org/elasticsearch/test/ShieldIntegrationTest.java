@@ -11,9 +11,14 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.base.Function;
+import org.elasticsearch.common.collect.Collections2;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.junit.Before;
@@ -25,8 +30,9 @@ import org.junit.rules.ExternalResource;
 import java.io.File;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Base class to run tests against a cluster with shield installed.
@@ -120,8 +126,13 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     public void assertShieldIsInstalled() {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
         for (NodeInfo nodeInfo : nodeInfos) {
-            assertThat(ShieldPlugin.NAME + " should be the only installed plugin, found the following ones: " + nodeInfo.getPlugins().getInfos(), nodeInfo.getPlugins().getInfos().size(), equalTo(1));
-            assertThat(ShieldPlugin.NAME + " should be the only installed plugin, found the following ones: " + nodeInfo.getPlugins().getInfos(), nodeInfo.getPlugins().getInfos().get(0).getName(), equalTo(ShieldPlugin.NAME));
+            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
+            assertThat(Collections2.transform(nodeInfo.getPlugins().getInfos(), new Function<PluginInfo, String>() {
+                @Override
+                public String apply(PluginInfo pluginInfo) {
+                    return pluginInfo.getName();
+                }
+            }), contains(ShieldPlugin.NAME, licensePluginName()));
         }
     }
 
@@ -203,6 +214,14 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
         return randomBoolean();
     }
 
+    protected Class<? extends Plugin> licensePluginClass() {
+        return SHIELD_DEFAULT_SETTINGS.licensePluginClass();
+    }
+
+    protected String licensePluginName() {
+        return SHIELD_DEFAULT_SETTINGS.licensePluginName();
+    }
+
     private class CustomShieldSettingsSource extends ShieldSettingsSource {
         private CustomShieldSettingsSource(boolean sslTransportEnabled, File configDir, Scope scope) {
             super(maxNumberOfNodes(), sslTransportEnabled, configDir, scope);
@@ -242,6 +261,16 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
         @Override
         protected SecuredString transportClientPassword() {
             return ShieldIntegrationTest.this.transportClientPassword();
+        }
+
+        @Override
+        protected Class<? extends Plugin> licensePluginClass() {
+            return ShieldIntegrationTest.this.licensePluginClass();
+        }
+
+        @Override
+        protected String licensePluginName() {
+            return ShieldIntegrationTest.this.licensePluginName();
         }
     }
 

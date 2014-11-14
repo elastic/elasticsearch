@@ -17,8 +17,19 @@
     <!-- needed for some test features for now, remove with 1.3 release -->
     <repositories>
         <repository>
-            <id>oss.sonatype.org-snapshot</id>
-            <url>http://oss.sonatype.org/content/repositories/snapshots</url>
+            <id>es-releases</id>
+            <url>http://maven.elasticsearch.org/libs-release-local</url>
+            <releases>
+                <enabled>true</enabled>
+                <updatePolicy>daily</updatePolicy>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>es-snapshots</id>
+            <url>http://maven.elasticsearch.org/libs-snapshot</url>
             <releases>
                 <enabled>false</enabled>
             </releases>
@@ -33,6 +44,7 @@
         <lucene.version>4.10.2</lucene.version>
         <lucene.maven.version>4.10.2</lucene.maven.version>
         <elasticsearch.version>1.4.0</elasticsearch.version>
+        <license.plugin.version>1.0.0-beta1</license.plugin.version>
 
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
@@ -148,6 +160,13 @@
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
             <version>1.9</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch-license-plugin</artifactId>
+            <version>${license.plugin.version}</version>
+            <scope>provided</scope>
         </dependency>
 
     </dependencies>

@@ -5,17 +5,18 @@
  */
 package org.elasticsearch.shield;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.AbstractPlugin;
-import org.elasticsearch.shield.ShieldModule;
-import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
+import org.elasticsearch.shield.license.LicenseService;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -29,9 +30,13 @@ public class ShieldPlugin extends AbstractPlugin {
     public static final String NAME = "shield";
 
     private final Settings settings;
+    private final boolean enabled;
+    private final boolean clientMode;
 
     public ShieldPlugin(Settings settings) {
         this.settings = settings;
+        this.enabled = settings.getAsBoolean("shield.enabled", true);
+        this.clientMode = clientMode(settings);
     }
 
     @Override
@@ -50,7 +55,17 @@ public class ShieldPlugin extends AbstractPlugin {
     }
 
     @Override
+    public Collection<Class<? extends LifecycleComponent>> services() {
+        return enabled && !clientMode ?
+                ImmutableList.<Class<? extends LifecycleComponent>>of(LicenseService.class) :
+                ImmutableList.<Class<? extends LifecycleComponent>>of();
+    }
+
+    @Override
     public Settings additionalSettings() {
+        if (!enabled) {
+            return ImmutableSettings.EMPTY;
+        }
         String setting = Headers.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER;
         if (settings.get(setting) != null) {
             return ImmutableSettings.EMPTY;
@@ -77,4 +92,7 @@ public class ShieldPlugin extends AbstractPlugin {
         return configDir(env).resolve(name);
     }
 
+    public static boolean clientMode(Settings settings) {
+        return !"node".equals(settings.get(Client.CLIENT_TYPE_SETTING));
+    }
 }

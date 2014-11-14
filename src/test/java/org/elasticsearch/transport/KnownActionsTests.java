@@ -12,6 +12,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.license.plugin.LicensePlugin;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -28,18 +29,18 @@ public class KnownActionsTests extends ShieldIntegrationTest {
 
     private static ImmutableSet<String> knownActions;
     private static ImmutableSet<String> knownHandlers;
-    private static ImmutableSet<String> coreActions;
+    private static ImmutableSet<String> externalActions;
 
     @BeforeClass
     public static void init() throws Exception {
         knownActions = loadKnownActions();
         knownHandlers = loadKnownHandlers();
-        coreActions = loadCoreActions();
+        externalActions = loadExternalActions();
     }
 
     @Test
-    public void testAllCoreTransportHandlersAreKnown() {
-        TransportService transportService = internalCluster().getInstance(TransportService.class);
+    public void testAllExternalTransportHandlersAreKnown() {
+        TransportService transportService = internalCluster().getDataNodeInstance(TransportService.class);
         for (String handler : transportService.serverHandlers.keySet()) {
             if (!knownActions.contains(handler)) {
                 assertThat("elasticsearch core transport handler [" + handler + "] is unknown to shield", knownHandlers, hasItem(handler));
@@ -48,8 +49,8 @@ public class KnownActionsTests extends ShieldIntegrationTest {
     }
 
     @Test
-    public void testAllCoreActionsAreKnown() throws Exception {
-        for (String action : coreActions) {
+    public void testAllExternalActionsAreKnown() throws Exception {
+        for (String action : externalActions) {
             assertThat("elasticsearch core action [" + action + "] is unknown to shield", knownActions, hasItem(action));
         }
     }
@@ -57,13 +58,13 @@ public class KnownActionsTests extends ShieldIntegrationTest {
     @Test
     public void testAllKnownActionsAreValid() {
         for (String knownAction : knownActions) {
-            assertThat("shield known action [" + knownAction + "] is unknown to core", coreActions, hasItems(knownAction));
+            assertThat("shield known action [" + knownAction + "] is unknown to core", externalActions, hasItems(knownAction));
         }
     }
 
     @Test
     public void testAllKnownTransportHandlersAreValid() {
-        TransportService transportService = internalCluster().getInstance(TransportService.class);
+        TransportService transportService = internalCluster().getDataNodeInstance(TransportService.class);
         for (String knownHandler : knownHandlers) {
             assertThat("shield known action [" + knownHandler + "] is unknown to core", transportService.serverHandlers.keySet(), hasItems(knownHandler));
         }
@@ -99,10 +100,22 @@ public class KnownActionsTests extends ShieldIntegrationTest {
         return knownHandlersBuilder.build();
     }
 
-    private static ImmutableSet<String> loadCoreActions() throws IOException, IllegalAccessException {
-        ImmutableSet.Builder<String> coreActionsBuilder = ImmutableSet.builder();
+    private static ImmutableSet<String> loadExternalActions() throws IOException, IllegalAccessException {
+        ImmutableSet.Builder<String> actions = ImmutableSet.builder();
+
+        // loading es core actions
         ClassPath classPath = ClassPath.from(Action.class.getClassLoader());
-        ImmutableSet<ClassPath.ClassInfo> infos = classPath.getTopLevelClassesRecursive(Action.class.getPackage().getName());
+        loadActions(classPath, Action.class.getPackage().getName(), actions);
+
+        // also loading all actions from the licensing plugin
+        classPath = ClassPath.from(LicensePlugin.class.getClassLoader());
+        loadActions(classPath, LicensePlugin.class.getPackage().getName(), actions);
+
+        return actions.build();
+    }
+
+    private static void loadActions(ClassPath classPath, String packageName, ImmutableSet.Builder<String> actions) throws IOException, IllegalAccessException {
+        ImmutableSet<ClassPath.ClassInfo> infos = classPath.getTopLevelClassesRecursive(packageName);
         for (ClassPath.ClassInfo info : infos) {
             Class clazz = info.load();
             if (Action.class.isAssignableFrom(clazz)) {
@@ -115,10 +128,9 @@ public class KnownActionsTests extends ShieldIntegrationTest {
                     }
                     assertThat("every action should have a static field called INSTANCE, present but not static in " + clazz.getName(),
                             Modifier.isStatic(field.getModifiers()), is(true));
-                    coreActionsBuilder.add(((Action) field.get(null)).name());
+                    actions.add(((Action) field.get(null)).name());
                 }
             }
         }
-        return coreActionsBuilder.build();
     }
 }

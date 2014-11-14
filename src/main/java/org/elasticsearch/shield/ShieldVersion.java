@@ -10,6 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.license.plugin.LicenseVersion;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -24,7 +25,7 @@ public class ShieldVersion implements Serializable {
     // the (internal) format of the id is there so we can easily do after/before checks on the id
 
     public static final int V_1_0_0_ID = /*00*/1000099;
-    public static final ShieldVersion V_1_0_0 = new ShieldVersion(V_1_0_0_ID, true, Version.V_1_4_0);
+    public static final ShieldVersion V_1_0_0 = new ShieldVersion(V_1_0_0_ID, true, Version.V_1_4_0, LicenseVersion.V_1_0_0);
 
     public static final ShieldVersion CURRENT = V_1_0_0;
 
@@ -38,7 +39,7 @@ public class ShieldVersion implements Serializable {
                 return V_1_0_0;
 
             default:
-                return new ShieldVersion(id, null, Version.CURRENT);
+                return new ShieldVersion(id, null, Version.CURRENT, LicenseVersion.CURRENT);
         }
     }
 
@@ -97,8 +98,9 @@ public class ShieldVersion implements Serializable {
     public final byte build;
     public final Boolean snapshot;
     public final Version minEsCompatibilityVersion;
+    public final LicenseVersion minLicenseCompatibilityVersion;
 
-    ShieldVersion(int id, @Nullable Boolean snapshot, Version minEsCompatibilityVersion) {
+    ShieldVersion(int id, @Nullable Boolean snapshot, Version minEsCompatibilityVersion, LicenseVersion minLicenseCompatibilityVersion) {
         this.id = id;
         this.major = (byte) ((id / 1000000) % 100);
         this.minor = (byte) ((id / 10000) % 100);
@@ -106,6 +108,7 @@ public class ShieldVersion implements Serializable {
         this.build = (byte) (id % 100);
         this.snapshot = snapshot;
         this.minEsCompatibilityVersion = minEsCompatibilityVersion;
+        this.minLicenseCompatibilityVersion = minLicenseCompatibilityVersion;
     }
 
     public boolean snapshot() {
@@ -152,6 +155,13 @@ public class ShieldVersion implements Serializable {
      */
     public Version minimumEsCompatiblityVersion() {
         return minEsCompatibilityVersion;
+    }
+
+    /**
+     * @return  The minimum license plugin version this shield version is compatible with.
+     */
+    public LicenseVersion minimumLicenseCompatibilityVersion() {
+        return minLicenseCompatibilityVersion;
     }
 
     /**

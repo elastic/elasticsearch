@@ -13,14 +13,20 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.common.base.Predicate;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.license.plugin.core.LicenseExpiredException;
+import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.shield.authz.AuthorizationService;
-import org.elasticsearch.shield.signature.SignatureService;
+import org.elasticsearch.shield.authz.Privilege;
+import org.elasticsearch.shield.license.LicenseEventsNotifier;
+import org.elasticsearch.shield.license.LicenseService;
 import org.elasticsearch.shield.signature.SignatureException;
+import org.elasticsearch.shield.signature.SignatureService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,21 +36,45 @@ import java.util.List;
  */
 public class ShieldActionFilter implements ActionFilter {
 
+    private static final Predicate<String> READ_ACTION_MATCHER = Privilege.Index.READ.predicate();
+
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
     private final SignatureService signatureService;
     private final AuditTrail auditTrail;
 
+    private volatile boolean licenseEnabled;
+
     @Inject
-    public ShieldActionFilter(AuthenticationService authcService, AuthorizationService authzService, SignatureService signatureService, AuditTrail auditTrail) {
+    public ShieldActionFilter(AuthenticationService authcService, AuthorizationService authzService, SignatureService signatureService, AuditTrail auditTrail, LicenseEventsNotifier licenseEventsNotifier) {
         this.authcService = authcService;
         this.authzService = authzService;
         this.signatureService = signatureService;
         this.auditTrail = auditTrail;
+        licenseEventsNotifier.register(new LicensesClientService.Listener() {
+            @Override
+            public void onEnabled() {
+                licenseEnabled = true;
+            }
+
+            @Override
+            public void onDisabled() {
+                licenseEnabled = false;
+            }
+        });
     }
 
     @Override
     public void apply(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
+
+        /**
+            A functional requirement - when the license of shield is disabled (invalid/expires), shield will continue
+            to operate normally, except all read operations will be blocked.
+         */
+        if (!licenseEnabled && READ_ACTION_MATCHER.apply(action)) {
+            throw new LicenseExpiredException(LicenseService.FEATURE_NAME);
+        }
+
         try {
             /**
              here we fallback on the system user. Internal system requests are requests that are triggered by

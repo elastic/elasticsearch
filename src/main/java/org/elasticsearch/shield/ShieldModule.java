@@ -14,6 +14,7 @@ import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.shield.signature.SignatureModule;
 import org.elasticsearch.shield.rest.ShieldRestModule;
+import org.elasticsearch.shield.license.LicenseModule;
 import org.elasticsearch.shield.ssl.SSLModule;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 import org.elasticsearch.shield.transport.SecuredTransportModule;
@@ -23,20 +24,13 @@ import org.elasticsearch.shield.transport.SecuredTransportModule;
  */
 public class ShieldModule extends AbstractShieldModule.Spawn {
 
-    private final boolean enabled;
-
     public ShieldModule(Settings settings) {
         super(settings);
-        this.enabled = settings.getAsBoolean("shield.enabled", true);
     }
+
 
     @Override
     public Iterable<? extends Module> spawnModules(boolean clientMode) {
-        // don't spawn modules if shield is explicitly disabled
-        if (!enabled) {
-            return ImmutableList.of();
-        }
-
         // spawn needed parts in client mode
         if (clientMode) {
             return ImmutableList.<Module>of(
@@ -45,6 +39,7 @@ public class ShieldModule extends AbstractShieldModule.Spawn {
         }
 
         return ImmutableList.<Module>of(
+                new LicenseModule(settings),
                 new AuthenticationModule(settings),
                 new AuthorizationModule(settings),
                 new AuditTrailModule(settings),

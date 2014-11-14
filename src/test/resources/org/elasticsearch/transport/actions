@@ -74,3 +74,6 @@ indices:data/write/index
 indices:data/write/script/delete
 indices:data/write/script/put
 indices:data/write/update
+cluster:admin/plugin/license/get
+cluster:admin/plugin/license/delete
+cluster:admin/plugin/license/put

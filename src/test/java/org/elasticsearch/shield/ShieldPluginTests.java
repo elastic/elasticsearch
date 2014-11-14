@@ -9,7 +9,11 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
+import org.elasticsearch.common.base.Function;
+import org.elasticsearch.common.collect.Collections2;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegrationTest;
@@ -33,7 +37,13 @@ public class ShieldPluginTests extends ShieldIntegrationTest {
         NodesInfoResponse nodeInfos = internalCluster().transportClient().admin().cluster().prepareNodesInfo().get();
         logger.info("--> Checking nodes info that shield plugin is loaded");
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
-            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(1));
+            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
+            assertThat(Collections2.transform(nodeInfo.getPlugins().getInfos(), new Function<PluginInfo, String>() {
+                @Override
+                public String apply(PluginInfo pluginInfo) {
+                    return pluginInfo.getName();
+                }
+            }), contains(ShieldPlugin.NAME, LicensePlugin.NAME));
             assertThat(nodeInfo.getPlugins().getInfos().get(0).getName(), is(ShieldPlugin.NAME));
         }
 

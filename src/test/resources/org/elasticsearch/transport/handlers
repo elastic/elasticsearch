@@ -83,3 +83,4 @@ internal:index/shard/recovery/start_recovery
 internal:index/shard/recovery/translog_ops
 internal:river/state/publish
 internal:admin/repository/verify
+internal:plugin/license/cluster/register_trial_license

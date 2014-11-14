@@ -206,13 +206,17 @@ public abstract class ShapeBuilder implements ToXContent {
     private static CoordinateNode parseCoordinates(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
 
-        // Base case
-        if (token != XContentParser.Token.START_ARRAY) {
+        // Base cases
+        if (token != XContentParser.Token.START_ARRAY && 
+                token != XContentParser.Token.END_ARRAY && 
+                token != XContentParser.Token.VALUE_NULL) {
             double lon = parser.doubleValue();
             token = parser.nextToken();
             double lat = parser.doubleValue();
             token = parser.nextToken();
             return new CoordinateNode(new Coordinate(lon, lat));
+        } else if (token == XContentParser.Token.VALUE_NULL) {
+            return null;
         }
 
         List<CoordinateNode> nodes = new ArrayList<>();

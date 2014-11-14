@@ -632,7 +632,7 @@ public abstract class ShapeBuilder implements ToXContent {
              */
             if (coordinates.children.size() < 2) {
                 throw new ElasticsearchParseException("Invalid number of points in LineString (found " +
-                        coordinates.children.size() + " - must be 0 or >= 2)");
+                        coordinates.children.size() + " - must be >= 2)");
             }
 
             LineStringBuilder line = newLineString();
@@ -659,9 +659,8 @@ public abstract class ShapeBuilder implements ToXContent {
              */
             if (coordinates.children.size() < 4) {
                 throw new ElasticsearchParseException("Invalid number of points in LinearRing (found " +
-                        coordinates.children.size() + " - must be 0 or >= 4)");
-            } else if (coordinates.children.size() != 0 &&
-                    !coordinates.children.get(0).coordinate.equals(
+                        coordinates.children.size() + " - must be >= 4)");
+            } else if (!coordinates.children.get(0).coordinate.equals(
                         coordinates.children.get(coordinates.children.size() - 1).coordinate)) {
                 throw new ElasticsearchParseException("Invalid LinearRing found (coordinates are not closed)");
             }

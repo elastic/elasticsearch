@@ -61,6 +61,11 @@ Expected response :
 ````
 
 Viewing an existing alert :
+
+````
+GET _alert/testalert
+````
+
 ````
 {
    "found": true,
@@ -128,4 +133,54 @@ Expected output :
 }
 ````
 
+Creating a alert that looks uses a script to dig into an aggregation :
+````
+PUT _alert/404alert
+{
+  "request" : {
+    "indices" : [
+      "logstash*"
+    ],
+    "body" : {
+     "query" : {
+      "filtered": {
+        "query": {
+          "match_all": {}
+        },
+        "filter": {
+          "range": {
+          "@timestamp" : {
+            "from": "{{SCHEDULED_FIRE_TIME}}||-5m",
+            "to": "{{SCHEDULED_FIRE_TIME}}"  
+            }
+          }
+        }
+      } 
+      },
+      "aggs": {
+        "response": {
+          "terms": {
+            "field": "response",
+            "size": 100
+          }
+        }
+      }, "size":0
+    }
+  },
+  "trigger" : { 
+    "script" : {
+      "script" : "ok_count = 0.0;error_count = 0.0;for(bucket in aggregations.response.buckets) {if (bucket.key < 400){ok_count += bucket.doc_count;} else {error_count += bucket.doc_count;}}; return error_count/(ok_count+1) >= 0.1;",
+    " script_lang" : "groovy"
+  } },
+  "actions" : 
+    {
+      "email" : {
+        "addresses" : ["brian.murphy@elasticsearch.com"]
+      }
+    },
+    "schedule" : "0 0/1 * * * ?",
+    "enable" : true
+}
+````
 
+This alert will trigger if the responses field has a value greater or equal to 400 for more than 10% of all values.

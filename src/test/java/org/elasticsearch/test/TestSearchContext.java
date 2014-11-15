@@ -286,7 +286,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public IndexQueryParserService queryParserService() {
-        return null;
+        return indexService.queryParserService();
     }
 
     @Override

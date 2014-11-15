@@ -24,20 +24,8 @@ import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocsEnum;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.index.SlowCompositeReaderWrapper;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryUtils;
@@ -47,13 +35,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
@@ -67,6 +55,8 @@ import java.util.NavigableSet;
 import java.util.Random;
 import java.util.TreeSet;
 
+import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
@@ -89,8 +79,8 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
         Query childQuery = new TermQuery(new Term("field", "value"));
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        Filter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
-        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, wrapWithFixedBitSetFilter(NonNestedDocsFilter.INSTANCE));
+        BitDocIdSetFilter parentFilter = wrapWithBitSetFilter(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
+        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, wrapWithBitSetFilter(NonNestedDocsFilter.INSTANCE));
         QueryUtils.check(query);
     }
 
@@ -122,7 +112,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
         ));
 
         TermQuery childQuery = new TermQuery(new Term("field1", "value" + (1 + random().nextInt(3))));
-        Filter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
+        BitDocIdSetFilter parentFilter = wrapWithBitSetFilter(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
         int shortCircuitParentDocSet = random().nextInt(5);
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
@@ -180,7 +170,7 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
                 String childValue = childValues[random().nextInt(childValues.length)];
 
                 document = new Document();
-                document.add(new StringField(UidFieldMapper.NAME, Uid.createUid("child", Integer.toString(childDocId)), Field.Store.NO));
+                document.add(new StringField(UidFieldMapper.NAME, Uid.createUid("child", Integer.toString(childDocId++)), Field.Store.NO));
                 document.add(new StringField(TypeFieldMapper.NAME, "child", Field.Store.NO));
                 document.add(new StringField(ParentFieldMapper.NAME, Uid.createUid("parent", parent), Field.Store.NO));
                 document.add(new StringField("field1", childValue, Field.Store.NO));
@@ -214,20 +204,8 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
         );
         ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(SearchContext.current(), engineSearcher));
 
-        ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
-        ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        Filter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
-        Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueChildValues / 4;
         for (int i = 0; i < max; i++) {
-            // Using this in FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs
-            Filter filterMe;
-            if (random().nextBoolean()) {
-                filterMe = SearchContext.current().filterCache().cache(rawFilterMe);
-            } else {
-                filterMe = rawFilterMe;
-            }
-
             // Simulate a parent update
             if (random().nextBoolean()) {
                 final int numberOfUpdatableParents = numParentDocs - filteredOrDeletedDocs.size();
@@ -257,22 +235,21 @@ public class ChildrenConstantScoreQueryTests extends AbstractChildTests {
             }
 
             String childValue = childValues[random().nextInt(numUniqueChildValues)];
-            TermQuery childQuery = new TermQuery(new Term("field1", childValue));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
-            BitDocIdSetFilter nonNestedDocsFilter = random().nextBoolean() ? wrapWithFixedBitSetFilter(NonNestedDocsFilter.INSTANCE) : null;
-            Query query;
+            QueryBuilder queryBuilder;
             if (random().nextBoolean()) {
-                // Usage in HasChildQueryParser
-                query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
+                queryBuilder = hasChildQuery("child", termQuery("field1", childValue))
+                        .setShortCircuitCutoff(shortCircuitParentDocSet);
             } else {
-                // Usage in HasChildFilterParser
-                query = new ConstantScoreQuery(
-                        new CustomQueryWrappingFilter(
-                                new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter)
-                        )
+                queryBuilder = constantScoreQuery(
+                        hasChildFilter("child", termQuery("field1", childValue))
+                                .setShortCircuitCutoff(shortCircuitParentDocSet)
                 );
             }
-            query = new FilteredQuery(query, filterMe);
+            // Using a FQ, will invoke / test the Scorer#advance(..) and also let the Weight#scorer not get live docs as acceptedDocs
+            queryBuilder = filteredQuery(queryBuilder, notFilter(termFilter("filter", "me")));
+            Query query = parseQuery(queryBuilder);
+
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
             searcher.search(query, collector);
             FixedBitSet actualResult = collector.getResult();

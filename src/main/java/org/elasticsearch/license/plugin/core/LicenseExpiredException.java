@@ -13,12 +13,19 @@ import org.elasticsearch.rest.RestStatus;
  */
 public class LicenseExpiredException extends ElasticsearchException {
 
+    private final String feature;
+
     public LicenseExpiredException(String feature) {
         super("license expired for feature [" + feature + "]");
+        this.feature = feature;
     }
 
     @Override
     public RestStatus status() {
         return RestStatus.UNAUTHORIZED;
+    }
+
+    public String feature() {
+        return feature;
     }
 }

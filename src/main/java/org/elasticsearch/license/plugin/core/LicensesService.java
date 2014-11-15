@@ -87,7 +87,7 @@ import static org.elasticsearch.license.core.ESLicenses.reduceAndMap;
 @Singleton
 public class LicensesService extends AbstractLifecycleComponent<LicensesService> implements ClusterStateListener, LicensesManagerService, LicensesClientService {
 
-    public static final String REGISTER_TRIAL_LICENSE_ACTION_NAME = "internal:cluster/licenses/register_trial_license";
+    public static final String REGISTER_TRIAL_LICENSE_ACTION_NAME = "internal:plugin/licenses/cluster/register_trial_license";
 
     private final ESLicenseManager licenseManager;
 

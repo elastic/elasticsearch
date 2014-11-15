@@ -11,7 +11,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class GetLicenseAction extends ClusterAction<GetLicenseRequest, GetLicenseResponse, GetLicenseRequestBuilder> {
 
     public static final GetLicenseAction INSTANCE = new GetLicenseAction();
-    public static final String NAME = "cluster:admin/license/get";
+    public static final String NAME = "cluster:admin/plugin/license/get";
 
     private GetLicenseAction() {
         super(NAME);

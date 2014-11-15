@@ -11,7 +11,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class DeleteLicenseAction extends ClusterAction<DeleteLicenseRequest, DeleteLicenseResponse, DeleteLicenseRequestBuilder> {
 
     public static final DeleteLicenseAction INSTANCE = new DeleteLicenseAction();
-    public static final String NAME = "cluster:admin/license/delete";
+    public static final String NAME = "cluster:admin/plugin/license/delete";
 
     private DeleteLicenseAction() {
         super(NAME);

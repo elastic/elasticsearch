@@ -11,7 +11,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 public class PutLicenseAction extends ClusterAction<PutLicenseRequest, PutLicenseResponse, PutLicenseRequestBuilder> {
 
     public static final PutLicenseAction INSTANCE = new PutLicenseAction();
-    public static final String NAME = "cluster:admin/license/put";
+    public static final String NAME = "cluster:admin/plugin/license/put";
 
     private PutLicenseAction() {
         super(NAME);

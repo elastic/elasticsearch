@@ -310,12 +310,12 @@
     </build>
     <profiles>
         <profile>
-            <id>artifactory-private</id>
+            <id>elasticsearch-private</id>
             <distributionManagement>
                 <snapshotRepository>
                     <id>snapshots</id>
-                    <name>artifactory.elasticsearch.org-snapshots</name>
-                    <url>https://artifactory.elasticsearch.org/artifactory/libs-snapshot-local</url>
+                    <name>maven.elasticsearch.org-snapshots</name>
+                    <url>https://maven.elasticsearch.org/libs-snapshot-local</url>
                 </snapshotRepository>
             </distributionManagement>
         </profile>

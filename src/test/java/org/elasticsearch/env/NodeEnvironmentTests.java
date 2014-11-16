@@ -121,6 +121,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         }
         IOUtils.close(locks);
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
+        env.close();
     }
 
     @Test
@@ -139,6 +140,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
             assertTrue(indices.contains("foo" + i));
         }
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
+        env.close();
     }
 
     @Test
@@ -193,6 +195,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
             assertFalse(Files.exists(path));
         }
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
+        env.close();
     }
 
     @Test
@@ -223,6 +226,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         }
         assertEquals("too many shards found", shards.size(), 0);
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
+        env.close();
     }
 
     @Test
@@ -285,7 +289,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
             assertEquals(flipFlop[i].get(), 0);
             assertEquals(counts[i].value, countsAtomic[i].get());
         }
-
+        env.close();
     }
 
     private String[] tmpPaths() {

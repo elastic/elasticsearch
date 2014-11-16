@@ -46,6 +46,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -187,7 +188,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        keepAliveReaper.cancel(false);
+        FutureUtils.cancel(keepAliveReaper);
     }
 
     public DfsSearchResult executeDfsPhase(ShardSearchRequest request) throws ElasticsearchException {

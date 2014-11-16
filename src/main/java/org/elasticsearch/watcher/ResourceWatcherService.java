@@ -24,6 +24,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Set;
@@ -104,9 +105,9 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         if (!enabled) {
             return;
         }
-        lowFuture.cancel(true);
-        mediumFuture.cancel(true);
-        highFuture.cancel(true);
+        FutureUtils.cancel(lowFuture);
+        FutureUtils.cancel(mediumFuture);
+        FutureUtils.cancel(highFuture);
     }
 
     @Override

@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -252,7 +253,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 return;
             }
             closed = true;
-            nodesSamplerFuture.cancel(true);
+            FutureUtils.cancel(nodesSamplerFuture);
             for (DiscoveryNode node : nodes) {
                 transportService.disconnectFromNode(node);
             }

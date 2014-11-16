@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway.none;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
@@ -44,7 +42,6 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
 
     public static final String TYPE = "none";
 
-    private final ClusterService clusterService;
     private final NodeEnvironment nodeEnv;
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
     private final ClusterName clusterName;
@@ -55,7 +52,6 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
     @Inject
     public NoneGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, NodeIndexDeletedAction nodeIndexDeletedAction, ClusterName clusterName) {
         super(settings);
-        this.clusterService = clusterService;
         this.nodeEnv = nodeEnv;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.clusterName = clusterName;
@@ -119,7 +115,7 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
                     logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keys());
                     if (nodeEnv.hasNodeFile()) {
                         try {
-                            IOUtils.rm(FileSystemUtils.toPaths(nodeEnv.indexLocations(new Index(current.index()))));
+                            nodeEnv.deleteIndexDirectorySafe(new Index(current.index()));
                         } catch (Exception ex) {
                             logger.debug("failed to delete shard locations", ex);
                         }

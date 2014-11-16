@@ -22,7 +22,6 @@ package org.elasticsearch.test.store;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -30,7 +29,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import java.io.IOException;
 import java.util.Random;
 
-public class MockRamDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
+public class MockRamDirectoryService extends DirectoryService {
 
     private final MockDirectoryHelper helper;
     private final DirectoryService delegateService;

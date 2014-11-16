@@ -106,4 +106,5 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
     Injector shardInjectorSafe(int shardId) throws IndexShardMissingException;
 
     String indexUUID();
+
 }

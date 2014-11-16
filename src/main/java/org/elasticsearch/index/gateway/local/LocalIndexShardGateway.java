@@ -292,7 +292,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             indexShard.performRecoveryFinalization(true);
 
             try {
-                Files.delete(recoveringTranslogFile.toPath());
+                Files.deleteIfExists(recoveringTranslogFile.toPath());
             } catch (Exception ex) {
                 logger.debug("Failed to delete recovering translog file {}", ex, recoveringTranslogFile);
             }

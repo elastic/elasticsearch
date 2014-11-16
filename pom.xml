@@ -1235,6 +1235,9 @@
                                 <!-- start exclude for Lucene utility class -->
                                 <exclude>org/elasticsearch/common/lucene/Lucene$LenientParser.class</exclude>
                                 <!-- end exclude for Lucene -->
+                                <!-- start exclude for Future utility class -->
+                                <exclude>org/elasticsearch/common/util/concurrent/FutureUtils.class</exclude>
+                                <!-- end exclude for Future utility class -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'targetVersion': -->

@@ -87,8 +87,10 @@ The following table lists all the attributes that can be used with the
 Defaults to the property/field name.
 
 |`store` |Set to `true` to actually store the field in the index, `false` to not
-store it. Defaults to `false` (note, the JSON document itself is stored,
-and it can be retrieved from it).
+store it. Since by default ElasticSearch stores all fields of the source
+document in the special `_source` field, this option is primarily useful when
+the `_source` field has been disabled in the type definition. Defaults to
+`false`.
 
 |`index` |Set to `analyzed` for the field to be indexed and searchable
 after being broken down into token using an analyzer. `not_analyzed`
@@ -684,4 +686,5 @@ can be accessed by using `any_name` or `tweet.any_name`.
   }
 }
 --------------------------------------------------
+
 

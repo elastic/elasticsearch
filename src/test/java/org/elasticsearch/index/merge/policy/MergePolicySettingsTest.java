@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.index.merge.policy;
 
+import org.apache.lucene.store.Lock;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
@@ -28,6 +30,7 @@ import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
+import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -172,7 +175,7 @@ public class MergePolicySettingsTest extends ElasticsearchTestCase {
 
     protected Store createStore(Settings settings) throws IOException {
         DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
-        return new Store(shardId, settings, null, directoryService, new LeastUsedDistributor(directoryService));
+        return new Store(shardId, settings, null, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }
 
 }

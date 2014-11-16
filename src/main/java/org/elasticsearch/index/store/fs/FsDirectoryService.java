@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
@@ -38,7 +37,7 @@ import java.io.InterruptedIOException;
 
 /**
  */
-public abstract class FsDirectoryService extends AbstractIndexShardComponent implements DirectoryService, StoreRateLimiting.Listener, StoreRateLimiting.Provider {
+public abstract class FsDirectoryService extends DirectoryService implements StoreRateLimiting.Listener, StoreRateLimiting.Provider {
 
     protected final FsIndexStore indexStore;
 
@@ -106,20 +105,6 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
         }
     }
 
-    @Override
-    public final void fullDelete(Directory dir) throws IOException {
-        final FSDirectory fsDirectory = DirectoryUtils.getLeaf(dir, FSDirectory.class);
-        if (fsDirectory == null) {
-            throw new ElasticsearchIllegalArgumentException("Can not fully delete on non-filesystem based directory");
-        }
-        FileSystemUtils.deleteRecursively(fsDirectory.getDirectory());
-        // if we are the last ones, delete also the actual index
-        String[] list = fsDirectory.getDirectory().getParentFile().list();
-        if (list == null || list.length == 0) {
-            FileSystemUtils.deleteRecursively(fsDirectory.getDirectory().getParentFile());
-        }
-    }
-    
     @Override
     public Directory[] build() throws IOException {
         File[] locations = indexStore.shardIndexLocations(shardId);

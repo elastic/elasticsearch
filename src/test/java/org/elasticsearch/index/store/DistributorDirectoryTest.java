@@ -27,6 +27,8 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.test.ElasticsearchThreadFilter;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
@@ -56,13 +58,7 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
                 ((MockDirectoryWrapper) directories[i]).setEnableVirusScanner(false);
             }
         }
-        return new FilterDirectory(new DistributorDirectory(directories)) {
-            @Override
-            public void close() throws IOException {
-                assertTrue(DistributorDirectory.assertConsistency(logger, ((DistributorDirectory) this.getDelegate())));
-                super.close();
-            }
-        };
+        return new DistributorDirectory(directories);
     }
 
     // #7306: don't invoke the distributor when we are opening an already existing file
@@ -99,7 +95,6 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
         } catch (IllegalStateException ise) {
             // expected
         }
-        assertTrue(DistributorDirectory.assertConsistency(logger, dd));
         dd.close();
     }
 
@@ -132,7 +127,7 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
                 }
             }
             assertNotNull("file must be in at least one dir", theDir);
-            DirectoryService service = new DirectoryService() {
+            DirectoryService service = new DirectoryService(new ShardId("foo", 1), ImmutableSettings.EMPTY) {
                 @Override
                 public Directory[] build() throws IOException {
                     return new Directory[0];
@@ -149,9 +144,6 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
                     dir.deleteFile(from);
                 }
 
-                @Override
-                public void fullDelete(Directory dir) throws IOException {
-                }
             };
             dd.renameFile(service, tmpFileName, file);
             try {
@@ -182,7 +174,6 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
                     // target file already exists
                 }
             }
-            assertTrue(DistributorDirectory.assertConsistency(logger, dd));
             IOUtils.close(dd);
         }
     }

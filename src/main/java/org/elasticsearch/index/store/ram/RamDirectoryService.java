@@ -25,7 +25,6 @@ import org.apache.lucene.store.RAMFile;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
@@ -35,7 +34,7 @@ import java.io.IOException;
 
 /**
  */
-public final class RamDirectoryService extends AbstractIndexShardComponent implements DirectoryService {
+public final class RamDirectoryService extends DirectoryService {
 
     @Inject
     public RamDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings) {
@@ -57,10 +56,6 @@ public final class RamDirectoryService extends AbstractIndexShardComponent imple
         CustomRAMDirectory leaf = DirectoryUtils.getLeaf(dir, CustomRAMDirectory.class);
         assert leaf != null;
         leaf.renameTo(from, to);
-    }
-
-    @Override
-    public void fullDelete(Directory dir) {
     }
 
     static class CustomRAMDirectory extends RAMDirectory {

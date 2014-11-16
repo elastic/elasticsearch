@@ -148,16 +148,6 @@ public class FileSystemUtils {
     }
 
     /**
-     * Ensure that any writes to the given file is written to the storage device that contains it.
-     * @param fileToSync the file to fsync
-     * @param isDir if true, the given file is a directory (we open for read and ignore IOExceptions,
-     *  because not all file systems and operating systems allow to fsync on a directory)
-     */
-    public static void syncFile(File fileToSync, boolean isDir) throws IOException {
-        IOUtils.fsync(fileToSync, isDir);
-    }
-
-    /**
      * Check that a directory exists, is a directory and is readable
      * by the current user
      */
@@ -180,14 +170,6 @@ public class FileSystemUtils {
     }
 
     private FileSystemUtils() {}
-
-    public static void tryDeleteFile(File file) {
-        try {
-            file.delete();
-        } catch (SecurityException e1) {
-            // ignore
-        }
-    }
 
     /**
      * This utility copy a full directory content (excluded) under

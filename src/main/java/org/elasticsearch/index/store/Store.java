@@ -45,6 +45,7 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
+import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -95,6 +96,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private final StoreDirectory directory;
     private final DistributorDirectory distributorDirectory;
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
+    private final ShardLock shardLock;
 
     private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
         @Override
@@ -103,16 +105,21 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             Store.this.closeInternal();
         }
     };
+    private volatile OnCloseListener onClose;
 
     @Inject
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, CodecService codecService, DirectoryService directoryService, Distributor distributor) throws IOException {
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, CodecService codecService, DirectoryService directoryService, Distributor distributor, ShardLock shardLock) throws IOException {
         super(shardId, indexSettings);
         this.codecService = codecService;
         this.directoryService = directoryService;
-        this.distributorDirectory = new DistributorDirectory(distributor);
-        this.directory = new StoreDirectory(distributorDirectory);
-    }
+        this.directory = new StoreDirectory(directoryService.newFromDistributor(distributor));
 
+        distributorDirectory = DirectoryUtils.getLeaf(directory, DistributorDirectory.class);
+        assert distributorDirectory != null;
+        this.shardLock = shardLock;
+        assert shardLock != null;
+        assert shardLock.getShardId().equals(shardId);
+    }
 
     public Directory directory() {
         ensureOpen();
@@ -196,7 +203,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         failIfCorrupted();
         metadataLock.readLock().lock();
         try {
-            return new MetadataSnapshot(commit, distributorDirectory, logger);
+            return new MetadataSnapshot(commit, directory, logger);
         } catch (CorruptIndexException ex) {
             markStoreCorrupted(ex);
             throw ex;
@@ -259,20 +266,18 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      */
     public void deleteContent() throws IOException {
         ensureOpen();
-        final String[] files = distributorDirectory.listAll();
-        IOException lastException = null;
+        final String[] files = directory.listAll();
+        final List<IOException> exceptions = new ArrayList<>();
         for (String file : files) {
             try {
-                distributorDirectory.deleteFile(file);
+                directory.deleteFile(file);
             } catch (NoSuchFileException | FileNotFoundException e) {
                 // ignore
             } catch (IOException e) {
-                lastException = e;
+                exceptions.add(e);
             }
         }
-        if (lastException != null) {
-            throw lastException;
-        }
+        ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
     public StoreStats stats() throws IOException {
@@ -306,7 +311,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      */
     @Override
     public final void incRef() {
-       refCounter.incRef();
+        refCounter.incRef();
     }
 
     /**
@@ -323,7 +328,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      */
     @Override
     public final boolean tryIncRef() {
-       return refCounter.tryIncRef();
+        return refCounter.tryIncRef();
     }
 
     /**
@@ -333,22 +338,48 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      */
     @Override
     public final void decRef() {
-       refCounter.decRef();
+        refCounter.decRef();
     }
 
     @Override
     public void close() {
+        close(null);
+    }
+
+    /**
+     * Closes this store and installs the given {@link org.elasticsearch.index.store.Store.OnCloseListener}
+     * to be notified once all references to this store are released and the store is closed.
+     */
+    public void close(@Nullable OnCloseListener onClose) {
         if (isClosed.compareAndSet(false, true)) {
+            assert this.onClose == null : "OnClose listener is already set";
+            this.onClose = onClose;
             // only do this once!
             decRef();
         }
     }
 
     private void closeInternal() {
+        final OnCloseListener listener = onClose;
+        onClose = null;
         try {
             directory.innerClose(); // this closes the distributorDirectory as well
         } catch (IOException e) {
             logger.debug("failed to close directory", e);
+        } finally {
+            try {
+                IOUtils.closeWhileHandlingException(shardLock);
+            } finally {
+                try {
+                    if (listener != null) {
+                        listener.onClose(shardId);
+                    }
+                } catch (Exception ex){
+                    logger.debug("OnCloseListener threw an exception", ex);
+                }
+            }
+
+
         }
     }
 
@@ -557,12 +588,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
 
         private void innerClose() throws IOException {
-            try {
-                assert DistributorDirectory.assertConsistency(logger, distributorDirectory);
-            } finally {
-                super.close();
-            }
-
+            super.close();
         }
 
         @Override
@@ -858,8 +884,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
 
         public synchronized void write(Store store) throws IOException {
-            synchronized (store.distributorDirectory) {
-                Tuple<Map<String, String>, Long> tuple = MetadataSnapshot.readLegacyChecksums(store.distributorDirectory);
+            synchronized (store.directory) {
+                Tuple<Map<String, String>, Long> tuple = MetadataSnapshot.readLegacyChecksums(store.directory);
                 tuple.v1().putAll(legacyChecksums);
                 if (!tuple.v1().isEmpty()) {
                     writeChecksums(store.directory, tuple.v1(), tuple.v2());
@@ -1121,5 +1147,18 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             }
             directory().sync(Collections.singleton(uuid));
         }
+    }
+
+    /**
+     * A listener that is called once this store is closed and all references are released
+     */
+    public static interface OnCloseListener {
+
+        /**
+         * Called once the store is closed and all references are released.
+         *
+         * @param shardId the shard ID the calling store belongs to.
+         */
+        public void onClose(ShardId shardId);
     }
 }

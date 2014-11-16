@@ -27,7 +27,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.ThreadedIndexingAndSearchingTestCase;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.logging.ESLogger;
@@ -153,17 +152,11 @@ public class DistributorInTheWildTest extends ThreadedIndexingAndSearchingTestCa
         }
 
         try {
-            FilterDirectory distributorDirectory = new FilterDirectory(new DistributorDirectory(directories)) {
-                @Override
-                public void close() throws IOException {
-                    assertTrue(DistributorDirectory.assertConsistency(logger, (DistributorDirectory) this.getDelegate()));
-                    super.close();
-                }
-            };
+
             if (random().nextBoolean()) {
-                return new MockDirectoryWrapper(random(), distributorDirectory);
+                return new MockDirectoryWrapper(random(), new DistributorDirectory(directories));
             } else {
-                return distributorDirectory;
+                return new DistributorDirectory(directories);
             }
         } catch (IOException ex) {
             throw new RuntimeException(ex);

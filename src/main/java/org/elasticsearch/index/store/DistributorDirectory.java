@@ -20,7 +20,6 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.index.store.distributor.Distributor;
 
@@ -128,7 +127,12 @@ public final class DistributorDirectory extends BaseDirectory {
 
     @Override
     public synchronized void close() throws IOException {
-        IOUtils.close(distributor.all());
+        try {
+            assert assertConsistency();
+        } finally {
+            IOUtils.close(distributor.all());
+        }
+
     }
 
     /**
@@ -183,34 +187,29 @@ public final class DistributorDirectory extends BaseDirectory {
     /**
      * Basic checks to ensure the internal mapping is consistent - should only be used in assertions
      */
-    static boolean assertConsistency(ESLogger logger, DistributorDirectory dir) throws IOException {
-        synchronized (dir) {
-            boolean consistent = true;
-            StringBuilder builder = new StringBuilder();
-            Directory[] all = dir.distributor.all();
-            for (Directory d : all) {
-                for (String file : d.listAll()) {
-                    final Directory directory = dir.nameDirMapping.get(file);
-                    if (directory == null) {
-                        consistent = false;
-                        builder.append("File ").append(file)
-                                .append(" was not mapped to a directory but exists in one of the distributors directories")
-                                .append(System.lineSeparator());
-                    } else if (directory != d) {
-                        consistent = false;
-                        builder.append("File ").append(file).append(" was  mapped to a directory ").append(directory)
-                                .append(" but exists in another distributor directory").append(d)
-                                .append(System.lineSeparator());
-                    }
-
+    private synchronized boolean assertConsistency() throws IOException {
+        boolean consistent = true;
+        StringBuilder builder = new StringBuilder();
+        Directory[] all = distributor.all();
+        for (Directory d : all) {
+            for (String file : d.listAll()) {
+                final Directory directory = nameDirMapping.get(file);
+                if (directory == null) {
+                    consistent = false;
+                    builder.append("File ").append(file)
+                            .append(" was not mapped to a directory but exists in one of the distributors directories")
+                            .append(System.lineSeparator());
+                } else if (directory != d) {
+                    consistent = false;
+                    builder.append("File ").append(file).append(" was  mapped to a directory ").append(directory)
+                            .append(" but exists in another distributor directory").append(d)
+                            .append(System.lineSeparator());
                 }
+
             }
-            if (consistent == false) {
-                logger.info(builder.toString());
-            }
-            assert consistent : builder.toString();
-            return consistent; // return boolean so it can be easily be used in asserts
         }
+        assert consistent : builder.toString();
+        return consistent; // return boolean so it can be easily be used in asserts
     }
 
     /**

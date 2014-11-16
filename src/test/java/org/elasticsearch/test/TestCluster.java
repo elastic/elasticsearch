@@ -80,7 +80,7 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     /**
      * This method checks all the things that need to be checked after each test
      */
-    public void assertAfterTest() {
+    public void assertAfterTest() throws IOException {
         assertAllSearchersClosed();
         assertAllFilesClosed();
         ensureEstimatedStats();

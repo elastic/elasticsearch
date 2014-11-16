@@ -46,6 +46,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.aliases.IndexAlias;
@@ -67,10 +69,8 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.io.IOException;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -97,6 +97,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     // a list of shards that failed during recovery
     // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
     private final ConcurrentMap<ShardId, FailedShard> failedShards = ConcurrentCollections.newConcurrentMap();
+    private final NodeEnvironment nodeEnvironment;
 
     static class FailedShard {
         public final long version;
@@ -119,7 +120,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                                       ThreadPool threadPool, RecoveryTarget recoveryTarget,
                                       ShardStateAction shardStateAction,
                                       NodeIndexDeletedAction nodeIndexDeletedAction,
-                                      NodeMappingRefreshAction nodeMappingRefreshAction) {
+                                      NodeMappingRefreshAction nodeMappingRefreshAction,
+                                      NodeEnvironment nodeEnvironment) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -130,6 +132,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
 
         this.sendRefreshMapping = componentSettings.getAsBoolean("send_refresh_mapping", true);
+        this.nodeEnvironment = nodeEnvironment;
     }
 
     @Override
@@ -254,7 +257,33 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}] cleaning index, no longer part of the metadata", index);
                 }
-                removeIndex(index, "index no longer part of the metadata");
+                removeIndex(index, "index no longer part of the metadata", new IndicesService.IndexCloseListener() {
+
+                    @Override
+                    public void onAllShardsClosed(Index index, List<Throwable> failures) {
+                        try {
+                            nodeEnvironment.deleteIndexDirectorySafe(index);
+                            logger.debug("deleted index [{}] from filesystem", index);
+                        } catch (Exception e) {
+                            logger.debug("failed to deleted index [{}] from filesystem", e, index);
+                            // ignore - still some shards locked here
+                        }
+                    }
+
+                    @Override
+                    public void onShardClosed(ShardId shardId) {
+                        try {
+                            nodeEnvironment.deleteShardDirectorySafe(shardId);
+                            logger.debug("deleted shard [{}] from filesystem", shardId);
+                        } catch (IOException e) {
+                            logger.warn("Can't delete shard {} ", e, shardId);
+                        }
+                    }
+
+                    @Override
+                    public void onShardCloseFailed(ShardId shardId, Throwable t) {
+                    }
+                });
             }
         }
     }
@@ -839,10 +868,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
         }
     }
-
     private void removeIndex(String index, String reason) {
+        removeIndex(index, reason, null);
+    }
+
+    private void removeIndex(String index, String reason, @Nullable IndicesService.IndexCloseListener listener) {
         try {
-            indicesService.removeIndex(index, reason);
+            indicesService.removeIndex(index, reason, listener);
         } catch (Throwable e) {
             logger.warn("failed to clean index ({})", e, reason);
         }

@@ -40,6 +40,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.index.store.fs.FsDirectoryService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
@@ -149,6 +150,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
             } catch (Exception e) {
                 logger.warn("failed to check index", e);
             } finally {
+                logger.info("end check index");
                 store.decRef();
             }
         }
@@ -167,5 +169,10 @@ public class MockFSDirectoryService extends FsDirectoryService {
     @Override
     public long throttleTimeInNanos() {
         return delegateService.throttleTimeInNanos();
+    }
+
+    @Override
+    public Directory newFromDistributor(Distributor distributor) throws IOException {
+        return helper.wrap(super.newFromDistributor(distributor));
     }
 }

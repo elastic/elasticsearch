@@ -82,6 +82,7 @@ public class FileSystemUtils {
      * in the input array using {@link java.io.File#toPath()}
      * @param files the files to get paths for
      */
+    @Deprecated // this is only a transition API
     public static Path[] toPaths(File... files) {
         Path[] paths = new Path[files.length];
         for (int i = 0; i < files.length; i++) {

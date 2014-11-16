@@ -35,7 +35,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -45,6 +44,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
@@ -65,6 +65,7 @@ import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -93,7 +94,12 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 // we really need local GW here since this also checks for corruption etc.
                 // and we need to make sure primaries are not just trashed if we don'tmvn have replicas
                 .put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local")
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                // speed up recoveries
+                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, 10)
+                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 5)
+                .build();
     }
 
     /**
@@ -318,7 +324,6 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                 .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)
                 .put("index.routing.allocation.include._name", primariesNode.getNode().name())
-                .put("indices.recovery.concurrent_streams", 10)
         ));
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];

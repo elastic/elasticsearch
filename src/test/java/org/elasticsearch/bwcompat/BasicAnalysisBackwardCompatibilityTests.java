@@ -50,8 +50,11 @@ public class BasicAnalysisBackwardCompatibilityTests extends ElasticsearchBackwa
      */
     @Test
     public void testAnalyzerTokensAfterUpgrade() throws IOException, ExecutionException, InterruptedException {
+        // certain analyzers, namely PatternAnalyzer, have had issues with turkish and azuri
+        assumeFalse("Do not use turkish and azuri locales",
+                    Locale.getDefault().getLanguage().equals("tr") || Locale.getDefault().getLanguage().equals("az"));
+        
         int numFields = randomIntBetween(PreBuiltAnalyzers.values().length, PreBuiltAnalyzers.values().length * 10);
-        StringBuilder builder = new StringBuilder();
         String[] fields = new String[numFields * 2];
         int fieldId = 0;
         for (int i = 0; i < fields.length; i++) {

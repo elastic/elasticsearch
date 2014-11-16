@@ -111,7 +111,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
 
     @Override
     public Directory[] build() throws IOException {
-        return helper.wrapAllInplace(delegateService.build());
+        return delegateService.build();
     }
     
     @Override

@@ -49,7 +49,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         "index-0.90.8.zip",
         "index-0.90.9.zip",
         "index-0.90.10.zip",
-        "index-0.90.12.zip",
+        /* skipping 0.90.12...ensureGreen always times out while loading the index...,*/
         "index-0.90.13.zip",
         "index-1.0.0.Beta1.zip",
         "index-1.0.0.zip",
@@ -77,11 +77,9 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
 
     public void testOldIndexes() throws Exception {
         Collections.shuffle(indexes, getRandom());
-        // TODO: increase the minimum here, as we add more old indexes, since this doesn't take very long anyways
-        final int numToTest = scaledRandomIntBetween(5, indexes.size());
-        for (int i = 0; i < numToTest; ++i) {
-            logger.info("Testing old index " + indexes.get(i));
-            assertOldIndexWorks(indexes.get(i));
+        for (String index : indexes) {
+            logger.info("Testing old index " + index);
+            assertOldIndexWorks(index);
         }
     }
     
@@ -91,7 +89,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
             logger.info("Testing too old index " + index);
             try {
                 assertOldIndexWorks(index);
-                fail("Expected index to throw lucene    format exception");
+                fail("Expected index to throw lucene format exception");
             } catch (IndexFormatTooOldException e) {
                 // expected
             }
@@ -143,13 +141,14 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
                 .put("data.node", true)
                 .put("master.node", false).build());
         }
+        ensureGreen("test");
         client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
-            .put("num_replicas", numReplicas)
+            .put("number_of_replicas", numReplicas)
             .build());
         ensureGreen("test"); // TODO: what is the proper way to wait for new replicas to recover?
 
         client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
-            .put("num_replicas", 0)
+            .put("number_of_replicas", 0)
             .build());
     }
 

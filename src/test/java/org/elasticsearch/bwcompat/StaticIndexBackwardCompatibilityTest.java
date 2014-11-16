@@ -21,26 +21,20 @@ package org.elasticsearch.bwcompat;
 
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.node.internal.InternalNode;
-import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Arrays;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -51,33 +45,11 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @LuceneTestCase.SuppressCodecs({"Lucene3x", "MockFixedIntBlock", "MockVariableIntBlock", "MockSep", "MockRandom", "Lucene40", "Lucene41", "Appending", "Lucene42", "Lucene45", "Lucene46", "Lucene49"})
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
 public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrationTest {
-    
-    /*public File prepareBackwardsDataDir(File backwardsIndex) throws IOException {
-        File dataDir = new File(newTempDir(), "data");
-        TestUtil.unzip(backwardsIndex, dataDir);
-        assertTrue(dataDir.exists());
-        String[] list = dataDir.list();
-        if (list == null || list.length > 1) {
-            throw new IllegalStateException("Backwards index must contain exactly one cluster");
-        }
-        File src = new File(dataDir, list[0]);
-        File dest = new File(dataDir, internalCluster().getClusterName());
-        assertTrue(src.exists());
-        src.renameTo(dest);
-        assertFalse(src.exists());
-        assertTrue(dest.exists());
-        return dataDir;
-    }*/
 
     public void loadIndex(String index) throws Exception {
-        logger.info("Checking static index");
-        //File dataDir = prepareBackwardsDataDir(new File(getClass().getResource(index).toURI()));
+        logger.info("Checking static index " + index);
         Settings settings = prepareBackwardsDataDir(new File(getClass().getResource(index).toURI()));
-        internalCluster().startNode(settings);/*ImmutableSettings.builder()
-                         .put("path.data", dataDir.getPath())
-                         .put("gateway.type", "local") // this is important we need to recover from gateway
-                         .put(InternalNode.HTTP_ENABLED, true)
-                         .build());*/
+        internalCluster().startNode(settings);
         ensureGreen("test");
         assertIndexSanity();
     }

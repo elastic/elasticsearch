@@ -270,7 +270,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
      * Returns all currently lock shards
      */
     public Set<ShardId> lockedShards() {
-        synchronized (this) {
+        synchronized (shardLocks) {
             ImmutableSet.Builder<ShardId> builder = ImmutableSet.builder();
             return builder.addAll(shardLocks.keySet()).build();
         }

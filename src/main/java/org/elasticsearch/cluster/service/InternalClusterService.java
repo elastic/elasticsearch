@@ -160,7 +160,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Override
     protected void doStop() throws ElasticsearchException {
-        this.reconnectToNodes.cancel(true);
+        FutureUtils.cancel(this.reconnectToNodes);
         for (NotifyTimeout onGoingTimeout : onGoingTimeouts) {
             onGoingTimeout.cancel();
             onGoingTimeout.listener.onClose();
@@ -500,7 +500,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
 
         public void cancel() {
-            future.cancel(false);
+            FutureUtils.cancel(future);
         }
 
         @Override
@@ -708,7 +708,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
             if (countDown.countDown()) {
                 logger.trace("all expected nodes acknowledged cluster_state update (version: {})", clusterStateVersion);
-                ackTimeoutCallback.cancel(true);
+                FutureUtils.cancel(ackTimeoutCallback);
                 ackedUpdateTask.onAllNodesAcked(lastFailure);
             }
         }

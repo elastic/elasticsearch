@@ -44,6 +44,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
@@ -697,14 +698,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         synchronized (mutex) {
             indexSettingsService.removeListener(applyRefreshSettings);
             if (state != IndexShardState.CLOSED) {
-                if (refreshScheduledFuture != null) {
-                    refreshScheduledFuture.cancel(true);
-                    refreshScheduledFuture = null;
-                }
-                if (mergeScheduleFuture != null) {
-                    mergeScheduleFuture.cancel(true);
-                    mergeScheduleFuture = null;
-                }
+                FutureUtils.cancel(refreshScheduledFuture);
+                refreshScheduledFuture = null;
+                FutureUtils.cancel(mergeScheduleFuture);
+                mergeScheduleFuture = null;
             }
             changeState(IndexShardState.CLOSED, reason);
         }
@@ -954,7 +951,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                         // NOTE: we pass false here so we do NOT attempt Thread.interrupt if EngineRefresher.run is currently running.  This is
                         // very important, because doing so can cause files to suddenly be closed if they were doing IO when the interrupt
                         // hit.  See https://issues.apache.org/jira/browse/LUCENE-2239
-                        refreshScheduledFuture.cancel(false);
+                        FutureUtils.cancel(refreshScheduledFuture);
                         refreshScheduledFuture = null;
                     }
                     InternalIndexShard.this.refreshInterval = refreshInterval;

@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
@@ -336,9 +337,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
     @Override
     public void close() {
-        if (flushScheduler != null) {
-            flushScheduler.cancel(false);
-        }
+        FutureUtils.cancel(flushScheduler);
     }
 
     class Sync implements Runnable {

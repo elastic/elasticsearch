@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
@@ -65,6 +66,7 @@ import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -94,7 +96,12 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 // we really need local GW here since this also checks for corruption etc.
                 // and we need to make sure primaries are not just trashed if we don't have replicas
                 .put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local")
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                // speed up recoveries
+                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, 10)
+                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 5)
+                .build();
     }
 
     /**
@@ -322,7 +329,6 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 // This does corrupt files on the replica, so we can't check:
                 .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
                 .put("index.routing.allocation.include._name", primariesNode.getNode().name())
-                .put("indices.recovery.concurrent_streams", 10)
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
         ));
         ensureGreen();

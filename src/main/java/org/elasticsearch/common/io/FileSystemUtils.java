@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io;
 
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.common.logging.ESLogger;
 
 import java.io.File;
@@ -91,24 +92,19 @@ public class FileSystemUtils {
     }
 
     /**
-     * Deletes all subdirectories of the given roots recursively.
+     * Deletes all subdirectories in the given path recursively
+     * @throws java.lang.IllegalArgumentException if the given path is not a directory
      */
-    public static boolean deleteSubDirectories(File[] roots) {
-
-        boolean deleted = true;
-        for (File root : roots) {
-            if (root.isDirectory()) {
-                File[] files = root.listFiles(new FileFilter() {
-                    @Override
-                    public boolean accept(File pathname) {
-                        return pathname.isDirectory();
+    public static void deleteSubDirectories(Path... paths) throws IOException {
+        for (Path path : paths) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+                for (Path subPath : stream) {
+                    if (Files.isDirectory(subPath)) {
+                        XIOUtils    .rm(subPath);
                     }
-                });
-                deleted &= deleteRecursively(files, true);
+                }
             }
-
         }
-        return deleted;
     }
 
     /**

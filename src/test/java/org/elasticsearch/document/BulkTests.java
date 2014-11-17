@@ -20,6 +20,7 @@
 package org.elasticsearch.document;
 
 import com.google.common.base.Charsets;
+
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -47,8 +48,15 @@ import java.util.ArrayList;
 import java.util.concurrent.CyclicBarrier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BulkTests extends ElasticsearchIntegrationTest {
 
@@ -472,6 +480,40 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 .get();
 
         assertSearchHits(searchResponse, "child1");
+    }
+
+    /*
+     * Test for https://github.com/elasticsearch/elasticsearch/issues/8365
+     */
+    @Test
+    public void testBulkUpdateChildMissingParentRouting() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("parent", "{\"parent\":{}}").addMapping("child",
+                "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}"));
+        ensureGreen();
+
+        BulkRequestBuilder builder = client().prepareBulk();
+
+        byte[] addParent = new BytesArray("{\"index\" : { \"_index\" : \"test\", \"_type\" : \"parent\", \"_id\" : \"parent1\"}}\n"
+                + "{\"field1\" : \"value1\"}\n").array();
+
+        byte[] addChildOK = new BytesArray(
+                "{\"index\" : { \"_id\" : \"child1\", \"_type\" : \"child\", \"_index\" : \"test\", \"parent\" : \"parent1\"} }\n"
+                        + "{ \"field1\" : \"value1\"}\n").array();
+        byte[] addChildMissingRouting = new BytesArray(
+                "{\"index\" : { \"_id\" : \"child2\", \"_type\" : \"child\", \"_index\" : \"test\"} }\n" + "{ \"field1\" : \"value1\"}\n")
+                .array();
+
+        builder.add(addParent, 0, addParent.length, false);
+        builder.add(addChildOK, 0, addChildOK.length, false);
+        builder.add(addChildMissingRouting, 0, addChildMissingRouting.length, false);
+        builder.add(addChildOK, 0, addChildOK.length, false);
+
+        BulkResponse bulkResponse = builder.get();
+        assertThat(bulkResponse.getItems().length, equalTo(4));
+        assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(true));
+        assertThat(bulkResponse.getItems()[3].isFailed(), equalTo(false));
     }
 
     @Test

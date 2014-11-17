@@ -51,30 +51,28 @@ public class ScriptLongValues extends SortingNumericDocValues implements ScriptV
         final Object value = script.run();
 
         if (value == null) {
-            count = 0;
+            resize(0);
         }
 
         else if (value instanceof Number) {
-            count = 1;
+            resize(1);
             values[0] = ((Number) value).longValue();
         }
 
         else if (value.getClass().isArray()) {
-            count = Array.getLength(value);
-            grow();
-            for (int i = 0; i < count; ++i) {
+            resize(Array.getLength(value));
+            for (int i = 0; i < count(); ++i) {
                 values[i] = ((Number) Array.get(value, i)).longValue();
             }
         }
 
         else if (value instanceof Collection) {
-            count = ((Collection<?>) value).size();
-            grow();
+            resize(((Collection<?>) value).size());
             int i = 0;
             for (Iterator<?> it = ((Collection<?>) value).iterator(); it.hasNext(); ++i) {
                 values[i] = ((Number) it.next()).longValue();
             }
-            assert i == count;
+            assert i == count();
         }
 
         else {

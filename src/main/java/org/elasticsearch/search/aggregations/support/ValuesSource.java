@@ -484,9 +484,8 @@ public abstract class ValuesSource {
                 public void setDocument(int docId) {
                     script.setNextDocId(docId);
                     source.longValues().setDocument(docId);
-                    count = source.longValues().count();
-                    grow();
-                    for (int i = 0; i < count; ++i) {
+                    resize(source.longValues().count());
+                    for (int i = 0; i < count(); ++i) {
                         script.setNextVar("_value", source.longValues().valueAt(i));
                         values[i] = script.runAsLong();
                     }

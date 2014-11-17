@@ -486,6 +486,10 @@ public abstract class ShapeBuilder implements ToXContent {
             }
         }
 
+        public static Coordinate maxCoordinate() {
+            return IntersectionOrder.SENTINEL;
+        }
+
         @Override
         public String toString() {
             return "Edge[Component=" + component + "; start=" + coordinate + " " + "; intersection=" + intersect + "]";

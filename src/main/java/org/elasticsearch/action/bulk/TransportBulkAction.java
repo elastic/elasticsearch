@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.RoutingMissingException;
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -29,6 +27,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -221,7 +220,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 }
                 try {
                     indexRequest.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
-                } catch (ElasticsearchParseException e) {
+                } catch (ElasticsearchParseException | RoutingMissingException e) {
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e);
                     BulkItemResponse bulkItemResponse = new BulkItemResponse(i, "index", failure);
                     responses.set(i, bulkItemResponse);
@@ -280,8 +279,10 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 UpdateRequest updateRequest = (UpdateRequest) request;
                 MappingMetaData mappingMd = clusterState.metaData().index(updateRequest.index()).mappingOrDefault(updateRequest.type());
                 if (mappingMd != null && mappingMd.routing().required() && updateRequest.routing() == null) {
-                    //Bulk update child doc, NPE error message when parent is not specified #8365 
-                    throw new RoutingMissingException(concreteIndex, updateRequest.type(), updateRequest.id());
+                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(),
+                            updateRequest.id(), "routing is required for this item", RestStatus.BAD_REQUEST);
+                    responses.set(i, new BulkItemResponse(i, updateRequest.type(), failure));
+                    continue;
                 }
                 ShardId shardId = clusterService.operationRouting().indexShards(clusterState, updateRequest.index(), updateRequest.type(), updateRequest.id(), updateRequest.routing()).shardId();
                 List<BulkItemRequest> list = requestsByShard.get(shardId);

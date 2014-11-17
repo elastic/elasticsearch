@@ -148,8 +148,8 @@ public class GeoHashGridParser implements Aggregator.Parser {
             public void setDocument(int docId) {
                 geoValues = geoPointValues.geoPointValues();
                 geoValues.setDocument(docId);
-                count = geoValues.count();
-                for (int i = 0; i < count; ++i) {
+                resize(geoValues.count());
+                for (int i = 0; i < count(); ++i) {
                     GeoPoint target = geoValues.valueAt(i);
                     values[i] = GeoHashUtils.encodeAsLong(target.getLat(), target.getLon(), precision);
                 }

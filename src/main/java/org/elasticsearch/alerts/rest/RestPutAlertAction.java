@@ -6,9 +6,10 @@
 package org.elasticsearch.alerts.rest;
 
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequest;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
+import org.elasticsearch.alerts.transport.actions.put.PutAlertRequest;
+import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -23,26 +24,26 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
-public class RestIndexAlertAction extends BaseRestHandler {
+public class RestPutAlertAction extends BaseRestHandler {
 
     private final AlertsClient alertsClient;
 
     @Inject
-    public RestIndexAlertAction(Settings settings, RestController controller, Client client, AlertsClient alertsClient) {
+    public RestPutAlertAction(Settings settings, RestController controller, Client client, AlertsClient alertsClient) {
         super(settings, controller, client);
         this.alertsClient = alertsClient;
-        controller.registerHandler(POST, "/_alert/{name}", this);
-        controller.registerHandler(PUT, "/_alert/{name}", this);
+        controller.registerHandler(POST, AlertsStore.ALERT_INDEX + "/alert/{name}", this);
+        controller.registerHandler(PUT, AlertsStore.ALERT_INDEX + "/alert/{name}", this);
     }
 
     @Override
     protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
-        IndexAlertRequest indexAlertRequest = new IndexAlertRequest();
-        indexAlertRequest.setAlertName(request.param("name"));
-        indexAlertRequest.setAlertSource(request.content(), request.contentUnsafe());
-        alertsClient.indexAlert(indexAlertRequest, new RestBuilderListener<IndexAlertResponse>(channel) {
+        PutAlertRequest putAlertRequest = new PutAlertRequest();
+        putAlertRequest.setAlertName(request.param("name"));
+        putAlertRequest.setAlertSource(request.content(), request.contentUnsafe());
+        alertsClient.indexAlert(putAlertRequest, new RestBuilderListener<PutAlertResponse>(channel) {
             @Override
-            public RestResponse buildResponse(IndexAlertResponse response, XContentBuilder builder) throws Exception {
+            public RestResponse buildResponse(PutAlertResponse response, XContentBuilder builder) throws Exception {
                 IndexResponse indexResponse = response.indexResponse();
                 builder.startObject()
                         .field("_index", indexResponse.getIndex())

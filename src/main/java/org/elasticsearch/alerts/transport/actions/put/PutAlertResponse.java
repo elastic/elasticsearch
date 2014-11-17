@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.transport.actions.index;
+package org.elasticsearch.alerts.transport.actions.put;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -14,14 +14,14 @@ import java.io.IOException;
 
 /**
  */
-public class IndexAlertResponse extends ActionResponse {
+public class PutAlertResponse extends ActionResponse {
     private IndexResponse indexResponse;
 
-    public IndexAlertResponse(IndexResponse indexResponse) {
+    public PutAlertResponse(IndexResponse indexResponse) {
         this.indexResponse = indexResponse;
     }
 
-    public IndexAlertResponse() {
+    public PutAlertResponse() {
         indexResponse = null;
     }
 

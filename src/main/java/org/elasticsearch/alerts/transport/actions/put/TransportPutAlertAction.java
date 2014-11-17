@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.transport.actions.index;
+package org.elasticsearch.alerts.transport.actions.put;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -24,14 +24,14 @@ import org.elasticsearch.transport.TransportService;
 
 /**
  */
-public class TransportIndexAlertAction extends TransportMasterNodeOperationAction<IndexAlertRequest, IndexAlertResponse> {
+public class TransportPutAlertAction extends TransportMasterNodeOperationAction<PutAlertRequest, PutAlertResponse> {
 
     private final AlertManager alertManager;
 
     @Inject
-    public TransportIndexAlertAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, ActionFilters actionFilters, AlertManager alertManager) {
-        super(settings, IndexAlertAction.NAME, transportService, clusterService, threadPool, actionFilters);
+    public TransportPutAlertAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                   ThreadPool threadPool, ActionFilters actionFilters, AlertManager alertManager) {
+        super(settings, PutAlertAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.alertManager = alertManager;
     }
 
@@ -41,27 +41,27 @@ public class TransportIndexAlertAction extends TransportMasterNodeOperationActio
     }
 
     @Override
-    protected IndexAlertRequest newRequest() {
-        return new IndexAlertRequest();
+    protected PutAlertRequest newRequest() {
+        return new PutAlertRequest();
     }
 
     @Override
-    protected IndexAlertResponse newResponse() {
-        return new IndexAlertResponse();
+    protected PutAlertResponse newResponse() {
+        return new PutAlertResponse();
     }
 
     @Override
-    protected void masterOperation(IndexAlertRequest request, ClusterState state, ActionListener<IndexAlertResponse> listener) throws ElasticsearchException {
+    protected void masterOperation(PutAlertRequest request, ClusterState state, ActionListener<PutAlertResponse> listener) throws ElasticsearchException {
         try {
             IndexResponse indexResponse = alertManager.addAlert(request.getAlertName(), request.getAlertSource());
-            listener.onResponse(new IndexAlertResponse(indexResponse));
+            listener.onResponse(new PutAlertResponse(indexResponse));
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
     @Override
-    protected ClusterBlockException checkBlock(IndexAlertRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutAlertRequest request, ClusterState state) {
         request.beforeLocalFork(); // This is the best place to make the alert source safe
         return state.blocks().indicesBlockedException(ClusterBlockLevel.WRITE, new String[]{AlertsStore.ALERT_INDEX, AlertActionManager.ALERT_HISTORY_INDEX});
 

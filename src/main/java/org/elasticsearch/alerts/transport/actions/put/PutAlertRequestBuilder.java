@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.transport.actions.index;
+package org.elasticsearch.alerts.transport.actions.put;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
@@ -12,34 +12,34 @@ import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  */
-public class IndexAlertRequestBuilder
-        extends MasterNodeOperationRequestBuilder<IndexAlertRequest, IndexAlertResponse,
-        IndexAlertRequestBuilder, AlertsClient> {
+public class PutAlertRequestBuilder
+        extends MasterNodeOperationRequestBuilder<PutAlertRequest, PutAlertResponse,
+        PutAlertRequestBuilder, AlertsClient> {
 
 
-    public IndexAlertRequestBuilder(AlertsClient client) {
-        super(client, new IndexAlertRequest());
+    public PutAlertRequestBuilder(AlertsClient client) {
+        super(client, new PutAlertRequest());
     }
 
 
-    public IndexAlertRequestBuilder(AlertsClient client, String alertName) {
-        super(client, new IndexAlertRequest());
+    public PutAlertRequestBuilder(AlertsClient client, String alertName) {
+        super(client, new PutAlertRequest());
         request.setAlertName(alertName);
     }
 
-    public IndexAlertRequestBuilder setAlertName(String alertName){
+    public PutAlertRequestBuilder setAlertName(String alertName){
         request.setAlertName(alertName);
         return this;
     }
 
-    public IndexAlertRequestBuilder setAlertSource(BytesReference alertSource) {
+    public PutAlertRequestBuilder setAlertSource(BytesReference alertSource) {
         request.setAlertSource(alertSource);
         return this;
     }
 
 
     @Override
-    protected void doExecute(ActionListener<IndexAlertResponse> listener) {
+    protected void doExecute(ActionListener<PutAlertResponse> listener) {
         client.indexAlert(request, listener);
     }
 }

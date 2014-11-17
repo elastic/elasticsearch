@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts.rest;
 
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
@@ -30,7 +31,7 @@ public class RestDeleteAlertAction extends BaseRestHandler {
     public RestDeleteAlertAction(Settings settings, RestController controller, Client client, AlertsClient alertsClient) {
         super(settings, controller, client);
         this.alertsClient = alertsClient;
-        controller.registerHandler(DELETE, "/_alert/{name}", this);
+        controller.registerHandler(DELETE, AlertsStore.ALERT_INDEX + "/alert/{name}", this);
     }
 
     @Override

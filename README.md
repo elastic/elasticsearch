@@ -6,7 +6,7 @@ This is the elasticsearch alerting plugin repo.
 Creating an alert :
 
 ````
-PUT _alert/testalert
+PUT /.alerts/alert/testalert
 {
   "request" : {
     "indices" : [
@@ -63,7 +63,7 @@ Expected response :
 Viewing an existing alert :
 
 ````
-GET _alert/testalert
+GET /.alerts/alert/testalert
 ````
 
 ````
@@ -119,7 +119,7 @@ GET _alert/testalert
 
 Deleting an alert :
 ````
-DELETE _alert/testalert
+DELETE /.alerts/alert/testalert
 ````
 
 Expected output :

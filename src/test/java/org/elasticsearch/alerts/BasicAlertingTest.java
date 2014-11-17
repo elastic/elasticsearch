@@ -10,7 +10,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
+import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -69,7 +69,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
         SearchRequest searchRequest = new SearchRequest("my-index").source(searchSource().query(matchAllQuery()));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
-        IndexAlertResponse indexResponse = alertsClient.prepareIndexAlert("my-first-alert")
+        PutAlertResponse indexResponse = alertsClient.prepareIndexAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
         assertThat(indexResponse.indexResponse().isCreated(), is(true));

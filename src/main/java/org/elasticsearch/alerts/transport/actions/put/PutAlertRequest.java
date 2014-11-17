@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.transport.actions.index;
+package org.elasticsearch.alerts.transport.actions.put;
 
 
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -17,16 +17,16 @@ import java.io.IOException;
 
 /**
  */
-public class IndexAlertRequest extends MasterNodeOperationRequest<IndexAlertRequest> {
+public class PutAlertRequest extends MasterNodeOperationRequest<PutAlertRequest> {
 
     private String alertName;
     private BytesReference alertSource;
     private boolean alertSourceUnsafe;
 
-    public IndexAlertRequest() {
+    public PutAlertRequest() {
     }
 
-    public IndexAlertRequest(BytesReference alertSource) {
+    public PutAlertRequest(BytesReference alertSource) {
         this.alertSource = alertSource;
     }
 

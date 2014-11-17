@@ -9,7 +9,7 @@ import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.alerts.transport.actions.delete.*;
 import org.elasticsearch.alerts.transport.actions.get.*;
-import org.elasticsearch.alerts.transport.actions.index.*;
+import org.elasticsearch.alerts.transport.actions.put.*;
 import org.elasticsearch.alerts.transport.actions.stats.*;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -23,13 +23,13 @@ public class NodeAlertsClient implements AlertsClient {
     private final ImmutableMap<GenericAction, TransportAction> internalActions;
 
     @Inject
-    public NodeAlertsClient(ThreadPool threadPool, Headers headers, TransportIndexAlertAction transportIndexAlertAction,
+    public NodeAlertsClient(ThreadPool threadPool, Headers headers, TransportPutAlertAction transportPutAlertAction,
                             TransportGetAlertAction transportGetAlertAction, TransportDeleteAlertAction transportDeleteAlertAction,
                             TransportAlertStatsAction transportAlertStatsAction) {
         this.headers = headers;
         this.threadPool = threadPool;
         internalActions = ImmutableMap.<GenericAction, TransportAction>builder()
-                .put(IndexAlertAction.INSTANCE, transportIndexAlertAction)
+                .put(PutAlertAction.INSTANCE, transportPutAlertAction)
                 .put(GetAlertAction.INSTANCE, transportGetAlertAction)
                 .put(DeleteAlertAction.INSTANCE, transportDeleteAlertAction)
                 .put(AlertsStatsAction.INSTANCE, transportAlertStatsAction)
@@ -76,23 +76,23 @@ public class NodeAlertsClient implements AlertsClient {
     }
 
     @Override
-    public IndexAlertRequestBuilder prepareIndexAlert(String alertName) {
-        return new IndexAlertRequestBuilder(this, alertName);
+    public PutAlertRequestBuilder prepareIndexAlert(String alertName) {
+        return new PutAlertRequestBuilder(this, alertName);
     }
 
     @Override
-    public IndexAlertRequestBuilder prepareIndexAlert() {
-        return new IndexAlertRequestBuilder(this, null);
+    public PutAlertRequestBuilder prepareIndexAlert() {
+        return new PutAlertRequestBuilder(this, null);
     }
 
     @Override
-    public void indexAlert(IndexAlertRequest request, ActionListener<IndexAlertResponse> response) {
-        execute(IndexAlertAction.INSTANCE, request, response);
+    public void indexAlert(PutAlertRequest request, ActionListener<PutAlertResponse> response) {
+        execute(PutAlertAction.INSTANCE, request, response);
     }
 
     @Override
-    public ActionFuture<IndexAlertResponse> indexAlert(IndexAlertRequest request) {
-        return execute(IndexAlertAction.INSTANCE, request);
+    public ActionFuture<PutAlertResponse> indexAlert(PutAlertRequest request) {
+        return execute(PutAlertAction.INSTANCE, request);
     }
 
     @Override

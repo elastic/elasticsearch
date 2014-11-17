@@ -13,9 +13,9 @@ import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertRequestBuilder;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequest;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequestBuilder;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
+import org.elasticsearch.alerts.transport.actions.put.PutAlertRequest;
+import org.elasticsearch.alerts.transport.actions.put.PutAlertRequestBuilder;
+import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsRequest;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsRequestBuilder;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
@@ -93,14 +93,14 @@ public interface AlertsClient extends ElasticsearchClient<AlertsClient> {
      * @param alertName The name of the alert to index
      * @return The builder to create the alert
      */
-    IndexAlertRequestBuilder prepareIndexAlert(String alertName);
+    PutAlertRequestBuilder prepareIndexAlert(String alertName);
 
     /**
      * Creates a request builder to build a request to index an alert
      *
      * @return The builder
      */
-    IndexAlertRequestBuilder prepareIndexAlert();
+    PutAlertRequestBuilder prepareIndexAlert();
 
     /**
      * Indexes an alert and registers it with the scheduler
@@ -108,7 +108,7 @@ public interface AlertsClient extends ElasticsearchClient<AlertsClient> {
      * @param request The request containing the alert to index and register
      * @param listener The listener for the response containing the IndexResponse for this alert
      */
-    void indexAlert(IndexAlertRequest request, ActionListener<IndexAlertResponse> listener);
+    void indexAlert(PutAlertRequest request, ActionListener<PutAlertResponse> listener);
 
     /**
      * Indexes an alert and registers it with the scheduler
@@ -116,7 +116,7 @@ public interface AlertsClient extends ElasticsearchClient<AlertsClient> {
      * @param request The request containing the alert to index and register
      * @return The response containing the IndexResponse for this alert
      */
-    ActionFuture<IndexAlertResponse> indexAlert(IndexAlertRequest request);
+    ActionFuture<PutAlertResponse> indexAlert(PutAlertRequest request);
 
 
     /**

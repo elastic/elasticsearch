@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts.rest;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
@@ -31,7 +32,7 @@ public class RestGetAlertAction extends BaseRestHandler {
     public RestGetAlertAction(Settings settings, RestController controller, Client client, AlertsClient alertsClient) {
         super(settings, controller, client);
         this.alertsClient = alertsClient;
-        controller.registerHandler(GET, "/_alert/{name}", this);
+        controller.registerHandler(GET, AlertsStore.ALERT_INDEX + "/alert/{name}", this);
     }
 
     @Override

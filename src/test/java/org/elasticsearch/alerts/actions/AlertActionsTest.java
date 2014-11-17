@@ -19,8 +19,8 @@ import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertRequest;
-import org.elasticsearch.alerts.transport.actions.index.IndexAlertResponse;
+import org.elasticsearch.alerts.transport.actions.put.PutAlertRequest;
+import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedTrigger;
 import org.elasticsearch.alerts.triggers.TriggerResult;
@@ -198,8 +198,8 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
 
         AlertsClient alertsClient = internalCluster().getInstance(AlertsClient.class, internalCluster().getMasterName());
 
-        IndexAlertRequest alertRequest = alertsClient.prepareIndexAlert().setAlertName("my-first-alert").setAlertSource(jsonBuilder.bytes()).request();
-        IndexAlertResponse alertsResponse = alertsClient.indexAlert(alertRequest).actionGet();
+        PutAlertRequest alertRequest = alertsClient.prepareIndexAlert().setAlertName("my-first-alert").setAlertSource(jsonBuilder.bytes()).request();
+        PutAlertResponse alertsResponse = alertsClient.indexAlert(alertRequest).actionGet();
         assertNotNull(alertsResponse.indexResponse());
         assertTrue(alertsResponse.indexResponse().isCreated());
 

@@ -235,6 +235,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/jprante/elasticsearch-river-jdbc[JDBC River Plugin] (by Jörg Prante)
 * https://github.com/qotho/elasticsearch-river-jms[JMS River Plugin] (by Steve Sarandos)
 * https://github.com/endgameinc/elasticsearch-river-kafka[Kafka River Plugin] (by Endgame Inc.)
+* https://github.com/mariamhakobyan/elasticsearch-river-kafka[Kafka River Plugin 2] (by Mariam Hakobyan)
 * https://github.com/tlrx/elasticsearch-river-ldap[LDAP River Plugin] (by Tanguy Leroux)
 * https://github.com/richardwilly98/elasticsearch-river-mongodb/[MongoDB River Plugin] (by Richard Louapre)
 * https://github.com/sksamuel/elasticsearch-river-neo4j[Neo4j River Plugin] (by Steve Samuel)

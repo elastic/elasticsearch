@@ -721,10 +721,15 @@ public final class InternalTestCluster extends TestCluster {
             transportClient = null;
         }
 
+        void closeNode() {
+            registerDataPath();
+            node.close();
+        }
+
         void restart(RestartCallback callback) throws Exception {
             assert callback != null;
             if (!node.isClosed()) {
-                node.close();
+                closeNode();
             }
             Settings newSettings = callback.onNodeStopped(name);
             if (newSettings == null) {
@@ -740,6 +745,13 @@ public final class InternalTestCluster extends TestCluster {
             resetClient();
         }
 
+        void registerDataPath() {
+            NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, node);
+            if (nodeEnv.hasNodeFile()) {
+                dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataLocations()));
+            }
+        }
+
 
         @Override
         public void close() throws IOException {
@@ -747,7 +759,7 @@ public final class InternalTestCluster extends TestCluster {
             Releasables.close(client, nodeClient);
             client = null;
             nodeClient = null;
-            node.close();
+            closeNode();
         }
     }
 
@@ -1129,7 +1141,7 @@ public final class InternalTestCluster extends TestCluster {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 callback.doAfterNodes(numNodesRestarted++, nodeAndClient.nodeClient());
                 logger.info("Stopping node [{}] ", nodeAndClient.name);
-                nodeAndClient.node.close();
+                nodeAndClient.closeNode();
             }
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 logger.info("Starting node [{}] ", nodeAndClient.name);

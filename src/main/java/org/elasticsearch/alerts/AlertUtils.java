@@ -61,11 +61,6 @@ public final class AlertUtils {
                         builder.copyCurrentStructure(parser);
                         searchRequest.source(builder);
                         break;
-                    case "template_source":
-                        builder = XContentBuilder.builder(parser.contentType().xContent());
-                        builder.copyCurrentStructure(parser);
-                        searchRequest.templateSource(builder.bytes(), false);
-                        break;
                     default:
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
                 }
@@ -100,9 +95,6 @@ public final class AlertUtils {
         }
         if (searchRequest.templateType() != null) {
             builder.field("template_type", writeScriptType(searchRequest.templateType()));
-        }
-        if (Strings.hasLength(searchRequest.templateSource())) {
-            XContentHelper.writeRawField("template_source", searchRequest.templateSource(), builder, params);
         }
         builder.startArray("indices");
         for (String index : searchRequest.indices()) {

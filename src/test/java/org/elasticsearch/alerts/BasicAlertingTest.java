@@ -124,17 +124,9 @@ public class BasicAlertingTest extends AbstractAlertingTests {
     );
 
     @Test
-    public void testTriggerSearchWithSourceSubstituted() throws Exception {
+    public void testTriggerSearchWithSource() throws Exception {
         testTriggerSearch(
                 new SearchRequest("my-index").source(searchSourceBuilder)
-        );
-    }
-
-    @Test
-    public void testTriggerSearchWithTemplateSource() throws Exception {
-        testTriggerSearch(
-                new SearchRequest("my-index")
-                        .templateSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().string())
         );
     }
 

@@ -12,16 +12,18 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 
@@ -31,22 +33,22 @@ import java.util.Map;
 
 public class TriggerManager extends AbstractComponent {
 
+    private static final String FIRE_TIME_VARIABLE_NAME = "FIRE_TIME";
+    private static final String SCHEDULED_FIRE_TIME_VARIABLE_NAME = "SCHEDULED_FIRE_TIME";
     private static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.Defaults.DATE_TIME_FORMATTER;
 
     private final Client client;
-    private final String fireTimePlaceHolder;
-    private final String scheduledFireTimePlaceHolder;
+    private final ScriptService scriptService;
     private volatile ImmutableOpenMap<String, TriggerFactory> triggersImplemented;
 
     @Inject
     public TriggerManager(Settings settings, Client client, ScriptService scriptService) {
         super(settings);
         this.client = client;
+        this.scriptService = scriptService;
         triggersImplemented = ImmutableOpenMap.<String, TriggerFactory>builder()
                 .fPut("script", new ScriptedTriggerFactory(scriptService))
                 .build();
-        this.fireTimePlaceHolder = settings.get("prefix", "{{FIRE_TIME}}");
-        this.scheduledFireTimePlaceHolder = settings.get("postfix", "{{SCHEDULED_FIRE_TIME}}");
     }
 
     /**
@@ -128,37 +130,21 @@ public class TriggerManager extends AbstractComponent {
                 .indicesOptions(alert.getSearchRequest().indicesOptions())
                 .indices(alert.getSearchRequest().indices());
         if (Strings.hasLength(alert.getSearchRequest().source())) {
+            Map<String, String> templateParams = new HashMap<>();
+            templateParams.put(SCHEDULED_FIRE_TIME_VARIABLE_NAME, dateTimeFormatter.printer().print(scheduledFireTime));
+            templateParams.put(FIRE_TIME_VARIABLE_NAME, dateTimeFormatter.printer().print(fireTime));
             String requestSource = XContentHelper.convertToJson(alert.getSearchRequest().source(), false);
-            if (requestSource.contains(fireTimePlaceHolder)) {
-                requestSource = requestSource.replace(fireTimePlaceHolder, dateTimeFormatter.printer().print(fireTime));
-            }
-            if (requestSource.contains(scheduledFireTimePlaceHolder)) {
-                requestSource = requestSource.replace(scheduledFireTimePlaceHolder, dateTimeFormatter.printer().print(scheduledFireTime));
-            }
-
-            triggerSearchRequest.source(requestSource);
-        } else if (Strings.hasLength(alert.getSearchRequest().templateSource())) {
-            Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(alert.getSearchRequest().templateSource(), false);
-            Map<String, Object> templateSourceAsMap = tuple.v2();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> params = (Map<String, Object>) templateSourceAsMap.get("params");
-            if (params == null) {
-                templateSourceAsMap.put("params", params = new HashMap<>());
-            }
-            params.put("SCHEDULED_FIRE_TIME", dateTimeFormatter.printer().print(scheduledFireTime));
-            params.put("FIRE_TIME", dateTimeFormatter.printer().print(fireTime));
-            XContentBuilder builder = XContentFactory.contentBuilder(tuple.v1());
-            builder.map(templateSourceAsMap);
-            triggerSearchRequest.templateSource(builder.bytes(), false);
+            ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, templateParams);
+            triggerSearchRequest.source((BytesReference) script.unwrap(script.run()), false);
         } else if (alert.getSearchRequest().templateName() != null) {
             MapBuilder<String, String> templateParams = MapBuilder.newMapBuilder(alert.getSearchRequest().templateParams())
-                    .put("SCHEDULED_FIRE_TIME", dateTimeFormatter.printer().print(scheduledFireTime))
-                    .put("FIRE_TIME", dateTimeFormatter.printer().print(fireTime));
+                    .put(SCHEDULED_FIRE_TIME_VARIABLE_NAME, dateTimeFormatter.printer().print(scheduledFireTime))
+                    .put(FIRE_TIME_VARIABLE_NAME, dateTimeFormatter.printer().print(fireTime));
             triggerSearchRequest.templateParams(templateParams.map());
             triggerSearchRequest.templateName(alert.getSearchRequest().templateName());
             triggerSearchRequest.templateType(alert.getSearchRequest().templateType());
         } else {
-            throw new ElasticsearchIllegalStateException("Search requests needs either source, template source or template name");
+            throw new ElasticsearchIllegalStateException("Search requests needs either source or template name");
         }
         return triggerSearchRequest;
     }

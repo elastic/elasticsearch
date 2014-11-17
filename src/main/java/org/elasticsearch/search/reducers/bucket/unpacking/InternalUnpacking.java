@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.bucket.union;
+package org.elasticsearch.search.reducers.bucket.unpacking;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
@@ -28,14 +28,14 @@ import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation
 import java.io.IOException;
 import java.util.List;
 
-public class InternalUnion extends InternalBucketReducerAggregation implements Union {
+public class InternalUnpacking extends InternalBucketReducerAggregation implements Unpacking {
 
-    public static final Type TYPE = new Type("union");
+    public static final Type TYPE = new Type("unpacking");
 
     public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
-        public InternalUnion readResult(StreamInput in) throws IOException {
-            InternalUnion selections = new InternalUnion();
+        public InternalUnpacking readResult(StreamInput in) throws IOException {
+            InternalUnpacking selections = new InternalUnpacking();
             selections.readFrom(in);
             return selections;
         }
@@ -61,11 +61,11 @@ public class InternalUnion extends InternalBucketReducerAggregation implements U
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
-    public InternalUnion() {
+    public InternalUnpacking() {
         super();
     }
 
-    public InternalUnion(String name, List<InternalSelection> selections) {
+    public InternalUnpacking(String name, List<InternalSelection> selections) {
         super(name, selections);
     }
 

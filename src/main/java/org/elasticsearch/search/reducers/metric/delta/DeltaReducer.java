@@ -33,6 +33,7 @@ import org.elasticsearch.search.reducers.ReducerFactoryStreams;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 import java.io.IOException;
+import java.util.List;
 
 public class DeltaReducer extends Reducer {
 
@@ -58,8 +59,9 @@ public class DeltaReducer extends Reducer {
     }
 
     @Override
-    public InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType,
+    public InternalAggregation doReduce(List<MultiBucketsAggregation> aggregations, BytesReference bucketType,
             BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
+        MultiBucketsAggregation aggregation = ensureSingleAggregation(aggregations);
         Object[] bucketProperties = (Object[]) aggregation.getProperty(fieldName);
         double firstBucketValue = (double) bucketProperties[0];
         double lastBucketValue = (double) bucketProperties[bucketProperties.length - 1];

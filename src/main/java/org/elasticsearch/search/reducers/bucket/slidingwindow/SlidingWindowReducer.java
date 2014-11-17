@@ -26,7 +26,12 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
-import org.elasticsearch.search.reducers.*;
+import org.elasticsearch.search.reducers.Reducer;
+import org.elasticsearch.search.reducers.ReducerContext;
+import org.elasticsearch.search.reducers.ReducerFactories;
+import org.elasticsearch.search.reducers.ReducerFactory;
+import org.elasticsearch.search.reducers.ReducerFactoryStreams;
+import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.bucket.BucketReducer;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation.InternalSelection;
@@ -57,7 +62,10 @@ public class SlidingWindowReducer extends BucketReducer {
         this.windowSize = windowSize;
     }
 
-    public InternalBucketReducerAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType, BucketStreamContext bucketStreamContext) {
+    @Override
+    public InternalBucketReducerAggregation doReduce(List<MultiBucketsAggregation> aggregations, BytesReference bucketType,
+            BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
+        MultiBucketsAggregation aggregation = ensureSingleAggregation(aggregations);
         List<InternalSelection> selections = new ArrayList<>();
         List<? extends Bucket> aggBuckets = (List<? extends MultiBucketsAggregation.Bucket>) aggregation.getBuckets();
         for (int i = 0; i <= aggBuckets.size() - windowSize; i++) {

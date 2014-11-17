@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.bucket.union;
+package org.elasticsearch.search.reducers.bucket.unpacking;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,24 +25,24 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerContext;
 import org.elasticsearch.search.reducers.ReducerFactories;
 import org.elasticsearch.search.reducers.ReducerFactory;
 import org.elasticsearch.search.reducers.ReducerFactoryStreams;
+import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.bucket.BucketReducer;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation.InternalSelection;
+import org.elasticsearch.search.reducers.bucket.slidingwindow.InternalSlidingWindow;
+import org.elasticsearch.search.reducers.bucket.union.InternalUnion;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 
-public class UnionReducer extends BucketReducer {
+public class UnpackingReducer extends BucketReducer {
 
     public static final ReducerFactoryStreams.Stream STREAM = new ReducerFactoryStreams.Stream() {
         @Override
@@ -57,57 +57,56 @@ public class UnionReducer extends BucketReducer {
         ReducerFactoryStreams.registerStream(STREAM, InternalUnion.TYPE.stream());
     }
 
-    public UnionReducer(String name, List<String> bucketsPaths, ReducerFactories factories, ReducerContext context, Reducer parent) {
+    private String unpackPath;
+
+    public UnpackingReducer(String name, List<String> bucketsPaths, String unpackPath, ReducerFactories factories, ReducerContext context,
+            Reducer parent) {
         super(name, bucketsPaths, factories, context, parent);
+        this.unpackPath = unpackPath;
     }
 
     @Override
     public InternalBucketReducerAggregation doReduce(List<MultiBucketsAggregation> aggregations, BytesReference bucketType,
-            BucketStreamContext bucketStreamContext) {
-        Map<String, List<MultiBucketsAggregation.Bucket>> selectionsBucketsMap = new LinkedHashMap<>();
+            BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
+        List<MultiBucketsAggregation.Bucket> buckets = new ArrayList<>();
         for (MultiBucketsAggregation aggregation : aggregations) {
-            List<? extends Bucket> aggBuckets = (List<? extends MultiBucketsAggregation.Bucket>) aggregation.getBuckets();
-            for (int i = 0; i <= aggBuckets.size() - 1; i++) {
-                Bucket aggBucket = aggBuckets.get(i);
-                String key = aggBucket.getKey();
-                List<MultiBucketsAggregation.Bucket> selectionBuckets = selectionsBucketsMap.get(key);
-                if (selectionBuckets == null) {
-                    selectionBuckets = new ArrayList<>();
-                    selectionsBucketsMap.put(key, selectionBuckets);
+            Object[] objArray = (Object[]) aggregation.getProperty(unpackPath);
+            if (objArray != null) {
+                for (Object o : objArray) {
+                    if (o instanceof MultiBucketsAggregation) {
+                        buckets.addAll(((MultiBucketsAggregation) o).getBuckets());
+                    } else {
+                        throw new ReductionExecutionException("Unpack path must point to a MultiBucketAggregation. Found [" + o.getClass()
+                                + "] for unpack path [" + unpackPath + "]");
+                    }
                 }
-                selectionBuckets.add(aggBucket);
             }
         }
-        List<InternalSelection> selections = new ArrayList<>();
-        for (Entry<String, List<MultiBucketsAggregation.Bucket>> entry : selectionsBucketsMap.entrySet()) {
-            String key = entry.getKey();
-            List<MultiBucketsAggregation.Bucket> buckets = entry.getValue();
-            InternalSelection selection = new InternalSelection(key, bucketType, bucketStreamContext, buckets, InternalAggregations.EMPTY);
-            InternalAggregations subReducersResults = runSubReducers(selection);
-            selection.setAggregations(subReducersResults);
-            selections.add(selection);
-        }
-        // NOCOMMIT do we need to add sorting here? at the moment the selections
-        // will be in discovery order
-        return new InternalUnion(name(), selections);
+        InternalSelection selection = new InternalSelection(unpackPath, bucketType, bucketStreamContext, buckets,
+                InternalAggregations.EMPTY);
+        InternalAggregations subReducersResults = runSubReducers(selection);
+        selection.setAggregations(subReducersResults);
+        return new InternalUnpacking(name(), Collections.singletonList(selection));
     }
 
     public static class Factory extends ReducerFactory {
 
         private List<String> bucketsPaths;
+        private String unpackPath;
 
         public Factory() {
-            super(InternalUnion.TYPE);
+            super(InternalSlidingWindow.TYPE);
         }
 
-        public Factory(String name, List<String> bucketsPaths) {
-            super(name, InternalUnion.TYPE);
+        public Factory(String name, List<String> bucketsPaths, String unpackPath) {
+            super(name, InternalSlidingWindow.TYPE);
             this.bucketsPaths = bucketsPaths;
+            this.unpackPath = unpackPath;
         }
 
         @Override
         public Reducer create(ReducerContext context, Reducer parent) {
-            return new UnionReducer(name, bucketsPaths, factories, context, parent);
+            return new UnpackingReducer(name, bucketsPaths, unpackPath, factories, context, parent);
         }
 
         @Override
@@ -119,6 +118,7 @@ public class UnionReducer extends BucketReducer {
                 bucketsPaths.add(in.readString());
             }
             this.bucketsPaths = bucketsPaths;
+            unpackPath = in.readString();
         }
 
         @Override
@@ -128,8 +128,8 @@ public class UnionReducer extends BucketReducer {
             for (String path : bucketsPaths) {
                 out.writeString(path);
             }
+            out.writeString(unpackPath);
         }
-        
-    }
 
+    }
 }

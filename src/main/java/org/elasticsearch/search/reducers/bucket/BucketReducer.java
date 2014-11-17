@@ -31,6 +31,7 @@ import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation.InternalSelection;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public abstract class BucketReducer extends Reducer {
@@ -40,14 +41,20 @@ public abstract class BucketReducer extends Reducer {
         super(name, bucketsPath, factories, context, parent);
     }
 
+    public BucketReducer(String name, List<String> bucketsPaths, ReducerFactories factories, ReducerContext context, Reducer parent) {
+        super(name, bucketsPaths, factories, context, parent);
+    }
+
     @Override
-    public abstract InternalBucketReducerAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType, BucketStreamContext bucketStreamContext) throws ReductionExecutionException;
+    public abstract InternalBucketReducerAggregation doReduce(List<MultiBucketsAggregation> aggregations, BytesReference bucketType,
+            BucketStreamContext bucketStreamContext) throws ReductionExecutionException;
 
     protected InternalAggregations runSubReducers(InternalSelection selection) {
         Reducer[] subReducers = subReducers();
         List<InternalAggregation> aggregations = new ArrayList<>(subReducers.length);
         for (Reducer reducer : subReducers) {
-            aggregations.add(reducer.doReduce(selection, selection.getBucketType(), selection.getBucketStreamContext()));
+            aggregations.add(reducer.doReduce(Collections.singletonList((MultiBucketsAggregation) selection), selection.getBucketType(),
+                    selection.getBucketStreamContext()));
         }
         return new InternalAggregations(aggregations);
     }

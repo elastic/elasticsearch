@@ -30,21 +30,28 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 
 public abstract class Reducer {
 
     private String name;
-    private String bucketsPath;
+    private List<String> bucketsPaths;
     private ReducerContext context;
     private Reducer parent;
     private Reducer[] subReducers;
     private HashMap<String, Reducer> subReducersbyName;
 
     public Reducer(String name, String bucketsPath, ReducerFactories factories, ReducerContext context, Reducer parent) {
+        this(name, Collections.singletonList(bucketsPath), factories, context, parent);
+    }
+
+    public Reducer(String name, List<String> bucketsPaths, ReducerFactories factories, ReducerContext context, Reducer parent) {
         assert factories != null : "sub-factories provided to Reducer must not be null, use ReducerFactories.EMPTY instead";
         this.name = name;
-        this.bucketsPath = bucketsPath;
+        this.bucketsPaths = bucketsPaths;
         this.parent = parent;
         this.context = context;
         this.subReducers = factories.createSubReducers(this);
@@ -54,8 +61,8 @@ public abstract class Reducer {
         return name;
     }
 
-    public String bucketsPath() {
-        return bucketsPath;
+    public List<String> bucketsPaths() {
+        return bucketsPaths;
     }
 
     public Reducer parent() {
@@ -86,24 +93,46 @@ public abstract class Reducer {
 
     public final InternalAggregation reduce(Aggregations aggregations)
             throws ReductionExecutionException {
-        for (Aggregation aggregation : aggregations) {
-            if (aggregation.getName().equals(bucketsPath)) {
-                if (aggregation instanceof MultiBucketsAggregation) {
-                    MultiBucketsAggregation multiBucketsAggregation = (MultiBucketsAggregation) aggregation;
-                    BytesReference bucketType = ((InternalAggregation) aggregation).type().stream();
-                    BucketStreamContext bucketStreamContext = BucketStreams.stream(bucketType).getBucketStreamContext(multiBucketsAggregation.getBuckets().get(0)); // NOCOMMIT make this cleaner
-                    return doReduce(multiBucketsAggregation, bucketType, bucketStreamContext);
-                } else {
-                    throw new ReductionExecutionException("reducers must be configured with a "
-                            + MultiBucketsAggregation.class.getSimpleName() + ". Aggregation [" + aggregation.getName() + "] is of type ["
-                            + aggregation.getClass().getSimpleName() + "]");
+        List<MultiBucketsAggregation> matchingAggregations = new ArrayList<>();
+        BytesReference bucketType = null;
+        BucketStreamContext bucketStreamContext = null;
+        for (String bucketsPath : bucketsPaths) {
+            Aggregation aggregation = aggregations.get(bucketsPath);
+            if (aggregation == null) {
+                throw new ReductionExecutionException("Cannot find aggregation for path: " + bucketsPath);
+            } else if (aggregation instanceof MultiBucketsAggregation) {
+                BytesReference thisBucketType = ((InternalAggregation) aggregation).type().stream();
+                MultiBucketsAggregation multiBucketAggregation = (MultiBucketsAggregation) aggregation;
+                if (bucketType == null) {
+                    bucketType = thisBucketType;
+                    bucketStreamContext = BucketStreams.stream(thisBucketType).getBucketStreamContext(
+                            multiBucketAggregation.getBuckets().get(0)); // NOCOMMIT make this cleaner
+                } else if (!bucketType.toUtf8().equals(thisBucketType.toUtf8())) {
+                    throw new ReductionExecutionException("Buckets must all be the same type. Expected: [" + thisBucketType + "], found: [" + thisBucketType + "] for paths: " + bucketsPaths);
                 }
+                matchingAggregations.add(multiBucketAggregation);
+            } else {
+                throw new ReductionExecutionException("reducers must be configured with a " + MultiBucketsAggregation.class.getSimpleName()
+                        + ". Aggregation [" + aggregation.getName() + "] is of type [" + aggregation.getClass().getSimpleName() + "]");
             }
         }
-        throw new ReductionExecutionException("Cannot find aggregation for path: " + bucketsPath);
+        if (!matchingAggregations.isEmpty()) {
+                return doReduce(matchingAggregations, bucketType, bucketStreamContext);
+        } else {
+            throw new ReductionExecutionException("Cannot find any aggregations for paths: " + bucketsPaths);
+        }
     }
 
-    public abstract InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType, BucketStreamContext bucketStreamContext) throws ReductionExecutionException;
+    public abstract InternalAggregation doReduce(List<MultiBucketsAggregation> aggregations, BytesReference bucketType,
+            BucketStreamContext bucketStreamContext) throws ReductionExecutionException;
+
+    protected final MultiBucketsAggregation ensureSingleAggregation(List<MultiBucketsAggregation> aggregations) {
+        if (aggregations.size() > 1) {
+            throw new ReductionExecutionException("Expected only one aggregation but found multiple aggregations");
+        } else {
+            return aggregations.get(0);
+        }
+    }
 
     /**
      * Parses the reducer request and creates the appropriate reducer factory for it.

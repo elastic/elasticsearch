@@ -29,6 +29,8 @@ import org.elasticsearch.search.reducers.bucket.slidingwindow.InternalSlidingWin
 import org.elasticsearch.search.reducers.bucket.slidingwindow.SlidingWindowReducer;
 import org.elasticsearch.search.reducers.bucket.union.InternalUnion;
 import org.elasticsearch.search.reducers.bucket.union.UnionReducer;
+import org.elasticsearch.search.reducers.bucket.unpacking.InternalUnpacking;
+import org.elasticsearch.search.reducers.bucket.unpacking.UnpackingReducer;
 import org.elasticsearch.search.reducers.metric.avg.AvgReducer;
 import org.elasticsearch.search.reducers.metric.avg.InternalAvg;
 import org.elasticsearch.search.reducers.metric.delta.DeltaReducer;
@@ -48,6 +50,7 @@ public class TransportReductionModule extends AbstractModule {
 
         InternalSlidingWindow.registerStreams();
         InternalUnion.registerStreams();
+        InternalUnpacking.registerStreams();
         InternalDelta.registerStreams();
         InternalAvg.registerStreams();
         InternalMax.registerStreams();
@@ -58,6 +61,7 @@ public class TransportReductionModule extends AbstractModule {
         
         SlidingWindowReducer.registerStreams();
         UnionReducer.registerStreams();
+        UnpackingReducer.registerStreams();
         DeltaReducer.registerStreams();
         AvgReducer.registerStreams();
         MaxReducer.registerStreams();

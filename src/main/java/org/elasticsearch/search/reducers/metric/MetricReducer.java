@@ -28,6 +28,8 @@ import org.elasticsearch.search.reducers.ReducerContext;
 import org.elasticsearch.search.reducers.ReducerFactories;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
+import java.util.List;
+
 public abstract class MetricReducer extends Reducer {
 
     public MetricReducer(String name, String bucketPath, ReducerFactories factories, ReducerContext context, Reducer parent) {
@@ -35,6 +37,6 @@ public abstract class MetricReducer extends Reducer {
     }
     
     @Override
-    public abstract InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType,
+    public abstract InternalAggregation doReduce(List<MultiBucketsAggregation> aggregation, BytesReference bucketType,
             BucketStreamContext bucketStreamContext) throws ReductionExecutionException;
 }

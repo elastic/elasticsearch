@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.reducers.bucket.union;
+package org.elasticsearch.search.reducers.bucket.unpacking;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -30,25 +30,34 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class UnionParser implements Reducer.Parser{
+public class UnpackingParser implements Reducer.Parser{
 
     protected static final ParseField BUCKETS_FIELD = new ParseField("buckets");
+    protected static final ParseField UNPACK_PATH_FIELD = new ParseField("unpack_path");
 
     @Override
     public String type() {
-        return InternalUnion.TYPE.name();
+        return InternalUnpacking.TYPE.name();
     }
 
     @Override
     public ReducerFactory parse(String reducerName, XContentParser parser, SearchContext context) throws IOException {
         
         List<String> bucketsPaths = null;
+        String unpackPath = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if (UNPACK_PATH_FIELD.match(currentFieldName)) {
+                    unpackPath = parser.text();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
+                            + currentFieldName + "].");
+                }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (BUCKETS_FIELD.match(currentFieldName)) {
                     List<String> paths = new ArrayList<>();
@@ -73,7 +82,12 @@ public class UnionParser implements Reducer.Parser{
             throw new SearchParseException(context, "Missing [" + BUCKETS_FIELD.getPreferredName() + "] in " + type() + " reducer [" + reducerName + "]");
         }
 
-        return new UnionReducer.Factory(reducerName, bucketsPaths);
+        if (unpackPath == null) {
+            throw new SearchParseException(context, "Missing [" + UNPACK_PATH_FIELD.getPreferredName() + "] in " + type() + " reducer ["
+                    + reducerName + "]");
+        }
+
+        return new UnpackingReducer.Factory(reducerName, bucketsPaths, unpackPath);
     }
 
 }

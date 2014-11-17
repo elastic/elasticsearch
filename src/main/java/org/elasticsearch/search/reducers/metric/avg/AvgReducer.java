@@ -33,6 +33,7 @@ import org.elasticsearch.search.reducers.ReducerFactoryStreams;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 import java.io.IOException;
+import java.util.List;
 
 public class AvgReducer extends Reducer {
 
@@ -60,9 +61,9 @@ public class AvgReducer extends Reducer {
     }
 
     @Override
-    public InternalAggregation doReduce(MultiBucketsAggregation aggregation, BytesReference bucketType,
+    public InternalAggregation doReduce(List<MultiBucketsAggregation> aggregations, BytesReference bucketType,
                                         BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
-
+        MultiBucketsAggregation aggregation = ensureSingleAggregation(aggregations);
         Object[] bucketProperties = this.getProperties(aggregation);
 
         double avg = 0;

@@ -69,12 +69,21 @@ public class FilteredCollector implements XCollector {
         } else {
             iterator = set.iterator();
         }
+        if (iterator == null) {
+            return new FilterLeafCollector(in) {
+                @Override
+                public void collect(int doc) throws IOException {
+                    // no-op
+                }
+                @Override
+                public boolean acceptsDocsOutOfOrder() {
+                    return true;
+                }
+            };
+        }
         return new FilterLeafCollector(in) {
             @Override
             public void collect(int doc) throws IOException {
-                if (iterator == null) {
-                    return;
-                }
                 final int itDoc = iterator.docID();
                 if (itDoc > doc) {
                     return;

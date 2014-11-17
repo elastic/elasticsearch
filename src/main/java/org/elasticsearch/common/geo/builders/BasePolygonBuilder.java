@@ -395,7 +395,10 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                 holes[e2.component-1] = holes[numHoles];
                 holes[numHoles] = null;
             }
-            connect(e1, e2);
+            // only connect edges if intersections are pairwise (per comment above)
+            if (e1.intersect != Edge.maxCoordinate() && e2.intersect != Edge.maxCoordinate()) {
+                connect(e1, e2);
+            }
         }
         return numHoles;
     }

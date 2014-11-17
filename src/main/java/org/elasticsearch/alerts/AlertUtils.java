@@ -7,6 +7,7 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -18,10 +19,14 @@ import org.elasticsearch.script.ScriptService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  */
 public final class AlertUtils {
+
+    public final static IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.lenientExpandOpen();
+    public final static SearchType DEFAULT_SEARCH_TYPE = SearchType.COUNT;
 
     private AlertUtils() {
     }
@@ -30,10 +35,12 @@ public final class AlertUtils {
      * Reads a new search request instance for the specified parser.
      */
     public static SearchRequest readSearchRequest(XContentParser parser) throws IOException {
-        String searchRequestFieldName = null;
-        XContentParser.Token token;
         SearchRequest searchRequest = new SearchRequest();
-        searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen()); // TODO: make options configurable
+        IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+        SearchType searchType = DEFAULT_SEARCH_TYPE;
+
+        XContentParser.Token token;
+        String searchRequestFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 searchRequestFieldName = parser.currentName();
@@ -61,6 +68,51 @@ public final class AlertUtils {
                         builder.copyCurrentStructure(parser);
                         searchRequest.source(builder);
                         break;
+                    case "indices_options":
+                        boolean expandOpen = indicesOptions.expandWildcardsOpen();
+                        boolean expandClosed = indicesOptions.expandWildcardsClosed();
+                        boolean allowNoIndices = indicesOptions.allowNoIndices();
+                        boolean ignoreUnavailable = indicesOptions.ignoreUnavailable();
+
+                        String indicesFieldName = null;
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                indicesFieldName = parser.currentName();
+                            } else if (token.isValue()) {
+                                switch (indicesFieldName) {
+                                    case "expand_wildcards":
+                                        switch (parser.text()) {
+                                            case "all":
+                                                expandOpen = true;
+                                                expandClosed = true;
+                                                break;
+                                            case "open":
+                                                expandOpen = true;
+                                                break;
+                                            case "closed":
+                                                expandClosed = true;
+                                                break;
+                                            case "none":
+                                                break;
+                                            default:
+                                                throw new ElasticsearchIllegalArgumentException("Unexpected value [" + parser.text() + "]");
+                                        }
+                                        break;
+                                    case "ignore_unavailable":
+                                        ignoreUnavailable = parser.booleanValue();
+                                        break;
+                                    case "allow_no_indices":
+                                        allowNoIndices = parser.booleanValue();
+                                        break;
+                                    default:
+                                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + indicesFieldName + "]");
+                                }
+                            } else {
+                                throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
+                            }
+                        }
+                        indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed);
+                        break;
                     default:
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
                 }
@@ -72,6 +124,9 @@ public final class AlertUtils {
                     case "template_type":
                         searchRequest.templateType(readScriptType(parser.textOrNull()));
                         break;
+                    case "search_type":
+                        searchType = SearchType.fromString(parser.text());
+                        break;
                     default:
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
                 }
@@ -79,6 +134,9 @@ public final class AlertUtils {
                 throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
             }
         }
+
+        searchRequest.searchType(searchType);
+        searchRequest.indicesOptions(indicesOptions);
         return searchRequest;
     }
 
@@ -101,6 +159,27 @@ public final class AlertUtils {
             builder.value(index);
         }
         builder.endArray();
+        if (searchRequest.indicesOptions() != DEFAULT_INDICES_OPTIONS) {
+            IndicesOptions options = searchRequest.indicesOptions();
+            builder.startObject("indices_options");
+            String value;
+            if (options.expandWildcardsClosed() && options.expandWildcardsOpen()) {
+                value = "all";
+            } else if (options.expandWildcardsOpen()) {
+                value = "open";
+            } else if (options.expandWildcardsClosed()) {
+                value = "closed";
+            } else {
+                value = "none";
+            }
+            builder.field("expand_wildcards", value);
+            builder.field("ignore_unavailable", options.ignoreUnavailable());
+            builder.field("allow_no_indices", options.allowNoIndices());
+            builder.endObject();
+        }
+        if (searchRequest.searchType() != DEFAULT_SEARCH_TYPE) {
+            builder.field("search_type", searchRequest.searchType().toString().toLowerCase(Locale.ENGLISH));
+        }
         builder.endObject();
     }
 

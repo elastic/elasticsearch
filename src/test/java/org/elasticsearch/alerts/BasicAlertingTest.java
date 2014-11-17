@@ -7,6 +7,7 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
@@ -36,7 +37,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         createIndex("my-index");
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        SearchRequest searchRequest = new SearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
         alertsClient.prepareIndexAlert("my-first-alert")
                 .setAlertSource(alertSource)
@@ -47,7 +48,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
     @Test
     public void testIndexAlert_registerAlertBeforeTargetIndex() throws Exception {
         AlertsClient alertsClient = alertClient();
-        SearchRequest searchRequest = new SearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
         alertsClient.prepareIndexAlert("my-first-alert")
                 .setAlertSource(alertSource)
@@ -67,7 +68,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         createIndex("my-index");
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        SearchRequest searchRequest = new SearchRequest("my-index").source(searchSource().query(matchAllQuery()));
+        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
         PutAlertResponse indexResponse = alertsClient.prepareIndexAlert("my-first-alert")
                 .setAlertSource(alertSource)
@@ -119,6 +120,23 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         }
     }
 
+    @Test
+    public void testAlertWithDifferentSearchType() throws Exception {
+        AlertsClient alertsClient = alertClient();
+        createIndex("my-index");
+        // Have a sample document in the index, the alert is going to evaluate
+        client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
+        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
+        searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
+        // By accessing the actual hit we know that the fetch phase has been performed
+        BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits?.hits[0]._score == 1.0");
+        PutAlertResponse indexResponse = alertsClient.prepareIndexAlert("my-first-alert")
+                .setAlertSource(alertSource)
+                .get();
+        assertThat(indexResponse.indexResponse().isCreated(), is(true));
+        assertAlertTriggered("my-first-alert", 1);
+    }
+
     private final SearchSourceBuilder searchSourceBuilder = searchSource().query(
             filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{SCHEDULED_FIRE_TIME}}||-30s").to("{{SCHEDULED_FIRE_TIME}}"))
     );
@@ -126,7 +144,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
     @Test
     public void testTriggerSearchWithSource() throws Exception {
         testTriggerSearch(
-                new SearchRequest("my-index").source(searchSourceBuilder)
+                createTriggerSearchRequest("my-index").source(searchSourceBuilder)
         );
     }
 
@@ -137,7 +155,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
                 .setId("my-template")
                 .setSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject())
                 .get();
-        SearchRequest searchRequest = new SearchRequest("my-index");
+        SearchRequest searchRequest = createTriggerSearchRequest("my-index");
         searchRequest.templateName("my-template");
         searchRequest.templateType(ScriptService.ScriptType.INDEXED);
         testTriggerSearch(searchRequest);

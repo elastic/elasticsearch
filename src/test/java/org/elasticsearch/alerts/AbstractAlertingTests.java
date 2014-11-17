@@ -95,6 +95,13 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         return builder.endObject().bytes();
     }
 
+    protected SearchRequest createTriggerSearchRequest(String... indices) {
+        SearchRequest request = new SearchRequest(indices);
+        request.indicesOptions(AlertUtils.DEFAULT_INDICES_OPTIONS);
+        request.searchType(AlertUtils.DEFAULT_SEARCH_TYPE);
+        return request;
+    }
+
     protected AlertsClient alertClient() {
         return internalTestCluster().getInstance(AlertsClient.class);
     }

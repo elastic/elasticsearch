@@ -36,10 +36,10 @@ When looking for `light` or `hadoop2` artifacts use:
 
 ### Beta version
 For the beta version, simply run:
-`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.1.0.Beta2`
+`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.1.0.Beta3`
 
 When looking for `light` or `hadoop2` artifacts use:
-`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.1.0.Beta2-<classifier>`
+`bin/plugin -i elasticsearch/elasticsearch-repository-hdfs/2.1.0.Beta3-<classifier>`
 
 ### Development snashot
 To install the latest snapshot, please install the plugin manually using:

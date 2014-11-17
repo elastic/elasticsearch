@@ -144,7 +144,11 @@ import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequestBuilder
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -255,36 +259,71 @@ public abstract class AbstractIndicesAdminClient implements IndicesAdminClient {
                 Throwable rootCause = ExceptionsHelper.unwrapCause(e);
                 if (rootCause instanceof ActionNotFoundTransportException) {
                     String[] features = request.features();
-                    GetAliasesResponse aliasResponse = null;
-                    GetMappingsResponse mappingResponse = null;
-                    GetSettingsResponse settingsResponse = null;
-                    GetWarmersResponse warmerResponse = null;
+                    if (features == null || features.length == 0) {
+                        throw new ElasticsearchIllegalStateException("no features selected for GetIndex");
+                    }
                     try {
+                        final List<ActionRequestBuilder> builderList = new ArrayList<>();
                         for (String feature : features) {
                             switch (feature) {
                             case "_alias":
                             case "_aliases":
-                                aliasResponse = prepareGetAliases(new String[0]).addIndices(request.indices())
-                                        .setIndicesOptions(request.indicesOptions()).get();
+                                builderList.add(prepareGetAliases(new String[0]).addIndices(request.indices())
+                                        .setIndicesOptions(request.indicesOptions()));
                                 break;
                             case "_mapping":
                             case "_mappings":
-                                mappingResponse = prepareGetMappings(request.indices()).setIndicesOptions(request.indicesOptions()).get();
+                                builderList.add(prepareGetMappings(request.indices()).setIndicesOptions(request.indicesOptions()));
                                 break;
                             case "_settings":
-                                settingsResponse = prepareGetSettings(request.indices()).setIndicesOptions(request.indicesOptions()).get();
+                                builderList.add(prepareGetSettings(request.indices()).setIndicesOptions(request.indicesOptions()));
                                 break;
                             case "_warmer":
                             case "_warmers":
-                                warmerResponse = prepareGetWarmers(request.indices()).setIndicesOptions(request.indicesOptions()).get();
+                                builderList.add(prepareGetWarmers(request.indices()).setIndicesOptions(request.indicesOptions()));
                                 break;
                             default:
                                 throw new ElasticsearchIllegalStateException("feature [" + feature + "] is not valid");
                             }
                         }
-                        GetIndexResponse getIndexResponse = GetIndexResponse.convertResponses(aliasResponse, mappingResponse,
-                                settingsResponse, warmerResponse);
-                        onResponse(getIndexResponse);
+                        final ActionListener<?> actionListener = new ActionListener<Object>() {
+                            final CountDown countDown = new CountDown(builderList.size());
+                            volatile GetAliasesResponse aliasResponse = null;
+                            volatile GetMappingsResponse mappingResponse = null;
+                            volatile GetSettingsResponse settingsResponse = null;
+                            volatile GetWarmersResponse warmerResponse = null;
+
+                            @Override
+                            public void onResponse(Object o) {
+                                if (o instanceof GetAliasesResponse) {
+                                    aliasResponse = (GetAliasesResponse) o;
+                                } else if (o instanceof GetMappingsResponse) {
+                                    mappingResponse = (GetMappingsResponse) o;
+                                } else if (o instanceof GetSettingsResponse) {
+                                    settingsResponse = (GetSettingsResponse) o;
+                                } else if (o instanceof GetWarmersResponse) {
+                                    warmerResponse = (GetWarmersResponse) o;
+                                } else {
+                                    assert false : "Unexpected response type: " + o.getClass();
+                                }
+                                if (countDown.countDown()) {
+                                    GetIndexResponse response = GetIndexResponse.convertResponses(aliasResponse, mappingResponse,
+                                            settingsResponse, warmerResponse);
+                                    listener.onResponse(response);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Throwable e) {
+                                if (countDown.fastForward()) {
+                                    listener.onFailure(e);
+                                }
+                            }
+                        };
+
+                        for (ActionRequestBuilder builder : builderList) {
+                            builder.execute(actionListener);
+                        }
                     } catch (Throwable e1) {
                         listener.onFailure(e1);
                     }

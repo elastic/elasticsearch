@@ -168,6 +168,11 @@ public class ESUsersTool extends CliTool {
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
             Path file = FileUserPasswdStore.resolveFile(settings, env);
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
+            if (!users.containsKey(username)) {
+                terminal.println("User [%s] doesn't exist", username);
+                return ExitStatus.NO_USER;
+            }
+
             if (Files.exists(file)) {
                 char[] passwd = users.remove(username);
                 if (passwd != null) {

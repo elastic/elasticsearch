@@ -220,11 +220,16 @@ public class ESUsersToolTests extends CliToolTestCase {
                 .put("shield.authc.esusers.files.users", userFile)
                 .put("shield.authc.esusers.files.users_roles", userRolesFile)
                 .build();
+        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
 
-        ESUsersTool.Userdel cmd = new ESUsersTool.Userdel(new MockTerminal(), "user2");
+        ESUsersTool.Userdel cmd = new ESUsersTool.Userdel(terminal, "user2");
 
         CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.OK));
+        assertThat(status, is(CliTool.ExitStatus.NO_USER));
+
+        List<String> output = terminal.getTerminalOutput();
+        assertThat(output, hasSize(equalTo(1)));
+        assertThat(output, hasItem(startsWith("User [user2] doesn't exist")));
 
         assertFileExists(userFile); 
         List<String> lines = Files.readLines(userFile, Charsets.UTF_8);
@@ -248,7 +253,7 @@ public class ESUsersToolTests extends CliToolTestCase {
         ESUsersTool.Userdel cmd = new ESUsersTool.Userdel(new MockTerminal(), "user2");
 
         CliTool.ExitStatus status = execute(cmd, settings);
-        assertThat(status, is(CliTool.ExitStatus.OK));
+        assertThat(status, is(CliTool.ExitStatus.NO_USER));
 
         assertThat(userFile.exists(), is(false));
         assertThat(userRolesFile.exists(), is(false));

@@ -65,4 +65,25 @@ public class EmailAlertAction implements AlertAction {
         return builder;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        EmailAlertAction that = (EmailAlertAction) o;
+
+        if (displayField != null ? !displayField.equals(that.displayField) : that.displayField != null) return false;
+        if (emailAddresses != null ? !emailAddresses.equals(that.emailAddresses) : that.emailAddresses != null)
+            return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = displayField != null ? displayField.hashCode() : 0;
+        result = 31 * result + (emailAddresses != null ? emailAddresses.hashCode() : 0);
+        return result;
+    }
+
 }

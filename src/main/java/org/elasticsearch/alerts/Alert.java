@@ -169,10 +169,23 @@ public class Alert implements ToXContent {
         if (version != alert.version) return false;
         if (!actions.equals(alert.actions)) return false;
         if (!alertName.equals(alert.alertName)) return false;
-        if (lastActionFire != null ? !lastActionFire.equals(alert.lastActionFire) : alert.lastActionFire != null)
+        if ( (lastActionFire == null || alert.lastActionFire == null)) {
+            if (lastActionFire != alert.lastActionFire) {
+                return false;
+            }
+        } else if (lastActionFire.getMillis() != alert.lastActionFire.getMillis()) {
             return false;
+        }
         if (!schedule.equals(alert.schedule)) return false;
-        if (!searchRequest.equals(alert.searchRequest)) return false;
+
+        if ( (searchRequest.source() == null || alert.searchRequest.source() == null)) {
+            if (searchRequest.source() != alert.searchRequest.source()) {
+                return false;
+            }
+        } else if (!searchRequest.source().equals(alert.searchRequest.source())) {
+            return false;
+        }
+
         if (!trigger.equals(alert.trigger)) return false;
 
         return true;

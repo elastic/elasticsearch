@@ -66,6 +66,11 @@ public abstract class InternalBucketReducerAggregation extends InternalMultiBuck
             this.aggregations = aggregations;
         }
 
+        public InternalSelection(String key, BytesReference bucketType, List<? extends MultiBucketsAggregation.Bucket> buckets,
+                InternalAggregations aggregations) {
+            this(key, bucketType, BucketStreams.stream(bucketType).getBucketStreamContext(buckets.get(0)), buckets, aggregations);
+        }
+
         @Override
         public String getName() {
             return getKey();

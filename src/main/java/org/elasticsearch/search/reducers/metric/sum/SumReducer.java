@@ -19,11 +19,10 @@
 
 package org.elasticsearch.search.reducers.metric.sum;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerContext;
@@ -57,9 +56,8 @@ public class SumReducer extends Reducer {
     }
 
     @Override
-    public InternalAggregation doReduce(List<MultiBucketsAggregation> aggregations, BytesReference bucketType,
-            BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
-        MultiBucketsAggregation aggregation = ensureSingleAggregation(aggregations);
+    public InternalAggregation doReduce(List<? extends Aggregation> aggregations) throws ReductionExecutionException {
+        MultiBucketsAggregation aggregation = (MultiBucketsAggregation) ensureSingleAggregation(aggregations);
         Object[] bucketProperties = (Object[]) aggregation.getProperty(fieldName);
 
         double sum = 0;

@@ -22,8 +22,8 @@ package org.elasticsearch.search.reducers.bucket.unpacking;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerContext;
@@ -66,15 +66,17 @@ public class UnpackingReducer extends BucketReducer {
     }
 
     @Override
-    public InternalBucketReducerAggregation doReduce(List<MultiBucketsAggregation> aggregations, BytesReference bucketType,
-            BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
+    public InternalBucketReducerAggregation doReduce(List<? extends Aggregation> aggregations) throws ReductionExecutionException {
         List<MultiBucketsAggregation.Bucket> buckets = new ArrayList<>();
-        for (MultiBucketsAggregation aggregation : aggregations) {
+        BytesReference bucketType = null;
+        for (Aggregation aggregation : aggregations) {
             Object[] objArray = (Object[]) aggregation.getProperty(unpackPath);
             if (objArray != null) {
                 for (Object o : objArray) {
                     if (o instanceof MultiBucketsAggregation) {
-                        buckets.addAll(((MultiBucketsAggregation) o).getBuckets());
+                        MultiBucketsAggregation multiBucketsAggregation = (MultiBucketsAggregation) o;
+                        bucketType = checkBucketType(bucketType, multiBucketsAggregation);
+                        buckets.addAll(multiBucketsAggregation.getBuckets());
                     } else {
                         throw new ReductionExecutionException("Unpack path must point to a MultiBucketAggregation. Found [" + o.getClass()
                                 + "] for unpack path [" + unpackPath + "]");
@@ -82,7 +84,7 @@ public class UnpackingReducer extends BucketReducer {
                 }
             }
         }
-        InternalSelection selection = new InternalSelection(unpackPath, bucketType, bucketStreamContext, buckets,
+        InternalSelection selection = new InternalSelection(unpackPath, bucketType, buckets,
                 InternalAggregations.EMPTY);
         InternalAggregations subReducersResults = runSubReducers(selection);
         selection.setAggregations(subReducersResults);

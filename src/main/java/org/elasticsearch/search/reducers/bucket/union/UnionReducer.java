@@ -22,8 +22,8 @@ package org.elasticsearch.search.reducers.bucket.union;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.reducers.Reducer;
@@ -62,11 +62,13 @@ public class UnionReducer extends BucketReducer {
     }
 
     @Override
-    public InternalBucketReducerAggregation doReduce(List<MultiBucketsAggregation> aggregations, BytesReference bucketType,
-            BucketStreamContext bucketStreamContext) {
+    public InternalBucketReducerAggregation doReduce(List<? extends Aggregation> aggregations) {
         Map<String, List<MultiBucketsAggregation.Bucket>> selectionsBucketsMap = new LinkedHashMap<>();
-        for (MultiBucketsAggregation aggregation : aggregations) {
-            List<? extends Bucket> aggBuckets = (List<? extends MultiBucketsAggregation.Bucket>) aggregation.getBuckets();
+        BytesReference bucketType = null;
+        for (Aggregation aggregation : aggregations) {
+            bucketType = checkBucketType(bucketType, aggregation);
+            MultiBucketsAggregation multiBucketsAggregation = (MultiBucketsAggregation) aggregation;
+            List<? extends Bucket> aggBuckets = (List<? extends MultiBucketsAggregation.Bucket>) multiBucketsAggregation.getBuckets();
             for (int i = 0; i <= aggBuckets.size() - 1; i++) {
                 Bucket aggBucket = aggBuckets.get(i);
                 String key = aggBucket.getKey();
@@ -82,7 +84,7 @@ public class UnionReducer extends BucketReducer {
         for (Entry<String, List<MultiBucketsAggregation.Bucket>> entry : selectionsBucketsMap.entrySet()) {
             String key = entry.getKey();
             List<MultiBucketsAggregation.Bucket> buckets = entry.getValue();
-            InternalSelection selection = new InternalSelection(key, bucketType, bucketStreamContext, buckets, InternalAggregations.EMPTY);
+            InternalSelection selection = new InternalSelection(key, bucketType, buckets, InternalAggregations.EMPTY);
             InternalAggregations subReducersResults = runSubReducers(selection);
             selection.setAggregations(subReducersResults);
             selections.add(selection);

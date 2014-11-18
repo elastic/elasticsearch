@@ -20,10 +20,9 @@
 package org.elasticsearch.search.reducers.bucket;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerContext;
 import org.elasticsearch.search.reducers.ReducerFactories;
@@ -46,16 +45,32 @@ public abstract class BucketReducer extends Reducer {
     }
 
     @Override
-    public abstract InternalBucketReducerAggregation doReduce(List<MultiBucketsAggregation> aggregations, BytesReference bucketType,
-            BucketStreamContext bucketStreamContext) throws ReductionExecutionException;
+    public abstract InternalBucketReducerAggregation doReduce(List<? extends Aggregation> aggregations) throws ReductionExecutionException;
 
     protected InternalAggregations runSubReducers(InternalSelection selection) {
         Reducer[] subReducers = subReducers();
         List<InternalAggregation> aggregations = new ArrayList<>(subReducers.length);
         for (Reducer reducer : subReducers) {
-            aggregations.add(reducer.doReduce(Collections.singletonList((MultiBucketsAggregation) selection), selection.getBucketType(),
-                    selection.getBucketStreamContext()));
+            aggregations.add(reducer.doReduce(Collections.singletonList(selection)));
         }
         return new InternalAggregations(aggregations);
+    }
+
+    protected BytesReference checkBucketType(BytesReference expectedBucketType, Aggregation aggregation) {
+        BytesReference thisBucketType;
+        if (aggregation instanceof InternalAggregation) {
+            thisBucketType = ((InternalAggregation) aggregation).type().stream();
+        } else if (aggregation instanceof InternalSelection) {
+            thisBucketType = ((InternalSelection) aggregation).getBucketType();
+        } else {
+            throw new ReductionExecutionException("aggregation must extend either InternalAggregation or InternalSelection");
+        }
+        if (expectedBucketType == null) {
+            expectedBucketType = thisBucketType;
+        } else if (!expectedBucketType.toUtf8().equals(thisBucketType.toUtf8())) {
+            throw new ReductionExecutionException("Buckets must all be the same type. Expected: [" + thisBucketType + "], found: ["
+                    + thisBucketType + "] for reducer [" + name() + "]");
+        }
+        return expectedBucketType;
     }
 }

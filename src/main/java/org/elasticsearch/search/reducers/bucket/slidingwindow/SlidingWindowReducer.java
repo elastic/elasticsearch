@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.reducers.bucket.slidingwindow;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.reducers.Reducer;
@@ -63,9 +63,8 @@ public class SlidingWindowReducer extends BucketReducer {
     }
 
     @Override
-    public InternalBucketReducerAggregation doReduce(List<MultiBucketsAggregation> aggregations, BytesReference bucketType,
-            BucketStreamContext bucketStreamContext) throws ReductionExecutionException {
-        MultiBucketsAggregation aggregation = ensureSingleAggregation(aggregations);
+    public InternalBucketReducerAggregation doReduce(List<? extends Aggregation> aggregations) throws ReductionExecutionException {
+        MultiBucketsAggregation aggregation = (MultiBucketsAggregation) ensureSingleAggregation(aggregations);
         List<InternalSelection> selections = new ArrayList<>();
         List<? extends Bucket> aggBuckets = (List<? extends MultiBucketsAggregation.Bucket>) aggregation.getBuckets();
         for (int i = 0; i <= aggBuckets.size() - windowSize; i++) {
@@ -79,7 +78,8 @@ public class SlidingWindowReducer extends BucketReducer {
             } else {
                 selectionKey = selectionBuckets.get(0).getKey() + " TO " + selectionBuckets.get(selectionBuckets.size() - 1).getKey();
             }
-            InternalSelection selection = new InternalSelection(selectionKey, bucketType, bucketStreamContext, selectionBuckets , InternalAggregations.EMPTY);
+            InternalSelection selection = new InternalSelection(selectionKey, ((InternalAggregation) aggregation).type().stream(),
+                    selectionBuckets, InternalAggregations.EMPTY);
             InternalAggregations subReducersResults = runSubReducers(selection);
             selection.setAggregations(subReducersResults);
             selections.add(selection);

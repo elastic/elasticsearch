@@ -37,6 +37,7 @@ import org.elasticsearch.index.search.child.TestSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.index.service.StubIndexService;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -70,6 +71,13 @@ public class IndexQueryParserFilterCachingTests extends ElasticsearchSingleNodeT
         injector.getInstance(MapperService.class).merge("child", new CompressedString(childMapping), true);
         injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
         queryParser = injector.getInstance(IndexQueryParserService.class);
+        SearchContext.setCurrent(new TestSearchContext());
+    }
+
+    @After
+    public void removeSearchContext() {
+        SearchContext current = SearchContext.current();
+        SearchContext.removeCurrent();
     }
 
     private IndexQueryParserService queryParser() throws IOException {

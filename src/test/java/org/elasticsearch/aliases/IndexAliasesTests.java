@@ -56,9 +56,11 @@ import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -841,12 +843,12 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
     @Test
     public void testCreateIndexWithAliasesInSource() throws Exception {
         assertAcked(prepareCreate("test").setSource("{\n" +
-                        "    \"aliases\" : {\n" +
-                        "        \"alias1\" : {},\n" +
+                "    \"aliases\" : {\n" +
+                "        \"alias1\" : {},\n" +
                         "        \"alias2\" : {\"filter\" : {\"term\": {\"field\":\"value\"}}},\n" +
-                        "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
-                        "    }\n" +
-                        "}"));
+                "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"}\n" +
+                "    }\n" +
+                "}"));
 
         checkAliases();
     }
@@ -882,6 +884,26 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
             fail("create index should have failed due to invalid alias filter");
         } catch (ElasticsearchIllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [alias2]"));
+        }
+    }
+
+    @Test
+    public void testAliasFilterWithNowInRangeFilterAndQuery() throws Exception {
+        assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true"));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", rangeFilter("_timestamp").cache(randomBoolean()).from("now-1d").to("now")));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", queryFilter(rangeQuery("_timestamp").from("now-1d").to("now"))));
+
+        final int numDocs = scaledRandomIntBetween(5, 52);
+        for (int i = 1; i <= numDocs; i++) {
+            client().prepareIndex("my-index", "my-type").setCreate(true).setSource("{}").get();
+            if (i % 2 == 0) {
+                refresh();
+                SearchResponse response = client().prepareSearch("filter1").get();
+                assertHitCount(response, i);
+
+                response = client().prepareSearch("filter2").get();
+                assertHitCount(response, i);
+            }
         }
     }
 

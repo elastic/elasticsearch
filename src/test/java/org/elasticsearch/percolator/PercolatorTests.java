@@ -57,6 +57,7 @@ import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuild
 import static org.elasticsearch.common.settings.ImmutableSettings.builder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
@@ -202,7 +203,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test1", PercolatorService.TYPE_NAME)
                 .setSource(
                         XContentFactory.jsonBuilder().startObject().field("query",
-                                constantScoreQuery(FilterBuilders.rangeFilter("field2").from(1).to(5).includeLower(true).setExecution("fielddata"))
+                                constantScoreQuery(FilterBuilders.rangeFilter("field1").from(1).to(5).includeLower(true).setExecution("fielddata"))
                         ).endObject()
                 )
                 .execute().actionGet();
@@ -564,7 +565,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         IndicesStatsResponse indicesResponse = client().admin().indices().prepareStats("test").execute().actionGet();
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo((long) numShards.numPrimaries));
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
-        assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo((long)numShards.dataCopies)); //number of copies
+        assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo((long) numShards.dataCopies)); //number of copies
         assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), equalTo(-1l));
 
         NodesStatsResponse nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
@@ -586,7 +587,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         indicesResponse = client().admin().indices().prepareStats().setPercolate(true).execute().actionGet();
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo((long) numShards.numPrimaries * 2));
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
-        assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo((long)numShards.dataCopies)); //number of copies
+        assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo((long) numShards.dataCopies)); //number of copies
         assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), equalTo(-1l));
 
         percolateCount = 0;
@@ -594,7 +595,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         for (NodeStats nodeStats : nodesResponse) {
             percolateCount += nodeStats.getIndices().getPercolate().getCount();
         }
-        assertThat(percolateCount, equalTo((long) numShards.numPrimaries *2));
+        assertThat(percolateCount, equalTo((long) numShards.numPrimaries * 2));
 
         // We might be faster than 1 ms, so run upto 1000 times until have spend 1ms or more on percolating
         boolean moreThanOneMs = false;
@@ -1790,6 +1791,30 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(response, 1l);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1"));
+    }
+
+    @Test
+    public void testPercolatorQueryWithNowRange() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .addMapping("my-type", "timestamp", "type=date")
+                .get();
+        ensureGreen();
+
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", rangeQuery("timestamp").from("now-1d").to("now")).endObject())
+                .get();
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "2")
+                .setSource(jsonBuilder().startObject().field("query", constantScoreQuery(rangeFilter("timestamp").from("now-1d").to("now"))).endObject())
+                .get();
+
+        logger.info("--> Percolate doc with field1=b");
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("test").setDocumentType("my-type")
+                .setPercolateDoc(docBuilder().setDoc("timestamp", System.currentTimeMillis()))
+                .get();
+        assertMatchCount(response, 2l);
+        assertThat(response.getMatches(), arrayWithSize(2));
+        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1", "2"));
     }
 
     void initNestedIndexAndPercolation() throws IOException {

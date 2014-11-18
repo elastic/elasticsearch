@@ -165,7 +165,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public long nowInMillis() {
-        throw new UnsupportedOperationException("TestSearchContext does not support nowInMillis()");
+        return 0;
     }
 
     @Override

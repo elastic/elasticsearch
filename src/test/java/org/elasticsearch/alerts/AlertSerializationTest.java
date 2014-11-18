@@ -13,7 +13,6 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -47,10 +46,16 @@ public class AlertSerializationTest extends ElasticsearchIntegrationTest {
                 internalCluster().getInstance(AlertsStore.class, internalCluster().getMasterName());
 
         Alert parsedAlert = alertsStore.parseAlert("test-serialization", jsonBuilder.bytes());
-        assertEquals(parsedAlert, alert);
-
-        logger.error(XContentHelper.convertToJson(jsonBuilder.bytes(),false,true));
-
+        assertEquals(parsedAlert.enabled(), alert.enabled());
+        assertEquals(parsedAlert.version(), alert.version());
+        assertEquals(parsedAlert.actions(), alert.actions());
+        assertEquals(parsedAlert.lastActionFire().getMillis(), alert.lastActionFire().getMillis());
+        assertEquals(parsedAlert.schedule(), alert.schedule());
+        assertEquals(parsedAlert.getSearchRequest().source(), alert.getSearchRequest().source());
+        assertEquals(parsedAlert.trigger(), alert.trigger());
     }
+
+
+
 
 }

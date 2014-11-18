@@ -48,3 +48,7 @@ In addition, the following node settings related to routing have been deprecated
   This was an undocumented setting that allowed to take the `_type` of the
   document into account when computing its shard (default: `false`). `false` is
   now enforced on new indices.
+
+=== Store
+
+The `memory` / `ram` store (`index.store.type`) option was removed in Elasticsearch 2.0.

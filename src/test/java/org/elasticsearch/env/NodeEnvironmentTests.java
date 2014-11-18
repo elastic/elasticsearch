@@ -42,11 +42,10 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
     @Test
     public void testNodeLockSingleEnvironment() throws IOException {
-        String[] dataPaths = tmpPaths();
-        Settings settings = ImmutableSettings.builder()
-                .put(nodeEnvSettings(dataPaths))
-                .put("node.max_local_storage_nodes", 1).build();
-        NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings));
+        NodeEnvironment env = newNodeEnvironment(ImmutableSettings.builder()
+                .put("node.max_local_storage_nodes", 1).build());
+        Settings settings = env.getSettings();
+        String[] dataPaths = env.getSettings().getAsArray("path.data");
 
         try {
             new NodeEnvironment(settings, new Environment(settings));
@@ -70,10 +69,9 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
     @Test
     public void testNodeLockMultipleEnvironment() throws IOException {
-        String[] dataPaths = tmpPaths();
-        Settings settings = nodeEnvSettings(dataPaths);
-        NodeEnvironment first = new NodeEnvironment(settings, new Environment(settings));
-        NodeEnvironment second = new NodeEnvironment(settings, new Environment(settings));
+        final NodeEnvironment first = newNodeEnvironment();
+        String[] dataPaths = first.getSettings().getAsArray("path.data");
+        NodeEnvironment second = new NodeEnvironment(first.getSettings(), new Environment(first.getSettings()));
         assertEquals(first.nodeDataPaths().length, dataPaths.length);
         assertEquals(second.nodeDataPaths().length, dataPaths.length);
         for (int i = 0; i < dataPaths.length; i++) {
@@ -84,8 +82,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
     @Test
     public void testShardLock() throws IOException {
-        Settings settings = nodeEnvSettings(tmpPaths());
-        NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings));
+        final NodeEnvironment env = newNodeEnvironment();
 
         ShardLock fooLock = env.shardLock(new ShardId("foo", 1));
         assertEquals(new ShardId("foo", 1), fooLock.getShardId());
@@ -126,8 +123,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
     @Test
     public void testGetAllIndices() throws Exception {
-        Settings settings = nodeEnvSettings(tmpPaths());
-        NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings));
+        final NodeEnvironment env = newNodeEnvironment();
         final int numIndices = randomIntBetween(1, 10);
         for (int i = 0; i < numIndices; i++) {
             for (Path path : env.indexPaths(new Index("foo" + i))) {
@@ -145,9 +141,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
     @Test
     public void testDeleteSafe() throws IOException {
-        Settings settings = nodeEnvSettings(tmpPaths());
-        NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings));
-
+        final NodeEnvironment env = newNodeEnvironment();
         ShardLock fooLock = env.shardLock(new ShardId("foo", 1));
         assertEquals(new ShardId("foo", 1), fooLock.getShardId());
 
@@ -200,8 +194,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
     @Test
     public void testGetAllShards() throws Exception {
-        Settings settings = nodeEnvSettings(tmpPaths());
-        NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings));
+        final NodeEnvironment env = newNodeEnvironment();
         final int numIndices = randomIntBetween(1, 10);
         final Set<ShardId> createdShards = new HashSet<>();
         for (int i = 0; i < numIndices; i++) {
@@ -234,8 +227,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         class Int {
             int value = 0;
         }
-        Settings settings = nodeEnvSettings(tmpPaths());
-        final NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings));
+        final NodeEnvironment env = newNodeEnvironment();
         final int shards = randomIntBetween(2, 10);
         final Int[] counts = new Int[shards];
         final AtomicInteger[] countsAtomic = new AtomicInteger[shards];
@@ -301,9 +293,15 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         return absPaths;
     }
 
-    private Settings nodeEnvSettings(String[] dataPaths) {
-        return ImmutableSettings.builder()
+    public NodeEnvironment newNodeEnvironment() throws IOException {
+        return newNodeEnvironment(ImmutableSettings.EMPTY);
+    }
+
+    public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
+        Settings build = ImmutableSettings.builder()
+                .put(settings)
                 .put("path.home", newTempDir().getAbsolutePath())
-                .putArray("path.data", dataPaths).build();
+                .putArray("path.data", tmpPaths()).build();
+        return new NodeEnvironment(build, new Environment(build));
     }
 }

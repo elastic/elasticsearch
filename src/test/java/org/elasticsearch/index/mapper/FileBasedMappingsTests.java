@@ -82,7 +82,6 @@ public class FileBasedMappingsTests extends ElasticsearchTestCase {
                     .put("node.name", NAME)
                     .put("path.conf", configDir.getAbsolutePath())
                     .put("http.enabled", false)
-                    .put("index.store.type", "ram")
                     .put("gateway.type", "none")
                     .build();
 

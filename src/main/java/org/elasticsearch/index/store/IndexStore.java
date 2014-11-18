@@ -24,17 +24,14 @@ import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.IndicesStore;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 
 /**
  * Index store is an index level information of the {@link Store} each shard will use.
  */
 public interface IndexStore extends CloseableIndexComponent {
-
-    /**
-     * Is the store a persistent store that can survive full restarts.
-     */
-    boolean persistent();
 
     IndicesStore indicesStore();
 
@@ -59,4 +56,6 @@ public interface IndexStore extends CloseableIndexComponent {
      * Deletes this shard store since its no longer allocated.
      */
     void deleteUnallocated(ShardId shardId) throws IOException;
+
+    Path[] shardIndexLocations(ShardId shardId);
 }

@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.TimeUnits;
 import org.apache.lucene.uninverting.UninvertingReader;
@@ -35,9 +36,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.fs.SimpleFsDirectoryService;
+import org.elasticsearch.index.store.fs.SimpleFsIndexStore;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
@@ -536,4 +544,5 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     public static boolean terminate(ThreadPool service) throws InterruptedException {
         return ThreadPool.terminate(service, 10, TimeUnit.SECONDS);
     }
+
 }

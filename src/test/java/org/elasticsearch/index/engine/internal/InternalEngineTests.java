@@ -32,7 +32,8 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -43,7 +44,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -69,7 +69,8 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
-import org.elasticsearch.index.store.ram.RamDirectoryService;
+import org.elasticsearch.index.store.fs.SimpleFsDirectoryService;
+import org.elasticsearch.index.store.fs.SimpleFsIndexStore;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
@@ -173,12 +174,33 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     protected Store createStore() throws IOException {
-        DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
+        final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
+            @Override
+            public Directory[] build() throws IOException {
+                return new Directory[] {new RAMDirectory() } ;
+            }
+
+            @Override
+            public long throttleTimeInNanos() {
+                return 0;
+            }
+        };
         return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }
 
     protected Store createStoreReplica() throws IOException {
-        DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
+
+        final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
+            @Override
+            public Directory[] build() throws IOException {
+                return new Directory[] {new RAMDirectory() } ;
+            }
+
+            @Override
+            public long throttleTimeInNanos() {
+                return 0;
+            }
+        };
         return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService), new DummyShardLock(shardId));
     }
 

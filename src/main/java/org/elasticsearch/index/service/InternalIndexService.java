@@ -552,7 +552,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         @Override
         public void onShardCloseFailed(ShardId shardId, Throwable t) {
             assert countDown.isCountedDown() == false;
-            assert shardIds.contains(shardId.getId()) : "Unkown shard id";
+            assert shardIds.contains(shardId.getId()) : "Unknown shard id";
             listener.onShardCloseFailed(shardId, t);
             failures.add(t);
             if (countDown.countDown()) {

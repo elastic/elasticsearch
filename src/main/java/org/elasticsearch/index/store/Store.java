@@ -54,6 +54,7 @@ import org.elasticsearch.index.store.distributor.Distributor;
 import java.io.*;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.zip.Adler32;
@@ -350,6 +351,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             this.onClose = onClose;
             // only do this once!
             decRef();
+            logger.debug("store reference count on close: " + refCounter.refCount());
         }
     }
 

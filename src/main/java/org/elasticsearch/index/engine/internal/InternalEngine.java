@@ -183,7 +183,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private final AtomicInteger flushing = new AtomicInteger();
     private final Lock flushLock = new ReentrantLock();
 
-    private final RecoveryCounter onGoingRecoveries = new RecoveryCounter();
+    protected final RecoveryCounter onGoingRecoveries = new RecoveryCounter();
 
 
     // A uid (in the form of BytesRef) to the version map
@@ -1677,10 +1677,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
-    private final class RecoveryCounter implements Releasable {
+    protected final class RecoveryCounter implements Releasable {
         private final AtomicInteger onGoingRecoveries = new AtomicInteger();
 
-        public void startRecovery() {
+        void startRecovery() {
             store.incRef();
             onGoingRecoveries.incrementAndGet();
         }
@@ -1689,7 +1689,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             return onGoingRecoveries.get();
         }
 
-        public void endRecovery() throws ElasticsearchException {
+        void endRecovery() throws ElasticsearchException {
             store.decRef();
             onGoingRecoveries.decrementAndGet();
             assert onGoingRecoveries.get() >= 0 : "ongoingRecoveries must be >= 0 but was: " + onGoingRecoveries.get();

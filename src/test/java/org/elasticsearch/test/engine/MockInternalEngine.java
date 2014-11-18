@@ -95,6 +95,7 @@ public final class MockInternalEngine extends InternalEngine implements Engine {
                 }
             }
         }
+        logger.debug("Ongoing recoveries after engine close: " + onGoingRecoveries.get());
     }
 
     @Override

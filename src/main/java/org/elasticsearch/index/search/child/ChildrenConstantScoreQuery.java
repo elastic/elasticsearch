@@ -57,14 +57,14 @@ public class ChildrenConstantScoreQuery extends Query {
     private Query originalChildQuery;
     private final String parentType;
     private final String childType;
-    private final BitDocIdSetFilter parentFilter;
+    private final Filter parentFilter;
     private final int shortCircuitParentDocSet;
     private final BitDocIdSetFilter nonNestedDocsFilter;
 
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
-    public ChildrenConstantScoreQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, BitDocIdSetFilter parentFilter, int shortCircuitParentDocSet, BitDocIdSetFilter nonNestedDocsFilter) {
+    public ChildrenConstantScoreQuery(IndexParentChildFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, BitDocIdSetFilter nonNestedDocsFilter) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.parentFilter = parentFilter;
         this.parentType = parentType;

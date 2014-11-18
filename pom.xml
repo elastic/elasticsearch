@@ -302,6 +302,14 @@
         </dependency>
 
         <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>apache-log4j-extras</artifactId>
+            <version>1.2.17</version>
+            <scope>compile</scope>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>1.6.2</version>
@@ -932,7 +940,7 @@
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/lib</src>
-                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*, groovy*</includes>
+                                    <includes>lucene*, *log4j*, jna*, spatial4j*, jts*, groovy*</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -1128,7 +1136,7 @@
                                     <location>target/lib/</location>
                                     <includes>
                                         <include>lucene*</include>
-                                        <include>log4j*</include>
+                                        <include>*log4j*</include>
                                         <include>jna*</include>
                                         <include>spatial4j*</include>
                                         <include>jts*</include>

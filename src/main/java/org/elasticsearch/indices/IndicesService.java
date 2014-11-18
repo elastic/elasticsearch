@@ -25,7 +25,12 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
+
+import java.util.List;
 
 /**
  *
@@ -74,4 +79,33 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
     IndexService createIndex(String index, Settings settings, String localNodeId) throws ElasticsearchException;
 
     void removeIndex(String index, String reason) throws ElasticsearchException;
+
+    void removeIndex(String index, String reason, @Nullable IndexCloseListener listener) throws ElasticsearchException;
+
+    /**
+     * A listener interface that can be used to get notification once a shard or all shards
+     * of an certain index that are allocated on a node are actually closed. The listener methods
+     * are invoked once the actual low level instance modifying or reading a shard are closed in contrast to
+     * removal methods that might return earlier.
+     */
+    public static interface IndexCloseListener {
+
+        /**
+         * Invoked once all shards are closed or their closing failed.
+         * @param index the index that got closed
+         * @param failures the recorded shard closing failures
+         */
+        public void onAllShardsClosed(Index index, List<Throwable> failures);
+
+        /**
+         * Invoked once the last resource using the given shard ID is released
+         */
+        public void onShardClosed(ShardId shardId);
+
+        /**
+         * Invoked if closing the given shard failed.
+         */
+        public void onShardCloseFailed(ShardId shardId, Throwable t);
+
+    }
 }

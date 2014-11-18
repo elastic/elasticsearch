@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.index.store;
 
-import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.IndexFileNames;
@@ -35,12 +31,10 @@ import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.test.ElasticsearchThreadFilter;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.Arrays;
 
 @ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
@@ -62,13 +56,7 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
                 ((MockDirectoryWrapper) directories[i]).setEnableVirusScanner(false);
             }
         }
-        return new FilterDirectory(new DistributorDirectory(directories)) {
-            @Override
-            public void close() throws IOException {
-                assertTrue(DistributorDirectory.assertConsistency(logger, ((DistributorDirectory) this.getDelegate())));
-                super.close();
-            }
-        };
+        return new DistributorDirectory(directories);
     }
 
     // #7306: don't invoke the distributor when we are opening an already existing file
@@ -105,7 +93,6 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
         } catch (IllegalStateException ise) {
             // expected
         }
-        assertTrue(DistributorDirectory.assertConsistency(logger, dd));
         dd.close();
     }
 
@@ -167,7 +154,6 @@ public class DistributorDirectoryTest extends BaseDirectoryTestCase {
                     // target file already exists
                 }
             }
-            assertTrue(DistributorDirectory.assertConsistency(logger, dd));
             IOUtils.close(dd);
         }
     }

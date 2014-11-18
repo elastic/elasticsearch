@@ -11,6 +11,13 @@ if a requested index does not exist. This change brings the defaults for this AP
 line with the other Indices APIs. The <<multi-index>> options can be used on a request 
 to change this behavior
 
+`GetIndexRequest.features()` now returns an array of Feature Enums instrad of an array of String values.
+The following deprecated methods have been removed:
+* `GetIndexRequest.addFeatures(String[])` - Please use `GetIndexRequest.addFeatures(Feature[])` instead
+* `GetIndexRequest.features(String[])` - Please use `GetIndexRequest.features(Feature[])` instead
+* `GetIndexRequestBuilder.addFeatures(String[])` - Please use `GetIndexRequestBuilder.addFeatures(Feature[])` instead
+* `GetIndexRequestBuilder.setFeatures(String[])` - Please use `GetIndexRequestBuilder.setFeatures(Feature[])` instead
+
 === Partial fields
 
 Partial fields were deprecated since 1.0.0beta1 in favor of <<search-request-source-filtering,source filtering>>.

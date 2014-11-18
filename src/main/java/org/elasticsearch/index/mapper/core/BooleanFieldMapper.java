@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -107,7 +108,8 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             BooleanFieldMapper.Builder builder = booleanField(name);
             parseField(builder, name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
@@ -115,6 +117,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
                     builder.nullValue(nodeBooleanValue(propNode));
+                    iterator.remove();
                 }
             }
             return builder;

@@ -43,7 +43,6 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.service.IndexService;
@@ -246,20 +245,14 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
             final Set<Filter> warmUp = new HashSet<>();
             final MapperService mapperService = indexShard.mapperService();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
-                ParentFieldMapper parentFieldMapper = docMapper.parentFieldMapper();
-                if (parentFieldMapper.active()) {
-                    warmUp.add(docMapper.typeFilter());
-                    DocumentMapper parentDocumentMapper = mapperService.documentMapper(parentFieldMapper.type());
-                    if (parentDocumentMapper != null) {
-                        warmUp.add(parentDocumentMapper.typeFilter());
-                    }
-                }
-
                 if (docMapper.hasNestedObjects()) {
                     hasNested = true;
                     for (ObjectMapper objectMapper : docMapper.objectMappers().values()) {
                         if (objectMapper.nested().isNested()) {
-                            warmUp.add(objectMapper.nestedTypeFilter());
+                            ObjectMapper parentObjectMapper = docMapper.findParentObjectMapper(objectMapper);
+                            if (parentObjectMapper != null && parentObjectMapper.nested().isNested()) {
+                                warmUp.add(parentObjectMapper.nestedTypeFilter());
+                            }
                         }
                     }
                 }

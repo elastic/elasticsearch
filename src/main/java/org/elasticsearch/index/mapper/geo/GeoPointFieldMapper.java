@@ -207,44 +207,57 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = geoPointField(name);
             parseField(builder, name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("path")) {
                     builder.multiFieldPathType(parsePathType(name, fieldNode.toString()));
+                    iterator.remove();
                 } else if (fieldName.equals("lat_lon")) {
                     builder.enableLatLon(XContentMapValues.nodeBooleanValue(fieldNode));
+                    iterator.remove();
                 } else if (fieldName.equals("geohash")) {
                     builder.enableGeoHash(XContentMapValues.nodeBooleanValue(fieldNode));
+                    iterator.remove();
                 } else if (fieldName.equals("geohash_prefix")) {
                     builder.geohashPrefix(XContentMapValues.nodeBooleanValue(fieldNode));
                     if (XContentMapValues.nodeBooleanValue(fieldNode)) {
                         builder.enableGeoHash(true);
                     }
+                    iterator.remove();
                 } else if (fieldName.equals("precision_step")) {
                     builder.precisionStep(XContentMapValues.nodeIntegerValue(fieldNode));
+                    iterator.remove();
                 } else if (fieldName.equals("geohash_precision")) {
                     if (fieldNode instanceof Integer) {
                         builder.geoHashPrecision(XContentMapValues.nodeIntegerValue(fieldNode));
                     } else {
                         builder.geoHashPrecision(GeoUtils.geoHashLevelsForPrecision(fieldNode.toString()));
                     }
+                    iterator.remove();
                 } else if (fieldName.equals("validate")) {
                     builder.validateLat = XContentMapValues.nodeBooleanValue(fieldNode);
                     builder.validateLon = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("validate_lon")) {
                     builder.validateLon = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("validate_lat")) {
                     builder.validateLat = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("normalize")) {
                     builder.normalizeLat = XContentMapValues.nodeBooleanValue(fieldNode);
                     builder.normalizeLon = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("normalize_lat")) {
                     builder.normalizeLat = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("normalize_lon")) {
                     builder.normalizeLon = XContentMapValues.nodeBooleanValue(fieldNode);
-                } else {
-                    parseMultiField(builder, name, parserContext, fieldName, fieldNode);
+                    iterator.remove();
+                } else if (parseMultiField(builder, name, parserContext, fieldName, fieldNode)) {
+                    iterator.remove();
                 }
             }
             return builder;

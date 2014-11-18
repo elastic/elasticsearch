@@ -37,11 +37,16 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -151,7 +156,8 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             StringFieldMapper.Builder builder = stringField(name);
             parseField(builder, name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
@@ -159,12 +165,14 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
                     builder.nullValue(propNode.toString());
+                    iterator.remove();
                 } else if (propName.equals("search_quote_analyzer")) {
                     NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                     if (analyzer == null) {
                         throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                     }
                     builder.searchQuotedAnalyzer(analyzer);
+                    iterator.remove();
                 } else if (propName.equals("position_offset_gap")) {
                     builder.positionOffsetGap(XContentMapValues.nodeIntegerValue(propNode, -1));
                     // we need to update to actual analyzers if they are not set in this case...
@@ -178,10 +186,12 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                     if (builder.searchQuotedAnalyzer == null) {
                         builder.searchQuotedAnalyzer = parserContext.analysisService().defaultSearchQuoteAnalyzer();
                     }
+                    iterator.remove();
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
-                } else {
-                    parseMultiField(builder, name, parserContext, propName, propNode);
+                    iterator.remove();
+                } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
+                    iterator.remove();
                 }
             }
             return builder;

@@ -120,7 +120,11 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeLuceneTe
         }
     }
 
-    static BitDocIdSetFilter wrap(Filter filter) {
+    static Filter wrap(Filter filter) {
+        return SearchContext.current().filterCache().cache(filter);
+    }
+
+    static BitDocIdSetFilter wrapWithFixedBitSetFilter(Filter filter) {
         return SearchContext.current().bitsetFilterCache().getBitDocIdSetFilter(filter);
     }
 

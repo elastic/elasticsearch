@@ -27,29 +27,9 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocsEnum;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.index.SlowCompositeReaderWrapper;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MultiCollector;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryUtils;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
@@ -106,11 +86,11 @@ public class ChildrenQueryTests extends AbstractChildTests {
         ScoreType scoreType = ScoreType.values()[random().nextInt(ScoreType.values().length)];
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        BitDocIdSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
+        Filter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
         int minChildren = random().nextInt(10);
         int maxChildren = scaledRandomIntBetween(minChildren, 10);
         Query query = new ChildrenQuery(parentChildIndexFieldData, "parent", "child", parentFilter, childQuery, scoreType, minChildren,
-                maxChildren, 12, wrap(NonNestedDocsFilter.INSTANCE));
+                maxChildren, 12, wrapWithFixedBitSetFilter(NonNestedDocsFilter.INSTANCE));
         QueryUtils.check(query);
     }
 
@@ -196,7 +176,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
 
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        BitDocIdSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
+        Filter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
         Filter rawFilterMe = new NotFilter(new TermFilter(new Term("filter", "me")));
         int max = numUniqueChildValues / 4;
         for (int i = 0; i < max; i++) {
@@ -240,7 +220,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
             Query childQuery = new ConstantScoreQuery(new TermQuery(new Term("field1", childValue)));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
             ScoreType scoreType = ScoreType.values()[random().nextInt(ScoreType.values().length)];
-            BitDocIdSetFilter nonNestedDocsFilter = random().nextBoolean() ? wrap(NonNestedDocsFilter.INSTANCE) : null;
+            BitDocIdSetFilter nonNestedDocsFilter = random().nextBoolean() ? wrapWithFixedBitSetFilter(NonNestedDocsFilter.INSTANCE) : null;
 
             // leave min/max set to 0 half the time
             int minChildren = random().nextInt(2) * scaledRandomIntBetween(0, 110);
@@ -390,7 +370,7 @@ public class ChildrenQueryTests extends AbstractChildTests {
         ((TestSearchContext)context).setSearcher(new ContextIndexSearcher(context, engineSearcher));
         ParentFieldMapper parentFieldMapper = context.mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = context.fieldData().getForField(parentFieldMapper);
-        BitDocIdSetFilter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
+        Filter parentFilter = wrap(new TermFilter(new Term(TypeFieldMapper.NAME, "parent")));
 
         // child query that returns the score as the value of "childScore" for each child document,
         //  with the parent's score determined by the score type

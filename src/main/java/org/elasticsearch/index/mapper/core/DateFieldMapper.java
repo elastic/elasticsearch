@@ -56,6 +56,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -149,7 +150,8 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             DateFieldMapper.Builder builder = dateField(name);
             parseNumberField(builder, name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
@@ -157,12 +159,16 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
                     builder.nullValue(propNode.toString());
+                    iterator.remove();
                 } else if (propName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(propNode));
+                    iterator.remove();
                 } else if (propName.equals("numeric_resolution")) {
                     builder.timeUnit(TimeUnit.valueOf(propNode.toString().toUpperCase(Locale.ROOT)));
+                    iterator.remove();
                 } else if (propName.equals("locale")) {
                     builder.locale(LocaleUtils.parse(propNode.toString()));
+                    iterator.remove();
                 }
             }
             return builder;

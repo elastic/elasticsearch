@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -94,12 +95,14 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
             IndexFieldMapper.Builder builder = MapperBuilders.index();
             parseField(builder, builder.name, node, parserContext);
 
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     EnabledAttributeMapper mapper = nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
                     builder.enabled(mapper);
+                    iterator.remove();
                 }
             }
             return builder;

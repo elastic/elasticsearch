@@ -30,13 +30,20 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.NumberType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider;
 import org.elasticsearch.search.suggest.completion.CompletionPostingsFormatProvider;
@@ -46,7 +53,12 @@ import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextConfig;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.completionField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
@@ -147,7 +159,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             CompletionFieldMapper.Builder builder = completionField(name);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("type")) {
@@ -157,24 +170,32 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                     NamedAnalyzer analyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
                     builder.indexAnalyzer(analyzer);
                     builder.searchAnalyzer(analyzer);
+                    iterator.remove();
                 } else if (Fields.INDEX_ANALYZER.match(fieldName)) {
                     builder.indexAnalyzer(getNamedAnalyzer(parserContext, fieldNode.toString()));
+                    iterator.remove();
                 } else if (Fields.SEARCH_ANALYZER.match(fieldName)) {
                     builder.searchAnalyzer(getNamedAnalyzer(parserContext, fieldNode.toString()));
+                    iterator.remove();
                 } else if (fieldName.equals(Fields.PAYLOADS)) {
                     builder.payloads(Boolean.parseBoolean(fieldNode.toString()));
+                    iterator.remove();
                 } else if (Fields.PRESERVE_SEPARATORS.match(fieldName)) {
                     builder.preserveSeparators(Boolean.parseBoolean(fieldNode.toString()));
+                    iterator.remove();
                 } else if (Fields.PRESERVE_POSITION_INCREMENTS.match(fieldName)) {
                     builder.preservePositionIncrements(Boolean.parseBoolean(fieldNode.toString()));
+                    iterator.remove();
                 } else if (Fields.MAX_INPUT_LENGTH.match(fieldName)) {
                     builder.maxInputLength(Integer.parseInt(fieldNode.toString()));
+                    iterator.remove();
                 } else if ("fields".equals(fieldName) || "path".equals(fieldName)) {
-                    parseMultiField(builder, name, parserContext, fieldName, fieldNode);
+                    if (parseMultiField(builder, name, parserContext, fieldName, fieldNode)) {
+                        iterator.remove();
+                    }
                 } else if (fieldName.equals(Fields.CONTEXT)) {
-                    builder.contextMapping(ContextBuilder.loadMappings(fieldNode));
-                } else {
-                    throw new MapperParsingException("Unknown field [" + fieldName + "]");
+                    builder.contextMapping(ContextBuilder.loadMappings(fieldNode, parserContext.indexVersionCreated()));
+                    iterator.remove();
                 }
             }
 

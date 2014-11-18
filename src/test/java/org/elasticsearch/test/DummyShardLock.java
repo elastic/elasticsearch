@@ -17,32 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.common.settings.loader;
+package org.elasticsearch.test;
 
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.shard.ShardId;
 
-import java.io.IOException;
-import java.util.Map;
-
-/**
- * Settings loader that loads (parses) the settings in a yaml format by flattening them
- * into a map.
+/*
+ * A ShardLock that does nothing... for tests only
  */
-public class YamlSettingsLoader extends XContentSettingsLoader {
+public class DummyShardLock extends ShardLock {
 
-    @Override
-    public XContentType contentType() {
-        return XContentType.YAML;
+    public DummyShardLock(ShardId id) {
+        super(id);
     }
 
     @Override
-    public Map<String, String> load(String source) throws IOException {
-        /*
-         * #8259: Better handling of tabs vs spaces in elasticsearch.yml
-         */
-        if (source.indexOf('\t') > -1) {
-            throw new IOException("Tabs are illegal in YAML.  Did you mean to use whitespace character instead?");
-        }
-        return super.load(source);
+    protected void closeInternal() {
     }
 }

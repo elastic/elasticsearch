@@ -23,7 +23,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
@@ -54,7 +53,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
 
     private final String parentType;
     private final Filter childFilter;
-    private final BitDocIdSetFilter parentFilter;
+    private final Filter parentFilter;
     private final ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource;
 
     // Maybe use PagedGrowableWriter? This will be less wasteful than LongArray, but then we don't have the reuse feature of BigArrays.
@@ -80,7 +79,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
         // so use the filter cache instead. When the filter cache is smarter with what filter impl to pick we can benefit
         // from it here
         this.childFilter = aggregationContext.searchContext().filterCache().cache(childFilter);
-        this.parentFilter = aggregationContext.searchContext().bitsetFilterCache().getBitDocIdSetFilter(parentFilter);
+        this.parentFilter = aggregationContext.searchContext().filterCache().cache(parentFilter);
         this.parentOrdToBuckets = aggregationContext.bigArrays().newLongArray(maxOrd, false);
         this.parentOrdToBuckets.fill(0, maxOrd, -1);
         this.parentOrdToOtherBuckets = new LongObjectPagedHashMap<>(aggregationContext.bigArrays());
@@ -99,7 +98,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
 
     @Override
     public void collect(int docId, long bucketOrdinal) throws IOException {
-        if (parentDocs != null && parentDocs.get(docId)) {
+        if (parentDocs.get(docId)) {
             long globalOrdinal = globalOrdinals.getOrd(docId);
             if (globalOrdinal != -1) {
                 if (parentOrdToBuckets.get(globalOrdinal) == -1) {
@@ -129,11 +128,10 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
         assert globalOrdinals != null;
         try {
             DocIdSet parentDocIdSet = parentFilter.getDocIdSet(reader, null);
-            if (parentDocIdSet != null) {
-                parentDocs = parentDocIdSet.bits();
-            } else {
-                parentDocs = null;
-            }
+            // The DocIdSets.toSafeBits(...) can convert to FixedBitSet, but this
+            // will only happen if the none filter cache is used. (which only happens in tests)
+            // Otherwise the filter cache will produce a bitset based filter.
+            parentDocs = DocIdSets.toSafeBits(reader.reader(), parentDocIdSet);
             DocIdSet childDocIdSet = childFilter.getDocIdSet(reader, null);
             if (globalOrdinals != null && !DocIdSets.isEmpty(childDocIdSet)) {
                 replay.add(reader);

@@ -27,6 +27,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -146,9 +148,16 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     }
 
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder().put(requiredSettings())
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(requiredSettings())
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName()) // run same transport  / disco as external
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName()).build();
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName());
+        if (compatibilityVersion().before(Version.V_1_3_2)) {
+            // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
+            // see #7210
+            builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, false)
+                   .put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
+        }
+        return builder.build();
     }
 
     public void assertAllShardsOnNodes(String index, String pattern) {

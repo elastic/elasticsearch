@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.query.AndFilterBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
@@ -95,6 +97,20 @@ public class FilterTests extends ElasticsearchIntegrationTest {
         assertThat(filter, notNullValue());
         assertThat(filter.getName(), equalTo("tag1"));
         assertThat(filter.getDocCount(), equalTo((long) numTag1Docs));
+    }
+
+    // See NullPointer issue when filters are empty:
+    // https://github.com/elasticsearch/elasticsearch/issues/8438
+    @Test
+    public void emptyFilterDeclarations() throws Exception {
+        FilterBuilder emptyFilter = new AndFilterBuilder();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1").filter(emptyFilter)).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Filter filter = response.getAggregations().get("tag1");
+        assertThat(filter, notNullValue());
+        assertThat(filter.getDocCount(), equalTo((long) numDocs));
     }
 
     @Test

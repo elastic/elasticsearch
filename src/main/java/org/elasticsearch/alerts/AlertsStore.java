@@ -7,6 +7,7 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -211,6 +212,8 @@ public class AlertsStore extends AbstractComponent {
     }
 
     private void loadAlerts() {
+        client.admin().indices().refresh(new RefreshRequest(ALERT_INDEX)).actionGet();
+
         SearchResponse response = client.prepareSearch(ALERT_INDEX)
                 .setTypes(ALERT_TYPE)
                 .setSearchType(SearchType.SCAN)

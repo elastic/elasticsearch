@@ -21,7 +21,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TestAlertSerialization extends ElasticsearchIntegrationTest {
+public class AlertSerializationTest extends ElasticsearchIntegrationTest {
 
     @Test
     public void testAlertSerialization() throws Exception {

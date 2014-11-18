@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -35,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -51,7 +53,7 @@ public class AlertActionManager extends AbstractComponent {
     public static final String RESPONSE = "response_binary";
     public static final String ACTIONS_FIELD = "actions";
 
-    public static final String ALERT_HISTORY_INDEX = "alerthistory";
+    public static final String ALERT_HISTORY_INDEX = ".alert_history";
     public static final String ALERT_HISTORY_TYPE = "alerthistory";
 
     private final Client client;
@@ -69,6 +71,8 @@ public class AlertActionManager extends AbstractComponent {
     private final TimeValue scrollTimeout;
 
     private static AlertActionEntry END_ENTRY = new AlertActionEntry();
+
+    private final AtomicLong largestQueueSize = new AtomicLong(0);
 
     @Inject
     public AlertActionManager(Settings settings, Client client, AlertActionRegistry actionRegistry,
@@ -155,6 +159,7 @@ public class AlertActionManager extends AbstractComponent {
     }
 
     public void loadQueue() {
+        client.admin().indices().refresh(new RefreshRequest(ALERT_HISTORY_INDEX)).actionGet();
         SearchResponse response = client.prepareSearch()
                 .setQuery(QueryBuilders.termQuery(AlertActionState.FIELD_NAME, AlertActionState.SEARCH_NEEDED.toString()))
                 .setSearchType(SearchType.SCAN)
@@ -254,7 +259,18 @@ public class AlertActionManager extends AbstractComponent {
                 .setOpType(IndexRequest.OpType.CREATE)
                 .get();
         entry.setVersion(response.getVersion());
+        long currentSize = actionsToBeProcessed.size() + 1;
         actionsToBeProcessed.add(entry);
+        long currentLargestQueueSize = largestQueueSize.get();
+        boolean done = false;
+        while (!done) {
+            if (currentSize > currentLargestQueueSize) {
+                done = largestQueueSize.compareAndSet(currentLargestQueueSize, currentSize);
+            } else {
+                break;
+            }
+            currentLargestQueueSize = largestQueueSize.get();
+        }
     }
 
     private void updateHistoryEntry(AlertActionEntry entry, AlertActionState actionPerformed) throws IOException {
@@ -267,6 +283,10 @@ public class AlertActionManager extends AbstractComponent {
 
     public long getQueueSize() {
         return actionsToBeProcessed.size();
+    }
+
+    public long getLargestQueueSize() {
+        return largestQueueSize.get();
     }
 
     private class AlertHistoryRunnable implements Runnable {

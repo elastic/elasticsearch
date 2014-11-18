@@ -164,44 +164,12 @@ public class Alert implements ToXContent {
         if (o == null || getClass() != o.getClass()) return false;
 
         Alert alert = (Alert) o;
-
-        if (enabled != alert.enabled) return false;
-        if (version != alert.version) return false;
-        if (!actions.equals(alert.actions)) return false;
-        if (!alertName.equals(alert.alertName)) return false;
-        if ( (lastActionFire == null || alert.lastActionFire == null)) {
-            if (lastActionFire != alert.lastActionFire) {
-                return false;
-            }
-        } else if (lastActionFire.getMillis() != alert.lastActionFire.getMillis()) {
-            return false;
-        }
-        if (!schedule.equals(alert.schedule)) return false;
-
-        if ( (searchRequest.source() == null || alert.searchRequest.source() == null)) {
-            if (searchRequest.source() != alert.searchRequest.source()) {
-                return false;
-            }
-        } else if (!searchRequest.source().equals(alert.searchRequest.source())) {
-            return false;
-        }
-
-        if (!trigger.equals(alert.trigger)) return false;
-
-        return true;
+        return alert.alertName().equals(alertName);
     }
 
     @Override
     public int hashCode() {
-        int result = alertName.hashCode();
-        result = 31 * result + searchRequest.hashCode();
-        result = 31 * result + trigger.hashCode();
-        result = 31 * result + actions.hashCode();
-        result = 31 * result + schedule.hashCode();
-        result = 31 * result + (lastActionFire != null ? lastActionFire.hashCode() : 0);
-        result = 31 * result + (int) (version ^ (version >>> 32));
-        result = 31 * result + (enabled ? 1 : 0);
-        return result;
+        return alertName.hashCode();
     }
 
 }

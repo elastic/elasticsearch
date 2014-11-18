@@ -13,10 +13,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
+ * The Response for a put alert
+ * This response wraps the #IndexResponse returned from the persisting of the alert
  */
 public class PutAlertResponse extends ActionResponse {
     private IndexResponse indexResponse;
 
+    /**
+     * Create the PutAlertResponse with the wrapped IndexResponse
+     * @param indexResponse
+     */
     public PutAlertResponse(IndexResponse indexResponse) {
         this.indexResponse = indexResponse;
     }
@@ -25,11 +31,18 @@ public class PutAlertResponse extends ActionResponse {
         indexResponse = null;
     }
 
-
+    /**
+     * Get the IndexResponse for this PutAlertResponse
+     * @return
+     */
     public IndexResponse indexResponse(){
         return indexResponse;
     }
 
+    /**
+     * Set the IndexResponse on this PutAlertResponse
+     * @param indexResponse
+     */
     public void indexResponse(IndexResponse indexResponse){
         this.indexResponse = indexResponse;
     }

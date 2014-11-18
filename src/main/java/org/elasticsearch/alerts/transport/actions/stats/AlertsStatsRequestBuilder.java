@@ -15,6 +15,10 @@ import org.elasticsearch.alerts.client.AlertsClient;
 public class AlertsStatsRequestBuilder
         extends MasterNodeOperationRequestBuilder<AlertsStatsRequest, AlertsStatsResponse, AlertsStatsRequestBuilder, AlertsClient> {
 
+    /**
+     * The constructor for the AlertsStatsRequestBuilder
+     * @param client
+     */
     public AlertsStatsRequestBuilder(AlertsClient client) {
         super(client, new AlertsStatsRequest());
     }

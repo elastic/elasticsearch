@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.alerts;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsRequest;
@@ -25,10 +24,9 @@ import static org.hamcrest.core.IsEqual.equalTo;
 /**
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0, numDataNodes = 3)
-public class TestBootStrap extends AbstractAlertingTests {
+public class BootStrapTest extends AbstractAlertingTests {
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "This test fails but shouldn't")
     public void testBootStrapAlerts() throws Exception {
         ensureGreen();
 
@@ -45,6 +43,7 @@ public class TestBootStrap extends AbstractAlertingTests {
         assertTrue(response.isAlertManagerStarted());
         assertThat(response.getNumberOfRegisteredAlerts(), equalTo(1L));
 
+        refresh();
 
         String oldMaster = internalTestCluster().getMasterName();
 

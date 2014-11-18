@@ -9,6 +9,7 @@ import org.elasticsearch.alerts.client.AlertsClientAction;
 import org.elasticsearch.alerts.client.AlertsClient;
 
 /**
+ * This action gets an alert by name
  */
 public class GetAlertAction extends AlertsClientAction<GetAlertRequest, GetAlertResponse, GetAlertRequestBuilder> {
 

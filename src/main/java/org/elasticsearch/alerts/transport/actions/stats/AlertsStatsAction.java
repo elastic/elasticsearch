@@ -9,6 +9,7 @@ import org.elasticsearch.alerts.client.AlertsClientAction;
 import org.elasticsearch.alerts.client.AlertsClient;
 
 /**
+ * This Action gets the stats for the alert plugin
  */
 public class AlertsStatsAction extends AlertsClientAction<AlertsStatsRequest, AlertsStatsResponse, AlertsStatsRequestBuilder> {
 

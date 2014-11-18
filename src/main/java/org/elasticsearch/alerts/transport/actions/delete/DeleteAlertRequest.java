@@ -16,6 +16,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import java.io.IOException;
 
 /**
+ * A delete alert request to delete an alert by name (id)
  */
 public class DeleteAlertRequest extends MasterNodeOperationRequest<DeleteAlertRequest> {
 
@@ -25,14 +26,26 @@ public class DeleteAlertRequest extends MasterNodeOperationRequest<DeleteAlertRe
     public DeleteAlertRequest() {
     }
 
+    /**
+     * The constructor for the requests that takes the name of the alert to delete
+     * @param alertName
+     */
     public DeleteAlertRequest(String alertName) {
         this.alertName = alertName;
     }
 
+    /**
+     * The name of the alert to be deleted
+     * @return
+     */
     public String getAlertName() {
         return alertName;
     }
 
+    /**
+     * The name of the alert to be deleted
+     * @param alertName
+     */
     public void setAlertName(String alertName) {
         this.alertName = alertName;
     }

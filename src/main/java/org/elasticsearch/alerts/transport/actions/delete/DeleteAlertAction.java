@@ -9,6 +9,7 @@ import org.elasticsearch.alerts.client.AlertsClientAction;
 import org.elasticsearch.alerts.client.AlertsClient;
 
 /**
+ * This action deletes an alert from in memory, the scheduler and the index
  */
 public class DeleteAlertAction extends AlertsClientAction<DeleteAlertRequest, DeleteAlertResponse, DeleteAlertRequestBuilder> {
 

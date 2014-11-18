@@ -11,27 +11,45 @@ import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.common.bytes.BytesReference;
 
 /**
+ * A Builder to build a PutAlertRequest
  */
 public class PutAlertRequestBuilder
         extends MasterNodeOperationRequestBuilder<PutAlertRequest, PutAlertResponse,
         PutAlertRequestBuilder, AlertsClient> {
 
-
+    /**
+     * The Constructor for the PutAlertRequestBuilder
+     * @param client The client that will execute the action
+     */
     public PutAlertRequestBuilder(AlertsClient client) {
         super(client, new PutAlertRequest());
     }
 
-
+    /**
+     * The Constructor for the PutAlertRequestBuilder
+     * @param client The client that will execute the action
+     * @param alertName The name of the alert to be put
+     */
     public PutAlertRequestBuilder(AlertsClient client, String alertName) {
         super(client, new PutAlertRequest());
         request.setAlertName(alertName);
     }
 
+    /**
+     * Sets the alert name to be created
+     * @param alertName
+     * @return
+     */
     public PutAlertRequestBuilder setAlertName(String alertName){
         request.setAlertName(alertName);
         return this;
     }
 
+    /**
+     * Sets the source of the alert to be created
+     * @param alertSource
+     * @return
+     */
     public PutAlertRequestBuilder setAlertSource(BytesReference alertSource) {
         request.setAlertSource(alertSource);
         return this;

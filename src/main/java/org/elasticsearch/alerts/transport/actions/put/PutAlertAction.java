@@ -9,6 +9,7 @@ import org.elasticsearch.alerts.client.AlertsClientAction;
 import org.elasticsearch.alerts.client.AlertsClient;
 
 /**
+ * This action puts an alert into the alert index and adds it to the scheduler
  */
 public class PutAlertAction extends AlertsClientAction<PutAlertRequest, PutAlertResponse, PutAlertRequestBuilder> {
 
@@ -19,7 +20,11 @@ public class PutAlertAction extends AlertsClientAction<PutAlertRequest, PutAlert
         super(NAME);
     }
 
-
+    /**
+     * The Alerts Client
+     * @param client
+     * @return A PutAlertRequestBuilder
+     */
     @Override
     public PutAlertRequestBuilder newRequestBuilder(AlertsClient client) {
         return new PutAlertRequestBuilder(client);

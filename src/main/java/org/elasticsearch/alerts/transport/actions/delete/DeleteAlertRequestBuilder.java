@@ -23,6 +23,11 @@ public class DeleteAlertRequestBuilder
         super(client, new DeleteAlertRequest(alertName));
     }
 
+    /**
+     * Sets the name of the alert to be deleted
+     * @param alertName
+     * @return
+     */
     public DeleteAlertRequestBuilder setAlertName(String alertName) {
         this.request().setAlertName(alertName);
         return this;

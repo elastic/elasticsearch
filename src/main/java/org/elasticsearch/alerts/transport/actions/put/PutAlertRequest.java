@@ -16,6 +16,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
+ * This request class contains the data needed to create an alert along with the name of the alert
+ * the name of the alert will become the ID of the indexed document.
  */
 public class PutAlertRequest extends MasterNodeOperationRequest<PutAlertRequest> {
 
@@ -23,30 +25,58 @@ public class PutAlertRequest extends MasterNodeOperationRequest<PutAlertRequest>
     private BytesReference alertSource;
     private boolean alertSourceUnsafe;
 
+    /**
+     * Constructor
+     */
     public PutAlertRequest() {
     }
 
+    /**
+     * Constructor that sets the alertSource
+     * @param alertSource
+     */
     public PutAlertRequest(BytesReference alertSource) {
         this.alertSource = alertSource;
     }
 
+    /**
+     * Get the name that will be the ID of the indexed document
+     * @return the alert name
+     */
     public String getAlertName() {
         return alertName;
     }
 
+    /**
+     * Set the alert name
+     * @param alertName
+     */
     public void setAlertName(String alertName) {
         this.alertName = alertName;
     }
 
+    /**
+     * The source of the alert
+     * @return
+     */
     public BytesReference getAlertSource() {
         return alertSource;
     }
 
+    /**
+     * Set the source of the alert
+     * @param alertSource
+     */
     public void setAlertSource(BytesReference alertSource) {
         this.alertSource = alertSource;
         this.alertSourceUnsafe = false;
     }
 
+    /**
+     * Set the source of the alert with boolean to control source safety
+     * @param alertSource
+     * @param alertSourceUnsafe
+     */
     public void setAlertSource(BytesReference alertSource, boolean alertSourceUnsafe) {
         this.alertSource = alertSource;
         this.alertSourceUnsafe = alertSourceUnsafe;

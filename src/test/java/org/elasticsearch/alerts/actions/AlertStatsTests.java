@@ -11,18 +11,22 @@ import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsRequest;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 
 /**
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0)
-public class TestAlertStats extends AbstractAlertingTests {
+public class AlertStatsTests extends AbstractAlertingTests {
 
     @Test
     public void testStartedStats() throws Exception {
@@ -33,6 +37,7 @@ public class TestAlertStats extends AbstractAlertingTests {
         assertTrue(response.isAlertManagerStarted());
         assertThat(response.getAlertActionManagerQueueSize(), equalTo(0L));
         assertThat(response.getNumberOfRegisteredAlerts(), equalTo(0L));
+        assertThat(response.getAlertActionManagerLargestQueueSize(), equalTo(0L));
     }
 
     @Test
@@ -46,15 +51,21 @@ public class TestAlertStats extends AbstractAlertingTests {
         assertTrue(response.isAlertManagerStarted());
 
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
-        BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
+        BytesReference alertSource = createAlertSource("0/5 * * * * * ?", searchRequest, "hits.total == 1");
         alertClient().prepareIndexAlert("testAlert")
                 .setAlertSource(alertSource)
                 .get();
 
         response = alertClient().alertsStats(alertsStatsRequest).actionGet();
+
+        //Wait a little until we should have queued an action
+        TimeValue waitTime = new TimeValue(5, TimeUnit.SECONDS);
+        Thread.sleep(waitTime.getMillis());
+
         assertTrue(response.isAlertActionManagerStarted());
         assertTrue(response.isAlertManagerStarted());
         assertThat(response.getNumberOfRegisteredAlerts(), equalTo(1L));
+        assertThat(response.getAlertActionManagerLargestQueueSize(), greaterThan(0L));
 
     }
 }

@@ -30,18 +30,20 @@ import org.elasticsearch.index.store.IndexStore;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  */
 public abstract class FsDirectoryService extends DirectoryService implements StoreRateLimiting.Listener, StoreRateLimiting.Provider {
 
-    protected final FsIndexStore indexStore;
+    protected final IndexStore indexStore;
 
     private final CounterMetric rateLimitingTimeInNanos = new CounterMetric();
 
     public FsDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
         super(shardId, indexSettings);
-        this.indexStore = (FsIndexStore) indexStore;
+        this.indexStore = indexStore;
     }
 
     @Override
@@ -69,17 +71,17 @@ public abstract class FsDirectoryService extends DirectoryService implements Sto
     
     @Override
     public Directory[] build() throws IOException {
-        File[] locations = indexStore.shardIndexLocations(shardId);
+        Path[] locations = indexStore.shardIndexLocations(shardId);
         Directory[] dirs = new Directory[locations.length];
         for (int i = 0; i < dirs.length; i++) {
-            FileSystemUtils.mkdirs(locations[i]);
+            Files.createDirectories(locations[i]);
             Directory wrapped = newFSDirectory(locations[i], buildLockFactory());
             dirs[i] = new RateLimitedFSDirectory(wrapped, this, this) ;
         }
         return dirs;
     }
     
-    protected abstract Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException;
+    protected abstract Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException;
 
     @Override
     public void onPause(long nanos) {

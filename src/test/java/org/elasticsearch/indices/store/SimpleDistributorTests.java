@@ -43,9 +43,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
     @Test
     public void testAvailableSpaceDetection() {
         for (IndexStoreModule.Type store : IndexStoreModule.Type.values()) {
-            if (store.fsStore()) {
-                createIndexWithStoreType("test", store, StrictDistributor.class.getCanonicalName());
-            }
+            createIndexWithStoreType("test", store, StrictDistributor.class.getCanonicalName());
         }
     }
 
@@ -103,12 +101,6 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
             assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(default(mmapfs(" + dataPaths[1].getAbsolutePath().toLowerCase(Locale.ROOT)));
         }
         assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
-
-        createIndexWithStoreType("test", IndexStoreModule.Type.MEMORY, "least_used");
-        storeString = getStoreDirectory("test", 0).toString();
-        logger.info(storeString);
-        dataPaths = dataPaths();
-        assertThat(storeString, equalTo("store(least_used[ram])"));
 
         createIndexWithoutRateLimitingStoreType("test", IndexStoreModule.Type.NIOFS, "least_used");
         storeString = getStoreDirectory("test", 0).toString();

@@ -49,6 +49,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.Random;
 
@@ -115,7 +116,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
     }
     
     @Override
-    protected synchronized Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
+    protected synchronized Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
         throw new UnsupportedOperationException();
     }
 

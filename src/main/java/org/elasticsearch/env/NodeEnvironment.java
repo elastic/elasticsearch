@@ -548,5 +548,8 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         return paths;
     }
 
+    Settings getSettings() { // for testing
+        return settings;
+    }
 
 }

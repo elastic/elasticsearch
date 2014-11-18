@@ -122,9 +122,3 @@ the impact on the operating system. All other files are opened using Lucene `NIO
 Address space settings (<<vm-max-map-count>>) might also apply if your term
 dictionaries are large.
 
-[float]
-[[store-memory]]
-=== Memory
-
-The `memory` type stores the index in main memory, using Lucene's
-`RamIndexStore`.

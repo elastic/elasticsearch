@@ -42,7 +42,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  */
 public class LogConfigurator {
 
-    private static final List<String> ALLOWED_SUFFIXES = ImmutableList.of(".yml", ".yaml");
+    private static final List<String> ALLOWED_SUFFIXES = ImmutableList.of(".yml", ".yaml", ".json", ".properties");
 
     private static boolean loaded;
 

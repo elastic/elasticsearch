@@ -37,14 +37,41 @@ import static org.hamcrest.core.Is.is;
 
 public class LogConfiguratorTest extends ElasticsearchTestCase {
 
-
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
+    public void testResolveJsonLoggingConfig() throws Exception {
+        File tmpFile = temporaryFolder.newFile("logging.something.json");
+        Files.write("{\"json\": \"foo\"}", tmpFile, StandardCharsets.UTF_8);
+        Environment environment = new Environment(
+                ImmutableSettings.builder().put("path.conf", temporaryFolder.getRoot().getAbsolutePath()).build());
+
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        LogConfigurator.resolveConfig(environment, builder);
+
+        Settings logSettings = builder.build();
+        assertThat(logSettings.get("json"), is("foo"));
+    }
+
+    @Test
+    public void testResolvePropertiesLoggingConfig() throws Exception {
+        File tmpFile = temporaryFolder.newFile("logging.properties");
+        Files.write("key: value", tmpFile, StandardCharsets.UTF_8);
+        Environment environment = new Environment(
+                ImmutableSettings.builder().put("path.conf", temporaryFolder.getRoot().getAbsolutePath()).build());
+
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        LogConfigurator.resolveConfig(environment, builder);
+
+        Settings logSettings = builder.build();
+        assertThat(logSettings.get("key"), is("value"));
+    }
+
+    @Test
     public void testResolveConfigValidFilename() throws Exception {
-        File tempFileYml = File.createTempFile("logging.", ".yml", temporaryFolder.getRoot());
-        File tempFileYaml = File.createTempFile("logging.", ".yaml", temporaryFolder.getRoot());
+        File tempFileYml = temporaryFolder.newFile("logging.yml");
+        File tempFileYaml = temporaryFolder.newFile("logging.yaml");
 
         Files.write("yml: bar", tempFileYml, StandardCharsets.UTF_8);
         Files.write("yaml: bar", tempFileYaml, StandardCharsets.UTF_8);
@@ -61,7 +88,7 @@ public class LogConfiguratorTest extends ElasticsearchTestCase {
 
     @Test
     public void testResolveConfigInvalidFilename() throws Exception {
-        File tempFile = File.createTempFile("logging.", ".yml.bak", temporaryFolder.getRoot());
+        File tempFile = temporaryFolder.newFile("logging.yml.bak");
 
         Files.write("yml: bar", tempFile, StandardCharsets.UTF_8);
         Environment environment = new Environment(

@@ -26,7 +26,7 @@ import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.SystemRole;
 import org.elasticsearch.shield.key.KeyService;
 import org.elasticsearch.shield.key.SignatureException;
-import org.elasticsearch.shield.transport.TransportFilter;
+import org.elasticsearch.shield.transport.ServerTransportFilter;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.ArrayList;
@@ -140,17 +140,17 @@ public class SecurityFilter extends AbstractComponent {
         }
     }
 
-    public static class Transport extends TransportFilter.Base {
+    public static class ServerTransport implements ServerTransportFilter {
 
         private final SecurityFilter filter;
 
         @Inject
-        public Transport(SecurityFilter filter) {
+        public ServerTransport(SecurityFilter filter) {
             this.filter = filter;
         }
 
         @Override
-        public void inboundRequest(String action, TransportRequest request) {
+        public void inbound(String action, TransportRequest request) {
             filter.authenticateAndAuthorize(action, request);
         }
     }

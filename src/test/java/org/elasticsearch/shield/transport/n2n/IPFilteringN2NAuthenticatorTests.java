@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
@@ -81,6 +82,7 @@ public class IPFilteringN2NAuthenticatorTests extends ElasticsearchTestCase {
     }
 
     @Test
+    @Network // requires network for name resolution
     public void testThatHostnamesCanBeProcessed() throws Exception {
         writeConfigFile("allow: localhost\ndeny: '*.google.com'");
 

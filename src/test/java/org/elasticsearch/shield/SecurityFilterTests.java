@@ -137,9 +137,9 @@ public class SecurityFilterTests extends ElasticsearchTestCase {
     @Test
     public void testTransport_InboundRequest() throws Exception {
         filter = mock(SecurityFilter.class);
-        SecurityFilter.Transport transport = new SecurityFilter.Transport(filter);
+        SecurityFilter.ServerTransport transport = new SecurityFilter.ServerTransport(filter);
         InternalRequest request = new InternalRequest();
-        transport.inboundRequest("_action", request);
+        transport.inbound("_action", request);
         verify(filter).authenticateAndAuthorize("_action", request);
     }
 
@@ -148,10 +148,10 @@ public class SecurityFilterTests extends ElasticsearchTestCase {
         thrown.expect(RuntimeException.class);
         thrown.expectMessage("process-error");
         filter = mock(SecurityFilter.class);
-        SecurityFilter.Transport transport = new SecurityFilter.Transport(filter);
+        SecurityFilter.ServerTransport transport = new SecurityFilter.ServerTransport(filter);
         InternalRequest request = new InternalRequest();
         doThrow(new RuntimeException("process-error")).when(filter).authenticateAndAuthorize("_action", request);
-        transport.inboundRequest("_action", request);
+        transport.inbound("_action", request);
     }
 
     @Test

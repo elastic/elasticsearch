@@ -68,17 +68,11 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
         await(latch);
 
 
-        TransportFilter sourceFilter = internalCluster().getInstance(TransportFilter.class, source);
-        TransportFilter targetFilter = internalCluster().getInstance(TransportFilter.class, target);
+        ServerTransportFilter sourceFilter = internalCluster().getInstance(ServerTransportFilter.class, source);
+        ServerTransportFilter targetFilter = internalCluster().getInstance(ServerTransportFilter.class, target);
         InOrder inOrder = inOrder(sourceFilter, targetFilter);
-        inOrder.verify(sourceFilter).outboundRequest("_action", new Request("src_to_trgt"));
-        inOrder.verify(targetFilter).inboundRequest("_action", new Request("src_to_trgt"));
-        inOrder.verify(targetFilter).outboundResponse("_action", new Response("trgt_to_src"));
-        inOrder.verify(sourceFilter).inboundResponse(new Response("trgt_to_src"));
-        inOrder.verify(targetFilter).outboundRequest("_action", new Request("trgt_to_src"));
-        inOrder.verify(sourceFilter).inboundRequest("_action", new Request("trgt_to_src"));
-        inOrder.verify(sourceFilter).outboundResponse("_action", new Response("src_to_trgt"));
-        inOrder.verify(targetFilter).inboundResponse(new Response("src_to_trgt"));
+        inOrder.verify(targetFilter).inbound("_action", new Request("src_to_trgt"));
+        inOrder.verify(sourceFilter).inbound("_action", new Request("trgt_to_src"));
     }
 
     public static class InternalPlugin extends AbstractPlugin {
@@ -102,7 +96,7 @@ public class TransportFilterTests extends ElasticsearchIntegrationTest {
     public static class TestTransportFilterModule extends AbstractModule {
         @Override
         protected void configure() {
-            bind(TransportFilter.class).toInstance(mock(TransportFilter.class));
+            bind(ServerTransportFilter.class).toInstance(mock(ServerTransportFilter.class));
         }
     }
 

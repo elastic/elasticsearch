@@ -60,20 +60,29 @@ public class FiltersTests extends ElasticsearchIntegrationTest {
         numTag1Docs = randomIntBetween(1, numDocs - 1);
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numTag1Docs; i++) {
-            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
+            IndexRequestBuilder req = client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i + 1)
                     .field("tag", "tag1")
-                    .endObject()));
+                    .endObject());
+            builders.add(req);
+            if (randomBoolean()) {
+                // randomly index the document twice so that we have deleted docs that match the filter
+                builders.add(req);
+            }
         }
         for (int i = numTag1Docs; i < numDocs; i++) {
             numTag2Docs++;
-            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
+            IndexRequestBuilder req = client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i)
                     .field("tag", "tag2")
                     .field("name", "name" + i)
-                    .endObject()));
+                    .endObject());
+            builders.add(req);
+            if (randomBoolean()) {
+                builders.add(req);
+            }
         }
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
         for (int i = 0; i < 2; i++) {

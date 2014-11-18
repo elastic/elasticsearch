@@ -38,7 +38,6 @@ import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -58,10 +57,12 @@ import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.CollectionAssertions.hasKey;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -963,6 +964,26 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareAliases()
                 .addAlias("test", "a", FilterBuilders.matchAllFilter()) // <-- no fail, b/c no field mentioned
                 .get();
+    }
+
+    @Test
+    public void testAliasFilterWithNowInRangeFilterAndQuery() throws Exception {
+        assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true"));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", rangeFilter("_timestamp").cache(randomBoolean()).from("now-1d").to("now")));
+        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", queryFilter(rangeQuery("_timestamp").from("now-1d").to("now"))));
+
+        final int numDocs = scaledRandomIntBetween(5, 52);
+        for (int i = 1; i <= numDocs; i++) {
+            client().prepareIndex("my-index", "my-type").setCreate(true).setSource("{}").get();
+            if (i % 2 == 0) {
+                refresh();
+                SearchResponse response = client().prepareSearch("filter1").get();
+                assertHitCount(response, i);
+
+                response = client().prepareSearch("filter2").get();
+                assertHitCount(response, i);
+            }
+        }
     }
     
     private void checkAliases() {

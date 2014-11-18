@@ -27,7 +27,9 @@ import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.elasticsearch.test.TestSearchContext;
 import org.joda.time.DateTime;
 import org.junit.Before;
 import org.junit.Test;
@@ -36,7 +38,8 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -73,10 +76,13 @@ public class IndexQueryParserFilterDateRangeFormatTests extends ElasticsearchSin
         // Test Invalid format
         query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_filter_format_invalid.json");
         try {
+            SearchContext.setCurrent(new TestSearchContext());
             queryParser.parse(query).query();
             fail("A Range Filter with a specific format but with an unexpected date should raise a QueryParsingException");
         } catch (QueryParsingException e) {
             // We expect it
+        } finally {
+            SearchContext.removeCurrent();
         }
     }
 
@@ -85,7 +91,13 @@ public class IndexQueryParserFilterDateRangeFormatTests extends ElasticsearchSin
         IndexQueryParserService queryParser = queryParser();
         // We test 01/01/2012 from gte and 2030 for lt
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_query_format.json");
-        Query parsedQuery = queryParser.parse(query).query();
+        Query parsedQuery;
+        try {
+            SearchContext.setCurrent(new TestSearchContext());
+            parsedQuery = queryParser.parse(query).query();
+        } finally {
+            SearchContext.removeCurrent();;
+        }
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
 
         // Min value was 01/01/2012 (dd/MM/yyyy)
@@ -99,10 +111,13 @@ public class IndexQueryParserFilterDateRangeFormatTests extends ElasticsearchSin
         // Test Invalid format
         query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_query_format_invalid.json");
         try {
+            SearchContext.setCurrent(new TestSearchContext());
             queryParser.parse(query).query();
             fail("A Range Query with a specific format but with an unexpected date should raise a QueryParsingException");
         } catch (QueryParsingException e) {
             // We expect it
+        } finally {
+            SearchContext.removeCurrent();
         }
     }
 }

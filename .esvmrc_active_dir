@@ -24,8 +24,7 @@
               "users" : ".esvm-shield-config/users",
               "users_roles" : ".esvm-shield-config/users_roles"
             },
-            "ldap" : {
-              "mode" : "active_directory",
+            "active_directory" : {
               "domain_name" : "ad.test.elasticsearch.com",
               "url" : "ldaps://ad.test.elasticsearch.com:636",
               "unmapped_groups_as_roles" : "false",

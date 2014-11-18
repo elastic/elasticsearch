@@ -12,6 +12,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authc.support.ldap.LdapConnectionFactory;
+import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
 
 import javax.naming.Context;
 import javax.naming.NamingException;
@@ -28,12 +30,11 @@ import java.util.Hashtable;
  * Note that even though there is a separate factory for Active Directory, this factory would work against AD.  A template
  * for each user context would need to be supplied.
  */
-public class StandardLdapConnectionFactory extends AbstractComponent implements LdapConnectionFactory {
+public class GenericLdapConnectionFactory extends AbstractComponent implements LdapConnectionFactory {
 
     public static final String USER_DN_TEMPLATES_SETTING = "user_dn_templates";
     public static final String GROUP_SEARCH_SUBTREE_SETTING = "group_search.subtree_search";
     public static final String GROUP_SEARCH_BASEDN_SETTING = "group_search.group_search_dn";
-    static final String MODE_NAME = "ldap";
 
     private final ImmutableMap<String, Serializable> sharedLdapEnv;
     private final String[] userDnTemplates;
@@ -42,7 +43,7 @@ public class StandardLdapConnectionFactory extends AbstractComponent implements 
     protected final boolean findGroupsByAttribute;
 
     @Inject
-    public StandardLdapConnectionFactory(Settings settings) {
+    public GenericLdapConnectionFactory(Settings settings) {
         super(settings);
         userDnTemplates = componentSettings.getAsArray(USER_DN_TEMPLATES_SETTING);
         if (userDnTemplates == null) {

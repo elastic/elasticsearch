@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.ldap;
+package org.elasticsearch.shield.authc.support.ldap;
 
 import com.carrotsearch.randomizedtesting.SysGlobals;
 import org.apache.directory.api.ldap.model.entry.Entry;

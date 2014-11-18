@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
+import org.elasticsearch.shield.authc.support.ldap.LdapTest;
 import org.junit.Test;
 
 import java.util.List;
@@ -26,7 +27,7 @@ public class LdapConnectionTests extends LdapTest {
                 "wrongname={0},ou=people,o=sevenSeas",
                 "cn={0},ou=people,o=sevenSeas", //this last one should work
         };
-        StandardLdapConnectionFactory connectionFactory = new StandardLdapConnectionFactory(
+        GenericLdapConnectionFactory connectionFactory = new GenericLdapConnectionFactory(
                 buildLdapSettings(ldapUrls, userTemplates, groupSearchBase, isSubTreeSearch));
 
         String user = "Horatio Hornblower";
@@ -50,7 +51,7 @@ public class LdapConnectionTests extends LdapTest {
                 "wrongname={0},ou=people,o=sevenSeas",
                 "asdf={0},ou=people,o=sevenSeas", //none of these should work
         };
-        StandardLdapConnectionFactory ldapFac = new StandardLdapConnectionFactory(
+        GenericLdapConnectionFactory ldapFac = new GenericLdapConnectionFactory(
                 buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, isSubTreeSearch));
 
         String user = "Horatio Hornblower";
@@ -65,7 +66,7 @@ public class LdapConnectionTests extends LdapTest {
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
 
         boolean isSubTreeSearch = true;
-        StandardLdapConnectionFactory ldapFac = new StandardLdapConnectionFactory(
+        GenericLdapConnectionFactory ldapFac = new GenericLdapConnectionFactory(
                 buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
 
         String user = "Horatio Hornblower";
@@ -82,7 +83,7 @@ public class LdapConnectionTests extends LdapTest {
         String groupSearchBase = "ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
         boolean isSubTreeSearch = false;
-        StandardLdapConnectionFactory ldapFac = new StandardLdapConnectionFactory(
+        GenericLdapConnectionFactory ldapFac = new GenericLdapConnectionFactory(
                 buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, isSubTreeSearch));
 
         String user = "Horatio Hornblower";

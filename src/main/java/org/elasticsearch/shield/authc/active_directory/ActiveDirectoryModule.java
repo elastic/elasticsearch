@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.ldap;
+package org.elasticsearch.shield.authc.active_directory;
 
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
@@ -14,16 +14,14 @@ import org.elasticsearch.shield.support.AbstractShieldModule;
 import static org.elasticsearch.common.inject.name.Names.named;
 
 /**
- * Configures Ldap object injections
+ * Configures ActiveDirectory Realm object injections
  */
-public class LdapModule extends AbstractShieldModule.Node {
+public class ActiveDirectoryModule extends AbstractShieldModule.Node {
 
     private final boolean enabled;
-    private final Settings ldapSettings;
 
-    public LdapModule(Settings settings) {
+    public ActiveDirectoryModule(Settings settings) {
         super(settings);
-        ldapSettings = settings.getComponentSettings(LdapModule.class);
         enabled = enabled(settings);
     }
 
@@ -34,18 +32,18 @@ public class LdapModule extends AbstractShieldModule.Node {
             for JNDI invokes a static getSocketFactory method from LdapSslSocketFactory.  */
             requestStaticInjection(LdapSslSocketFactory.class);
 
-            bind(Realm.class).annotatedWith(named(LdapRealm.TYPE)).to(LdapRealm.class).asEagerSingleton();
+            bind(Realm.class).annotatedWith(named(ActiveDirectoryRealm.type)).to(ActiveDirectoryRealm.class).asEagerSingleton();
         } else {
-            bind(LdapRealm.class).toProvider(Providers.<LdapRealm>of(null));
+            bind(ActiveDirectoryRealm.class).toProvider(Providers.<ActiveDirectoryRealm>of(null));
         }
     }
 
-    public static boolean enabled(Settings settings) {
+    static boolean enabled(Settings settings) {
         Settings authcSettings = settings.getAsSettings("shield.authc");
-        if (!authcSettings.names().contains(LdapRealm.TYPE)) {
+        if (!authcSettings.names().contains(ActiveDirectoryRealm.type)) {
             return false;
         }
-        Settings ldapSettings = authcSettings.getAsSettings(LdapRealm.TYPE);
+        Settings ldapSettings = authcSettings.getAsSettings(ActiveDirectoryRealm.type);
         return ldapSettings.getAsBoolean("enabled", true);
     }
 }

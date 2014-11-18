@@ -21,7 +21,6 @@
         },
         "authc": {
           "ldap" : {
-            "mode" : "ldap",
             "url" : "ldaps://54.200.235.244:636",
             "user_dn_templates": ["uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com"],
             "group_search.group_search_dn" : "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",

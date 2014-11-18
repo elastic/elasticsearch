@@ -11,7 +11,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.ldap.LdapModule;
-import org.elasticsearch.shield.authc.ldap.LdapSslSocketFactory;
+import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
 
 import javax.net.ssl.*;
 import java.io.FileInputStream;

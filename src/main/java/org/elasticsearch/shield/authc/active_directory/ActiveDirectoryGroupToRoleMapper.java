@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.ldap;
+package org.elasticsearch.shield.authc.active_directory;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -14,9 +14,9 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 /**
  * LDAP Group to role mapper specific to the "shield.authc.ldap" package
  */
-public class LdapGroupToRoleMapper extends GroupToRoleMapper {
+public class ActiveDirectoryGroupToRoleMapper extends GroupToRoleMapper{
     @Inject
-    public LdapGroupToRoleMapper(Settings settings, Environment env, ResourceWatcherService watcherService) {
+    public ActiveDirectoryGroupToRoleMapper(Settings settings, Environment env, ResourceWatcherService watcherService) {
         super(settings, env, watcherService);
     }
 }

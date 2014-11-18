@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.ldap;
+package org.elasticsearch.shield.authc.active_directory;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Guice;
@@ -28,7 +28,7 @@ import static org.mockito.Mockito.mock;
 /**
  *
  */
-public class LdapModuleTests extends ElasticsearchTestCase {
+public class ActiveDirectoryModuleTests extends ElasticsearchTestCase {
 
     private ThreadPool threadPool;
 
@@ -44,29 +44,30 @@ public class LdapModuleTests extends ElasticsearchTestCase {
 
     @Test
     public void testEnabled() throws Exception {
-        assertThat(LdapModule.enabled(ImmutableSettings.EMPTY), is(false));
+        assertThat(ActiveDirectoryModule.enabled(ImmutableSettings.EMPTY), is(false));
         Settings settings = ImmutableSettings.builder()
                 .put("shield.authc", false)
                 .build();
-        assertThat(LdapModule.enabled(settings), is(false));
+        assertThat(ActiveDirectoryModule.enabled(settings), is(false));
         settings = ImmutableSettings.builder()
-                .put("shield.authc.ldap.enabled", false)
+                .put("shield.authc.active_directory.enabled", false)
                 .build();
-        assertThat(LdapModule.enabled(settings), is(false));
+        assertThat(ActiveDirectoryModule.enabled(settings), is(false));
         settings = ImmutableSettings.builder()
-                .put("shield.authc.ldap.enabled", true)
+                .put("shield.authc.active_directory.enabled", true)
                 .build();
-        assertThat(LdapModule.enabled(settings), is(true));
+        assertThat(ActiveDirectoryModule.enabled(settings), is(true));
     }
 
     @Test
     public void test() throws Exception {
         Settings settings = ImmutableSettings.builder()
                 .put("client.type", "node")
-                .put("shield.authc.ldap.url", "ldap://example.com:389")
+                .put("shield.authc.active_directory.url", "ldap://example.com:389")
+                .put("shield.authc.active_directory.domain_name", "example.com")
                 .build();
-        Injector injector = Guice.createInjector(new TestModule(settings), new LdapModule(settings));
-        LdapRealm realm = injector.getInstance(LdapRealm.class);
+        Injector injector = Guice.createInjector(new TestModule(settings), new ActiveDirectoryModule(settings));
+        ActiveDirectoryRealm realm = injector.getInstance(ActiveDirectoryRealm.class);
         assertThat(realm, notNullValue());
     }
 

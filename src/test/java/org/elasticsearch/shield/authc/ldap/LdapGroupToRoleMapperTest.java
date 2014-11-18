@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc.ldap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.authc.support.ldap.GroupToRoleMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -52,12 +53,12 @@ public class LdapGroupToRoleMapperTest extends ElasticsearchTestCase {
 
     @Test
     public void testYaml() throws IOException {
-        File file = this.getResource("role_mapping.yml");
+        File file = this.getResource("../support/ldap/role_mapping.yml");
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("shield.authc.ldap." + LdapGroupToRoleMapper.ROLE_MAPPING_FILE_SETTING, file.getCanonicalPath())
                 .build();
 
-        LdapGroupToRoleMapper mapper = new LdapGroupToRoleMapper(settings,
+        GroupToRoleMapper mapper = new LdapGroupToRoleMapper(settings,
                 new Environment(settings),
                 new ResourceWatcherService(settings, threadPool));
 
@@ -70,10 +71,10 @@ public class LdapGroupToRoleMapperTest extends ElasticsearchTestCase {
     @Test
     public void testRelativeDN() {
         Settings settings = ImmutableSettings.builder()
-                .put("shield.authc.ldap." + LdapGroupToRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
+                .put("shield.authc.ldap." + GroupToRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .build();
 
-        LdapGroupToRoleMapper mapper = new LdapGroupToRoleMapper(settings,
+        GroupToRoleMapper mapper = new LdapGroupToRoleMapper(settings,
                 new Environment(settings),
                 new ResourceWatcherService(settings, threadPool));
 

@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.shield.authc.support.ldap.LdapConnection;
 
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
@@ -81,7 +82,7 @@ public class GenericLdapConnection implements LdapConnection {
      * @param userDn user fully distinguished name to fetch group membership for
      * @return fully distinguished names of the roles
      */
-    List<String> getGroupsFromSearch(String userDn){
+    public List<String> getGroupsFromSearch(String userDn){
         List<String> groups = new LinkedList<>();
         SearchControls search = new SearchControls();
         search.setReturningAttributes( new String[0] );
@@ -110,7 +111,7 @@ public class GenericLdapConnection implements LdapConnection {
      * @param userDn User fully distinguished name to fetch group membership from
      * @return list of groups the user is a member of.
      */
-    List<String> getGroupsFromUserAttrs(String userDn) {
+    public List<String> getGroupsFromUserAttrs(String userDn) {
         List<String> groupDns = new LinkedList<>();
         try {
             Attributes results = ldapContext.getAttributes(userDn, new String[]{groupAttribute});

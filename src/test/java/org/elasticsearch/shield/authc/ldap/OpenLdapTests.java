@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc.ldap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.ssl.SSLService;
+import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.AfterClass;
@@ -28,7 +29,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
 
     @BeforeClass
     public static void setTrustStore() throws URISyntaxException {
-        File filename = new File(LdapConnectionTests.class.getResource("ldaptrust.jks").toURI()).getAbsoluteFile();
+        File filename = new File(LdapConnectionTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).getAbsoluteFile();
         LdapSslSocketFactory.init(new SSLService(ImmutableSettings.builder()
                 .put("shield.ssl.keystore", filename)
                 .put("shield.ssl.keystore_password", "changeit")
@@ -47,7 +48,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         boolean isSubTreeSearch = true;
-        StandardLdapConnectionFactory connectionFactory = new StandardLdapConnectionFactory(
+        GenericLdapConnectionFactory connectionFactory = new GenericLdapConnectionFactory(
                 LdapConnectionTests.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, isSubTreeSearch));
 
         String[] users = new String[]{"blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor"};

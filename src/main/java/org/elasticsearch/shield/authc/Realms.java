@@ -9,6 +9,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.shield.authc.active_directory.ActiveDirectoryRealm;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
 import org.elasticsearch.shield.authc.system.SystemRealm;
@@ -26,7 +27,10 @@ public class Realms {
     private final Realm[] realms;
 
     @Inject
-    public Realms(SystemRealm system, @Nullable ESUsersRealm esusers, @Nullable LdapRealm ldap) {
+    public Realms(SystemRealm system,
+                  @Nullable ESUsersRealm esusers,
+                  @Nullable LdapRealm ldap,
+                  @Nullable ActiveDirectoryRealm activeDirectory) {
 
         List<Realm> realms = new ArrayList<>();
         realms.add(system);
@@ -37,6 +41,10 @@ public class Realms {
         if (ldap != null) {
             logger.info("Realm [" + ldap.type() + "] is used");
             realms.add(ldap);
+        }
+        if (activeDirectory != null) {
+            logger.info("Realm [" + activeDirectory.type() + "] is used");
+            realms.add(activeDirectory);
         }
         this.realms = realms.toArray(new Realm[realms.size()]);
     }

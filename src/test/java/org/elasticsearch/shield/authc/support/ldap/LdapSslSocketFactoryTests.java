@@ -3,12 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.ldap;
+package org.elasticsearch.shield.authc.support.ldap;
 
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.ssl.SSLService;
+import org.elasticsearch.shield.authc.ldap.LdapConnectionTests;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -25,7 +26,7 @@ public class LdapSslSocketFactoryTests extends ElasticsearchTestCase {
 
     @BeforeClass
     public static void setTrustStore() throws URISyntaxException {
-        File filename = new File(LdapConnectionTests.class.getResource("ldaptrust.jks").toURI()).getAbsoluteFile();
+        File filename = new File(LdapConnectionTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).getAbsoluteFile();
         LdapSslSocketFactory.init(new SSLService(ImmutableSettings.builder()
                 .put("shield.ssl.keystore", filename)
                 .put("shield.ssl.keystore_password", "changeit")
@@ -45,7 +46,7 @@ public class LdapSslSocketFactoryTests extends ElasticsearchTestCase {
         LdapSslSocketFactory.configureJndiSSL(urls, builder);
         ImmutableMap<String, Serializable> settings = builder.build();
         assertThat(settings.get(LdapSslSocketFactory.JAVA_NAMING_LDAP_FACTORY_SOCKET),
-                Matchers.<Serializable>equalTo("org.elasticsearch.shield.authc.ldap.LdapSslSocketFactory"));
+                Matchers.<Serializable>equalTo("org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory"));
     }
 
     @Test
@@ -55,7 +56,7 @@ public class LdapSslSocketFactoryTests extends ElasticsearchTestCase {
         ImmutableMap.Builder<String, Serializable> builder = ImmutableMap.<String, Serializable>builder();
         LdapSslSocketFactory.configureJndiSSL(urls, builder);
         ImmutableMap<String, Serializable> settings = builder.build();
-        assertThat(settings.get(LdapSslSocketFactory.JAVA_NAMING_LDAP_FACTORY_SOCKET), Matchers.<Serializable>equalTo("org.elasticsearch.shield.authc.ldap.LdapSslSocketFactory"));
+        assertThat(settings.get(LdapSslSocketFactory.JAVA_NAMING_LDAP_FACTORY_SOCKET), Matchers.<Serializable>equalTo("org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory"));
     }
 
     @Test

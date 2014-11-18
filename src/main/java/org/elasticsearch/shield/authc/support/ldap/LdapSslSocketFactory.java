@@ -3,8 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.ldap;
+package org.elasticsearch.shield.authc.support.ldap;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
@@ -46,7 +47,7 @@ public class LdapSslSocketFactory extends SocketFactory {
      * This should only be invoked once to establish a static instance that will be used for each constructor.
      */
     @Inject
-    public static void init(SSLService ssl) {
+    public static void init(@Nullable SSLService ssl) {
         if (instance != null) {
             logger.error("LdapSslSocketFactory already configured, this change could lead to threading issues");
         }
@@ -62,7 +63,7 @@ public class LdapSslSocketFactory extends SocketFactory {
      * testing this is useful.
      */
     @Deprecated
-    static void clear() {
+    public static void clear() {
         logger.error("clear should only be called by tests");
         instance = null;
     }

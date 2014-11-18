@@ -64,12 +64,17 @@ public class FilterTests extends ElasticsearchIntegrationTest {
                     .endObject()));
         }
         for (int i = numTag1Docs; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
+            IndexRequestBuilder req = client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
                     .startObject()
                     .field("value", i)
                     .field("tag", "tag2")
                     .field("name", "name" + i)
-                    .endObject()));
+                    .endObject());
+            builders.add(req);
+            if (randomBoolean()) {
+                // randomly index the document twice so that we have deleted docs that match the filter
+                builders.add(req);
+            }
         }
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
         for (int i = 0; i < 2; i++) {

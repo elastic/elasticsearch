@@ -69,7 +69,7 @@ public class SearchWhileCreatingIndexTests extends ElasticsearchIntegrationTest 
         int shardsNo = numberOfReplicas + 1;
         int neededNodes = shardsNo <= 2 ? 1 : shardsNo / 2 + 1;
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(neededNodes, shardsNo));
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 200; i++) {
             logger.info("running iteration {}", i);
             if (createIndex) {
                 createIndex("test");

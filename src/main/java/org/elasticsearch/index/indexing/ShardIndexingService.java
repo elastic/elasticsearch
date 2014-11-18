@@ -132,6 +132,9 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         }
     }
 
+    public void postCreate(Engine.Create create, Throwable ex) {
+    }
+
     public Engine.Index preIndex(Engine.Index index) {
         totalStats.indexCurrent.inc();
         typeStats(index.type()).indexCurrent.inc();
@@ -168,7 +171,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         }
     }
 
-    public void failedIndex(Engine.Index index) {
+    public void postIndex(Engine.Index index, Throwable ex) {
         totalStats.indexCurrent.dec();
         typeStats(index.type()).indexCurrent.dec();
     }
@@ -208,7 +211,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         }
     }
 
-    public void failedDelete(Engine.Delete delete) {
+    public void postDelete(Engine.Delete delete, Throwable ex) {
         totalStats.deleteCurrent.dec();
         typeStats(delete.type()).deleteCurrent.dec();
     }

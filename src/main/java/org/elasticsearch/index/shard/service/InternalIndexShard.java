@@ -418,11 +418,16 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public ParsedDocument create(Engine.Create create) throws ElasticsearchException {
         writeAllowed(create.origin());
         create = indexingService.preCreate(create);
-        if (logger.isTraceEnabled()) {
-            logger.trace("index [{}][{}]{}", create.type(), create.id(), create.docs());
+        try {
+            if (logger.isTraceEnabled()) {
+                logger.trace("index [{}][{}]{}", create.type(), create.id(), create.docs());
+            }
+            engine.create(create);
+            create.endTime(System.nanoTime());
+        } catch (Throwable ex) {
+            indexingService.postCreate(create, ex);
+            throw ex;
         }
-        engine.create(create);
-        create.endTime(System.nanoTime());
         indexingService.postCreate(create);
         return create.parsedDoc();
     }
@@ -445,8 +450,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             }
             engine.index(index);
             index.endTime(System.nanoTime());
-        } catch (RuntimeException ex) {
-            indexingService.failedIndex(index);
+        } catch (Throwable ex) {
+            indexingService.postIndex(index, ex);
             throw ex;
         }
         indexingService.postIndex(index);
@@ -470,8 +475,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             }
             engine.delete(delete);
             delete.endTime(System.nanoTime());
-        } catch (RuntimeException ex) {
-            indexingService.failedDelete(delete);
+        } catch (Throwable ex) {
+            indexingService.postDelete(delete, ex);
             throw ex;
         }
         indexingService.postDelete(delete);

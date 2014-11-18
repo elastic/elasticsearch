@@ -498,9 +498,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     @TestLogging("indices.recovery:TRACE,index.gateway:TRACE,gateway:TRACE")
     public void restoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
-        //NO COMMIT: remove HTTP_ENABLED
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local").put(InternalNode.HTTP_ENABLED, true));
-        internalCluster().startNode(settingsBuilder().put("gateway.type", "local").put(InternalNode.HTTP_ENABLED, true));
+        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
         cluster().wipeIndices("_all");
 
         logger.info("--> create repository");

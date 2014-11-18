@@ -33,7 +33,10 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.*;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
@@ -119,7 +122,7 @@ public class LogConfigurator {
             Files.walkFileTree(env.configFile().toPath(), EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    String fileName = file.getFileName().toString().toLowerCase(Locale.ENGLISH);
+                    String fileName = file.getFileName().toString();
                     if (fileName.startsWith("logging.")) {
                         for (String allowedSuffix : ALLOWED_SUFFIXES) {
                             if (fileName.endsWith(allowedSuffix)) {

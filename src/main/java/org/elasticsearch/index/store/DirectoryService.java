@@ -20,6 +20,7 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -45,8 +46,18 @@ public abstract class DirectoryService extends AbstractIndexShardComponent {
     /**
      * Creates a new Directory from the given distributor.
      * The default implementation returns a new {@link org.elasticsearch.index.store.DistributorDirectory}
+     * if there is more than one data path in the distributor.
      */
-    public Directory newFromDistributor(Distributor distributor) throws IOException {
+    public Directory newFromDistributor(final Distributor distributor) throws IOException {
+        if (distributor.all().length == 1) {
+            // use filter dir for consistent toString methods
+            return new FilterDirectory(distributor.primary()) {
+                @Override
+                public String toString() {
+                    return distributor.toString();
+                }
+            };
+        }
         return new DistributorDirectory(distributor);
     }
 }

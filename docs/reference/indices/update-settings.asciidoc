@@ -12,7 +12,8 @@ of the request includes the updated settings, for example:
 {
     "index" : {
         "number_of_replicas" : 4
-    } }
+    } 
+}
 --------------------------------------------------
 
 The above will change the number of replicas to 4 from the current
@@ -24,8 +25,8 @@ curl -XPUT 'localhost:9200/my_index/_settings' -d '
 {
     "index" : {
         "number_of_replicas" : 4
-    } }
-'
+    } 
+}'
 --------------------------------------------------
 
 Below is the list of settings that can be changed using the update

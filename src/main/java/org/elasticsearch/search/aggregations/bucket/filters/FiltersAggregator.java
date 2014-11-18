@@ -69,7 +69,7 @@ public class FiltersAggregator extends BucketsAggregator {
     public void setNextReader(AtomicReaderContext reader) {
         try {
             for (int i = 0; i < filters.length; i++) {
-                bits[i] = DocIdSets.toSafeBits(reader.reader(), filters[i].filter.getDocIdSet(reader, reader.reader().getLiveDocs()));
+                bits[i] = DocIdSets.toSafeBits(reader.reader(), filters[i].filter.getDocIdSet(reader, null));
             }
         } catch (IOException ioe) {
             throw new AggregationExecutionException("Failed to aggregate filter aggregator [" + name + "]", ioe);

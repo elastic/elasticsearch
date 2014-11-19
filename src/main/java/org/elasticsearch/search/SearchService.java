@@ -51,7 +51,6 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -146,15 +145,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
-
-            @Override
-            public void afterIndexClosed(Index index) {
-                // once an index is closed we can just clean up all the pending search context information
-                // to release memory and let references to the filesystem go etc.
-                freeAllContextForIndex(index);
-            }
-        });
         this.indicesWarmer = indicesWarmer;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -572,16 +562,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         return context;
     }
-
-    private void freeAllContextForIndex(Index index) {
-        assert index != null;
-        for (SearchContext ctx : activeContexts.values()) {
-            if (index.equals(ctx.indexShard().shardId().index())) {
-                freeContext(ctx.id());
-            }
-        }
-    }
-
 
     public boolean freeContext(long id) {
         final SearchContext context = activeContexts.remove(id);

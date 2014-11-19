@@ -51,7 +51,10 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
 import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexShardComponent;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
@@ -179,8 +182,6 @@ public interface IndexShard extends IndexShardComponent {
     void readAllowed() throws IllegalIndexShardStateException;
 
     void readAllowed(Mode mode) throws IllegalIndexShardStateException;
-
-    ShardId shardId();
 
     public enum Mode {
         READ,

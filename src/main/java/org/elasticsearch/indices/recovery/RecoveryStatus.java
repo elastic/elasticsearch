@@ -117,6 +117,7 @@ public class RecoveryStatus extends AbstractRefCounted {
 
     /** set a thread that should be interrupted if the recovery is canceled */
     public void setWaitingRecoveryThread(Thread thread) {
+        ensureRefCount();
         waitingRecoveryThread.set(thread);
     }
 
@@ -160,6 +161,7 @@ public class RecoveryStatus extends AbstractRefCounted {
 
             final Thread thread = waitingRecoveryThread.get();
             if (thread != null) {
+                logger.debug("interrupting recovery thread on canceled recovery");
                 thread.interrupt();
             }
         }

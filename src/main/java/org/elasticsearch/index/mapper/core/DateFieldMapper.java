@@ -314,21 +314,22 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         return parseToMilliseconds(value, false, null, dateMathParser);
     }
 
-    public long parseToMilliseconds(Object value, boolean includeUpper, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
+    public long parseToMilliseconds(Object value, boolean inclusive, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
         if (value instanceof Number) {
             return ((Number) value).longValue();
         }
-        return parseToMilliseconds(convertToString(value), includeUpper, zone, forcedDateParser);
+        return parseToMilliseconds(convertToString(value), inclusive, zone, forcedDateParser);
     }
 
-    public long parseToMilliseconds(String value, boolean includeUpper, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
+    public long parseToMilliseconds(String value, boolean inclusive, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
         SearchContext sc = SearchContext.current();
         long now = sc == null ? System.currentTimeMillis() : sc.nowInMillis();
         DateMathParser dateParser = dateMathParser;
         if (forcedDateParser != null) {
             dateParser = forcedDateParser;
         }
-        return includeUpper && roundCeil ? dateParser.parseRoundCeil(value, now, zone) : dateParser.parse(value, now, zone);
+        boolean roundUp = inclusive && roundCeil;
+        return dateParser.parse(value, now, roundUp, zone);
     }
 
     @Override
@@ -354,8 +355,13 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     private Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
+<<<<<<< HEAD
                 lowerTerm == null ? null : parseToMilliseconds(lowerTerm, false, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
                 upperTerm == null ? null : parseToMilliseconds(upperTerm, includeUpper, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
+=======
+                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context, !includeLower, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
+                upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
+>>>>>>> DateMath: Fix semantics of rounding with inclusive/exclusive ranges.
                 includeLower, includeUpper);
     }
 

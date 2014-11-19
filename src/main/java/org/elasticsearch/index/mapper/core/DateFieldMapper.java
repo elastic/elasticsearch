@@ -309,25 +309,25 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         return parseToMilliseconds(value, context, false);
     }
 
-    public long parseToMilliseconds(Object value, @Nullable QueryParseContext context, boolean includeUpper) {
-        return parseToMilliseconds(value, context, includeUpper, null, dateMathParser);
+    public long parseToMilliseconds(Object value, @Nullable QueryParseContext context, boolean inclusive) {
+        return parseToMilliseconds(value, context, inclusive, null, dateMathParser);
     }
 
-    public long parseToMilliseconds(Object value, @Nullable QueryParseContext context, boolean includeUpper, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
+    public long parseToMilliseconds(Object value, @Nullable QueryParseContext context, boolean inclusive, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
         if (value instanceof Number) {
             return ((Number) value).longValue();
         }
-        return parseToMilliseconds(convertToString(value), context, includeUpper, zone, forcedDateParser);
+        return parseToMilliseconds(convertToString(value), context, inclusive, zone, forcedDateParser);
     }
 
-    public long parseToMilliseconds(String value, @Nullable QueryParseContext context, boolean includeUpper, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
+    public long parseToMilliseconds(String value, @Nullable QueryParseContext context, boolean inclusive, @Nullable DateTimeZone zone, @Nullable DateMathParser forcedDateParser) {
         long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
         DateMathParser dateParser = dateMathParser;
         if (forcedDateParser != null) {
             dateParser = forcedDateParser;
         }
-        long time = includeUpper && roundCeil ? dateParser.parseRoundCeil(value, now, zone) : dateParser.parse(value, now, zone);
-        return time;
+        boolean roundUp = inclusive && roundCeil; // TODO: what is roundCeil??
+        return dateParser.parse(value, now, roundUp, zone);
     }
 
     @Override
@@ -344,7 +344,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context, false, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
+                lowerTerm == null ? null : parseToMilliseconds(lowerTerm, context, !includeLower, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
                 upperTerm == null ? null : parseToMilliseconds(upperTerm, context, includeUpper, timeZone, forcedDateParser == null ? dateMathParser : forcedDateParser),
                 includeLower, includeUpper);
     }

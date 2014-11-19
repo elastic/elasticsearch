@@ -32,10 +32,12 @@
         },
         "request" : {
           "type" : "object",
+          "enabled" : false,
           "dynamic" : true
         },
         "response" : {
           "type" : "object",
+          "enabled" : false,
           "dynamic" : true
         },
         "trigger": {

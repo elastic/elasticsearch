@@ -76,22 +76,22 @@ public class NodeAlertsClient implements AlertsClient {
     }
 
     @Override
-    public PutAlertRequestBuilder prepareIndexAlert(String alertName) {
+    public PutAlertRequestBuilder preparePutAlert(String alertName) {
         return new PutAlertRequestBuilder(this, alertName);
     }
 
     @Override
-    public PutAlertRequestBuilder prepareIndexAlert() {
+    public PutAlertRequestBuilder preparePutAlert() {
         return new PutAlertRequestBuilder(this, null);
     }
 
     @Override
-    public void indexAlert(PutAlertRequest request, ActionListener<PutAlertResponse> response) {
+    public void putAlert(PutAlertRequest request, ActionListener<PutAlertResponse> response) {
         execute(PutAlertAction.INSTANCE, request, response);
     }
 
     @Override
-    public ActionFuture<PutAlertResponse> indexAlert(PutAlertRequest request) {
+    public ActionFuture<PutAlertResponse> putAlert(PutAlertRequest request) {
         return execute(PutAlertAction.INSTANCE, request);
     }
 

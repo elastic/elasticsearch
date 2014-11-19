@@ -196,8 +196,8 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
 
         AlertsClient alertsClient = internalCluster().getInstance(AlertsClient.class, internalCluster().getMasterName());
 
-        PutAlertRequest alertRequest = alertsClient.prepareIndexAlert().setAlertName("my-first-alert").setAlertSource(jsonBuilder.bytes()).request();
-        PutAlertResponse alertsResponse = alertsClient.indexAlert(alertRequest).actionGet();
+        PutAlertRequest alertRequest = alertsClient.preparePutAlert().setAlertName("my-first-alert").setAlertSource(jsonBuilder.bytes()).request();
+        PutAlertResponse alertsResponse = alertsClient.putAlert(alertRequest).actionGet();
         assertNotNull(alertsResponse.indexResponse());
         assertTrue(alertsResponse.indexResponse().isCreated());
 

@@ -39,7 +39,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
-        alertsClient.prepareIndexAlert("my-first-alert")
+        alertsClient.preparePutAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
         assertAlertTriggered("my-first-alert", 1);
@@ -50,7 +50,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         AlertsClient alertsClient = alertClient();
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
-        alertsClient.prepareIndexAlert("my-first-alert")
+        alertsClient.preparePutAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
 
@@ -70,7 +70,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
-        PutAlertResponse indexResponse = alertsClient.prepareIndexAlert("my-first-alert")
+        PutAlertResponse indexResponse = alertsClient.preparePutAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
         assertThat(indexResponse.indexResponse().isCreated(), is(true));
@@ -103,7 +103,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
                 .field("malformed_field", "x")
                 .endObject().bytes();
         try {
-            alertsClient.prepareIndexAlert("my-first-alert")
+            alertsClient.preparePutAlert("my-first-alert")
                     .setAlertSource(alertSource)
                     .get();
             fail();
@@ -130,7 +130,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
         // By accessing the actual hit we know that the fetch phase has been performed
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits?.hits[0]._score == 1.0");
-        PutAlertResponse indexResponse = alertsClient.prepareIndexAlert("my-first-alert")
+        PutAlertResponse indexResponse = alertsClient.preparePutAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
         assertThat(indexResponse.indexResponse().isCreated(), is(true));
@@ -167,7 +167,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true", "event_type", "type=string"));
 
         alertClient().prepareDeleteAlert(alertName).get();
-        alertClient().prepareIndexAlert(alertName)
+        alertClient().preparePutAlert(alertName)
                 .setAlertSource(createAlertSource(String.format("0/%s * * * * ? *", (scheduleTimeInMs / 1000)), request, "return hits.total >= 3"))
                 .get();
 

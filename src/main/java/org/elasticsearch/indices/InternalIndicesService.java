@@ -65,7 +65,6 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreModule;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
@@ -75,8 +74,10 @@ import org.elasticsearch.plugins.PluginsService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -128,22 +129,25 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         final CountDownLatch latch = new CountDownLatch(indices.size());
 
         final ExecutorService indicesStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory("indices_shutdown"));
-        final ExecutorService shardsStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory("shards_shutdown"));
 
         for (final String index : indices) {
             indicesStopExecutor.execute(new Runnable() {
                 @Override
                 public void run() {
                     try {
-                        removeIndex(index, "shutdown", shardsStopExecutor, new IndexCloseListener() {
+                        removeIndex(index, "shutdown", new IndexCloseListener() {
                             @Override
                             public void onAllShardsClosed(Index index, List<Throwable> failures) {
                                 latch.countDown();
                             }
+
                             @Override
-                            public void onShardClosed(ShardId shardId) {}
+                            public void onShardClosed(ShardId shardId) {
+                            }
+
                             @Override
-                            public void onShardCloseFailed(ShardId shardId, Throwable t) {}
+                            public void onShardCloseFailed(ShardId shardId, Throwable t) {
+                            }
                         });
                     } catch (Throwable e) {
                         latch.countDown();
@@ -159,7 +163,6 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         } catch (InterruptedException e) {
             // ignore
         } finally {
-            shardsStopExecutor.shutdown();
             indicesStopExecutor.shutdown();
         }
     }
@@ -325,26 +328,24 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     @Override
     public void removeIndex(String index, String reason) throws ElasticsearchException {
-        removeIndex(index, reason, null, null);
+        removeIndex(index, reason, null);
     }
 
     @Override
     public void removeIndex(String index, String reason, @Nullable  IndexCloseListener listener) throws ElasticsearchException {
-        removeIndex(index, reason, null, listener);
-    }
+        final IndexService indexService;
+        final Injector indexInjector;
+        synchronized (this) {
+            indexInjector = indicesInjectors.remove(index);
+            if (indexInjector == null) {
+                return;
+            }
 
-    private synchronized void removeIndex(String index, String reason, @Nullable Executor executor,  @Nullable IndexCloseListener listener) throws ElasticsearchException {
-        IndexService indexService;
-        Injector indexInjector = indicesInjectors.remove(index);
-        if (indexInjector == null) {
-            return;
+            logger.debug("[{}] closing ... (reason [{}])", index, reason);
+            Map<String, IndexService> tmpMap = newHashMap(indices);
+            indexService = tmpMap.remove(index);
+            indices = ImmutableMap.copyOf(tmpMap);
         }
-
-        logger.debug("[{}] closing ... (reason [{}])", index, reason);
-        Map<String, IndexService> tmpMap = newHashMap(indices);
-        indexService = tmpMap.remove(index);
-        indices = ImmutableMap.copyOf(tmpMap);
-
         indicesLifecycle.beforeIndexClosed(indexService);
 
         for (Class<? extends CloseableIndexComponent> closeable : pluginsService.indexServices()) {
@@ -352,7 +353,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         }
 
         logger.debug("[{}] closing index service", index, reason);
-        ((InternalIndexService) indexService).close(reason, executor, listener);
+        ((InternalIndexService) indexService).close(reason, listener);
 
         logger.debug("[{}] closing index cache", index, reason);
         indexInjector.getInstance(IndexCache.class).close();

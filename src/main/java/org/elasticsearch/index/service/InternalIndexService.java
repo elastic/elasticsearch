@@ -21,7 +21,6 @@ package org.elasticsearch.index.service;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -30,7 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -40,7 +38,6 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.filter.ShardFilterCacheModule;
 import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
-import org.elasticsearch.index.cache.fixedbitset.ShardFixedBitSetFilterCacheModule;
 import org.elasticsearch.index.cache.query.ShardQueryCacheModule;
 import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.engine.Engine;
@@ -84,16 +81,12 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -108,8 +101,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     private final Injector injector;
 
     private final Settings indexSettings;
-
-    private final ThreadPool threadPool;
 
     private final PluginsService pluginsService;
 
@@ -148,14 +139,13 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     @Inject
-    public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv, ThreadPool threadPool,
+    public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv,
                                 AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
                                 SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache, IndexEngine indexEngine,
                                 IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService, IndexFieldDataService indexFieldData,
                                 FixedBitSetFilterCache fixedBitSetFilterCache) {
         super(index, indexSettings);
         this.injector = injector;
-        this.threadPool = threadPool;
         this.indexSettings = indexSettings;
         this.analysisService = analysisService;
         this.mapperService = mapperService;
@@ -279,37 +269,19 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         return indexEngine;
     }
 
-    public void close(final String reason, @Nullable Executor executor, final IndicesService.IndexCloseListener listener) {
-       if (closed.compareAndSet(false, true)) {
-           final Set<Integer> shardIds = shardIds();
-           final CountDownLatch latch = new CountDownLatch(shardIds.size());
-           final IndicesService.IndexCloseListener innerListener = listener == null ? null :
-                   new PerShardIndexCloseListener(shardIds, listener);
-           for (final int shardId : shardIds) {
-               executor = executor == null ? threadPool.generic() : executor;
-               executor.execute(new AbstractRunnable() {
-                   @Override
-                   public void onFailure(Throwable t) {
-                       logger.warn("failed to close shard", t);
-                   }
-
-                   @Override
-                   public void doRun() {
-                       try {
-                           removeShard(shardId, reason, innerListener);
-                       } finally {
-                           latch.countDown();
-                       }
-                   }
-               });
-           }
-           try {
-               latch.await();
-           } catch (InterruptedException e) {
-               logger.debug("Interrupted closing index [{}]", e, index().name());
-               Thread.currentThread().interrupt();
-           }
-       }
+    public synchronized void close(final String reason, final IndicesService.IndexCloseListener listener) {
+        if (closed.compareAndSet(false, true)) {
+            final Set<Integer> shardIds = shardIds();
+            final IndicesService.IndexCloseListener innerListener = listener == null ? null :
+                    new PerShardIndexCloseListener(shardIds, listener);
+            for (final int shardId : shardIds) {
+                try {
+                    removeShard(shardId, reason, innerListener);
+                } catch (Throwable t) {
+                    logger.warn("failed to close shard", t);
+                }
+            }
+        }
     }
 
     @Override

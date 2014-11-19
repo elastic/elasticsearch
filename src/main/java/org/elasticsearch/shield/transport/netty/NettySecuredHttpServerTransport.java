@@ -29,11 +29,12 @@ public class NettySecuredHttpServerTransport extends NettyHttpServerTransport {
 
     @Inject
     public NettySecuredHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
-                                           @Nullable N2NNettyUpstreamHandler shieldUpstreamHandler, SSLService sslService) {
+                                           @Nullable N2NNettyUpstreamHandler shieldUpstreamHandler, @Nullable SSLService sslService) {
         super(settings, networkService, bigArrays);
         this.ssl = settings.getAsBoolean("shield.http.ssl", false);
         this.sslService = sslService;
         this.shieldUpstreamHandler = shieldUpstreamHandler;
+        assert !ssl || sslService != null : "ssl is enabled yet the ssl service is null";
     }
 
     @Override

@@ -31,11 +31,12 @@ public class NettySecuredTransport extends NettyTransport {
 
     @Inject
     public NettySecuredTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-                                 @Nullable N2NNettyUpstreamHandler shieldUpstreamHandler, SSLService sslService) {
+                                 @Nullable N2NNettyUpstreamHandler shieldUpstreamHandler, @Nullable SSLService sslService) {
         super(settings, threadPool, networkService, bigArrays, version);
         this.shieldUpstreamHandler = shieldUpstreamHandler;
         this.ssl = settings.getAsBoolean("shield.transport.ssl", false);
         this.sslService = sslService;
+        assert !ssl || sslService != null : "ssl is enabled yet the ssl service is null";
     }
 
     @Override

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.ssl;
 
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 
@@ -21,6 +22,8 @@ public class SSLModule extends AbstractShieldModule {
     protected void configure(boolean clientMode) {
         if (SSLService.isSSLEnabled(settings)) {
             bind(SSLService.class).asEagerSingleton();
+        } else {
+            bind(SSLService.class).toProvider(Providers.<SSLService>of(null));
         }
     }
 }

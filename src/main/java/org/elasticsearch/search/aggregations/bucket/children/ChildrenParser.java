@@ -82,8 +82,8 @@ public class ChildrenParser implements Aggregator.Parser {
             throw new SearchParseException(context, "[children]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
         }
 
-        Filter parentFilter = context.filterCache().cache(parentDocMapper.typeFilter());
-        Filter childFilter = context.filterCache().cache(childDocMapper.typeFilter());
+        Filter parentFilter = context.filterCache().cache(parentDocMapper.typeFilter(), null, context.queryParserService().autoFilterCachePolicy());
+        Filter childFilter = context.filterCache().cache(childDocMapper.typeFilter(), null, context.queryParserService().autoFilterCachePolicy());
 
         ParentChildIndexFieldData parentChildIndexFieldData = context.fieldData().getForField(parentFieldMapper);
         ValuesSourceConfig<ValuesSource.Bytes.WithOrdinals.ParentChild> config = new ValuesSourceConfig<>(ValuesSource.Bytes.WithOrdinals.ParentChild.class);

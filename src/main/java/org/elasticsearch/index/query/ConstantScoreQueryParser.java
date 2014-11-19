@@ -21,11 +21,12 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 
 import java.io.IOException;
 
@@ -54,8 +55,8 @@ public class ConstantScoreQueryParser implements QueryParser {
         Query query = null;
         boolean queryFound = false;
         float boost = 1.0f;
-        boolean cache = false;
-        CacheKeyFilter.Key cacheKey = null;
+        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        HashedBytesRef cacheKey = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -76,9 +77,9 @@ public class ConstantScoreQueryParser implements QueryParser {
                 if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("_cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
+                    cache = parseContext.parseFilterCachePolicy();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new CacheKeyFilter.Key(parser.text());
+                    cacheKey = new HashedBytesRef(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[constant_score] query does not support [" + currentFieldName + "]");
                 }
@@ -94,8 +95,8 @@ public class ConstantScoreQueryParser implements QueryParser {
 
         if (filter != null) {
             // cache the filter if possible needed
-            if (cache) {
-                filter = parseContext.cacheFilter(filter, cacheKey);
+            if (cache != null) {
+                filter = parseContext.cacheFilter(filter, cacheKey, cache);
             }
 
             Query query1 = new ConstantScoreQuery(filter);

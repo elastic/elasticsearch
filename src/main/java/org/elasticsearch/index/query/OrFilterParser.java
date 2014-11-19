@@ -20,10 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterCachingPolicy;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.OrFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,8 +54,8 @@ public class OrFilterParser implements FilterParser {
         ArrayList<Filter> filters = newArrayList();
         boolean filtersFound = false;
 
-        boolean cache = false;
-        CacheKeyFilter.Key cacheKey = null;
+        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        HashedBytesRef cacheKey = null;
 
         String filterName = null;
         String currentFieldName = null;
@@ -91,11 +92,11 @@ public class OrFilterParser implements FilterParser {
                     }
                 } else if (token.isValue()) {
                     if ("_cache".equals(currentFieldName)) {
-                        cache = parser.booleanValue();
+                        cache = parseContext.parseFilterCachePolicy();
                     } else if ("_name".equals(currentFieldName)) {
                         filterName = parser.text();
                     } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                        cacheKey = new CacheKeyFilter.Key(parser.text());
+                        cacheKey = new HashedBytesRef(parser.text());
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[or] filter does not support [" + currentFieldName + "]");
                     }
@@ -113,8 +114,8 @@ public class OrFilterParser implements FilterParser {
 
         // no need to cache this one
         Filter filter = new OrFilter(filters);
-        if (cache) {
-            filter = parseContext.cacheFilter(filter, cacheKey);
+        if (cache != null) {
+            filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

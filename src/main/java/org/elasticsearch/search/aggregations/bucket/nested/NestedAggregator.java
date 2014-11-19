@@ -22,6 +22,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
@@ -30,7 +31,11 @@ import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -51,7 +56,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     private DocIdSetIterator childDocs;
     private BitSet parentDocs;
 
-    public NestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData) {
+    public NestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData, FilterCachingPolicy filterCachingPolicy) {
         super(name, factories, aggregationContext, parentAggregator, metaData);
         this.nestedPath = nestedPath;
         this.parentAggregator = parentAggregator;
@@ -67,14 +72,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
             throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] is not nested");
         }
 
-        // TODO: Revise the cache usage for childFilter
-        // Typical usage of the childFilter in this agg is that not all parent docs match and because this agg executes
-        // in order we are maybe better off not caching? We can then iterate over the posting list and benefit from skip pointers.
-        // Even if caching does make sense it is likely that it shouldn't be forced as is today, but based on heuristics that
-        // the filter cache maintains that the childFilter should be cached.
-
-        // By caching the childFilter we're consistent with other features and previous versions.
-        childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter());
+        childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter(), null, filterCachingPolicy);
         // The childDocs need to be consumed in docId order, this ensures that:
         aggregationContext.ensureScoreDocsInOrder();
     }
@@ -164,15 +162,17 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     public static class Factory extends AggregatorFactory {
 
         private final String path;
+        private final FilterCachingPolicy filterCachingPolicy;
 
-        public Factory(String name, String path) {
+        public Factory(String name, String path, FilterCachingPolicy filterCachingPolicy) {
             super(name, InternalNested.TYPE.name());
             this.path = path;
+            this.filterCachingPolicy = filterCachingPolicy;
         }
 
         @Override
         public Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount, Map<String, Object> metaData) {
-            return new NestedAggregator(name, factories, path, context, parent, metaData);
+            return new NestedAggregator(name, factories, path, context, parent, metaData, filterCachingPolicy);
         }
     }
 }

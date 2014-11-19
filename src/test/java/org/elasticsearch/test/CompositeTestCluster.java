@@ -251,11 +251,6 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     @Override
-    public boolean hasFilterCache() {
-        return true;
-    }
-
-    @Override
     public String getClusterName() {
         return cluster.getClusterName();
     }

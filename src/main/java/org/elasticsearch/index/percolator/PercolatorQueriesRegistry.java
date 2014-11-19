@@ -270,7 +270,9 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
             try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", true)) {
                 Query query = new ConstantScoreQuery(
                         indexCache.filter().cache(
-                                new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME))
+                                new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME)),
+                                null,
+                                queryParserService.autoFilterCachePolicy()
                         )
                 );
                 QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);

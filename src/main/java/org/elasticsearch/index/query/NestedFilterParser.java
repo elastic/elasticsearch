@@ -28,9 +28,9 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -61,7 +61,7 @@ public class NestedFilterParser implements FilterParser {
         float boost = 1.0f;
         String path = null;
         boolean cache = false;
-        CacheKeyFilter.Key cacheKey = null;
+        HashedBytesRef cacheKey = null;
         String filterName = null;
 
         // we need a late binding filter so we can inject a parent nested filter inner nested queries
@@ -96,7 +96,7 @@ public class NestedFilterParser implements FilterParser {
                     } else if ("_cache".equals(currentFieldName)) {
                         cache = parser.booleanValue();
                     } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                        cacheKey = new CacheKeyFilter.Key(parser.text());
+                        cacheKey = new HashedBytesRef(parser.text());
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[nested] filter does not support [" + currentFieldName + "]");
                     }
@@ -151,7 +151,7 @@ public class NestedFilterParser implements FilterParser {
             Filter nestedFilter = Queries.wrap(new ToParentBlockJoinQuery(query, parentFilter, ScoreMode.None), parseContext);
 
             if (cache) {
-                nestedFilter = parseContext.cacheFilter(nestedFilter, cacheKey);
+                nestedFilter = parseContext.cacheFilter(nestedFilter, cacheKey, parseContext.autoFilterCachePolicy());
             }
             if (filterName != null) {
                 parseContext.addNamedFilter(filterName, nestedFilter);

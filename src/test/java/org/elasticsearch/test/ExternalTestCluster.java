@@ -165,11 +165,6 @@ public final class ExternalTestCluster extends TestCluster {
     }
 
     @Override
-    public boolean hasFilterCache() {
-        return true; // default
-    }
-
-    @Override
     public String getClusterName() {
         return clusterName;
     }

@@ -248,7 +248,7 @@ public class DefaultSearchContext extends SearchContext {
         if (filter == null) {
             return aliasFilter;
         } else {
-            filter = filterCache().cache(filter);
+            filter = filterCache().cache(filter, null, indexService.queryParserService().autoFilterCachePolicy());
             if (aliasFilter != null) {
                 return new AndFilter(ImmutableList.of(filter, aliasFilter));
             }

@@ -120,4 +120,34 @@ public class IndexQueryParserFilterDateRangeFormatTests extends ElasticsearchSin
             SearchContext.removeCurrent();
         }
     }
+
+    @Test
+    public void testDateRangeBoundaries() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_query_boundaries_inclusive.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        NumericRangeQuery rangeQuery = (NumericRangeQuery) parsedQuery;
+
+        DateTime min = DateTime.parse("2014-11-01T00:00:00.000+00");
+        assertThat(rangeQuery.getMin().longValue(), is(min.getMillis()));
+        assertTrue(rangeQuery.includesMin());
+
+        DateTime max = DateTime.parse("2014-12-08T23:59:59.999+00");
+        assertThat(rangeQuery.getMax().longValue(), is(max.getMillis()));
+        assertTrue(rangeQuery.includesMax());
+
+        query = copyToStringFromClasspath("/org/elasticsearch/index/query/date_range_query_boundaries_exclusive.json");
+        parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
+        rangeQuery = (NumericRangeQuery) parsedQuery;
+
+        min = DateTime.parse("2014-11-30T23:59:59.999+00");
+        assertThat(rangeQuery.getMin().longValue(), is(min.getMillis()));
+        assertFalse(rangeQuery.includesMin());
+
+        max = DateTime.parse("2014-12-08T00:00:00.000+00");
+        assertThat(rangeQuery.getMax().longValue(), is(max.getMillis()));
+        assertFalse(rangeQuery.includesMax());
+    }
 }

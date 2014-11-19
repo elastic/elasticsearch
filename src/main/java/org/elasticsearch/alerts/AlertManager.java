@@ -134,7 +134,6 @@ public class AlertManager extends AbstractComponent {
                 throw new ElasticsearchException("Alert is not available");
             }
             TriggerResult triggerResult = triggerManager.isTriggered(alert, entry.getScheduledTime(), entry.getFireTime());
-            entry.setSearchRequest(triggerResult.getRequest());
             entry.setSearchResponse(triggerResult.getResponse());
             if (triggerResult.isTriggered()) {
                 entry.setTriggered(true);

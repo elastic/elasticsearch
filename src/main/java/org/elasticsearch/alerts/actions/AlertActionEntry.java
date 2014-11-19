@@ -31,9 +31,9 @@ public class AlertActionEntry implements ToXContent {
     private AlertTrigger trigger;
     private List<AlertAction> actions;
     private AlertActionState entryState;
+    private SearchRequest searchRequest;
 
     /*Optional*/
-    private SearchRequest searchRequest;
     private Map<String, Object> searchResponse;
     private boolean triggered;
     private String errorMsg;
@@ -50,6 +50,7 @@ public class AlertActionEntry implements ToXContent {
         this.trigger = alert.trigger();
         this.actions = alert.actions();
         this.entryState = state;
+        this.searchRequest = alert.getSearchRequest();
     }
 
     /**
@@ -188,7 +189,10 @@ public class AlertActionEntry implements ToXContent {
         historyEntry.field("triggered", triggered);
         historyEntry.field("fire_time", fireTime.toDateTimeISO());
         historyEntry.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, scheduledTime.toDateTimeISO());
-        historyEntry.field("trigger", trigger, params);
+        historyEntry.field("trigger");
+        historyEntry.startObject();
+        historyEntry.field(trigger.getTriggerName(), trigger, params);
+        historyEntry.endObject();
         historyEntry.field("request");
         AlertUtils.writeSearchRequest(searchRequest, historyEntry, params);
         historyEntry.field("response", searchResponse);

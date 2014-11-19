@@ -196,6 +196,7 @@ public class AlertActionManager extends AbstractComponent {
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();
             assert token == XContentParser.Token.START_OBJECT;
+            logger.error("source [{}]",source.toUtf8());
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -240,7 +241,11 @@ public class AlertActionManager extends AbstractComponent {
                             throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else {
-                    throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
+                    if (token == XContentParser.Token.VALUE_NULL) {
+                        logger.warn("Got null value for [{}]", currentFieldName);
+                    } else {
+                        throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "] for [" + currentFieldName + "]");
+                    }
                 }
             }
         } catch (IOException e) {

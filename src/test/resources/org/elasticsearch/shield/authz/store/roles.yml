@@ -11,3 +11,9 @@ role3:
   indices:
     '/.*_.*/': READ, WRITE
 
+role4:
+  cluster:
+  indices:
+    'idx2':
+    '': READ
+    'idx1': []

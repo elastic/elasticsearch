@@ -8,7 +8,6 @@ package org.elasticsearch.shield.authz.store;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
@@ -105,34 +104,44 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if ("cluster".equals(currentFieldName)) {
-                            Privilege.Name name;
+                            Privilege.Name name = null;
                             if (token == XContentParser.Token.VALUE_STRING) {
-                                String[] names = COMMA_DELIM.split(parser.text().trim());
-                                name = new Privilege.Name(names);
+                                String namesStr = parser.text().trim();
+                                if (Strings.hasLength(namesStr)) {
+                                    String[] names = COMMA_DELIM.split(namesStr);
+                                    name = new Privilege.Name(names);
+                                }
                             } else if (token == XContentParser.Token.START_ARRAY) {
-                                ImmutableSet.Builder<String> names = ImmutableSet.builder();
+                                Set<String> names = new HashSet<>();
                                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                     if (token == XContentParser.Token.VALUE_STRING) {
                                         names.add(parser.text());
                                     }
                                 }
-                                name = new Privilege.Name(names.build());
+                                if (!names.isEmpty()) {
+                                    name = new Privilege.Name(names);
+                                }
                             } else {
                                 throw new ElasticsearchException("Invalid roles file format [" + path.toAbsolutePath() +
                                         "]. [cluster] field value can either be a string or a list of strings, but [" + token + "] was found instead in role [" + roleName + "]");
                             }
-                            permission.set(Privilege.Cluster.get(name));
+                            if (name != null) {
+                                permission.set(Privilege.Cluster.get(name));
+                            }
                         } else if ("indices".equals(currentFieldName)) {
                             if (token == XContentParser.Token.START_OBJECT) {
                                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                     if (token == XContentParser.Token.FIELD_NAME) {
                                         currentFieldName = parser.currentName();
-                                    } else {
+                                    } else if (Strings.hasLength(currentFieldName)) {
                                         String[] indices = COMMA_DELIM.split(currentFieldName);
-                                        Privilege.Name name;
+                                        Privilege.Name name = null;
                                         if (token == XContentParser.Token.VALUE_STRING) {
-                                            String[] names = COMMA_DELIM.split(parser.text());
-                                            name = new Privilege.Name(names);
+                                            String namesStr = parser.text().trim();
+                                            if (Strings.hasLength(namesStr)) {
+                                                String[] names = COMMA_DELIM.split(parser.text());
+                                                name = new Privilege.Name(names);
+                                            }
                                         } else if (token == XContentParser.Token.START_ARRAY) {
                                             Set<String> names = new HashSet<>();
                                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -143,13 +152,17 @@ public class FileRolesStore extends AbstractComponent implements RolesStore {
                                                             "]. Could not parse [" + token + "] as index privilege in role[" + roleName + "]. Privilege names must be strings");
                                                 }
                                             }
-                                            name = new Privilege.Name(names);
+                                            if (!names.isEmpty()) {
+                                                name = new Privilege.Name(names);
+                                            }
                                         } else {
                                             throw new ElasticsearchException("Invalid roles file format [" + path.toAbsolutePath() +
                                                     "]. Could not parse [" + token + "] as index privileges list in role [" + roleName + "]. Privilege lists must either " +
                                                     "be a comma delimited string or an array of strings");
                                         }
-                                        permission.add(Privilege.Index.get(name), indices);
+                                        if (name != null) {
+                                            permission.add(Privilege.Index.get(name), indices);
+                                        }
                                     }
                                 }
                             } else {

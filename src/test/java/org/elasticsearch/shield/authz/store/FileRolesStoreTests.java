@@ -41,7 +41,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         Path path = Paths.get(getClass().getResource("roles.yml").toURI());
         Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, logger, mock(AuthorizationService.class));
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(3));
+        assertThat(roles.size(), is(4));
 
         Permission.Global.Role role = roles.get("role1");
         assertThat(role, notNullValue());
@@ -90,6 +90,13 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         assertThat(group.indices()[0], equalTo("/.*_.*/"));
         assertThat(group.privilege(), notNullValue());
         assertThat(group.privilege().isAlias(Privilege.Index.union(Privilege.Index.READ, Privilege.Index.WRITE)), is(true));
+
+        role = roles.get("role4");
+        assertThat(role, notNullValue());
+        assertThat(role.name(), equalTo("role4"));
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
+        assertThat(role.indices(), is(Permission.Indices.Core.NONE));
     }
 
     /**
@@ -139,7 +146,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
 
             Permission.Global.Role role = store.role("role1");
             assertThat(role, notNullValue());
-            role = store.role("role4");
+            role = store.role("role5");
             assertThat(role, nullValue());
 
             watcherService.start();
@@ -148,7 +155,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
                 writer.newLine();
                 writer.newLine();
                 writer.newLine();
-                writer.append("role4:").append(System.lineSeparator());
+                writer.append("role5:").append(System.lineSeparator());
                 writer.append("  cluster: 'MONITOR'");
             }
 
@@ -156,9 +163,9 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
                 fail("Waited too long for the updated file to be picked up");
             }
 
-            role = store.role("role4");
+            role = store.role("role5");
             assertThat(role, notNullValue());
-            assertThat(role.name(), equalTo("role4"));
+            assertThat(role.name(), equalTo("role5"));
             assertThat(role.cluster().check("cluster:monitor/foo/bar"), is(true));
             assertThat(role.cluster().check("cluster:admin/foo/bar"), is(false));
 

@@ -141,13 +141,13 @@ public class AlertActionManager extends AbstractComponent {
     public void loadQueue() {
         client.admin().indices().refresh(new RefreshRequest(ALERT_HISTORY_INDEX)).actionGet();
 
-        SearchResponse response = client.prepareSearch()
+        SearchResponse response = client.prepareSearch(ALERT_HISTORY_INDEX)
                 .setQuery(QueryBuilders.termQuery(AlertActionState.FIELD_NAME, AlertActionState.SEARCH_NEEDED.toString()))
                 .setSearchType(SearchType.SCAN)
                 .setScroll(scrollTimeout)
                 .setSize(scrollSize)
                 .setTypes(ALERT_HISTORY_TYPE)
-                .setIndices(ALERT_HISTORY_INDEX).get();
+                .get();
         try {
             if (response.getHits().getTotalHits() > 0) {
                 response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();

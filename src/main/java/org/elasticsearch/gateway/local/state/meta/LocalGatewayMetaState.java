@@ -39,12 +39,18 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -261,7 +267,9 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                         if (newMetaData.hasIndex(danglingIndex)) {
                             logger.debug("[{}] no longer dangling (created), removing", danglingIndex);
                             DanglingIndex removed = danglingIndices.remove(danglingIndex);
-                            removed.future.cancel(false);
+                            if (removed.future != null) {
+                                removed.future.cancel(false);
+                            }
                         }
                     }
                     // delete indices that are no longer part of the metadata

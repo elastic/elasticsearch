@@ -62,12 +62,13 @@ public class LogConfigurator {
             .put("null", "org.apache.log4j.NullAppender")
             .put("rollingFile", "org.apache.log4j.RollingFileAppender")
             .put("extrasRollingFile", "org.apache.log4j.rolling.RollingFileAppender")
-            .put("timeBased", "org.apache.log4j.rolling.TimeBasedRollingPolicy")
             .put("smtp", "org.apache.log4j.net.SMTPAppender")
             .put("socket", "org.apache.log4j.net.SocketAppender")
             .put("socketHub", "org.apache.log4j.net.SocketHubAppender")
             .put("syslog", "org.apache.log4j.net.SyslogAppender")
             .put("telnet", "org.apache.log4j.net.TelnetAppender")
+                    // policies
+            .put("timeBased", "org.apache.log4j.rolling.TimeBasedRollingPolicy")
                     // layouts
             .put("simple", "org.apache.log4j.SimpleLayout")
             .put("html", "org.apache.log4j.HTMLLayout")

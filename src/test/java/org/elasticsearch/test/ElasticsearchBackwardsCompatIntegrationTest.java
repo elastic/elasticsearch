@@ -24,10 +24,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
@@ -37,6 +40,8 @@ import org.junit.Ignore;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
@@ -109,11 +114,14 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     }
 
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        TestLogging logging = getClass().getAnnotation(TestLogging.class);
+        final Map<String, String> loggerLevels = LoggingListener.getLoggersAndLevelsFromAnnotation(logging);
         TestCluster cluster = super.buildTestCluster(scope, seed);
+
         ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new SettingsSource() {
             @Override
             public Settings node(int nodeOrdinal) {
-                return externalNodeSettings(nodeOrdinal);
+                return externalNodeSettings(nodeOrdinal, loggerLevels);
             }
 
             @Override
@@ -147,10 +155,17 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         return ExternalNode.REQUIRED_SETTINGS;
     }
 
+
     protected Settings nodeSettings(int nodeOrdinal) {
+        return nodeSettings(nodeOrdinal, new HashMap<String, String>());
+    }
+    protected Settings nodeSettings(int nodeOrdinal, Map<String, String> loggerLevels) {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(requiredSettings())
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName()) // run same transport  / disco as external
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName());
+        for (Map.Entry<String, String> level : loggerLevels.entrySet()) {
+            builder.put("logger." + level.getKey(), level.getValue());
+        }
         if (compatibilityVersion().before(Version.V_1_3_2)) {
             // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
             // see #7210
@@ -174,7 +189,11 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         }
     }
 
+    protected Settings externalNodeSettings(int nodeOrdinal, Map<String, String> loggerLevels) {
+        return nodeSettings(nodeOrdinal, loggerLevels);
+    }
+
     protected Settings externalNodeSettings(int nodeOrdinal) {
-        return nodeSettings(nodeOrdinal);
+        return nodeSettings(nodeOrdinal, new HashMap<String, String>());
     }
 }

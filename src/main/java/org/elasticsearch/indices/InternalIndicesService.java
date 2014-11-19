@@ -333,8 +333,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     @Override
     public void removeIndex(String index, String reason, @Nullable  IndexCloseListener listener) throws ElasticsearchException {
-        IndexService indexService;
-        Injector indexInjector;
+        final IndexService indexService;
+        final Injector indexInjector;
         synchronized (this) {
             indexInjector = indicesInjectors.remove(index);
             if (indexInjector == null) {

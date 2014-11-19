@@ -160,6 +160,7 @@ public class AlertActionManager extends AbstractComponent {
 
     public void loadQueue() {
         client.admin().indices().refresh(new RefreshRequest(ALERT_HISTORY_INDEX)).actionGet();
+
         SearchResponse response = client.prepareSearch()
                 .setQuery(QueryBuilders.termQuery(AlertActionState.FIELD_NAME, AlertActionState.SEARCH_NEEDED.toString()))
                 .setSearchType(SearchType.SCAN)
@@ -181,6 +182,7 @@ public class AlertActionManager extends AbstractComponent {
             client.prepareClearScroll().addScrollId(response.getScrollId()).get();
         }
         logger.info("Loaded [{}] actions from the alert history index into actions queue", actionsToBeProcessed.size());
+        largestQueueSize.set(actionsToBeProcessed.size());
     }
 
     AlertActionEntry parseHistory(String historyId, BytesReference source, long version, AlertActionRegistry actionRegistry) {
@@ -258,6 +260,7 @@ public class AlertActionManager extends AbstractComponent {
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .setOpType(IndexRequest.OpType.CREATE)
                 .get();
+        logger.info("Adding alert action for alert [{}]", alert.alertName() );
         entry.setVersion(response.getVersion());
         long currentSize = actionsToBeProcessed.size() + 1;
         actionsToBeProcessed.add(entry);

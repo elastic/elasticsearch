@@ -43,7 +43,8 @@ public class RestAlertsStatsAction extends BaseRestHandler {
                         .field("alert_manager_started", alertsStatsResponse.isAlertManagerStarted())
                         .field("alert_action_manager_started", alertsStatsResponse.isAlertActionManagerStarted())
                         .field("alert_action_queue_size", alertsStatsResponse.getAlertActionManagerQueueSize())
-                        .field("number_of_alerts", alertsStatsResponse.getNumberOfRegisteredAlerts());
+                        .field("number_of_alerts", alertsStatsResponse.getNumberOfRegisteredAlerts())
+                        .field("alert_action_queue_max_size", alertsStatsResponse.getAlertActionManagerLargestQueueSize());
                 return new BytesRestResponse(OK, builder);
 
             }

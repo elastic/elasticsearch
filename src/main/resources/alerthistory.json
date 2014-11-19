@@ -1,5 +1,5 @@
 {
-  "template": "alerthistory",
+  "template": ".alert_history",
   "order": 0,
   "settings": {
     "number_of_shards": 1,

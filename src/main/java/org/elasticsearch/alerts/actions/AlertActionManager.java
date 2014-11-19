@@ -196,7 +196,6 @@ public class AlertActionManager extends AbstractComponent {
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();
             assert token == XContentParser.Token.START_OBJECT;
-            logger.error("source [{}]",source.toUtf8());
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();

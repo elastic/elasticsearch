@@ -8,8 +8,8 @@ package org.elasticsearch.license.plugin.action.get;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.license.core.ESLicense;
-import org.elasticsearch.license.core.ESLicenses;
+import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.core.Licenses;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -17,29 +17,29 @@ import java.util.List;
 
 public class GetLicenseResponse extends ActionResponse {
 
-    private List<ESLicense> licenses = new ArrayList<>();
+    private List<License> licenses = new ArrayList<>();
 
     GetLicenseResponse() {
     }
 
-    GetLicenseResponse(List<ESLicense> esLicenses) {
-        this.licenses = esLicenses;
+    GetLicenseResponse(List<License> licenses) {
+        this.licenses = licenses;
     }
 
-    public List<ESLicense> licenses() {
+    public List<License> licenses() {
         return licenses;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        licenses = ESLicenses.readFrom(in);
+        licenses = Licenses.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        ESLicenses.writeTo(licenses, out);
+        Licenses.writeTo(licenses, out);
     }
 
 }

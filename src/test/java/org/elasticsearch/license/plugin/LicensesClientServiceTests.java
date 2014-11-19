@@ -6,7 +6,7 @@
 package org.elasticsearch.license.plugin;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.core.ESLicense;
+import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.license.plugin.core.LicensesService;
@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.license.TestUtils.generateSignedLicense;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.Matchers.equalTo;
@@ -192,7 +193,7 @@ public class LicensesClientServiceTests extends AbstractLicensesServiceTests {
         return new Action(new Runnable() {
             @Override
             public void run() {
-                ESLicense license;
+                License license;
                 try {
                     license = generateSignedLicense(feature, expiryDuration);
                 } catch (Exception e) {

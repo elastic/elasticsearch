@@ -6,17 +6,18 @@
 package org.elasticsearch.license.plugin.core;
 
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.core.Licenses;
 
 import java.io.IOException;
-import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Contains metadata about registered licenses
@@ -27,69 +28,43 @@ public class LicensesMetaData implements MetaData.Custom {
 
     public static final Factory FACTORY = new Factory();
 
-    private final Set<String> signatures;
+    private final ImmutableList<License> signedLicenses;
 
-    private final Set<String> encodedTrialLicenses;
-
-    public LicensesMetaData(String[] signatures, String[] encodedTrialLicenses) {
-        this(Sets.newHashSet(signatures), Sets.newHashSet(encodedTrialLicenses));
-    }
+    private final ImmutableList<License> trialLicenses;
 
     /**
      * Constructs new licenses metadata
      *
-     * @param signatures           set of esLicense signatures
-     * @param encodedTrialLicenses set of encoded trial licenses
+     * @param signedLicenses list of signed Licenses
+     * @param trialLicenses set of encoded trial licenses
      */
-    public LicensesMetaData(Set<String> signatures, Set<String> encodedTrialLicenses) {
-        this.signatures = signatures;
-        this.encodedTrialLicenses = encodedTrialLicenses;
+    public LicensesMetaData(List<License> signedLicenses, List<License>  trialLicenses) {
+        this.signedLicenses = ImmutableList.copyOf(signedLicenses);
+        this.trialLicenses = ImmutableList.copyOf(trialLicenses);
     }
 
-    public Set<String> getSignatures() {
-        return signatures;
+    public List<License> getSignedLicenses() {
+        return signedLicenses;
     }
 
-    public Set<String> getEncodedTrialLicenses() {
-        return encodedTrialLicenses;
+    public List<License> getTrialLicenses() {
+        return trialLicenses;
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        if (obj == this) {
-            return true;
-        }
-        if (obj instanceof LicensesMetaData) {
-            LicensesMetaData other = (LicensesMetaData) obj;
-            boolean signaturesEqual;
-            boolean trialLicensesEqual;
+        LicensesMetaData that = (LicensesMetaData) obj;
+        return signedLicenses.equals(that.signedLicenses)
+                && trialLicenses.equals(that.trialLicenses);
+    }
 
-            if (other.getSignatures() != null) {
-                if (this.getSignatures() != null) {
-                    signaturesEqual = other.getSignatures().equals(this.getSignatures());
-                } else {
-                    return false;
-                }
-            } else {
-                signaturesEqual = this.getSignatures() == null;
-            }
-
-            if (other.getEncodedTrialLicenses() != null) {
-                if (this.getEncodedTrialLicenses() != null) {
-                    trialLicensesEqual = other.getEncodedTrialLicenses().equals(this.getEncodedTrialLicenses());
-                } else {
-                    return false;
-                }
-            } else {
-                trialLicensesEqual = this.getEncodedTrialLicenses() == null;
-            }
-
-            return signaturesEqual && trialLicensesEqual;
-        }
-        return false;
+    @Override
+    public int hashCode() {
+        return signedLicenses.hashCode() + 31 * trialLicenses.hashCode();
     }
 
     /**
@@ -110,13 +85,13 @@ public class LicensesMetaData implements MetaData.Custom {
          */
         @Override
         public LicensesMetaData readFrom(StreamInput in) throws IOException {
-            String[] signatures = new String[0];
-            String[] encodedTrialLicenses = new String[0];
-            if (in.readBoolean()) {
-                signatures = in.readStringArray();
-                encodedTrialLicenses = in.readStringArray();
+            List<License> signedLicenses = Licenses.readFrom(in);
+            int numTrialLicenses = in.readVInt();
+            List<License> trialLicenses = new ArrayList<>(numTrialLicenses);
+            for (int i = 0; i < numTrialLicenses; i++) {
+                trialLicenses.add(TrialLicenseUtils.fromEncodedTrialLicense(in.readString()));
             }
-            return new LicensesMetaData(signatures, encodedTrialLicenses);
+            return new LicensesMetaData(signedLicenses, trialLicenses);
         }
 
         /**
@@ -124,12 +99,10 @@ public class LicensesMetaData implements MetaData.Custom {
          */
         @Override
         public void writeTo(LicensesMetaData licensesMetaData, StreamOutput out) throws IOException {
-            if (licensesMetaData == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                out.writeStringArray(licensesMetaData.signatures.toArray(new String[licensesMetaData.signatures.size()]));
-                out.writeStringArray(licensesMetaData.encodedTrialLicenses.toArray(new String[licensesMetaData.encodedTrialLicenses.size()]));
+            Licenses.writeTo(licensesMetaData.signedLicenses, out);
+            out.writeVInt(licensesMetaData.trialLicenses.size());
+            for (License trialLicense : licensesMetaData.trialLicenses) {
+                out.writeString(TrialLicenseUtils.toEncodedTrialLicense(trialLicense));
             }
         }
 
@@ -138,36 +111,35 @@ public class LicensesMetaData implements MetaData.Custom {
          */
         @Override
         public LicensesMetaData fromXContent(XContentParser parser) throws IOException {
+            List<License> trialLicenses = new ArrayList<>();
+            List<License> signedLicenses = new ArrayList<>();
             XContentParser.Token token;
-            String fieldName = null;
-            Set<String> encodedTrialLicenses = new HashSet<>();
-            Set<String> signatures = new HashSet<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+                token = parser.nextToken();
                 if (token == XContentParser.Token.FIELD_NAME) {
-                    fieldName = parser.currentName();
-                }
-                if (fieldName != null) {
-                    if (fieldName.equals(Fields.LICENSES)) {
-                        if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                if (parser.currentToken().isValue()) {
-                                    signatures.add(parser.text());
+                    String fieldName = parser.text();
+                    if (fieldName != null) {
+                        if (fieldName.equals(Fields.TRIAL_LICENSES)) {
+                            if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                    if (parser.currentToken().isValue()) {
+                                        trialLicenses.add(TrialLicenseUtils.fromEncodedTrialLicense(parser.text()));
+                                    }
                                 }
                             }
                         }
-                    } else if (fieldName.equals(Fields.TRIAL_LICENSES)) {
-                        if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                if (parser.currentToken().isValue()) {
-                                    encodedTrialLicenses.add(parser.text());
+                        if (fieldName.equals(Fields.SIGNED_LICENCES)) {
+                            if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                    License.Builder builder = License.builder().fromXContent(parser);
+                                    signedLicenses.add(builder.build());
                                 }
                             }
                         }
                     }
                 }
             }
-
-            return new LicensesMetaData(signatures, encodedTrialLicenses);
+            return new LicensesMetaData(signedLicenses, trialLicenses);
         }
 
         /**
@@ -175,8 +147,17 @@ public class LicensesMetaData implements MetaData.Custom {
          */
         @Override
         public void toXContent(LicensesMetaData licensesMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.array(Fields.LICENSES, licensesMetaData.signatures.toArray(new String[licensesMetaData.signatures.size()]));
-            builder.array(Fields.TRIAL_LICENSES, licensesMetaData.encodedTrialLicenses.toArray(new String[licensesMetaData.encodedTrialLicenses.size()]));
+            builder.startArray(Fields.TRIAL_LICENSES);
+            for (License trailLicense : licensesMetaData.trialLicenses) {
+                builder.value(TrialLicenseUtils.toEncodedTrialLicense(trailLicense));
+            }
+            builder.endArray();
+
+            builder.startArray(Fields.SIGNED_LICENCES);
+            for (License license : licensesMetaData.signedLicenses) {
+                license.toXContent(builder, params);
+            }
+            builder.endArray();
         }
 
         @Override
@@ -184,12 +165,9 @@ public class LicensesMetaData implements MetaData.Custom {
             return EnumSet.of(MetaData.XContentContext.GATEWAY);
         }
 
-
         private final static class Fields {
-            private static final String LICENSES = "licenses";
+            private static final String SIGNED_LICENCES = "signed_licenses";
             private static final String TRIAL_LICENSES = "trial_licenses";
         }
-
-
     }
 }

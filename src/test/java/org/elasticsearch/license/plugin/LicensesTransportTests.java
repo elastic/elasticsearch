@@ -9,9 +9,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.TestUtils;
-import org.elasticsearch.license.core.ESLicense;
-import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequest;
+import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.delete.DeleteLicenseResponse;
 import org.elasticsearch.license.plugin.action.get.GetLicenseRequestBuilder;
@@ -26,6 +24,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.license.AbstractLicensingTestBase.dateMath;
+import static org.elasticsearch.license.TestUtils.generateSignedLicense;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -48,8 +48,8 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTests {
 
     @Test
     public void testPutLicense() throws Exception {
-        ESLicense signedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
-        List<ESLicense> actualLicenses = Collections.singletonList(signedLicense);
+        License signedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        List<License> actualLicenses = Collections.singletonList(signedLicense);
 
         // put license
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
@@ -69,7 +69,7 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTests {
 
     @Test
     public void testPutLicenseFromString() throws Exception {
-        ESLicense signedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        License signedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
         String licenseString = TestUtils.dumpLicense(signedLicense);
 
         // put license source
@@ -90,13 +90,13 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTests {
 
     @Test
     public void testPutInvalidLicense() throws Exception {
-        ESLicense signedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        License signedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
 
         // modify content of signed license
-        ESLicense tamperedLicense = ESLicense.builder()
+        License tamperedLicense = License.builder()
                 .fromLicenseSpec(signedLicense, signedLicense.signature())
                 .expiryDate(signedLicense.expiryDate() + 10 * 24 * 60 * 60 * 1000l)
-                .verify()
+                .validate()
                 .build();
 
         PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster());
@@ -112,10 +112,29 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTests {
     }
 
     @Test
+    public void testPutExpiredLicense() throws Exception {
+        License expiredLicense = generateSignedLicense("expiredFeature", dateMath("now-10d/d", System.currentTimeMillis()), TimeValue.timeValueMinutes(2));
+        License signedLicense = generateSignedLicense("feature", TimeValue.timeValueMinutes(2));
+
+        PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster());
+        builder.setLicense(Arrays.asList(signedLicense, expiredLicense));
+
+        // put license should return valid (as there is one valid license)
+        final PutLicenseResponse putLicenseResponse = builder.get();
+        assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
+
+        // get license should not return the expired license
+        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster()).get();
+        assertThat(getLicenseResponse.licenses().size(), equalTo(1));
+
+        TestUtils.isSame(getLicenseResponse.licenses().get(0), signedLicense);
+    }
+
+    @Test
     public void testPutLicensesForSameFeature() throws Exception {
-        ESLicense shortedSignedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
-        ESLicense longerSignedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(5));
-        List<ESLicense> actualLicenses = Arrays.asList(longerSignedLicense, shortedSignedLicense);
+        License shortedSignedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        License longerSignedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(5));
+        List<License> actualLicenses = Arrays.asList(longerSignedLicense, shortedSignedLicense);
 
         // put license
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
@@ -135,9 +154,9 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTests {
 
     @Test
     public void testPutLicensesForMultipleFeatures() throws Exception {
-        ESLicense shieldLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
-        ESLicense marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueMinutes(5));
-        List<ESLicense> actualLicenses = Arrays.asList(marvelLicense, shieldLicense);
+        License shieldLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        License marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueMinutes(5));
+        List<License> actualLicenses = Arrays.asList(marvelLicense, shieldLicense);
 
         // put license
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
@@ -156,10 +175,10 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTests {
 
     @Test
     public void testPutMultipleLicensesForMultipleFeatures() throws Exception {
-        ESLicense shortedSignedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
-        ESLicense longerSignedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(5));
-        ESLicense marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueMinutes(5));
-        List<ESLicense> actualLicenses = Arrays.asList(marvelLicense, shortedSignedLicense, longerSignedLicense);
+        License shortedSignedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        License longerSignedLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(5));
+        License marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueMinutes(5));
+        List<License> actualLicenses = Arrays.asList(marvelLicense, shortedSignedLicense, longerSignedLicense);
 
         // put license
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
@@ -179,9 +198,9 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTests {
 
     @Test
     public void testRemoveLicenseSimple() throws Exception {
-        ESLicense shieldLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
-        ESLicense marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueMinutes(5));
-        List<ESLicense> actualLicenses = Arrays.asList(marvelLicense, shieldLicense);
+        License shieldLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        License marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueMinutes(5));
+        List<License> actualLicenses = Arrays.asList(marvelLicense, shieldLicense);
 
         // put two licenses
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())
@@ -209,9 +228,9 @@ public class LicensesTransportTests extends AbstractLicensesIntegrationTests {
 
     @Test
     public void testRemoveLicenses() throws Exception {
-        ESLicense shieldLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
-        ESLicense marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueMinutes(5));
-        List<ESLicense> actualLicenses = Arrays.asList(marvelLicense, shieldLicense);
+        License shieldLicense = generateSignedLicense("shield", TimeValue.timeValueMinutes(2));
+        License marvelLicense = generateSignedLicense("marvel", TimeValue.timeValueMinutes(5));
+        List<License> actualLicenses = Arrays.asList(marvelLicense, shieldLicense);
 
         // put two licenses
         PutLicenseRequestBuilder putLicenseRequestBuilder = new PutLicenseRequestBuilder(client().admin().cluster())

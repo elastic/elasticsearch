@@ -120,18 +120,6 @@
 
         <!-- actual deps -->
         <dependency>
-            <groupId>net.nicholaswilliams.java.licensing</groupId>
-            <artifactId>licensing-core</artifactId>
-            <version>1.1.0</version>
-        </dependency>
-
-        <dependency>
-            <groupId>net.nicholaswilliams.java.licensing</groupId>
-            <artifactId>licensing-licensor-base</artifactId>
-            <version>1.1.0</version>
-        </dependency>
-
-        <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
             <version>${elasticsearch.version}</version>

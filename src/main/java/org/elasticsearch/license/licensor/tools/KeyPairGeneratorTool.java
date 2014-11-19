@@ -5,12 +5,6 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
-import net.nicholaswilliams.java.licensing.encryption.Hasher;
-import net.nicholaswilliams.java.licensing.encryption.RSAKeyPairGenerator;
-import net.nicholaswilliams.java.licensing.exception.AlgorithmNotSupportedException;
-import net.nicholaswilliams.java.licensing.exception.InappropriateKeyException;
-import net.nicholaswilliams.java.licensing.exception.InappropriateKeySpecificationException;
-import net.nicholaswilliams.java.licensing.exception.RSA2048NotSupportedException;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
@@ -20,17 +14,21 @@ import org.elasticsearch.env.Environment;
 
 import java.io.File;
 import java.io.IOException;
-import java.security.KeyPair;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.*;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
 import static org.elasticsearch.common.cli.CliToolConfig.config;
+import static org.elasticsearch.license.core.CryptUtils.writeEncryptedPrivateKey;
+import static org.elasticsearch.license.core.CryptUtils.writeEncryptedPublicKey;
 
 public class KeyPairGeneratorTool extends CliTool {
 
     public static final String NAME = "key-pair-generator";
     private static final CliToolConfig CONFIG = config(NAME, KeyPairGeneratorTool.class)
-            .cmds(KeyPairGenerator.CMD)
+            .cmds(KeyGenerator.CMD)
             .build();
 
     public KeyPairGeneratorTool() {
@@ -39,14 +37,12 @@ public class KeyPairGeneratorTool extends CliTool {
 
     @Override
     protected Command parse(String s, CommandLine commandLine) throws Exception {
-        return KeyPairGenerator.parse(terminal, commandLine);
+        return KeyGenerator.parse(terminal, commandLine);
     }
 
-    public static class KeyPairGenerator extends Command {
+    public static class KeyGenerator extends Command {
 
-        public static final String DEFAULT_PASS_PHRASE = "elasticsearch-license";
-
-        private static final CliToolConfig.Cmd CMD = cmd(NAME, KeyPairGenerator.class)
+        private static final CliToolConfig.Cmd CMD = cmd(NAME, KeyGenerator.class)
                 .options(
                         option("pub", "publicKeyPath").required(true).hasArg(true),
                         option("pri", "privateKeyPath").required(true).hasArg(true)
@@ -55,7 +51,7 @@ public class KeyPairGeneratorTool extends CliTool {
         public final String publicKeyPath;
         public final String privateKeyPath;
 
-        protected KeyPairGenerator(Terminal terminal, String publicKeyPath, String privateKeyPath) {
+        protected KeyGenerator(Terminal terminal, String publicKeyPath, String privateKeyPath) {
             super(terminal);
             this.privateKeyPath = privateKeyPath;
             this.publicKeyPath = publicKeyPath;
@@ -70,7 +66,7 @@ public class KeyPairGeneratorTool extends CliTool {
             } else if (exists(publicKeyPath)) {
                 return exitCmd(ExitStatus.USAGE, terminal, publicKeyPath + " already exists");
             }
-            return new KeyPairGenerator(terminal, publicKeyPath, privateKeyPath);
+            return new KeyGenerator(terminal, publicKeyPath, privateKeyPath);
         }
 
         @Override
@@ -84,23 +80,21 @@ public class KeyPairGeneratorTool extends CliTool {
             return new File(filePath).exists();
         }
 
-        private static KeyPair generateKeyPair(String privateKeyFileName, String publicKeyFileName) {
-            RSAKeyPairGenerator generator = new RSAKeyPairGenerator();
+        private static KeyPair generateKeyPair(String privateKeyFileName, String publicKeyFileName) throws IOException, NoSuchAlgorithmException {
+            SecureRandom random = new SecureRandom();
 
-            KeyPair keyPair;
-            try {
-                keyPair = generator.generateKeyPair();
-            } catch (RSA2048NotSupportedException e) {
-                throw new IllegalStateException(e);
-            }
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+            keyGen.initialize(2048, random);
+            KeyPair keyPair = keyGen.generateKeyPair();
 
-            try {
-                generator.saveKeyPairToFiles(keyPair, privateKeyFileName, publicKeyFileName, Hasher.hash(DEFAULT_PASS_PHRASE).toCharArray());
-            } catch (IOException | AlgorithmNotSupportedException | InappropriateKeyException | InappropriateKeySpecificationException e) {
-                throw new IllegalStateException(e);
-            }
+            saveKeyPairToFiles(keyPair, privateKeyFileName, publicKeyFileName);
             return keyPair;
         }
+    }
+
+    private static void saveKeyPairToFiles(KeyPair keyPair, String privateKeyFileName, String publicKeyFileName) throws IOException {
+        Files.write(Paths.get(privateKeyFileName), writeEncryptedPrivateKey(keyPair.getPrivate()));
+        Files.write(Paths.get(publicKeyFileName), writeEncryptedPublicKey(keyPair.getPublic()));
     }
 
     public static void main(String[] args) throws Exception {

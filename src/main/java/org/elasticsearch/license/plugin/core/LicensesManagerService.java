@@ -8,7 +8,7 @@ package org.elasticsearch.license.plugin.core;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.inject.ImplementedBy;
-import org.elasticsearch.license.core.ESLicense;
+import org.elasticsearch.license.core.License;
 
 import java.util.List;
 import java.util.Set;
@@ -39,5 +39,5 @@ public interface LicensesManagerService {
     /**
      * @return a list of licenses, contains one license (with the latest expiryDate) per registered features sorted by latest issueDate
      */
-    public List<ESLicense> getLicenses();
+    public List<License> getLicenses();
 }

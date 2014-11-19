@@ -3,13 +3,14 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.license.licensor.tools;
+package org.elasticsearch.license.tools;
 
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.cli.commons.MissingOptionException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.license.licensor.tools.KeyPairGeneratorTool.KeyPairGenerator;
+import org.elasticsearch.license.licensor.tools.KeyPairGeneratorTool;
+import org.elasticsearch.license.licensor.tools.KeyPairGeneratorTool.KeyGenerator;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -85,15 +86,15 @@ public class KeyPairGenerationToolTests extends CliToolTestCase {
         Command command = keyPairGeneratorTool.parse(KeyPairGeneratorTool.NAME, args("--privateKeyPath " + privateKeyPath
                 + " --publicKeyPath " + publicKeyPath));
 
-        assertThat(command, instanceOf(KeyPairGenerator.class));
-        KeyPairGenerator keyPairGenerator = (KeyPairGenerator) command;
-        assertThat(keyPairGenerator.privateKeyPath, equalTo(privateKeyPath));
-        assertThat(keyPairGenerator.publicKeyPath, equalTo(publicKeyPath));
+        assertThat(command, instanceOf(KeyGenerator.class));
+        KeyGenerator keyGenerator = (KeyGenerator) command;
+        assertThat(keyGenerator.privateKeyPath, equalTo(privateKeyPath));
+        assertThat(keyGenerator.publicKeyPath, equalTo(publicKeyPath));
 
         assertThat(Paths.get(publicKeyPath).toFile().exists(), equalTo(false));
         assertThat(Paths.get(privateKeyPath).toFile().exists(), equalTo(false));
 
-        assertThat(keyPairGenerator.execute(ImmutableSettings.EMPTY, new Environment(ImmutableSettings.EMPTY)), equalTo(ExitStatus.OK));
+        assertThat(keyGenerator.execute(ImmutableSettings.EMPTY, new Environment(ImmutableSettings.EMPTY)), equalTo(ExitStatus.OK));
         assertThat(Paths.get(publicKeyPath).toFile().exists(), equalTo(true));
         assertThat(Paths.get(privateKeyPath).toFile().exists(), equalTo(true));
 

@@ -16,9 +16,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.license.core.ESLicense;
-import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.licensor.ESLicenseSigner;
+import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.core.Licenses;
+import org.elasticsearch.license.licensor.LicenseSigner;
 
 import java.io.File;
 import java.io.IOException;
@@ -59,11 +59,11 @@ public class LicenseGeneratorTool extends CliTool {
                         option("lf", "licenseFile").required(false).hasArg(true)
                 ).build();
 
-        public final Set<ESLicense> licenseSpecs;
+        public final Set<License> licenseSpecs;
         public final String publicKeyFilePath;
         public final String privateKeyFilePath;
 
-        public LicenseGenerator(Terminal terminal, String publicKeyFilePath, String privateKeyFilePath, Set<ESLicense> licenseSpecs) {
+        public LicenseGenerator(Terminal terminal, String publicKeyFilePath, String privateKeyFilePath, Set<License> licenseSpecs) {
             super(terminal);
             this.licenseSpecs = licenseSpecs;
             this.privateKeyFilePath = privateKeyFilePath;
@@ -82,10 +82,10 @@ public class LicenseGeneratorTool extends CliTool {
                 return exitCmd(ExitStatus.USAGE, terminal, publicKeyPath + " does not exist");
             }
 
-            Set<ESLicense> licenseSpecs = new HashSet<>();
+            Set<License> licenseSpecs = new HashSet<>();
             if (licenseSpecSources != null) {
                 for (String licenseSpec : licenseSpecSources) {
-                    licenseSpecs.addAll(ESLicenses.fromSource(licenseSpec.getBytes(StandardCharsets.UTF_8), false));
+                    licenseSpecs.addAll(Licenses.fromSource(licenseSpec.getBytes(StandardCharsets.UTF_8), false));
                 }
             }
 
@@ -95,7 +95,7 @@ public class LicenseGeneratorTool extends CliTool {
                     if (doesNotExist(licenseSpecFilePath)) {
                         return exitCmd(ExitStatus.USAGE, terminal, licenseSpecFilePath + " does not exist");
                     }
-                    licenseSpecs.addAll(ESLicenses.fromSource(Files.readAllBytes(licenseSpecPath), false));
+                    licenseSpecs.addAll(Licenses.fromSource(Files.readAllBytes(licenseSpecPath), false));
                 }
             }
 
@@ -109,12 +109,12 @@ public class LicenseGeneratorTool extends CliTool {
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
 
             // sign
-            ESLicenseSigner signer = new ESLicenseSigner(privateKeyFilePath, publicKeyFilePath);
-            ImmutableSet<ESLicense> signedLicences = signer.sign(licenseSpecs);
+            LicenseSigner signer = new LicenseSigner(privateKeyFilePath, publicKeyFilePath);
+            ImmutableSet<License> signedLicences = signer.sign(licenseSpecs);
 
             // dump
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            ESLicenses.toXContent(signedLicences, builder, ToXContent.EMPTY_PARAMS);
+            Licenses.toXContent(signedLicences, builder, ToXContent.EMPTY_PARAMS);
             builder.flush();
             terminal.print(builder.string());
 

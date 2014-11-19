@@ -28,8 +28,6 @@
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
                 <include>org.elasticsearch:elasticsearch-license:*:exec</include>
-                <include>net.nicholaswilliams.java.licensing:licensing-core</include>
-                <include>net.nicholaswilliams.java.licensing:licensing-licensor-base</include>
                 <include>org.elasticsearch:elasticsearch</include>
             </includes>
             <excludes>

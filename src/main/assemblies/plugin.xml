@@ -14,13 +14,5 @@
                 <exclude>org.elasticsearch:elasticsearch</exclude>
             </excludes>
         </dependencySet>
-        <dependencySet>
-            <outputDirectory>/</outputDirectory>
-            <useProjectArtifact>true</useProjectArtifact>
-            <useTransitiveFiltering>true</useTransitiveFiltering>
-            <includes>
-                <include>net.nicholaswilliams.java.licensing:licensing-core</include>
-            </includes>
-        </dependencySet>
     </dependencySets>
 </assembly>

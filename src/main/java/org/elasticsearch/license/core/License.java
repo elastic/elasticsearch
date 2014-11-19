@@ -8,14 +8,11 @@ package org.elasticsearch.license.core;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
 
-public class ESLicense implements ToXContent {
+public class License implements ToXContent {
 
     private final String uid;
     private final String issuer;
@@ -28,8 +25,8 @@ public class ESLicense implements ToXContent {
     private final long expiryDate;
     private final int maxNodes;
 
-    private ESLicense(String uid, String issuer, String issuedTo, long issueDate, String type,
-                      String subscriptionType, String feature, String signature, long expiryDate, int maxNodes) {
+    private License(String uid, String issuer, String issuedTo, long issueDate, String type,
+                    String subscriptionType, String feature, String signature, long expiryDate, int maxNodes) {
         this.uid = uid;
         this.issuer = issuer;
         this.issuedTo = issuedTo;
@@ -113,7 +110,7 @@ public class ESLicense implements ToXContent {
         return signature;
     }
 
-    public void verify() {
+    public void validate() {
         if (issuer == null) {
             throw new IllegalStateException("issuer can not be null");
         } else if (issuedTo == null) {
@@ -137,8 +134,7 @@ public class ESLicense implements ToXContent {
         }
     }
 
-
-    static ESLicense readESLicense(StreamInput in) throws IOException {
+    static License readLicense(StreamInput in) throws IOException {
         in.readVInt(); // Version for future extensibility
         Builder builder = builder();
         builder.uid(in.readString());
@@ -170,7 +166,11 @@ public class ESLicense implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean restViewMode = params.paramAsBoolean(ESLicenses.REST_VIEW_MODE, false);
+        boolean licenseSpecMode = params.paramAsBoolean(Licenses.LICENSE_SPEC_VIEW_MODE, false);
+        boolean restViewMode = params.paramAsBoolean(Licenses.REST_VIEW_MODE, false);
+        if (licenseSpecMode && restViewMode) {
+            throw new IllegalArgumentException("can have either " + Licenses.REST_VIEW_MODE + " or " + Licenses.LICENSE_SPEC_VIEW_MODE);
+        }
         builder.startObject();
         if (restViewMode) {
             builder.field(XFields.STATUS, ((expiryDate - System.currentTimeMillis()) > 0l) ? "active" : "expired");
@@ -184,7 +184,7 @@ public class ESLicense implements ToXContent {
         builder.field(XFields.MAX_NODES, maxNodes);
         builder.field(XFields.ISSUED_TO, issuedTo);
         builder.field(XFields.ISSUER, issuer);
-        if (signature != null && !restViewMode) {
+        if (!licenseSpecMode && !restViewMode && signature != null) {
             builder.field(XFields.SIGNATURE, signature);
         }
         builder.endObject();
@@ -310,7 +310,7 @@ public class ESLicense implements ToXContent {
             return this;
         }
 
-        public Builder fromLicenseSpec(ESLicense license, String signature) {
+        public Builder fromLicenseSpec(License license, String signature) {
             return uid(license.uid())
                     .issuedTo(license.issuedTo())
                     .issueDate(license.issueDate())
@@ -372,12 +372,12 @@ public class ESLicense implements ToXContent {
             return this;
         }
 
-        public ESLicense build() {
-            return new ESLicense(uid, issuer, issuedTo, issueDate, type,
+        public License build() {
+            return new License(uid, issuer, issuedTo, issueDate, type,
                     subscriptionType, feature, signature, expiryDate, maxNodes);
         }
 
-        public Builder verify() {
+        public Builder validate() {
             if (issuer == null) {
                 throw new IllegalStateException("issuer can not be null");
             } else if (issuedTo == null) {

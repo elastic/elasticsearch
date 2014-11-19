@@ -5,16 +5,17 @@
  */
 package org.elasticsearch.license.plugin.core;
 
-import org.apache.commons.codec.binary.Base64;
-import org.elasticsearch.common.collect.ImmutableSet;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.core.ESLicense;
+import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.core.Licenses;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.io.IOException;
+import java.util.*;
+
+import static org.elasticsearch.license.core.CryptUtils.decrypt;
+import static org.elasticsearch.license.core.CryptUtils.encrypt;
 
 public class TrialLicenseUtils {
 
@@ -73,14 +74,14 @@ public class TrialLicenseUtils {
             return this;
         }
 
-        public ESLicense build() {
+        public License build() {
             if (expiryDate == -1) {
                 expiryDate = issueDate + duration.millis();
             }
             if (uid == null) {
                 uid = UUID.randomUUID().toString();
             }
-            return ESLicense.builder()
+            return License.builder()
                     .type(DEFAULT_TYPE)
                     .subscriptionType(DEFAULT_SUBSCRIPTION_TYPE)
                     .issuer(DEFAULT_ISSUER)
@@ -95,70 +96,17 @@ public class TrialLicenseUtils {
 
     }
 
-    public static Set<ESLicense> fromEncodedTrialLicenses(Set<String> encodedTrialLicenses) {
-        Set<ESLicense> licenses = new HashSet<>(encodedTrialLicenses.size());
-        for (String encodedTrialLicense : encodedTrialLicenses) {
-            licenses.add(fromEncodedTrialLicense(encodedTrialLicense));
-        }
-        return ImmutableSet.copyOf(licenses);
+    public static License fromEncodedTrialLicense(String encodedTrialLicense) throws IOException {
+        byte[] data = decrypt(Base64.decode(encodedTrialLicense));
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
+        parser.nextToken();
+        return License.builder().fromXContent(parser).build();
     }
 
-    public static ESLicense fromEncodedTrialLicense(String encodedTrialLicense) {
-        byte[] encodedBytes = Base64.decodeBase64(encodedTrialLicense);
-        ByteBuffer byteBuffer = ByteBuffer.wrap(encodedBytes);
-
-        int uidLen = byteBuffer.getInt();
-        byte[] uidBytes = new byte[uidLen];
-        byteBuffer.get(uidBytes);
-        String uid = new String(uidBytes, StandardCharsets.UTF_8);
-
-        int issuedToLen = byteBuffer.getInt();
-        byte[] issuedToBytes = new byte[issuedToLen];
-        byteBuffer.get(issuedToBytes);
-        String issuedTo = new String(issuedToBytes, StandardCharsets.UTF_8);
-
-        int featureLen = byteBuffer.getInt();
-        byte[] featureBytes = new byte[featureLen];
-        byteBuffer.get(featureBytes);
-        String feature = new String(featureBytes, StandardCharsets.UTF_8);
-
-        int maxNodes = byteBuffer.getInt();
-        long issueDate = byteBuffer.getLong();
-        long expiryDate = byteBuffer.getLong();
-
-        return builder()
-                .uid(uid)
-                .issuedTo(issuedTo)
-                .feature(feature)
-                .maxNodes(maxNodes)
-                .issueDate(issueDate)
-                .expiryDate(expiryDate)
-                .build();
-    }
-
-    public static String toEncodedTrialLicense(ESLicense trialLicense) {
-        byte[] uidBytes = trialLicense.uid().getBytes(StandardCharsets.UTF_8);
-        byte[] featureBytes = trialLicense.feature().getBytes(StandardCharsets.UTF_8);
-        byte[] issuedToBytes = trialLicense.issuedTo().getBytes(StandardCharsets.UTF_8);
-
-        // uid len + uid bytes + issuedTo len + issuedTo bytes + feature bytes length + feature bytes + maxNodes + issueDate + expiryDate
-        int len = 4 + uidBytes.length + 4 + issuedToBytes.length + 4 + featureBytes.length + 4 + 8 + 8;
-        final byte[] encodedLicense = new byte[len];
-        ByteBuffer byteBuffer = ByteBuffer.wrap(encodedLicense);
-
-        byteBuffer.putInt(uidBytes.length);
-        byteBuffer.put(uidBytes);
-
-        byteBuffer.putInt(issuedToBytes.length);
-        byteBuffer.put(issuedToBytes);
-
-        byteBuffer.putInt(featureBytes.length);
-        byteBuffer.put(featureBytes);
-
-        byteBuffer.putInt(trialLicense.maxNodes());
-        byteBuffer.putLong(trialLicense.issueDate());
-        byteBuffer.putLong(trialLicense.expiryDate());
-
-        return Base64.encodeBase64String(encodedLicense);
+    public static String toEncodedTrialLicense(License trialLicense) throws IOException {
+        XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+        // trial license is equivalent to a license spec (no signature)
+        trialLicense.toXContent(contentBuilder, new ToXContent.MapParams(Collections.singletonMap(Licenses.LICENSE_SPEC_VIEW_MODE, "true")));
+        return Base64.encodeBytes(encrypt(contentBuilder.bytes().toBytes()));
     }
 }

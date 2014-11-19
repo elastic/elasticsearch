@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license.licensor.tools;
 
-import net.nicholaswilliams.java.licensing.exception.InvalidLicenseException;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
@@ -16,9 +15,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.license.core.ESLicense;
-import org.elasticsearch.license.core.ESLicenses;
-import org.elasticsearch.license.manager.ESLicenseManager;
+import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.core.LicenseVerifier;
+import org.elasticsearch.license.core.Licenses;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,7 +37,7 @@ public class LicenseVerificationTool extends CliTool {
     public static final String NAME = "verify-license";
 
     private static final CliToolConfig CONFIG = config(NAME, LicenseVerificationTool.class)
-            .cmds(LicenseVerifier.CMD)
+            .cmds(LicenseVerificationTool.LicenseVerifier.CMD)
             .build();
 
     public LicenseVerificationTool() {
@@ -47,7 +46,7 @@ public class LicenseVerificationTool extends CliTool {
 
     @Override
     protected Command parse(String s, CommandLine commandLine) throws Exception {
-        return LicenseVerifier.parse(terminal, commandLine);
+        return LicenseVerificationTool.LicenseVerifier.parse(terminal, commandLine);
     }
 
     public static class LicenseVerifier extends Command {
@@ -58,9 +57,9 @@ public class LicenseVerificationTool extends CliTool {
                         option("lf", "licenseFile").required(false).hasArg(true)
                 ).build();
 
-        public final Set<ESLicense> licenses;
+        public final Set<License> licenses;
 
-        public LicenseVerifier(Terminal terminal, Set<ESLicense> licenses) {
+        public LicenseVerifier(Terminal terminal, Set<License> licenses) {
             super(terminal);
             this.licenses = licenses;
         }
@@ -69,10 +68,10 @@ public class LicenseVerificationTool extends CliTool {
             String[] licenseSources = commandLine.getOptionValues("license");
             String[] licenseSourceFiles = commandLine.getOptionValues("licenseFile");
 
-            Set<ESLicense> esLicenses = new HashSet<>();
+            Set<License> licenses = new HashSet<>();
             if (licenseSources != null) {
                 for (String licenseSpec : licenseSources) {
-                    esLicenses.addAll(ESLicenses.fromSource(licenseSpec.getBytes(StandardCharsets.UTF_8)));
+                    licenses.addAll(Licenses.fromSource(licenseSpec.getBytes(StandardCharsets.UTF_8)));
                 }
             }
 
@@ -82,31 +81,30 @@ public class LicenseVerificationTool extends CliTool {
                     if (!exists(licenseFilePath)) {
                         return exitCmd(ExitStatus.USAGE, terminal, licenseFilePath + " does not exist");
                     }
-                    esLicenses.addAll(ESLicenses.fromSource(Files.readAllBytes(licensePath)));
+                    licenses.addAll(Licenses.fromSource(Files.readAllBytes(licensePath)));
                 }
             }
 
-            if (esLicenses.size() == 0) {
+            if (licenses.size() == 0) {
                 return exitCmd(ExitStatus.USAGE, terminal, "no license provided");
             }
-            return new LicenseVerifier(terminal, esLicenses);
+            return new LicenseVerifier(terminal, licenses);
         }
 
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
 
             // verify
-            Map<String, ESLicense> effectiveLicenses = ESLicenses.reduceAndMap(licenses);
-            ESLicenseManager licenseManager = new ESLicenseManager();
-            try {
-                licenseManager.verifyLicenses(effectiveLicenses);
-            } catch (InvalidLicenseException e) {
+            Map<String, License> effectiveLicenses = Licenses.reduceAndMap(licenses);
+            org.elasticsearch.license.core.LicenseVerifier licenseVerifier = new org.elasticsearch.license.core.LicenseVerifier();
+
+            if (!org.elasticsearch.license.core.LicenseVerifier.verifyLicenses(effectiveLicenses.values())) {
                 return ExitStatus.DATA_ERROR;
             }
 
             // dump effective licences
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            ESLicenses.toXContent(effectiveLicenses.values(), builder, ToXContent.EMPTY_PARAMS);
+            Licenses.toXContent(effectiveLicenses.values(), builder, ToXContent.EMPTY_PARAMS);
             builder.flush();
             terminal.print(builder.string());
 

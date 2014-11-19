@@ -11,7 +11,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.license.core.ESLicenses;
+import org.elasticsearch.license.core.Licenses;
 import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
 import org.elasticsearch.license.plugin.action.get.GetLicenseRequest;
 import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
@@ -39,14 +39,14 @@ public class RestGetLicenseAction extends BaseRestHandler {
      */
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
-        final Map<String, String> overrideParams = ImmutableMap.of(ESLicenses.REST_VIEW_MODE, "true");
+        final Map<String, String> overrideParams = ImmutableMap.of(Licenses.REST_VIEW_MODE, "true");
         final ToXContent.Params params = new ToXContent.DelegatingMapParams(overrideParams, request);
         GetLicenseRequest getLicenseRequest = new GetLicenseRequest();
         getLicenseRequest.local(request.paramAsBoolean("local", getLicenseRequest.local()));
         client.admin().cluster().execute(GetLicenseAction.INSTANCE, getLicenseRequest, new RestBuilderListener<GetLicenseResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetLicenseResponse response, XContentBuilder builder) throws Exception {
-                ESLicenses.toXContent(response.licenses(), builder, params);
+                Licenses.toXContent(response.licenses(), builder, params);
                 return new BytesRestResponse(OK, builder);
             }
         });

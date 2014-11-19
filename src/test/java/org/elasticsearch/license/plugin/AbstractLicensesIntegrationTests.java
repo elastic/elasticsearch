@@ -15,8 +15,7 @@ import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.core.ESLicense;
-import org.elasticsearch.license.licensor.ESLicenseSigner;
+import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
 import org.elasticsearch.license.plugin.consumer.EagerLicenseRegistrationPluginService;
@@ -27,16 +26,13 @@ import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
-import org.junit.Ignore;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.license.AbstractLicensingTestBase.getTestPriKeyPath;
-import static org.elasticsearch.license.AbstractLicensingTestBase.getTestPubKeyPath;
+import static org.elasticsearch.license.TestUtils.generateSignedLicense;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -68,7 +64,7 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                mdBuilder.putCustom(LicensesMetaData.TYPE, null);
+                mdBuilder.removeCustom(LicensesMetaData.TYPE);
                 return ClusterState.builder(currentState).metaData(mdBuilder).build();
             }
 
@@ -80,25 +76,8 @@ public abstract class AbstractLicensesIntegrationTests extends ElasticsearchInte
         latch.await();
     }
 
-    public static ESLicense generateSignedLicense(String feature, TimeValue expiryDate) throws Exception {
-        final ESLicense licenseSpec = ESLicense.builder()
-                .uid(UUID.randomUUID().toString())
-                .feature(feature)
-                .expiryDate(System.currentTimeMillis() + expiryDate.getMillis())
-                .issueDate(System.currentTimeMillis())
-                .type("subscription")
-                .subscriptionType("gold")
-                .issuedTo("customer")
-                .issuer("elasticsearch")
-                .maxNodes(randomIntBetween(5, 100))
-                .build();
-
-        ESLicenseSigner signer = new ESLicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
-        return signer.sign(licenseSpec);
-    }
-
     protected void putLicense(String feature, TimeValue expiryDuration) throws Exception {
-        ESLicense license1 = generateSignedLicense(feature, expiryDuration);
+        License license1 = generateSignedLicense(feature, expiryDuration);
         final PutLicenseResponse putLicenseResponse = new PutLicenseRequestBuilder(client().admin().cluster()).setLicense(Lists.newArrayList(license1)).get();
         assertThat(putLicenseResponse.isAcknowledged(), equalTo(true));
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));

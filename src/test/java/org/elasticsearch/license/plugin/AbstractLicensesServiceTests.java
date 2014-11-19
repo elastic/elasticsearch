@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.core.ESLicense;
+import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.license.plugin.core.LicensesClientService;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
@@ -19,7 +19,6 @@ import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Before;
-import org.junit.Ignore;
 
 import java.util.HashSet;
 import java.util.List;
@@ -50,7 +49,7 @@ public abstract class AbstractLicensesServiceTests extends AbstractLicensesInteg
         node = nodes[randomIntBetween(0, nodes.length - 1)];
     }
 
-    protected void registerAndAckSignedLicenses(final LicensesManagerService masterLicensesManagerService, final List<ESLicense> license, final LicensesStatus expectedStatus) {
+    protected void registerAndAckSignedLicenses(final LicensesManagerService masterLicensesManagerService, final List<License> license, final LicensesStatus expectedStatus) {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().licenses(license);
         LicensesService.PutLicenseRequestHolder requestHolder = new LicensesService.PutLicenseRequestHolder(putLicenseRequest, "test");
         final CountDownLatch latch = new CountDownLatch(1);

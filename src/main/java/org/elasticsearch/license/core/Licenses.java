@@ -15,9 +15,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-public class ESLicenses {
+public final class Licenses {
 
-    public static final String REST_VIEW_MODE = "rest_api";
+    public static final String REST_VIEW_MODE = "rest_view";
+    public static final String LICENSE_SPEC_VIEW_MODE = "license_spec_view";
 
     private final static class Fields {
         static final String LICENSES = "licenses";
@@ -27,41 +28,43 @@ public class ESLicenses {
         static final XContentBuilderString LICENSES = new XContentBuilderString(Fields.LICENSES);
     }
 
-    public static void toXContent(Collection<ESLicense> licenses, XContentBuilder builder, ToXContent.Params params) throws IOException {
+    private Licenses() {}
+
+    public static void toXContent(Collection<License> licenses, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.startArray(XFields.LICENSES);
-        for (ESLicense license : licenses) {
+        for (License license : licenses) {
             license.toXContent(builder, params);
         }
         builder.endArray();
         builder.endObject();
     }
 
-    public static List<ESLicense> fromSource(String content) throws IOException {
+    public static List<License> fromSource(String content) throws IOException {
         return fromSource(content.getBytes(StandardCharsets.UTF_8), true);
     }
 
-    public static List<ESLicense> fromSource(byte[] bytes) throws IOException {
+    public static List<License> fromSource(byte[] bytes) throws IOException {
         return fromXContent(XContentFactory.xContent(bytes).createParser(bytes), true);
     }
 
-    public static List<ESLicense> fromSource(byte[] bytes, boolean verify) throws IOException {
+    public static List<License> fromSource(byte[] bytes, boolean verify) throws IOException {
         return fromXContent(XContentFactory.xContent(bytes).createParser(bytes), verify);
     }
 
-    public static List<ESLicense> fromXContent(XContentParser parser, boolean verify) throws IOException {
-        List<ESLicense> esLicenses = new ArrayList<>();
+    public static List<License> fromXContent(XContentParser parser, boolean verify) throws IOException {
+        List<License> licenses = new ArrayList<>();
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                 String currentFieldName = parser.currentName();
                 if (Fields.LICENSES.equals(currentFieldName)) {
                     if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            ESLicense.Builder builder = ESLicense.builder().fromXContent(parser);
+                            License.Builder builder = License.builder().fromXContent(parser);
                             if (verify) {
-                                builder.verify();
+                                builder.validate();
                             }
-                            esLicenses.add(builder.build());
+                            licenses.add(builder.build());
                         }
                     } else {
                         throw new ElasticsearchParseException("failed to parse licenses expected an array of licenses");
@@ -74,37 +77,37 @@ public class ESLicenses {
         } else {
             throw new ElasticsearchParseException("failed to parse licenses expected start object");
         }
-        return esLicenses;
+        return licenses;
     }
 
-    public static List<ESLicense> readFrom(StreamInput in) throws IOException {
+    public static List<License> readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
-        List<ESLicense> esLicenses = new ArrayList<>(size);
+        List<License> licenses = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            esLicenses.add(ESLicense.readESLicense(in));
+            licenses.add(License.readLicense(in));
         }
-        return esLicenses;
+        return licenses;
     }
 
-    public static void writeTo(List<ESLicense> esLicenses, StreamOutput out) throws IOException {
-        out.writeVInt(esLicenses.size());
-        for (ESLicense license : esLicenses) {
+    public static void writeTo(List<License> licenses, StreamOutput out) throws IOException {
+        out.writeVInt(licenses.size());
+        for (License license : licenses) {
             license.writeTo(out);
         }
     }
 
-    public static ImmutableMap<String, ESLicense> reduceAndMap(Set<ESLicense> esLicensesSet) {
-        Map<String, ESLicense> map = new HashMap<>(esLicensesSet.size());
-        for (ESLicense license : esLicensesSet) {
+    public static ImmutableMap<String, License> reduceAndMap(Set<License> licensesSet) {
+        Map<String, License> map = new HashMap<>(licensesSet.size());
+        for (License license : licensesSet) {
             putIfAppropriate(map, license);
         }
         return ImmutableMap.copyOf(map);
     }
 
-    private static void putIfAppropriate(Map<String, ESLicense> licenseMap, ESLicense license) {
+    private static void putIfAppropriate(Map<String, License> licenseMap, License license) {
         final String featureType = license.feature();
         if (licenseMap.containsKey(featureType)) {
-            final ESLicense previousLicense = licenseMap.get(featureType);
+            final License previousLicense = licenseMap.get(featureType);
             if (license.expiryDate() > previousLicense.expiryDate()) {
                 licenseMap.put(featureType, license);
             }

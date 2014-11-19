@@ -11,11 +11,10 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.core.DateUtils;
-import org.elasticsearch.license.core.ESLicense;
-import org.elasticsearch.license.licensor.ESLicenseSigner;
-import org.elasticsearch.license.manager.ESLicenseManager;
+import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.licensor.LicenseSigner;
+import org.elasticsearch.license.core.LicenseVerifier;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.runner.RunWith;
 
 import java.io.IOException;
@@ -50,27 +49,18 @@ public abstract class AbstractLicensingTestBase {
         priKeyPath = getResourcePath("/private.key");
     }
 
-    protected static String dateMathString(String time, long now) {
+    public static String dateMathString(String time, long now) {
         return dateTimeFormatter.print(dateMathParser.parse(time, now));
     }
 
-    protected static long dateMath(String time, long now) {
+    public static long dateMath(String time, long now) {
         return dateMathParser.parse(time, now);
     }
 
-    public static String getTestPriKeyPath() throws Exception {
-        return getResourcePath("/private.key");
-    }
-
-    public static String getTestPubKeyPath() throws Exception {
-        return getResourcePath("/public.key");
-    }
-
     public static String getResourcePath(String resource) throws Exception {
-        URL url = ESLicenseManager.class.getResource(resource);
+        URL url = LicenseVerifier.class.getResource(resource);
         return url.toURI().getPath();
     }
-
 
     public static LicenseSpec generateRandomLicenseSpec() {
         boolean datesInMillis = randomBoolean();
@@ -93,7 +83,7 @@ public abstract class AbstractLicensingTestBase {
         }
     }
 
-    public static String generateESLicenseSpecString(List<LicenseSpec> licenseSpecs) throws IOException {
+    public static String generateLicenseSpecString(List<LicenseSpec> licenseSpecs) throws IOException {
         XContentBuilder licenses = jsonBuilder();
         licenses.startObject();
         licenses.startArray("licenses");
@@ -124,11 +114,11 @@ public abstract class AbstractLicensingTestBase {
         return licenses.string();
     }
 
-    public static Set<ESLicense> generateSignedLicenses(List<LicenseSpec> licenseSpecs) throws Exception {
-        ESLicenseSigner signer = new ESLicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
-        Set<ESLicense> unSignedLicenses = new HashSet<>();
+    public static Set<License> generateSignedLicenses(List<LicenseSpec> licenseSpecs) throws Exception {
+        LicenseSigner signer = new LicenseSigner(priKeyPath, pubKeyPath);
+        Set<License> unSignedLicenses = new HashSet<>();
         for (LicenseSpec spec : licenseSpecs) {
-            ESLicense.Builder builder = ESLicense.builder()
+            License.Builder builder = License.builder()
                     .uid(spec.uid)
                     .feature(spec.feature)
                     .type(spec.type)
@@ -150,28 +140,6 @@ public abstract class AbstractLicensingTestBase {
             unSignedLicenses.add(builder.build());
         }
         return signer.sign(unSignedLicenses);
-    }
-
-    public static ESLicense generateSignedLicense(String feature, TimeValue expiryDuration) throws Exception {
-        return generateSignedLicense(feature, -1, expiryDuration);
-    }
-
-    public static ESLicense generateSignedLicense(String feature, long issueDate, TimeValue expiryDuration) throws Exception {
-        long issue = (issueDate != -1l) ? issueDate : System.currentTimeMillis();
-        final ESLicense licenseSpec = ESLicense.builder()
-                .uid(UUID.randomUUID().toString())
-                .feature(feature)
-                .expiryDate(issue + expiryDuration.getMillis())
-                .issueDate(issue)
-                .type("subscription")
-                .subscriptionType("gold")
-                .issuedTo("customer")
-                .issuer("elasticsearch")
-                .maxNodes(5)
-                .build();
-
-        ESLicenseSigner signer = new ESLicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
-        return signer.sign(licenseSpec);
     }
 
     public static class LicenseSpec {
@@ -222,7 +190,7 @@ public abstract class AbstractLicensingTestBase {
         }
     }
 
-    public static void assertLicenseSpec(LicenseSpec spec, ESLicense license) {
+    public static void assertLicenseSpec(LicenseSpec spec, License license) {
         assertThat(license.uid(), equalTo(spec.uid));
         assertThat(license.feature(), equalTo(spec.feature));
         assertThat(license.issuedTo(), equalTo(spec.issuedTo));

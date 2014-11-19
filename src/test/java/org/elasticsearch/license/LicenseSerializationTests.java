@@ -3,14 +3,14 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.license.licensor;
+package org.elasticsearch.license;
 
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.license.AbstractLicensingTestBase;
 import org.elasticsearch.license.core.DateUtils;
-import org.elasticsearch.license.core.ESLicense;
-import org.elasticsearch.license.core.ESLicenses;
+import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.core.Licenses;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -29,11 +29,11 @@ public class LicenseSerializationTests extends AbstractLicensingTestBase {
         long now = System.currentTimeMillis();
         String issueDate = dateMathString("now", now);
         String expiryDate = dateMathString("now+10d/d", now);
-        String licenseSpecs = generateESLicenseSpecString(Arrays.asList(new LicenseSpec("shield", issueDate, expiryDate)));
-        Set<ESLicense> esLicensesOutput = new HashSet<>(ESLicenses.fromSource(licenseSpecs.getBytes(StandardCharsets.UTF_8), false));
-        ESLicense generatedLicense = esLicensesOutput.iterator().next();
+        String licenseSpecs = generateLicenseSpecString(Arrays.asList(new LicenseSpec("shield", issueDate, expiryDate)));
+        Set<License> licensesOutput = new HashSet<>(Licenses.fromSource(licenseSpecs.getBytes(StandardCharsets.UTF_8), false));
+        License generatedLicense = licensesOutput.iterator().next();
 
-        assertThat(esLicensesOutput.size(), equalTo(1));
+        assertThat(licensesOutput.size(), equalTo(1));
         assertThat(generatedLicense.issueDate(), equalTo(DateUtils.beginningOfTheDay(issueDate)));
         assertThat(generatedLicense.expiryDate(), equalTo(DateUtils.endOfTheDay(expiryDate)));
     }
@@ -45,15 +45,15 @@ public class LicenseSerializationTests extends AbstractLicensingTestBase {
         String shieldExpiryDate = dateMathString("now+30d/d", now);
         String marvelIssueDate = dateMathString("now", now);
         String marvelExpiryDate = dateMathString("now+60d/d", now);
-        String licenseSpecs = generateESLicenseSpecString(Arrays.asList(new LicenseSpec("shield", shieldIssueDate, shieldExpiryDate)));
-        String licenseSpecs1 = generateESLicenseSpecString(Arrays.asList(new LicenseSpec("marvel", marvelIssueDate, marvelExpiryDate)));
-        Set<ESLicense> esLicensesOutput = new HashSet<>();
-        esLicensesOutput.addAll(ESLicenses.fromSource(licenseSpecs.getBytes(StandardCharsets.UTF_8), false));
-        esLicensesOutput.addAll(ESLicenses.fromSource(licenseSpecs1.getBytes(StandardCharsets.UTF_8), false));
-        assertThat(esLicensesOutput.size(), equalTo(2));
-        for (ESLicense esLicense : esLicensesOutput) {
-            assertThat(esLicense.issueDate(), equalTo(DateUtils.beginningOfTheDay((esLicense.feature().equals("shield")) ? shieldIssueDate : marvelIssueDate)));
-            assertThat(esLicense.expiryDate(), equalTo(DateUtils.endOfTheDay((esLicense.feature().equals("shield")) ? shieldExpiryDate : marvelExpiryDate)));
+        String licenseSpecs = generateLicenseSpecString(Arrays.asList(new LicenseSpec("shield", shieldIssueDate, shieldExpiryDate)));
+        String licenseSpecs1 = generateLicenseSpecString(Arrays.asList(new LicenseSpec("marvel", marvelIssueDate, marvelExpiryDate)));
+        Set<License> licensesOutput = new HashSet<>();
+        licensesOutput.addAll(Licenses.fromSource(licenseSpecs.getBytes(StandardCharsets.UTF_8), false));
+        licensesOutput.addAll(Licenses.fromSource(licenseSpecs1.getBytes(StandardCharsets.UTF_8), false));
+        assertThat(licensesOutput.size(), equalTo(2));
+        for (License license : licensesOutput) {
+            assertThat(license.issueDate(), equalTo(DateUtils.beginningOfTheDay((license.feature().equals("shield")) ? shieldIssueDate : marvelIssueDate)));
+            assertThat(license.expiryDate(), equalTo(DateUtils.endOfTheDay((license.feature().equals("shield")) ? shieldExpiryDate : marvelExpiryDate)));
         }
     }
 
@@ -66,11 +66,11 @@ public class LicenseSerializationTests extends AbstractLicensingTestBase {
         }
 
         ArrayList<LicenseSpec> specs = new ArrayList<>(licenseSpecs.values());
-        String licenseSpecsSource = generateESLicenseSpecString(specs);
-        Set<ESLicense> esLicensesOutput = new HashSet<>(ESLicenses.fromSource(licenseSpecsSource.getBytes(StandardCharsets.UTF_8), false));
-        assertThat(esLicensesOutput.size(), equalTo(licenseSpecs.size()));
+        String licenseSpecsSource = generateLicenseSpecString(specs);
+        Set<License> licensesOutput = new HashSet<>(Licenses.fromSource(licenseSpecsSource.getBytes(StandardCharsets.UTF_8), false));
+        assertThat(licensesOutput.size(), equalTo(licenseSpecs.size()));
 
-        for (ESLicense license : esLicensesOutput) {
+        for (License license : licensesOutput) {
             LicenseSpec spec = licenseSpecs.get(license.feature());
             assertThat(spec, notNullValue());
             assertLicenseSpec(spec, license);
@@ -83,13 +83,13 @@ public class LicenseSerializationTests extends AbstractLicensingTestBase {
         String expiredLicenseExpiryDate = dateMathString("now-1d/d", now);
         String validLicenseIssueDate = dateMathString("now-10d/d", now);
         String validLicenseExpiryDate = dateMathString("now+1d/d", now);
-        Set<ESLicense> licenses = generateSignedLicenses(Arrays.asList(new LicenseSpec("expired_feature", validLicenseIssueDate, expiredLicenseExpiryDate)
+        Set<License> licenses = generateSignedLicenses(Arrays.asList(new LicenseSpec("expired_feature", validLicenseIssueDate, expiredLicenseExpiryDate)
                 , new LicenseSpec("valid_feature", validLicenseIssueDate, validLicenseExpiryDate)));
 
         assertThat(licenses.size(), equalTo(2));
-        for (ESLicense license : licenses) {
+        for (License license : licenses) {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            license.toXContent(builder, new ToXContent.MapParams(ImmutableMap.of(ESLicenses.REST_VIEW_MODE, "true")));
+            license.toXContent(builder, new ToXContent.MapParams(ImmutableMap.of(Licenses.REST_VIEW_MODE, "true")));
             builder.flush();
             Map<String, Object> map = XContentHelper.convertToMap(builder.bytesStream().bytes(), false).v2();
             assertThat(map.get("status"), notNullValue());
@@ -100,7 +100,7 @@ public class LicenseSerializationTests extends AbstractLicensingTestBase {
             }
         }
 
-        for (ESLicense license : licenses) {
+        for (License license : licenses) {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             license.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.flush();

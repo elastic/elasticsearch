@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.TestUtils;
-import org.elasticsearch.license.core.ESLicense;
+import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.action.get.GetLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.get.GetLicenseResponse;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
@@ -28,16 +28,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.license.TestUtils.generateSignedLicense;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0)
 public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests {
 
     private final String[] FEATURES = {EagerLicenseRegistrationPluginService.FEATURE_NAME, LazyLicenseRegistrationPluginService.FEATURE_NAME};
-
-    private final int trialLicenseDurationInSeconds = 2;
 
     protected Settings transportClientSettings() {
         return super.transportClientSettings();
@@ -55,8 +55,8 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
                 .put("plugins.load_classpath_plugins", false)
                 .put("node.data", true)
                 .put("format", "json")
-                .put(EagerLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", trialLicenseDurationInSeconds)
-                .put(LazyLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", trialLicenseDurationInSeconds)
+                .put(EagerLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", 2)
+                .put(LazyLicenseRegistrationConsumerPlugin.NAME + ".trial_license_duration_in_seconds", 2)
                 .putArray("plugin.types", LicensePlugin.class.getName(), EagerLicenseRegistrationConsumerPlugin.class.getName(), LazyLicenseRegistrationConsumerPlugin.class.getName())
                 .put(InternalNode.HTTP_ENABLED, true);
     }
@@ -73,7 +73,7 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
         ensureGreen();
 
         logger.info("--> put signed license");
-        final List<ESLicense> licenses = generateAndPutLicenses();
+        final List<License> licenses = generateAndPutLicenses();
         getAndCheckLicense(licenses);
         logger.info("--> restart all nodes");
         internalCluster().fullRestart();
@@ -114,14 +114,14 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
 
         logger.info("--> check if multiple trial licenses are found for a feature");
         LicensesMetaData licensesMetaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesMetaData.getEncodedTrialLicenses().size(), equalTo(FEATURES.length));
+        assertThat(licensesMetaData.getTrialLicenses().size(), equalTo(FEATURES.length));
 
         wipeAllLicenses();
     }
 
-    private List<ESLicense> generateAndPutLicenses() throws Exception {
+    private List<License> generateAndPutLicenses() throws Exception {
         ClusterAdminClient cluster = internalCluster().client().admin().cluster();
-        List<ESLicense> putLicenses = new ArrayList<>(FEATURES.length);
+        List<License> putLicenses = new ArrayList<>(FEATURES.length);
         for (String feature : FEATURES) {
              putLicenses.add(generateSignedLicense(feature, TimeValue.timeValueMinutes(1)));
         }
@@ -137,11 +137,15 @@ public class LicensesServiceClusterTest extends AbstractLicensesIntegrationTests
         return putLicenses;
     }
 
-    private void getAndCheckLicense(List<ESLicense> licenses) {
+    private void getAndCheckLicense(List<License> licenses) {
         ClusterAdminClient cluster = internalCluster().client().admin().cluster();
         final GetLicenseResponse response = new GetLicenseRequestBuilder(cluster).get();
         assertThat(response.licenses().size(), equalTo(licenses.size()));
         TestUtils.isSame(licenses, response.licenses());
+
+        LicensesMetaData licensesMetaData = clusterService().state().metaData().custom(LicensesMetaData.TYPE);
+        assertThat(licensesMetaData, notNullValue());
+        assertThat(licensesMetaData.getTrialLicenses().size(), equalTo(2));
     }
 
     private void assertLicenseManagerFeatureEnabled() throws Exception {

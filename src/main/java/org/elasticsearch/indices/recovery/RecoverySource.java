@@ -19,21 +19,30 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
@@ -54,6 +63,7 @@ public class RecoverySource extends AbstractComponent {
 
     private final TimeValue internalActionTimeout;
     private final TimeValue internalActionLongTimeout;
+    private final OngoingRecoveres ongoingRecoveries = new OngoingRecoveres();
 
 
     @Inject
@@ -64,6 +74,14 @@ public class RecoverySource extends AbstractComponent {
         this.indicesService = indicesService;
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.clusterService = clusterService;
+        this.indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
+            @Override
+            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
+                if (indexShard != null) {
+                    ongoingRecoveries.cancel(indexShard, "shard is closed");
+                }
+            }
+        });
 
         this.recoverySettings = recoverySettings;
 
@@ -102,10 +120,14 @@ public class RecoverySource extends AbstractComponent {
 
         logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().index().name(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
 
-        ShardRecoveryHandler handler = new ShardRecoveryHandler(shard, request, recoverySettings, transportService, internalActionTimeout,
+        final ShardRecoveryHandler handler = new ShardRecoveryHandler(shard, request, recoverySettings, transportService, internalActionTimeout,
                 internalActionLongTimeout, clusterService, indicesService, mappingUpdatedAction, logger);
-
-        shard.recover(handler);
+        ongoingRecoveries.add(shard, handler);
+        try {
+            shard.recover(handler);
+        } finally {
+            ongoingRecoveries.remove(shard, handler);
+        }
         return handler.getResponse();
     }
 
@@ -125,6 +147,46 @@ public class RecoverySource extends AbstractComponent {
         public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel) throws Exception {
             RecoveryResponse response = recover(request);
             channel.sendResponse(response);
+        }
+    }
+
+
+    private static final class OngoingRecoveres {
+        private final Map<IndexShard, Set<ShardRecoveryHandler>> ongoingRecoveries = new HashMap<>();
+
+        synchronized void add(IndexShard shard, ShardRecoveryHandler handler) {
+            Set<ShardRecoveryHandler> shardRecoveryHandlers = ongoingRecoveries.get(shard);
+            if (shardRecoveryHandlers == null) {
+                shardRecoveryHandlers = new HashSet<>();
+                ongoingRecoveries.put(shard, shardRecoveryHandlers);
+            }
+            assert shardRecoveryHandlers.contains(handler) == false : "Handler was already registered [" + handler + "]";
+            shardRecoveryHandlers.add(handler);
+        }
+
+        synchronized void remove(IndexShard shard, ShardRecoveryHandler handler) {
+            final Set<ShardRecoveryHandler> shardRecoveryHandlers = ongoingRecoveries.get(shard);
+            assert shardRecoveryHandlers != null : "Shard was not registered [" + shard + "]";
+            boolean remove = shardRecoveryHandlers.remove(handler);
+            assert remove : "Handler was not registered [" + handler + "]";
+            if (shardRecoveryHandlers.isEmpty()) {
+                ongoingRecoveries.remove(shard);
+            }
+        }
+
+        synchronized void cancel(IndexShard shard, String reason) {
+            final Set<ShardRecoveryHandler> shardRecoveryHandlers = ongoingRecoveries.get(shard);
+            if (shardRecoveryHandlers != null) {
+                final List<Exception> failures = new ArrayList<>();
+                for (ShardRecoveryHandler handlers : shardRecoveryHandlers) {
+                    try {
+                        handlers.cancel(reason);
+                    } catch (Exception ex) {
+                        failures.add(ex);
+                    }
+                }
+                ExceptionsHelper.maybeThrowRuntimeAndSuppress(failures);
+            }
         }
     }
 }

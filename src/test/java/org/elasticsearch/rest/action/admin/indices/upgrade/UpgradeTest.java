@@ -194,7 +194,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         return path;
     }
     
-    static void assertNotUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
+    public static void assertNotUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
         for (UpgradeStatus status : getUpgradeStatus(httpClient, upgradePath(index))) {
             assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
             // TODO: it would be better for this to be strictly greater, but sometimes an extra flush
@@ -205,7 +205,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         }
     }
 
-    static void assertUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
+    public static void assertUpgraded(HttpRequestBuilder httpClient, String index) throws Exception {
         for (UpgradeStatus status : getUpgradeStatus(httpClient, upgradePath(index))) {
             assertTrue("index " + status.indexName + " should not be zero sized", status.totalBytes != 0);
             assertEquals("index " + status.indexName + " should be upgraded",
@@ -224,7 +224,9 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
                 for (ShardSegments segs : shard.getShards()) {
                     for (Segment seg : segs.getSegments()) {
                         assertEquals("Index " + indexSegments.getIndex() + " has unupgraded segment " + seg.toString(),
-                                     Version.CURRENT.luceneVersion, seg.version);
+                                     Version.CURRENT.luceneVersion.major, seg.version.major);
+                        assertEquals("Index " + indexSegments.getIndex() + " has unupgraded segment " + seg.toString(),
+                                     Version.CURRENT.luceneVersion.minor, seg.version.minor);
                     }
                 }
             }
@@ -253,7 +255,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         }
     }
     
-    static void runUpgrade(HttpRequestBuilder httpClient, String index, String... params) throws Exception {
+    public static void runUpgrade(HttpRequestBuilder httpClient, String index, String... params) throws Exception {
         assert params.length % 2 == 0;
         HttpRequestBuilder builder = httpClient.method("POST").path(upgradePath(index));
         for (int i = 0; i < params.length; i += 2) {

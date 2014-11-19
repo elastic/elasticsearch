@@ -1062,9 +1062,9 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Stops a random data node in the cluster.
+     * Stops a random data node in the cluster. Returns true if a node was found to stop, false otherwise.
      */
-    public synchronized void stopRandomDataNode() throws IOException {
+    public synchronized boolean stopRandomDataNode() throws IOException {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new DataNodePredicate());
         if (nodeAndClient != null) {
@@ -1072,7 +1072,9 @@ public final class InternalTestCluster extends TestCluster {
             removeDisruptionSchemeFromNode(nodeAndClient);
             nodes.remove(nodeAndClient.name);
             nodeAndClient.close();
+            return true;
         }
+        return false;
     }
 
     /**

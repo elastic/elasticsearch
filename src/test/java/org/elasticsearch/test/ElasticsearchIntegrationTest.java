@@ -29,6 +29,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -107,6 +108,8 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.hamcrest.Matchers;
 import org.junit.*;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -1790,6 +1793,36 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         } else {
             INSTANCE = null;
         }
+    }
+
+    /**
+     * Return settings that could be used to start a node that has the given zipped home directory.
+     */
+    protected Settings prepareBackwardsDataDir(File backwardsIndex, Object... settings) throws IOException {
+        File indexDir = newTempDir();
+        File dataDir = new File(indexDir, "data");
+        TestUtil.unzip(backwardsIndex, indexDir);
+        assertTrue(dataDir.exists());
+        String[] list = dataDir.list();
+        if (list == null || list.length > 1) {
+            throw new IllegalStateException("Backwards index must contain exactly one cluster");
+        }
+        File src = new File(dataDir, list[0]);
+        File dest = new File(dataDir, internalCluster().getClusterName());
+        assertTrue(src.exists());
+        src.renameTo(dest);
+        assertFalse(src.exists());
+        assertTrue(dest.exists());
+        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+            .put(settings)
+            .put("gateway.type", "local") // this is important we need to recover from gateway
+            .put("path.data", dataDir.getPath());
+
+        File configDir = new File(indexDir, "config");
+        if (configDir.exists()) {
+            builder.put("path.conf", configDir.getPath());
+        }
+        return builder.build();
     }
 
     /**

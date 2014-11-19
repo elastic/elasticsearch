@@ -9,12 +9,8 @@ package org.elasticsearch.alerts.actions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.AlertManager;
-import org.elasticsearch.alerts.AlertUtils;
-import org.elasticsearch.alerts.AlertsStore;
+import org.elasticsearch.alerts.*;
 import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.plugin.AlertsPlugin;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
@@ -23,18 +19,15 @@ import org.elasticsearch.alerts.transport.actions.put.PutAlertRequest;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedTrigger;
+import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -53,24 +46,7 @@ import static org.hamcrest.core.Is.is;
 /**
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0, numDataNodes = 1)
-public class AlertActionsTest extends ElasticsearchIntegrationTest {
-
-
-    private static final FormatDateTimeFormatter formatter = DateFieldMapper.Defaults.DATE_TIME_FORMATTER;
-
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("plugin.mandatory", "alerts")
-                .put("plugin.types", AlertsPlugin.class.getName())
-                .put("node.mode", "network")
-                .put("plugins.load_classpath_plugins", false)
-                .build();
-    }
-
-
+public class AlertActionsTest extends AbstractAlertingTests {
 
     @Test
     public void testAlertActionParser() throws Exception {
@@ -95,8 +71,8 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         builder.startObject();
         builder.field(AlertActionManager.ALERT_NAME_FIELD, "testName");
         builder.field(AlertActionManager.TRIGGERED_FIELD, true);
-        builder.field(AlertActionManager.FIRE_TIME_FIELD, formatter.printer().print(fireTime));
-        builder.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, formatter.printer().print(scheduledFireTime));
+        builder.field(AlertActionManager.FIRE_TIME_FIELD, TriggerManager.dateTimeFormatter.printer().print(fireTime));
+        builder.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, TriggerManager.dateTimeFormatter.printer().print(scheduledFireTime));
         builder.field(AlertActionManager.TRIGGER_FIELD, triggerMap);
         SearchRequest searchRequest = new SearchRequest("test123");
         builder.field(AlertActionManager.REQUEST);
@@ -111,8 +87,8 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         builder.field(AlertActionManager.ACTIONS_FIELD, actionMap);
         builder.field(AlertActionManager.STATE, AlertActionState.SEARCH_NEEDED.toString());
         builder.endObject();
-        final AlertActionRegistry alertActionRegistry = internalCluster().getInstance(AlertActionRegistry.class, internalCluster().getMasterName());
-        final AlertActionManager alertManager = internalCluster().getInstance(AlertActionManager.class, internalCluster().getMasterName());
+        final AlertActionRegistry alertActionRegistry = internalTestCluster().getInstance(AlertActionRegistry.class, internalTestCluster().getMasterName());
+        final AlertActionManager alertManager = internalTestCluster().getInstance(AlertActionManager.class, internalTestCluster().getMasterName());
 
         AlertActionEntry actionEntry = alertManager.parseHistory("foobar", builder.bytes(), 0, alertActionRegistry);
         assertEquals(actionEntry.getVersion(), 0);
@@ -138,7 +114,7 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
                 .setSource(jsonBuilder().startObject().startObject("template").startObject("match_all").endObject().endObject().endObject())
                 .get();
 
-        final AlertManager alertManager = internalCluster().getInstance(AlertManager.class, internalCluster().getMasterName());
+        final AlertManager alertManager = internalTestCluster().getInstance(AlertManager.class, internalTestCluster().getMasterName());
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -160,7 +136,7 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
             }
 
         };
-        AlertActionRegistry alertActionRegistry = internalCluster().getInstance(AlertActionRegistry.class, internalCluster().getMasterName());
+        AlertActionRegistry alertActionRegistry = internalTestCluster().getInstance(AlertActionRegistry.class, internalTestCluster().getMasterName());
         alertActionRegistry.registerAction("test", new AlertActionFactory() {
             @Override
             public AlertAction createAction(XContentParser parser) throws IOException {
@@ -194,7 +170,7 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
-        AlertsClient alertsClient = internalCluster().getInstance(AlertsClient.class, internalCluster().getMasterName());
+        AlertsClient alertsClient = internalTestCluster().getInstance(AlertsClient.class, internalTestCluster().getMasterName());
 
         PutAlertRequest alertRequest = alertsClient.preparePutAlert().setAlertName("my-first-alert").setAlertSource(jsonBuilder.bytes()).request();
         PutAlertResponse alertsResponse = alertsClient.putAlert(alertRequest).actionGet();

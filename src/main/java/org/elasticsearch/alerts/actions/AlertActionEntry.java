@@ -191,7 +191,10 @@ public class AlertActionEntry implements ToXContent{
         historyEntry.field("triggered", triggered);
         historyEntry.field("fire_time", fireTime.toDateTimeISO());
         historyEntry.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, scheduledTime.toDateTimeISO());
-        historyEntry.field("trigger", trigger, params);
+        historyEntry.field("trigger");
+        historyEntry.startObject();
+        historyEntry.field(trigger.getTriggerName(), trigger, params);
+        historyEntry.endObject();
 
         if (searchRequest != null) {
             historyEntry.field("request");

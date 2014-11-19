@@ -169,14 +169,17 @@ public class AlertActionManager extends AbstractComponent {
                 .setTypes(ALERT_HISTORY_TYPE)
                 .setIndices(ALERT_HISTORY_INDEX).get();
         try {
-            while (response.getHits().hits().length != 0) {
-                for (SearchHit sh : response.getHits()) {
-                    String historyId = sh.getId();
-                    AlertActionEntry historyEntry = parseHistory(historyId, sh.getSourceRef(), sh.version(), actionRegistry);
-                    assert historyEntry.getEntryState() == AlertActionState.SEARCH_NEEDED;
-                    actionsToBeProcessed.add(historyEntry);
-                }
+            if (response.getHits().getTotalHits() > 0) {
                 response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
+                while (response.getHits().hits().length != 0) {
+                    for (SearchHit sh : response.getHits()) {
+                        String historyId = sh.getId();
+                        AlertActionEntry historyEntry = parseHistory(historyId, sh.getSourceRef(), sh.version(), actionRegistry);
+                        assert historyEntry.getEntryState() == AlertActionState.SEARCH_NEEDED;
+                        actionsToBeProcessed.add(historyEntry);
+                    }
+                    response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
+                }
             }
         } finally {
             client.prepareClearScroll().addScrollId(response.getScrollId()).get();
@@ -189,6 +192,7 @@ public class AlertActionManager extends AbstractComponent {
         AlertActionEntry entry = new AlertActionEntry();
         entry.setId(historyId);
         entry.setVersion(version);
+
         try (XContentParser parser = XContentHelper.createParser(source)) {
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();
@@ -197,7 +201,6 @@ public class AlertActionManager extends AbstractComponent {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    logger.error("START_OBJECT");
                     switch (currentFieldName) {
                         case ACTIONS_FIELD:
                             entry.setActions(actionRegistry.instantiateAlertActions(parser));
@@ -216,7 +219,6 @@ public class AlertActionManager extends AbstractComponent {
                             throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
-                    logger.error("IS_VALUE");
                     switch (currentFieldName) {
                         case ALERT_NAME_FIELD:
                             entry.setAlertName(parser.text());

@@ -20,8 +20,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
@@ -30,6 +29,8 @@ import org.elasticsearch.search.SearchHit;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class TriggerManager extends AbstractComponent {
 
@@ -111,10 +112,12 @@ public class TriggerManager extends AbstractComponent {
             }
 
         }
-        return isTriggered(alert.trigger(), request, response);
+        XContentBuilder builder = jsonBuilder().startObject().value(response).endObject();
+        Map<String, Object> responseMap = XContentHelper.convertToMap(builder.bytes(), false).v2();
+        return isTriggered(alert.trigger(), request, responseMap);
     }
 
-    protected TriggerResult isTriggered(AlertTrigger trigger, SearchRequest request, SearchResponse response) {
+    protected TriggerResult isTriggered(AlertTrigger trigger, SearchRequest request, Map<String, Object> response) {
         TriggerFactory factory = triggersImplemented.get(trigger.getTriggerName());
 
         if (factory == null) {

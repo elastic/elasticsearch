@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -50,7 +49,7 @@ public class AlertActionManager extends AbstractComponent {
     public static final String ERROR_MESSAGE = "error_msg";
     public static final String TRIGGER_FIELD = "trigger";
     public static final String REQUEST = "request";
-    public static final String RESPONSE = "response_binary";
+    public static final String RESPONSE = "response";
     public static final String ACTIONS_FIELD = "actions";
 
     public static final String ALERT_HISTORY_INDEX = ".alert_history";
@@ -211,9 +210,8 @@ public class AlertActionManager extends AbstractComponent {
                         case REQUEST:
                             entry.setSearchRequest(AlertUtils.readSearchRequest(parser));
                             break;
-                        case "response":
-                            // Ignore this, the binary form is already read
-                            parser.skipChildren();
+                        case RESPONSE:
+                            entry.setSearchResponse(parser.map());
                             break;
                         default:
                             throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
@@ -231,11 +229,6 @@ public class AlertActionManager extends AbstractComponent {
                             break;
                         case SCHEDULED_FIRE_TIME_FIELD:
                             entry.setScheduledTime(DateTime.parse(parser.text()));
-                            break;
-                        case RESPONSE:
-                            SearchResponse response = new SearchResponse();
-                            response.readFrom(new BytesStreamInput(parser.binaryValue(), false));
-                            entry.setSearchResponse(response);
                             break;
                         case ERROR_MESSAGE:
                             entry.setErrorMsg(parser.textOrNull());

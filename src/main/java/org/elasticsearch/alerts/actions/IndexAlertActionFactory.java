@@ -12,10 +12,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+
 import java.io.IOException;
 
 /**
@@ -70,7 +70,7 @@ public class IndexAlertActionFactory implements AlertActionFactory {
         try {
             XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
             resultBuilder.startObject();
-            resultBuilder = result.getResponse().toXContent(resultBuilder, ToXContent.EMPTY_PARAMS);
+            resultBuilder.field("response", result.getResponse());
             resultBuilder.field("timestamp", alert.lastActionFire()); ///@TODO FIXME the firetime should be in the result ?
             resultBuilder.endObject();
             indexRequest.source(resultBuilder);

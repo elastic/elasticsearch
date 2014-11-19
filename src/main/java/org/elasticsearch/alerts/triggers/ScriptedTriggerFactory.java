@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
@@ -70,35 +69,22 @@ public class ScriptedTriggerFactory implements TriggerFactory {
     }
 
     @Override
-    public boolean isTriggered(AlertTrigger trigger, SearchRequest request, SearchResponse response) {
+    public boolean isTriggered(AlertTrigger trigger, SearchRequest request, Map<String, Object> response) {
         if (! (trigger instanceof ScriptedTrigger) ){
             throw new ElasticsearchIllegalStateException("Failed to evaluate isTriggered expected type ["
                     + ScriptedTrigger.class + "] got [" + trigger.getClass() + "]");
         }
 
         ScriptedTrigger scriptedTrigger = (ScriptedTrigger)trigger;
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
-            builder = response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            Map<String, Object> responseMap = XContentHelper.convertToMap(builder.bytes(), false).v2();
-
-
-            ExecutableScript executable = scriptService.executable(
-                    scriptedTrigger.getScriptLang(), scriptedTrigger.getScript(), scriptedTrigger.getScriptType(), responseMap
-            );
-
-            Object returnValue = executable.run();
-            if (returnValue instanceof Boolean) {
-                return (Boolean) returnValue;
-            } else {
-                throw new ElasticsearchIllegalStateException("Trigger script [" + scriptedTrigger + "] did not return a Boolean");
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchException("Failed to execute trigger", e);
+        ExecutableScript executable = scriptService.executable(
+                scriptedTrigger.getScriptLang(), scriptedTrigger.getScript(), scriptedTrigger.getScriptType(), response
+        );
+        Object returnValue = executable.run();
+        if (returnValue instanceof Boolean) {
+            return (Boolean) returnValue;
+        } else {
+            throw new ElasticsearchIllegalStateException("Trigger script [" + scriptedTrigger + "] did not return a Boolean");
         }
-
     }
 
 }

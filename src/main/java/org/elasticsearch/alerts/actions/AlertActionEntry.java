@@ -6,24 +6,21 @@
 package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertUtils;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
-import org.elasticsearch.common.io.stream.DataOutputStreamOutput;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * An alert action entry is an event of an alert that fired on particular moment in time.
  */
-public class AlertActionEntry implements ToXContent{
+public class AlertActionEntry implements ToXContent {
 
     private String id;
     private long version;
@@ -37,7 +34,7 @@ public class AlertActionEntry implements ToXContent{
 
     /*Optional*/
     private SearchRequest searchRequest;
-    private SearchResponse searchResponse;
+    private Map<String, Object> searchResponse;
     private boolean triggered;
     private String errorMsg;
 
@@ -135,11 +132,11 @@ public class AlertActionEntry implements ToXContent{
     /**
      * @return The search response that resulted at out the search request that ran.
      */
-    public SearchResponse getSearchResponse() {
+    public Map<String, Object> getSearchResponse() {
         return searchResponse;
     }
 
-    public void setSearchResponse(SearchResponse searchResponse) {
+    public void setSearchResponse(Map<String, Object> searchResponse) {
         this.searchResponse = searchResponse;
     }
 
@@ -191,24 +188,10 @@ public class AlertActionEntry implements ToXContent{
         historyEntry.field("triggered", triggered);
         historyEntry.field("fire_time", fireTime.toDateTimeISO());
         historyEntry.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, scheduledTime.toDateTimeISO());
-        historyEntry.field("trigger");
-        historyEntry.startObject();
-        historyEntry.field(trigger.getTriggerName(), trigger, params);
-        historyEntry.endObject();
-
-        if (searchRequest != null) {
-            historyEntry.field("request");
-            AlertUtils.writeSearchRequest(searchRequest, historyEntry, params);
-        }
-        if (searchResponse != null) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            searchResponse.writeTo(new DataOutputStreamOutput(new DataOutputStream(out)));
-            historyEntry.field("response_binary", out.toByteArray());
-            // Serializing it as xcontent allows the search response to be encapsulated in a doc as a json object
-            historyEntry.startObject("response");
-            searchResponse.toXContent(historyEntry, params);
-            historyEntry.endObject();
-        }
+        historyEntry.field("trigger", trigger, params);
+        historyEntry.field("request");
+        AlertUtils.writeSearchRequest(searchRequest, historyEntry, params);
+        historyEntry.field("response", searchResponse);
 
         historyEntry.startObject("actions");
         for (AlertAction action : actions) {

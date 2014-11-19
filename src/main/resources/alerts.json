@@ -32,9 +32,6 @@
           "enabled" : false,
           "dynamic" : true
         },
-        "request_binary": {
-          "type" : "binary"
-        },
         "request": {
           "type" : "object",
           "enabled" : false,

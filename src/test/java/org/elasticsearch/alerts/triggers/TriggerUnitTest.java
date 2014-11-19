@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptEngineService;
@@ -25,7 +26,10 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 
 public class TriggerUnitTest extends ElasticsearchTestCase {
@@ -69,14 +73,16 @@ public class TriggerUnitTest extends ElasticsearchTestCase {
 
 
             SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
-            assertFalse(triggerManager.isTriggered(trigger, request, response).isTriggered());
+            XContentBuilder responseBuilder = jsonBuilder().startObject().value(response).endObject();
+            Map<String, Object> responseMap = XContentHelper.convertToMap(responseBuilder.bytes(), false).v2();
+            assertFalse(triggerManager.isTriggered(trigger, request, responseMap).isTriggered());
 
 
             builder = createTriggerContent("return true", null, null);
             parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
             trigger = triggerManager.instantiateAlertTrigger(parser);
 
-            assertTrue(triggerManager.isTriggered(trigger, request, response).isTriggered());
+            assertTrue(triggerManager.isTriggered(trigger, request, responseMap).isTriggered());
 
 
             tp.shutdownNow();

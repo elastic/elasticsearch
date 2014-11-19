@@ -7,10 +7,10 @@ package org.elasticsearch.alerts.triggers;
 
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 
 public interface TriggerFactory {
 
@@ -30,6 +30,6 @@ public interface TriggerFactory {
      * @param response
      * @return
      */
-    boolean isTriggered(AlertTrigger trigger, SearchRequest request, SearchResponse response);
+    boolean isTriggered(AlertTrigger trigger, SearchRequest request, Map<String, Object> response);
 
 }

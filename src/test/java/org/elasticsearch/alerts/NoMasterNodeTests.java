@@ -55,7 +55,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
         createIndex("my-index");
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        SearchRequest searchRequest = new SearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
         alertsClient.prepareIndexAlert("my-first-alert")
                 .setAlertSource(alertSource)

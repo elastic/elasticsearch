@@ -11,8 +11,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import javax.mail.*;
 import javax.mail.internet.InternetAddress;
@@ -20,6 +19,7 @@ import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 public class EmailAlertActionFactory implements AlertActionFactory {
@@ -92,7 +92,8 @@ public class EmailAlertActionFactory implements AlertActionFactory {
             message.setSubject("Elasticsearch Alert " + alert.alertName() + " triggered");
             StringBuilder output = new StringBuilder();
             output.append("The following query triggered because ").append(result.getTrigger().toString()).append("\n");
-            output.append("The total number of hits returned : ").append(result.getResponse().getHits().getTotalHits()).append("\n");
+            Object totalHits = XContentMapValues.extractValue("hits.total", result.getResponse());
+            output.append("The total number of hits returned : ").append(totalHits).append("\n");
             output.append("For query : ").append(result.getRequest());
             output.append("\n");
             output.append("Indices : ");
@@ -104,11 +105,13 @@ public class EmailAlertActionFactory implements AlertActionFactory {
             output.append("\n");
 
             if (emailAlertAction.getDisplayField() != null) {
-                for (SearchHit sh : result.getResponse().getHits().getHits()) {
-                    if (sh.sourceAsMap().containsKey(emailAlertAction.getDisplayField())) {
-                        output.append(sh.sourceAsMap().get(emailAlertAction.getDisplayField()).toString());
+                List<Map<String, Object>> hits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", result.getResponse());
+                for (Map<String, Object> hit : hits) {
+                    Map<String, Object> _source = (Map<String, Object>) hit.get("_source");
+                    if (_source.containsKey(emailAlertAction.getDisplayField())) {
+                        output.append(_source.get(emailAlertAction.getDisplayField()).toString());
                     } else {
-                        output.append(new String(sh.source()));
+                        output.append(_source);
                     }
                     output.append("\n");
                 }

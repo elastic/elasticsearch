@@ -144,6 +144,11 @@ public final class AlertUtils {
      * Writes the searchRequest to the specified builder.
      */
     public static void writeSearchRequest(SearchRequest searchRequest, XContentBuilder builder, ToXContent.Params params) throws IOException {
+        if (searchRequest == null) {
+            builder.nullValue();
+            return;
+        }
+
         builder.startObject();
         if (Strings.hasLength(searchRequest.source())) {
             XContentHelper.writeRawField("body", searchRequest.source(), builder, params);

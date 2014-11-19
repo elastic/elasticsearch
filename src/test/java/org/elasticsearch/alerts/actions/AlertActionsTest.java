@@ -24,7 +24,6 @@ import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.alerts.triggers.AlertTrigger;
 import org.elasticsearch.alerts.triggers.ScriptedTrigger;
 import org.elasticsearch.alerts.triggers.TriggerResult;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
@@ -98,18 +98,16 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         builder.field(AlertActionManager.FIRE_TIME_FIELD, formatter.printer().print(fireTime));
         builder.field(AlertActionManager.SCHEDULED_FIRE_TIME_FIELD, formatter.printer().print(scheduledFireTime));
         builder.field(AlertActionManager.TRIGGER_FIELD, triggerMap);
-        BytesStreamOutput out = new BytesStreamOutput();
         SearchRequest searchRequest = new SearchRequest("test123");
-        searchRequest.writeTo(out);
         builder.field(AlertActionManager.REQUEST);
         AlertUtils.writeSearchRequest(searchRequest, builder, ToXContent.EMPTY_PARAMS);
         SearchResponse searchResponse = new SearchResponse(
                 new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 10, 0), null, null, null, false, false),
                 null, 1, 1, 0, new ShardSearchFailure[0]
         );
-        out = new BytesStreamOutput();
-        searchResponse.writeTo(out);
-        builder.field(AlertActionManager.RESPONSE, out.bytes());
+        builder.startObject(AlertActionManager.RESPONSE);
+        builder.value(searchResponse);
+        builder.endObject();
         builder.field(AlertActionManager.ACTIONS_FIELD, actionMap);
         builder.field(AlertActionState.FIELD_NAME, AlertActionState.SEARCH_NEEDED.toString());
         builder.endObject();
@@ -123,7 +121,7 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         assertEquals(actionEntry.getScheduledTime(), scheduledFireTime);
         assertEquals(actionEntry.getFireTime(), fireTime);
         assertEquals(actionEntry.getEntryState(), AlertActionState.SEARCH_NEEDED);
-        assertEquals(actionEntry.getSearchResponse().getHits().getTotalHits(), 10);
+        assertEquals(XContentMapValues.extractValue("hits.total", actionEntry.getSearchResponse()), 10);
     }
 
     @Test

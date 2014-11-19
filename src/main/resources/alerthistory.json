@@ -34,9 +34,6 @@
           "type" : "object",
           "dynamic" : true
         },
-        "response_binary" : {
-          "type" : "binary"
-        },
         "response" : {
           "type" : "object",
           "dynamic" : true

@@ -6,7 +6,8 @@
 package org.elasticsearch.alerts.triggers;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
+
+import java.util.Map;
 
 /**
  */
@@ -14,10 +15,10 @@ public class TriggerResult {
 
     private final boolean triggered;
     private final SearchRequest request;
-    private final SearchResponse response;
+    private final Map<String, Object> response;
     private final AlertTrigger trigger;
 
-    public TriggerResult(boolean triggered, SearchRequest request, SearchResponse response, AlertTrigger trigger) {
+    public TriggerResult(boolean triggered, SearchRequest request, Map<String, Object> response, AlertTrigger trigger) {
         this.triggered = triggered;
         this.request = request;
         this.response = response;
@@ -32,7 +33,7 @@ public class TriggerResult {
         return request;
     }
 
-    public SearchResponse getResponse() {
+    public Map<String, Object> getResponse() {
         return response;
     }
 

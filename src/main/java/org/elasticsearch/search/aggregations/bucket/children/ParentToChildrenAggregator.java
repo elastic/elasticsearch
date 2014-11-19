@@ -75,11 +75,9 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
                                       ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource, long maxOrd, Map<String, Object> metaData) {
         super(name, factories, aggregationContext, parent, metaData);
         this.parentType = parentType;
-        // The child filter doesn't rely on random access it just used to iterate over all docs with a specific type,
-        // so use the filter cache instead. When the filter cache is smarter with what filter impl to pick we can benefit
-        // from it here
-        this.childFilter = aggregationContext.searchContext().filterCache().cache(childFilter);
-        this.parentFilter = aggregationContext.searchContext().filterCache().cache(parentFilter);
+        // these two filters are cached in the parser
+        this.childFilter = childFilter;
+        this.parentFilter = parentFilter;
         this.parentOrdToBuckets = aggregationContext.bigArrays().newLongArray(maxOrd, false);
         this.parentOrdToBuckets.fill(0, maxOrd, -1);
         this.parentOrdToOtherBuckets = new LongObjectPagedHashMap<>(aggregationContext.bigArrays());

@@ -21,11 +21,13 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.search.similarities.Similarity;
@@ -33,6 +35,7 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.lucene.search.NoCacheQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -40,7 +43,6 @@ import org.elasticsearch.common.lucene.search.ResolvableFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.cache.query.parser.QueryParserCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -53,7 +55,11 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -174,6 +180,24 @@ public class QueryParseContext {
         return indexQueryParser.defaultField();
     }
 
+    public FilterCachingPolicy autoFilterCachePolicy() {
+        return indexQueryParser.autoFilterCachePolicy();
+    }
+
+    public FilterCachingPolicy parseFilterCachePolicy() throws IOException {
+        final String text = parser.textOrNull();
+        if (text == null || text.equals("auto")) {
+            return autoFilterCachePolicy();
+        } else if (parser.booleanValue()) {
+            // cache without conditions on how many times the filter has been
+            // used or what the produced DocIdSet looks like, but ONLY on large
+            // segments to not pollute the cache
+            return FilterCachingPolicy.CacheOnLargeSegments.DEFAULT;
+        } else {
+            return null;
+        }
+    }
+
     public boolean queryStringLenient() {
         return indexQueryParser.queryStringLenient();
     }
@@ -187,7 +211,7 @@ public class QueryParseContext {
         return indexQueryParser.bitsetFilterCache.getBitDocIdSetFilter(filter);
     }
 
-    public Filter cacheFilter(Filter filter, @Nullable final CacheKeyFilter.Key cacheKey) {
+    public Filter cacheFilter(Filter filter, final @Nullable HashedBytesRef cacheKey, final FilterCachingPolicy cachePolicy) {
         if (filter == null) {
             return null;
         }
@@ -205,18 +229,12 @@ public class QueryParseContext {
                     if (filter == null) {
                         return null;
                     }
-                    if (cacheKey != null) {
-                        filter = new CacheKeyFilter.Wrapper(filter, cacheKey);
-                    }
-                    filter = indexQueryParser.indexCache.filter().cache(filter);
+                    filter = indexQueryParser.indexCache.filter().cache(filter, cacheKey, cachePolicy);
                     return filter.getDocIdSet(atomicReaderContext, bits);
                 }
             };
         } else {
-            if (cacheKey != null) {
-                filter = new CacheKeyFilter.Wrapper(filter, cacheKey);
-            }
-            return indexQueryParser.indexCache.filter().cache(filter);
+            return indexQueryParser.indexCache.filter().cache(filter, cacheKey, cachePolicy);
         }
     }
 

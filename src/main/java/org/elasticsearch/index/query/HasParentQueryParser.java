@@ -180,8 +180,8 @@ public class HasParentQueryParser implements QueryParser {
         }
 
         // wrap the query with type query
-        innerQuery = new FilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
-        Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null);
+        innerQuery = new FilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null, parseContext.autoFilterCachePolicy()));
+        Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null, parseContext.autoFilterCachePolicy());
         if (score) {
             return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
         } else {

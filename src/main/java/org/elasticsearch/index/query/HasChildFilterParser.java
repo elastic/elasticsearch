@@ -138,7 +138,7 @@ public class HasChildFilterParser implements FilterParser {
         String parentType = parentFieldMapper.type();
 
         // wrap the query with type query
-        query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
+        query = new FilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null, parseContext.autoFilterCachePolicy()));
 
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
@@ -154,7 +154,7 @@ public class HasChildFilterParser implements FilterParser {
             nonNestedDocsFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
         }
 
-        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
+        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null, parseContext.autoFilterCachePolicy());
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
 
         Query childrenQuery;

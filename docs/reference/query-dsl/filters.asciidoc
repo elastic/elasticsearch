@@ -42,7 +42,12 @@ The last type of filters are those working with other filters. The
 cached as they basically just manipulate the internal filters.
 
 All filters allow to set `_cache` element on them to explicitly control
-caching. They also allow to set `_cache_key` which will be used as the
+caching. It accepts 3 values: `true` in order to cache the filter, `false`
+to make sure that the filter will not be cached, and `auto`, which is the
+default and will decide on whether to cache the filter based on the cost
+to cache the filter and how often the filter has been used.
+
+Filters also allow to set `_cache_key` which will be used as the
 caching key for that filter. This can be handy when using very large
 filters (like a terms filter with many elements in it).
 

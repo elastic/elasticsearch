@@ -19,25 +19,26 @@
 
 package org.elasticsearch.index.query;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
+
+import java.io.IOException;
+import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -64,8 +65,8 @@ public class ScriptFilterParser implements FilterParser {
 
         XContentParser.Token token;
 
-        boolean cache = false; // no need to cache it by default, changes a lot?
-        CacheKeyFilter.Key cacheKey = null;
+        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        HashedBytesRef cacheKey = null;
         // also, when caching, since its isCacheable is false, will result in loading all bit set...
         String script = null;
         String scriptLang = null;
@@ -88,9 +89,9 @@ public class ScriptFilterParser implements FilterParser {
                 if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
+                    cache = parseContext.parseFilterCachePolicy();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new CacheKeyFilter.Key(parser.text());
+                    cacheKey = new HashedBytesRef(parser.text());
                 } else if (!scriptParameterParser.token(currentFieldName, token, parser)){
                     throw new QueryParsingException(parseContext.index(), "[script] filter does not support [" + currentFieldName + "]");
                 }
@@ -112,8 +113,8 @@ public class ScriptFilterParser implements FilterParser {
         }
 
         Filter filter = new ScriptFilter(scriptLang, script, scriptType, params, parseContext.scriptService(), parseContext.lookup());
-        if (cache) {
-            filter = parseContext.cacheFilter(filter, cacheKey);
+        if (cache != null) {
+            filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);

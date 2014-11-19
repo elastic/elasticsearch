@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterCachingPolicy;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -28,11 +29,11 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -214,8 +215,8 @@ public class GeohashCellFilter {
             String geohash = null;
             int levels = -1;
             boolean neighbors = false;
-            boolean cache = false;
-            CacheKeyFilter.Key cacheKey = null;
+            FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+            HashedBytesRef cacheKey = null;
 
 
             XContentParser.Token token;
@@ -240,10 +241,10 @@ public class GeohashCellFilter {
                         neighbors = parser.booleanValue();
                     } else if (CACHE.equals(field)) {
                         parser.nextToken();
-                        cache = parser.booleanValue();
+                        cache = parseContext.parseFilterCachePolicy();
                     } else if (CACHE_KEY.equals(field)) {
                         parser.nextToken();
-                        cacheKey = new CacheKeyFilter.Key(parser.text());
+                        cacheKey = new HashedBytesRef(parser.text());
                     } else {
                         fieldName = field;
                         token = parser.nextToken();
@@ -295,8 +296,8 @@ public class GeohashCellFilter {
                 filter = create(parseContext, geoMapper, geohash, null);
             }
 
-            if (cache) {
-                filter = parseContext.cacheFilter(filter, cacheKey);
+            if (cache != null) {
+                filter = parseContext.cacheFilter(filter, cacheKey, cache);
             }
 
             return filter;

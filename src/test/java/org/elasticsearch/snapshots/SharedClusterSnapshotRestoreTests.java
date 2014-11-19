@@ -118,10 +118,11 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-        ensureGreen();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(50L));
+        for (int i=0; i<5; i++) {
+            assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
+            assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
+            assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(50L));
+        }
 
         // Test restore after index deletion
         logger.info("--> delete indices");
@@ -129,11 +130,58 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> restore one index after deletion");
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-2").execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-        ensureGreen();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
+
+        for (int i=0; i<5; i++) {
+            assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
+        }
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
+    }
+
+
+    @Test
+    public void singleGetAfterRestoreTest() throws Exception {
+        String indexName = "testindex";
+        String repoName = "test-restore-snapshot-repo";
+        String snapshotName = "test-restore-snapshot";
+        String absolutePath = newTempDir().getAbsolutePath();
+        logger.info("Path [{}]", absolutePath);
+        String restoredIndexName = indexName + "-restored";
+        String typeName = "actions";
+        String expectedValue = "expected";
+
+        Client client = client();
+        // Write a document
+        String docId = Integer.toString(randomInt());
+        index(indexName, typeName, docId, "value", expectedValue);
+
+        // TODO: Remove after dynamic mapping flushing is implemented
+        waitForConcreteMappingsOnAll(indexName, typeName, "value");
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository(repoName)
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", absolutePath)
+                        ));
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(true)
+                .setIndices(indexName)
+                .get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(true)
+                .setRenamePattern(indexName)
+                .setRenameReplacement(restoredIndexName)
+                .get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        assertThat(client.prepareGet(restoredIndexName, typeName, docId).get().isExists(), equalTo(true));
     }
 
     @Test
@@ -174,7 +222,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> restore all indices from the snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-        ensureGreen();
 
         logger.info("--> assert that old mapping is restored");
         ImmutableOpenMap<String, MappingMetaData> mappings = client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().get("test-idx").getMappings();
@@ -238,7 +285,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("--> check that aliases are restored");
         assertAliasesExist(client.admin().indices().prepareAliasesExist("alias-123", "alias-1").get());
-
 
         logger.info("-->  update aliases");
         assertAcked(client.admin().indices().prepareAliases().removeAlias("test-idx-3", "alias-123"));
@@ -365,7 +411,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
-        ensureGreen();
         logger.info("--> check that template wasn't restored but index was");
         getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates().get();
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
@@ -527,7 +572,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> restore index after deletion");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-        ensureGreen();
         CountResponse countResponse = client.prepareCount("test-idx").get();
         assertThat(countResponse.getCount(), equalTo(100L));
     }
@@ -593,7 +637,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
-        ensureGreen();
         CountResponse countResponse = client.prepareCount("test-idx").get();
         assertThat(countResponse.getCount(), equalTo(100L));
 
@@ -669,7 +712,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", lastSnapshot).setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-        ensureGreen();
         assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(10L * numberOfSnapshots));
 
         logger.info("--> delete the last snapshot");
@@ -831,7 +873,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setRenamePattern("(.+)").setRenameReplacement("$1-copy").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-        ensureGreen();
         assertThat(client.prepareCount("test-idx-1-copy").get().getCount(), equalTo(100L));
         assertThat(client.prepareCount("test-idx-2-copy").get().getCount(), equalTo(100L));
 
@@ -843,7 +884,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 .setRenamePattern("(.+)").setRenameReplacement("$1-copy").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-        ensureGreen();
         assertThat(client.prepareCount("test-idx-1-copy").get().getCount(), equalTo(100L));
         assertThat(client.prepareCount("test-idx-2-copy").get().getCount(), equalTo(100L));
 
@@ -941,7 +981,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-        ensureGreen();
         assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
     }
 
@@ -1026,7 +1065,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-        ensureGreen();
         assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
     }
 
@@ -1070,7 +1108,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> restore index after deletion");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("url-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-        ensureGreen();
+
         assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
 
         logger.info("--> list available shapshots");
@@ -1125,8 +1163,6 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> restore index");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-
-        ensureGreen();
         assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
 
         long snapshotPause = 0L;

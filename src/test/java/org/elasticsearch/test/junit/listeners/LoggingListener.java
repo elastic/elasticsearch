@@ -76,6 +76,15 @@ public class LoggingListener extends RunListener {
     }
 
     private Map<String, String> processTestLogging(TestLogging testLogging) {
+        Map<String, String> map = getLoggersAndLevelsFromAnnotation(testLogging);
+        for (Map.Entry<String, String> entry : map.entrySet()) {
+            ESLogger esLogger = resolveLogger(entry.getKey());
+            esLogger.setLevel(entry.getValue());
+        }
+        return map;
+    }
+
+    public static Map<String, String> getLoggersAndLevelsFromAnnotation(TestLogging testLogging) {
         if (testLogging == null) {
             return null;
         }
@@ -86,9 +95,7 @@ public class LoggingListener extends RunListener {
             if (loggerAndLevelArray.length >=2) {
                 String loggerName = loggerAndLevelArray[0];
                 String level = loggerAndLevelArray[1];
-                ESLogger esLogger = resolveLogger(loggerName);
-                map.put(loggerName, esLogger.getLevel());
-                esLogger.setLevel(level);
+                map.put(loggerName, level);
             }
         }
         return map;

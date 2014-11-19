@@ -115,7 +115,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         TestLogging logging = getClass().getAnnotation(TestLogging.class);
-        final Map<String, String> loggerLevels = processTestLogging(logging);
+        final Map<String, String> loggerLevels = LoggingListener.getLoggersAndLevelsFromAnnotation(logging);
         TestCluster cluster = super.buildTestCluster(scope, seed);
 
         ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new SettingsSource() {
@@ -130,23 +130,6 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
             }
         });
         return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode);
-    }
-
-    private Map<String, String> processTestLogging(TestLogging testLogging) {
-        if (testLogging == null) {
-            return null;
-        }
-        java.util.Map<java.lang.String, java.lang.String> map = new HashMap<>();
-        final java.lang.String[] loggersAndLevels = testLogging.value().split(",");
-        for (java.lang.String loggerAndLevel : loggersAndLevels) {
-            java.lang.String[] loggerAndLevelArray = loggerAndLevel.split(":");
-            if (loggerAndLevelArray.length >= 2) {
-                java.lang.String loggerName = loggerAndLevelArray[0];
-                java.lang.String level = loggerAndLevelArray[1];
-                map.put(loggerName, level);
-            }
-        }
-        return map;
     }
 
     protected int minExternalNodes() {

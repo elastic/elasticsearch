@@ -6,22 +6,16 @@
 package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import java.io.IOException;
 
 /**
  */
-public enum AlertActionState implements ToXContent {
+public enum AlertActionState {
+
     SEARCH_NEEDED,
     SEARCH_UNDERWAY,
     NO_ACTION_NEEDED,
     ACTION_PERFORMED,
     ERROR;
-
-    public static final String FIELD_NAME = "state";
-
 
     @Override
     public String toString(){
@@ -56,14 +50,5 @@ public enum AlertActionState implements ToXContent {
             default:
                 throw new ElasticsearchIllegalArgumentException("Unknown value [" + s + "] for AlertHistoryState" );
         }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(FIELD_NAME);
-        builder.value(this.toString());
-        builder.endObject();
-        return builder;
     }
 }

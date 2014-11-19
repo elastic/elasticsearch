@@ -109,7 +109,7 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         builder.value(searchResponse);
         builder.endObject();
         builder.field(AlertActionManager.ACTIONS_FIELD, actionMap);
-        builder.field(AlertActionState.FIELD_NAME, AlertActionState.SEARCH_NEEDED.toString());
+        builder.field(AlertActionManager.STATE, AlertActionState.SEARCH_NEEDED.toString());
         builder.endObject();
         final AlertActionRegistry alertActionRegistry = internalCluster().getInstance(AlertActionRegistry.class, internalCluster().getMasterName());
         final AlertActionManager alertManager = internalCluster().getInstance(AlertActionManager.class, internalCluster().getMasterName());
@@ -120,7 +120,7 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
         assertEquals(actionEntry.isTriggered(), true);
         assertEquals(actionEntry.getScheduledTime(), scheduledFireTime);
         assertEquals(actionEntry.getFireTime(), fireTime);
-        assertEquals(actionEntry.getEntryState(), AlertActionState.SEARCH_NEEDED);
+        assertEquals(actionEntry.getState(), AlertActionState.SEARCH_NEEDED);
         assertEquals(XContentMapValues.extractValue("hits.total", actionEntry.getSearchResponse()), 10);
     }
 

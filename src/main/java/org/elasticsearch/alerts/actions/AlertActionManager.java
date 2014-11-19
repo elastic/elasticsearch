@@ -51,6 +51,7 @@ public class AlertActionManager extends AbstractComponent {
     public static final String REQUEST = "request";
     public static final String RESPONSE = "response";
     public static final String ACTIONS_FIELD = "actions";
+    public static final String STATE = "state";
 
     public static final String ALERT_HISTORY_INDEX = ".alert_history";
     public static final String ALERT_HISTORY_TYPE = "alerthistory";
@@ -142,7 +143,7 @@ public class AlertActionManager extends AbstractComponent {
         client.admin().indices().refresh(new RefreshRequest(ALERT_HISTORY_INDEX)).actionGet();
 
         SearchResponse response = client.prepareSearch(ALERT_HISTORY_INDEX)
-                .setQuery(QueryBuilders.termQuery(AlertActionState.FIELD_NAME, AlertActionState.SEARCH_NEEDED.toString()))
+                .setQuery(QueryBuilders.termQuery(STATE, AlertActionState.SEARCH_NEEDED.toString()))
                 .setSearchType(SearchType.SCAN)
                 .setScroll(scrollTimeout)
                 .setSize(scrollSize)
@@ -155,7 +156,7 @@ public class AlertActionManager extends AbstractComponent {
                     for (SearchHit sh : response.getHits()) {
                         String historyId = sh.getId();
                         AlertActionEntry historyEntry = parseHistory(historyId, sh.getSourceRef(), sh.version(), actionRegistry);
-                        assert historyEntry.getEntryState() == AlertActionState.SEARCH_NEEDED;
+                        assert historyEntry.getState() == AlertActionState.SEARCH_NEEDED;
                         actionsToBeProcessed.add(historyEntry);
                     }
                     response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
@@ -214,8 +215,8 @@ public class AlertActionManager extends AbstractComponent {
                         case ERROR_MESSAGE:
                             entry.setErrorMsg(parser.textOrNull());
                             break;
-                        case AlertActionState.FIELD_NAME:
-                            entry.setEntryState(AlertActionState.fromString(parser.text()));
+                        case STATE:
+                            entry.setState(AlertActionState.fromString(parser.text()));
                             break;
                         default:
                             throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
@@ -257,7 +258,7 @@ public class AlertActionManager extends AbstractComponent {
     }
 
     private void updateHistoryEntry(AlertActionEntry entry, AlertActionState actionPerformed) throws IOException {
-        entry.setEntryState(actionPerformed);
+        entry.setState(actionPerformed);
         IndexResponse response = client.prepareIndex(ALERT_HISTORY_INDEX, ALERT_HISTORY_TYPE, entry.getId())
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .get();

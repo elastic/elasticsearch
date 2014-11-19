@@ -49,7 +49,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         "index-0.90.8.zip",
         "index-0.90.9.zip",
         "index-0.90.10.zip",
-        /* skipping 0.90.12...ensureGreen always times out while loading the index...,*/
+        /* skipping 0.90.12...ensureGreen always times out while loading the index...*/
         "index-0.90.13.zip",
         "index-1.0.0.Beta1.zip",
         "index-1.0.0.zip",
@@ -70,29 +70,12 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         "index-1.4.0.Beta1.zip",
         "index-1.4.0.zip"
     );
-    
-    List<String> tooOldIndexes = Arrays.asList(
-        "index-0.20.5.zip"
-    );
 
     public void testOldIndexes() throws Exception {
         Collections.shuffle(indexes, getRandom());
         for (String index : indexes) {
             logger.info("Testing old index " + index);
             assertOldIndexWorks(index);
-        }
-    }
-    
-    public void testTooOldIndexes() throws Exception {
-        Collections.shuffle(tooOldIndexes, getRandom());
-        for (String index : tooOldIndexes) {
-            logger.info("Testing too old index " + index);
-            try {
-                assertOldIndexWorks(index);
-                fail("Expected index to throw lucene format exception");
-            } catch (IndexFormatTooOldException e) {
-                // expected
-            }
         }
     }
 

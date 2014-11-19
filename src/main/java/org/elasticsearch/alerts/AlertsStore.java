@@ -32,12 +32,11 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -56,22 +55,20 @@ public class AlertsStore extends AbstractComponent {
     public static final ParseField REQUEST_FIELD = new ParseField("request");
 
     private final Client client;
-    private final ThreadPool threadPool;
+    private final TriggerManager triggerManager;
+    private final TemplateHelper templateHelper;
     private final ConcurrentMap<String, Alert> alertMap;
     private final AlertActionRegistry alertActionRegistry;
-    private final TriggerManager triggerManager;
-    private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
-    private final TemplateHelper templateHelper;
+    private final AtomicBoolean started = new AtomicBoolean(false);
 
     private final int scrollSize;
     private final TimeValue scrollTimeout;
 
     @Inject
-    public AlertsStore(Settings settings, Client client, ThreadPool threadPool, AlertActionRegistry alertActionRegistry,
+    public AlertsStore(Settings settings, Client client, AlertActionRegistry alertActionRegistry,
                        TriggerManager triggerManager, TemplateHelper templateHelper) {
         super(settings);
         this.client = client;
-        this.threadPool = threadPool;
         this.alertActionRegistry = alertActionRegistry;
         this.templateHelper = templateHelper;
         this.alertMap = ConcurrentCollections.newConcurrentMap();
@@ -144,63 +141,45 @@ public class AlertsStore extends AbstractComponent {
         return alertMap;
     }
 
-    public void start(final ClusterState state, final LoadingListener listener) {
+    public boolean start(ClusterState state) {
+        if (started.get()) {
+            return true;
+        }
+
         IndexMetaData alertIndexMetaData = state.getMetaData().index(ALERT_INDEX);
         if (alertIndexMetaData != null) {
-            logger.info("Previous alerting index");
+            logger.debug("Previous alerting index");
             if (state.routingTable().index(ALERT_INDEX).allPrimaryShardsActive()) {
-                logger.info("Previous alerting index with active primary shards");
-                if (this.state.compareAndSet(State.STOPPED, State.LOADING)) {
-                    logger.info("Started loading");
-                    threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            boolean success = false;
-                            try {
-                                templateHelper.checkAndUploadIndexTemplate(state, "alerts");
-                                loadAlerts();
-                                success = true;
-                            } catch (Exception e) {
-                                logger.warn("Failed to load alerts", e);
-                            } finally {
-                                if (success) {
-                                    if (AlertsStore.this.state.compareAndSet(State.LOADING, State.STARTED)) {
-                                        listener.onSuccess();
-                                    }
-                                } else {
-                                    if (AlertsStore.this.state.compareAndSet(State.LOADING, State.STOPPED)) {
-                                        listener.onFailure();
-                                    }
-                                }
-                            }
-                        }
-                    });
+                logger.debug("Previous alerting index with active primary shards");
+                try {
+                    loadAlerts();
+                } catch (Exception e) {
+                    logger.warn("Failed to load alerts", e);
                 }
+                templateHelper.checkAndUploadIndexTemplate(state, "alerts");
+                started.set(true);
+                return true;
+            } else {
+                logger.info("Not all primary shards of the .alerts index are started");
+                return false;
             }
         } else {
-            if (AlertsStore.this.state.compareAndSet(State.STOPPED, State.LOADING)) {
-                logger.info("No previous .alert index");
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        templateHelper.checkAndUploadIndexTemplate(state, "alerts");
-                        if (AlertsStore.this.state.compareAndSet(State.LOADING, State.STARTED)) {
-                            listener.onSuccess();
-                        }
-                    }
-                });
-            }
+            logger.info("No previous .alert index, skip loading of alerts");
+            templateHelper.checkAndUploadIndexTemplate(state, "alerts");
+            started.set(true);
+            return true;
         }
     }
 
     public boolean started() {
-        return state.get() == State.STARTED;
+        return started.get();
     }
 
     public void stop() {
-        state.set(State.STOPPED);
-        clear();
-        logger.info("Stopped alert store");
+        if (started.compareAndSet(false, true)) {
+            clear();
+            logger.info("Stopped alert store");
+        }
     }
 
     private IndexResponse persistAlert(String alertName, BytesReference alertSource, IndexRequest.OpType opType) {
@@ -297,14 +276,6 @@ public class AlertsStore extends AbstractComponent {
         }
 
         return alert;
-    }
-
-    private enum State {
-
-        STOPPED,
-        LOADING,
-        STARTED
-
     }
 
 }

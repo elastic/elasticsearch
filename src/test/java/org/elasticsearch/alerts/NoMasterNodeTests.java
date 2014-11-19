@@ -83,7 +83,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
 
         // Bring back the 2nd node and wait for elected master node to come back and alerting to work as expected.
         internalTestCluster().startNode();
-        ensureGreen();
+        ensureAlertingStarted();
 
         // Delete an existing alert
         DeleteAlertResponse response = alertsClient.prepareDeleteAlert("my-first-alert").get();

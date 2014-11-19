@@ -200,26 +200,24 @@ public class AlertManager extends AbstractComponent {
         }
 
         private void initialize(final ClusterState state) {
-            alertsStore.start(state, new LoadingListener() {
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
                 @Override
-                public void onSuccess() {
-                    startIfReady();
-                }
-
-                @Override
-                public void onFailure() {
-                    retry();
+                public void run() {
+                    if (alertsStore.start(state)) {
+                        startIfReady();
+                    } else {
+                        retry();
+                    }
                 }
             });
-            actionManager.start(state, new LoadingListener() {
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
                 @Override
-                public void onSuccess() {
-                    startIfReady();
-                }
-
-                @Override
-                public void onFailure() {
-                    retry();
+                public void run() {
+                    if (actionManager.start(state)) {
+                        startIfReady();
+                    } else {
+                        retry();
+                    }
                 }
             });
         }

@@ -251,7 +251,9 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                         if (newMetaData.hasIndex(danglingIndex)) {
                             logger.debug("[{}] no longer dangling (created), removing", danglingIndex);
                             DanglingIndex removed = danglingIndices.remove(danglingIndex);
-                            removed.future.cancel(false);
+                            if (removed.future != null) {
+                                removed.future.cancel(false);
+                            }
                         }
                     }
                     // delete indices that are no longer part of the metadata

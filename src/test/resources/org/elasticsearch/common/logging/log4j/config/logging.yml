@@ -2,7 +2,7 @@
 es.logger.level: INFO
 rootLogger: ${es.logger.level}, console
 logger:
-  test: TRACE
+  test: TRACE, console
 
 appender:
   console:

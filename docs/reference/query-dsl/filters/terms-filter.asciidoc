@@ -86,8 +86,9 @@ For example:
 [float]
 ==== Caching
 
-The result of the filter is automatically cached by default. The
-`_cache` can be set to `false` to turn it off.
+The result of the filter is cached if there is evidence of reuse. It is
+possible to enable caching explicitely by setting `_cache` to `true` and
+to disable caching by setting `_cache` to `false`.
 
 [float]
 ==== Terms lookup mechanism

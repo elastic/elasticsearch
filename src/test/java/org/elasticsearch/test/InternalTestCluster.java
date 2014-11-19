@@ -25,10 +25,16 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
-import com.google.common.collect.*;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -70,6 +76,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.cache.filter.AutoFilterCachingPolicy;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
@@ -102,19 +109,34 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Random;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static junit.framework.Assert.fail;
-import static org.apache.lucene.util.LuceneTestCase.*;
+import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
+import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
@@ -190,8 +212,6 @@ public final class InternalTestCluster extends TestCluster {
     private final SettingsSource settingsSource;
 
     private final ExecutorService executor;
-
-    private final boolean hasFilterCache;
 
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
@@ -301,7 +321,6 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 20, 50)));
         defaultSettings = builder.build();
         executor = EsExecutors.newCached(0, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test_" + clusterName));
-        this.hasFilterCache = random.nextBoolean();
     }
 
     public static String nodeMode() {
@@ -340,8 +359,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = ImmutableSettings.settingsBuilder().put(defaultSettings)
-                .put(getRandomNodeSettings(nodeSeed))
-                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, hasFilterCache() ? WeightedFilterCache.class : NoneFilterCache.class);
+                .put(getRandomNodeSettings(nodeSeed));
         Settings settings = settingsSource.node(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.SETTING) != null) {
@@ -426,6 +444,21 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextInt(10) == 0) {
             builder.put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING, "noop");
             builder.put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING, "noop");
+        }
+
+        if (random.nextBoolean()) {
+            builder.put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, random.nextBoolean() ? WeightedFilterCache.class : NoneFilterCache.class);
+        }
+
+        if (random.nextBoolean()) {
+            final int freqCacheable = 1 + random.nextInt(5);
+            final int freqCostly = 1 + random.nextInt(5);
+            final int freqOther = Math.max(freqCacheable, freqCostly) + random.nextInt(2);
+            builder.put(AutoFilterCachingPolicy.HISTORY_SIZE, 3 + random.nextInt(100));
+            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_CACHEABLE, freqCacheable);
+            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_COSTLY, freqCostly);
+            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_OTHER, freqOther);
+            builder.put(AutoFilterCachingPolicy.MIN_SEGMENT_SIZE_RATIO, random.nextFloat());
         }
 
         return builder.build();
@@ -1450,11 +1483,6 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public int numBenchNodes() {
         return benchNodeAndClients().size();
-    }
-
-    @Override
-    public boolean hasFilterCache() {
-        return hasFilterCache;
     }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {

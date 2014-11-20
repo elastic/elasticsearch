@@ -316,11 +316,11 @@ public class AlertActionManager extends AbstractComponent {
                 logger.info("Running an alert action entry for [{}]", entry.getAlertName());
                 TriggerResult trigger = alertManager.executeAlert(entry);
                 if (trigger.isTriggered()) {
-                    if (entry.getEntryState() != AlertActionState.THROTTLED) {
-                        entry.setEntryState(AlertActionState.ACTION_PERFORMED);
+                    if (entry.getState() != AlertActionState.THROTTLED) {
+                        entry.setState(AlertActionState.ACTION_PERFORMED);
                     }
                 } else {
-                    entry.setEntryState(AlertActionState.NO_ACTION_NEEDED);
+                    entry.setState(AlertActionState.NO_ACTION_NEEDED);
                 }
                 updateHistoryEntry(entry);
             } catch (Exception e) {

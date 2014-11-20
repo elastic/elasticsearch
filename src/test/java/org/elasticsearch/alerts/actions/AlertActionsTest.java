@@ -23,12 +23,7 @@ import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
-<<<<<<< HEAD
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-=======
->>>>>>> a975bee9f0371ecdf8881f90e90f02769dac90fc
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;

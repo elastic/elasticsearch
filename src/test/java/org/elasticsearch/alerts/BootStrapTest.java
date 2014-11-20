@@ -48,19 +48,8 @@ public class BootStrapTest extends AbstractAlertingTests {
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
                 .get();
 
-<<<<<<< HEAD
-        AlertsStatsRequest alertsStatsRequest = alertClient().prepareAlertsStats().request();
-        AlertsStatsResponse response = alertClient().alertsStats(alertsStatsRequest).actionGet();
-
-        assertTrue(response.isAlertActionManagerStarted());
-        assertTrue(response.isAlertManagerStarted());
-        assertThat(response.getNumberOfRegisteredAlerts(), equalTo(1L));
-
         client().admin().indices().prepareRefresh(AlertsStore.ALERT_INDEX).get();
 
-
-=======
->>>>>>> a975bee9f0371ecdf8881f90e90f02769dac90fc
         String oldMaster = internalTestCluster().getMasterName();
         try {
             internalTestCluster().stopCurrentMasterNode();
@@ -79,9 +68,11 @@ public class BootStrapTest extends AbstractAlertingTests {
         AlertsStatsRequest alertsStatsRequest = alertClient().prepareAlertsStats().request();
         AlertsStatsResponse response = alertClient().alertsStats(alertsStatsRequest).actionGet();
 
+        alertsStatsRequest = alertClient().prepareAlertsStats().request();
+        response = alertClient().alertsStats(alertsStatsRequest).actionGet();
+
         assertTrue(response.isAlertActionManagerStarted());
         assertTrue(response.isAlertManagerStarted());
-
         assertThat(response.getNumberOfRegisteredAlerts(), equalTo(1L));
     }
 

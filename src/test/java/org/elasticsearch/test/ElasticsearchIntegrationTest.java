@@ -1865,7 +1865,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     /**
      * Return settings that could be used to start a node that has the given zipped home directory.
      */
-    protected Settings prepareBackwardsDataDir(File backwardsIndex) throws IOException {
+    protected Settings prepareBackwardsDataDir(File backwardsIndex, Object... settings) throws IOException {
         File indexDir = newTempDir();
         File dataDir = new File(indexDir, "data");
         try (FileInputStream stream = new FileInputStream(backwardsIndex)) {
@@ -1883,6 +1883,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         assertFalse(src.exists());
         assertTrue(dest.exists());
         ImmutableSettings.Builder builder = ImmutableSettings.builder()
+                .put(settings)
                 .put("gateway.type", "local") // this is important we need to recover from gateway
                 .put("path.data", dataDir.getPath());
 

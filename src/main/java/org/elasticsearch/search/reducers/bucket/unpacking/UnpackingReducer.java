@@ -77,13 +77,14 @@ public class UnpackingReducer extends BucketReducer {
                 if (o instanceof MultiBucketsAggregation) {
                     aggregations.add((MultiBucketsAggregation) o);
                 } else {
-                    throw new ReductionExecutionException("bucketsPath must point to an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+                    throw new ReductionExecutionException("bucketsPath must resolve to a muti-bucket aggregation for reducer [" + name()
+                            + "]");
                 }
             } else {
                 if (currentAggregation instanceof MultiBucketsAggregation) {
                     aggregations.add((MultiBucketsAggregation) currentAggregation);
                 } else {
-                    throw new ReductionExecutionException("aggregation must be an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+                    throw new ReductionExecutionException("aggregation must be a muti-bucket aggregation for reducer [" + name() + "]");
                 }
             }
         }

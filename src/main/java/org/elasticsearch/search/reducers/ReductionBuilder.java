@@ -119,7 +119,7 @@ public abstract class ReductionBuilder<B extends ReductionBuilder<B>> extends Ab
                 }
             }
 
-            if (reductionsBinary != null) { // NOCOMMIT work out what api for binary reductions looks like
+            if (reductionsBinary != null) {
                 if (XContentFactory.xContentType(reductionsBinary) == builder.contentType()) {
                     builder.rawField("reductions", reductionsBinary);
                 } else {

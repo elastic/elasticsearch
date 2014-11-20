@@ -73,13 +73,13 @@ public class SlidingWindowReducer extends BucketReducer {
             if (o instanceof MultiBucketsAggregation) {
                aggregation = (MultiBucketsAggregation) o;
             } else {
-                throw new ReductionExecutionException("bucketsPath must point to an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+                throw new ReductionExecutionException("bucketsPath must resolve to a muti-bucket aggregation for reducer [" + name() + "]");
             }
         } else {
             if (currentAggregation instanceof MultiBucketsAggregation) {
                 aggregation = (MultiBucketsAggregation) currentAggregation;
             } else {
-                throw new ReductionExecutionException("aggregation must be an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+                throw new ReductionExecutionException("aggregation must be a muti-bucket aggregation for reducer [" + name() + "]");
             }
         }
         return doReduce(aggregationsTree, aggregation);

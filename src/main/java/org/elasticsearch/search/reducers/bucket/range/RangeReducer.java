@@ -19,11 +19,10 @@
 
 package org.elasticsearch.search.reducers.bucket.range;
 
-import org.elasticsearch.search.aggregations.Aggregations;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -87,13 +86,13 @@ public class RangeReducer extends BucketReducer {
             if (o instanceof MultiBucketsAggregation) {
                aggregation = (MultiBucketsAggregation) o;
             } else {
-                throw new ReductionExecutionException("bucketsPath must point to an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+                throw new ReductionExecutionException("bucketsPath must resolve to a muti-bucket aggregation for reducer [" + name() + "]");
             }
         } else {
             if (currentAggregation instanceof MultiBucketsAggregation) {
                 aggregation = (MultiBucketsAggregation) currentAggregation;
             } else {
-                throw new ReductionExecutionException("aggregation must be an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+                throw new ReductionExecutionException("aggregation must be a muti-bucket aggregation for reducer [" + name() + "]");
             }
         }
         return doReduce(aggregationsTree, aggregation);

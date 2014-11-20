@@ -132,7 +132,7 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
     @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
-            return this; // NOCOMMIT do we need to support anything other than returning the whole aggregation for top_hits?
+            return this;
         } else {
             throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }

@@ -19,13 +19,11 @@
 
 package org.elasticsearch.search.reducers.bucket.union;
 
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.reducers.ReductionExecutionException;
-
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
@@ -34,6 +32,7 @@ import org.elasticsearch.search.reducers.ReducerContext;
 import org.elasticsearch.search.reducers.ReducerFactories;
 import org.elasticsearch.search.reducers.ReducerFactory;
 import org.elasticsearch.search.reducers.ReducerFactoryStreams;
+import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.bucket.BucketReducer;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation.InternalSelection;
@@ -75,13 +74,14 @@ public class UnionReducer extends BucketReducer {
                 if (o instanceof MultiBucketsAggregation) {
                     aggregations.add((MultiBucketsAggregation) o);
                 } else {
-                    throw new ReductionExecutionException("bucketsPath must point to an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+                    throw new ReductionExecutionException("bucketsPath must resolve to a muti-bucket aggregation for reducer [" + name()
+                            + "]");
                 }
             } else {
                 if (currentAggregation instanceof MultiBucketsAggregation) {
                     aggregations.add((MultiBucketsAggregation) currentAggregation);
                 } else {
-                    throw new ReductionExecutionException("aggregation must be an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+                    throw new ReductionExecutionException("aggregation must be a muti-bucket aggregation for reducer [" + name() + "]");
                 }
             }
         }
@@ -114,8 +114,7 @@ public class UnionReducer extends BucketReducer {
             selection.setAggregations(subReducersResults);
             selections.add(selection);
         }
-        // NOCOMMIT do we need to add sorting here? at the moment the selections
-        // will be in discovery order
+        // NOCOMMIT do we need to add sorting here? at the moment the selections will be in discovery order
         return new InternalUnion(name(), selections);
     }
 

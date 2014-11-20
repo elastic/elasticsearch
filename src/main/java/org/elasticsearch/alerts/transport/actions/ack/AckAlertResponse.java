@@ -46,7 +46,7 @@ public class AckAlertResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
-            AlertAckState.fromString(in.readString());
+            alertAckState = AlertAckState.fromString(in.readString());
         }
     }
 

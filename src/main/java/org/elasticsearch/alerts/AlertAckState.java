@@ -11,7 +11,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * @TODO add jdocs
+ * This class represents the ack (acknowleged state of an alert)
+ *
+ * NOT_ACKABLE : This alert cannot be ACKed
+ * NOT_TRIGGERED : This alert is in the base line state. A positive trigger will cause the alert to move to the NEEDS_ACK state
+ * NEEDS_ACK : This alert is in the fired state and has sent an alert action, subsequent positive triggers will cause more actions to occur
+ * ACKED : This alert has been acknowleged, subsequent positive triggers will not cause actions to occur, a negative trigger will move the alert back into NOT_TRIGGERED state
  */
 public enum AlertAckState implements ToXContent {
     NOT_ACKABLE, ///@TODO perhaps null

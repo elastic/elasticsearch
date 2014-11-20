@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
+ * This class contains the ackState of the alert, if the alert was successfully acked this will be ACK
  */
 public class AckAlertResponse extends ActionResponse {
 
@@ -22,12 +23,23 @@ public class AckAlertResponse extends ActionResponse {
     public AckAlertResponse() {
     }
 
+    /**
+     * The Constructor that takes the ack state for the alert
+     * @param alertAckState
+     */
     public AckAlertResponse(@Nullable AlertAckState alertAckState) {
         this.alertAckState = alertAckState;
     }
 
+    /**
+     * @return The ack state for the alert
+     */
     public AlertAckState getAlertAckState() {
         return alertAckState;
+    }
+
+    public void setAlertAckState(AlertAckState alertAckState) {
+        this.alertAckState = alertAckState;
     }
 
     @Override

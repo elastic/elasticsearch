@@ -52,6 +52,7 @@ public class AlertScheduler extends AbstractComponent {
             // Can't start a scheduler that has been shutdown, so we need to re-create each time start() is invoked
             Properties properties = new Properties();
             properties.setProperty("org.quartz.threadPool.class", AlertQuartzThreadPool.class.getName());
+            properties.setProperty(StdSchedulerFactory.PROP_SCHED_SKIP_UPDATE_CHECK, "true");
             SchedulerFactory schFactory = new StdSchedulerFactory(properties);
             scheduler = schFactory.getScheduler();
             scheduler.setJobFactory(new SimpleJobFactory());

@@ -44,7 +44,7 @@ public class ElasticsearchPostingsFormatTest extends BasePostingsFormatTestCase 
 
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysPostingsFormat(new Elasticsearch090PostingsFormat());
+        return TestUtil.alwaysPostingsFormat(new Elasticsearch090RWPostingsFormat());
     }
     
 }

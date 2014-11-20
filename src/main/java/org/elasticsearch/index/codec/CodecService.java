@@ -44,15 +44,10 @@ import org.elasticsearch.index.settings.IndexSettings;
  */
 public class CodecService extends AbstractIndexComponent {
 
-    public static final String INDEX_CODEC_BLOOM_LOAD = "index.codec.bloom.load";
-    public static final boolean INDEX_CODEC_BLOOM_LOAD_DEFAULT = false;
-
     private final PostingsFormatService postingsFormatService;
     private final DocValuesFormatService docValuesFormatService;
     private final MapperService mapperService;
     private final ImmutableMap<String, Codec> codecs;
-
-    private volatile boolean loadBloomFilter = true;
 
     public final static String DEFAULT_CODEC = "default";
 
@@ -83,7 +78,6 @@ public class CodecService extends AbstractIndexComponent {
             codecs.put(codec, Codec.forName(codec));
         }
         this.codecs = codecs.immutableMap();
-        this.loadBloomFilter = indexSettings.getAsBoolean(INDEX_CODEC_BLOOM_LOAD, INDEX_CODEC_BLOOM_LOAD_DEFAULT);
     }
 
     public PostingsFormatService postingsFormatService() {
@@ -104,13 +98,5 @@ public class CodecService extends AbstractIndexComponent {
             throw new ElasticsearchIllegalArgumentException("failed to find codec [" + name + "]");
         }
         return codec;
-    }
-
-    public boolean isLoadBloomFilter() {
-        return this.loadBloomFilter;
-    }
-
-    public void setLoadBloomFilter(boolean loadBloomFilter) {
-        this.loadBloomFilter = loadBloomFilter;
     }
 }

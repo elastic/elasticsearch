@@ -107,7 +107,7 @@ can contain misspellings (See parameter descriptions below).
 `real_word_error_likelihood`:: 
     the likelihood of a term being a
     misspelled even if the term exists in the dictionary. The default it
-    `0.95` corresponding to 5% or the real words are misspelled.
+    `0.95` corresponding to 5% of the real words are misspelled.
 
 
 `confidence`:: 

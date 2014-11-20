@@ -48,7 +48,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper.CustomNumericDocValuesField;
-import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
+import org.elasticsearch.index.mapper.array.ArrayValueMapperParser;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;

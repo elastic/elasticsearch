@@ -16,14 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.index.mapper.dynamic;
 
-package org.elasticsearch.index.mapper.object;
 
-/**
- * A marker interface indicating that this mapper can handle array value, and the array
- * itself should be passed to it.
- *
- *
- */
-public interface ArrayValueMapperParser {
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.plugins.AbstractPlugin;
+
+import java.util.ArrayList;
+import java.util.Collection;
+
+public class ExternalDynamicArrayMapperPlugin extends AbstractPlugin {
+
+    @Override
+    public String name() {
+        return "dynamic-array-mapper";
+    }
+
+    @Override
+    public String description() {
+        return "External Dynamic array Mapper Plugin";
+    }
+
+    @Override
+    public Collection<Class<? extends Module>> modules() {
+        Collection<Class<? extends Module>> modules = new ArrayList<>();
+        modules.add(ExternalDynamicArrayMapperModule.class);
+        return modules;
+    }
+
 }

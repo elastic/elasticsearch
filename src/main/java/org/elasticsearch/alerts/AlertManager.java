@@ -158,8 +158,8 @@ public class AlertManager extends AbstractComponent {
     public synchronized void stop() {
         if (state.compareAndSet(State.LOADING, State.STOPPED) || state.compareAndSet(State.STARTED, State.STOPPED)) {
             logger.info("Stopping alert manager...");
-            scheduler.stop();
             actionManager.stop();
+            scheduler.stop();
             alertsStore.stop();
             logger.info("Alert manager has stopped");
         }

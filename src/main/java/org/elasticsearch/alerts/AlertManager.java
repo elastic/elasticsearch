@@ -188,8 +188,16 @@ public class AlertManager extends AbstractComponent {
         @Override
         public void clusterChanged(ClusterChangedEvent event) {
             if (!event.localNodeMaster()) {
-                // We're no longer the master
-                stop();
+                // We're no longer the master so we need to stop alerting.
+                // Stopping alerting may take a while since it will wait on the scheduler to complete shutdown,
+                // so we fork here so that we don't wait too long. Other events may need to be processed and
+                // other cluster state listeners may need to be executed as well for this event.
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        stop();
+                    }
+                });
             } else {
                 if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
                     return; // wait until the gateway has recovered from disk

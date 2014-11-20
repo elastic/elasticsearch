@@ -50,13 +50,13 @@ import static org.elasticsearch.cluster.InternalClusterInfoService.shardIdentifi
  * <code>cluster.routing.allocation.disk.watermark.low</code> is the low disk
  * watermark. New shards will not allocated to a node with usage higher than this,
  * although this watermark may be passed by allocating a shard. It defaults to
- * 0.70 (70.0%).
+ * 0.85 (85.0%).
  *
  * <code>cluster.routing.allocation.disk.watermark.high</code> is the high disk
  * watermark. If a node has usage higher than this, shards are not allowed to
  * remain on the node. In addition, if allocating a shard to a node causes the
  * node to pass this watermark, it will not be allowed. It defaults to
- * 0.85 (85.0%).
+ * 0.90 (90.0%).
  *
  * Both watermark settings are expressed in terms of used disk percentage, or
  * exact byte values for free space (like "500mb")

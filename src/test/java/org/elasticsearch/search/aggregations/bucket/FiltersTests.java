@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.Filters;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
@@ -60,28 +61,28 @@ public class FiltersTests extends ElasticsearchIntegrationTest {
         numTag1Docs = randomIntBetween(1, numDocs - 1);
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numTag1Docs; i++) {
-            IndexRequestBuilder req = client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
+            XContentBuilder source = jsonBuilder()
                     .startObject()
                     .field("value", i + 1)
                     .field("tag", "tag1")
-                    .endObject());
-            builders.add(req);
+                    .endObject();
+            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
             if (randomBoolean()) {
                 // randomly index the document twice so that we have deleted docs that match the filter
-                builders.add(req);
+                builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
             }
         }
         for (int i = numTag1Docs; i < numDocs; i++) {
             numTag2Docs++;
-            IndexRequestBuilder req = client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
+            XContentBuilder source = jsonBuilder()
                     .startObject()
                     .field("value", i)
                     .field("tag", "tag2")
                     .field("name", "name" + i)
-                    .endObject());
-            builders.add(req);
+                    .endObject();
+            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
             if (randomBoolean()) {
-                builders.add(req);
+                builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
             }
         }
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();

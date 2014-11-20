@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
@@ -64,16 +65,16 @@ public class FilterTests extends ElasticsearchIntegrationTest {
                     .endObject()));
         }
         for (int i = numTag1Docs; i < numDocs; i++) {
-            IndexRequestBuilder req = client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
+            XContentBuilder source = jsonBuilder()
                     .startObject()
                     .field("value", i)
                     .field("tag", "tag2")
                     .field("name", "name" + i)
-                    .endObject());
-            builders.add(req);
+                    .endObject();
+            builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
             if (randomBoolean()) {
                 // randomly index the document twice so that we have deleted docs that match the filter
-                builders.add(req);
+                builders.add(client().prepareIndex("idx", "type", ""+i).setSource(source));
             }
         }
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();

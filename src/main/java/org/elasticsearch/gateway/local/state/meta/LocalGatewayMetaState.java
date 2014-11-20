@@ -45,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -287,6 +288,25 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                             }
                             final IndexMetaData indexMetaData = loadIndexState(indexName);
                             if (indexMetaData != null) {
+                                final Index index = new Index(indexName);
+                                try {
+                                    // the index deletion might not have worked due to shards still being locked
+                                    // we have three cases here:
+                                    //  - we acquired all shards locks here --> we can import the dangeling index
+                                    //  - we failed to acquire the lock --> somebody else uses it - DON'T IMPORT
+                                    //  - we acquired successfully but the lock list is empty --> no shards present - DON'T IMPORT
+                                    // in the last case we should in-fact try to delete the directory since it might be a leftover...
+                                    final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index);
+                                    if (shardLocks.isEmpty()) {
+                                        // no shards - try to remove the directory
+                                        nodeEnv.deleteIndexDirectorySafe(index);
+                                        continue;
+                                    }
+                                    IOUtils.closeWhileHandlingException(shardLocks);
+                                } catch (IOException ex) {
+                                    logger.warn("[{}] skipping locked dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state is set to [{}]", ex, indexName, autoImportDangled);
+                                    continue;
+                                }
                                 if(autoImportDangled.shouldImport()){
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state [{}]", indexName, autoImportDangled);
                                     danglingIndices.put(indexName, new DanglingIndex(indexName, null));
@@ -300,12 +320,6 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                                         logger.warn("[{}] failed to delete dangling index", ex, indexName);
                                     }
                                 } else {
-                                    try { // the index deletion might not have worked due to shards still being locked
-                                        IOUtils.closeWhileHandlingException(nodeEnv.lockAllForIndex(new Index(indexName)));
-                                    } catch (IOException ex) {
-                                        logger.warn("[{}] skipping locked dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state is set to [{}]", ex, indexName, autoImportDangled);
-                                        continue;
-                                    }
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, scheduling to delete in [{}], auto import to cluster state [{}]", indexName, danglingTimeout, autoImportDangled);
                                     danglingIndices.put(indexName, new DanglingIndex(indexName, threadPool.schedule(danglingTimeout, ThreadPool.Names.SAME, new RemoveDanglingIndex(indexName))));
                                 }

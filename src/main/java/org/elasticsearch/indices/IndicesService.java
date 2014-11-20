@@ -113,7 +113,9 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
         public void onAllShardsClosed(Index index, List<Throwable> failures);
 
         /**
-         * Invoked once the last resource using the given shard ID is released
+         * Invoked once the last resource using the given shard ID is released.
+         * Yet, this method is called while still holding the shards lock such that
+         * operations on the shards data can safely be executed in this callback.
          */
         public void onShardClosed(ShardId shardId);
 

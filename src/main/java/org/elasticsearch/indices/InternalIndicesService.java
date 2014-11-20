@@ -20,6 +20,7 @@
 package org.elasticsearch.indices;
 
 import com.google.common.collect.*;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -357,7 +358,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
             @Override
             public void onShardClosed(ShardId shardId) {
                 try {
-                    nodeEnv.deleteShardDirectorySafe(shardId);
+                    // this is called under the shard lock - we can safely delete it
+                    IOUtils.rm(nodeEnv.shardPaths(shardId));
                     logger.debug("deleted shard [{}] from filesystem", shardId);
                 } catch (IOException e) {
                     logger.warn("Can't delete shard {} ", e, shardId);

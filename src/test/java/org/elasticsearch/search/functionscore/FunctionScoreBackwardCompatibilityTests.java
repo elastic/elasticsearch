@@ -41,13 +41,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 /**
  */
-@TestLogging("action.search:TRACE")
 public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
 
     /**
      * Simple upgrade test for function score
      */
     @Test
+    @TestLogging("action.search:TRACE")
     public void testSimpleFunctionScoreParsingWorks() throws IOException, ExecutionException, InterruptedException {
 
         assertAcked(prepareCreate("test").addMapping(

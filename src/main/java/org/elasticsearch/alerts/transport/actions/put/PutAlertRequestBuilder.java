@@ -58,6 +58,6 @@ public class PutAlertRequestBuilder
 
     @Override
     protected void doExecute(ActionListener<PutAlertResponse> listener) {
-        client.indexAlert(request, listener);
+        client.putAlert(request, listener);
     }
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -35,7 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class AlertManager extends AbstractComponent {
 
@@ -44,9 +45,10 @@ public class AlertManager extends AbstractComponent {
     private final TriggerManager triggerManager;
     private final AlertActionManager actionManager;
     private final AlertActionRegistry actionRegistry;
-    private final AtomicBoolean started = new AtomicBoolean(false);
     private final ThreadPool threadPool;
+    private final ClusterService clusterService;
     private final KeyedLock<String> alertLock = new KeyedLock<>();
+    private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
 
     @Inject
     public AlertManager(Settings settings, ClusterService clusterService, AlertScheduler scheduler, AlertsStore alertsStore,
@@ -61,6 +63,7 @@ public class AlertManager extends AbstractComponent {
         this.actionManager = actionManager;
         this.actionManager.setAlertManager(this);
         this.actionRegistry = actionRegistry;
+        this.clusterService = clusterService;
         clusterService.add(new AlertsClusterStateListener());
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will
         // happen because we're shutting down and an alert is scheduled.
@@ -100,7 +103,7 @@ public class AlertManager extends AbstractComponent {
     }
 
     public boolean isStarted() {
-        return started.get();
+        return state.get() == State.STARTED;
     }
 
     public void scheduleAlert(String alertName, DateTime scheduledFireTime, DateTime fireTime){
@@ -175,11 +178,15 @@ public class AlertManager extends AbstractComponent {
     }
 
 
-    public void stop() {
-        if (started.compareAndSet(true, false)) {
+    // This is synchronized, because this may first be called from the cluster changed event and then from before close
+    // when a node closes. The stop also stops the scheduler which has several background threads. If this method is
+    // invoked in that order that node closes and the test framework complains then about the fact that there are still
+    // threads alive.
+    public synchronized void stop() {
+        if (state.compareAndSet(State.LOADING, State.STOPPED) || state.compareAndSet(State.STARTED, State.STOPPED)) {
             logger.info("Stopping alert manager...");
-            scheduler.stop();
             actionManager.stop();
+            scheduler.stop();
             alertsStore.stop();
             logger.info("Alert manager has stopped");
         }
@@ -194,7 +201,7 @@ public class AlertManager extends AbstractComponent {
     }
 
     private void ensureStarted() {
-        if (!started.get()) {
+        if (state.get() != State.STARTED) {
             throw new ElasticsearchIllegalStateException("not started");
         }
     }
@@ -235,61 +242,86 @@ public class AlertManager extends AbstractComponent {
     private final class AlertsClusterStateListener implements ClusterStateListener {
 
         @Override
-        public void clusterChanged(final ClusterChangedEvent event) {
+        public void clusterChanged(ClusterChangedEvent event) {
             if (!event.localNodeMaster()) {
-                // We're not the master
-                stop();
+                // We're no longer the master so we need to stop alerting.
+                // Stopping alerting may take a while since it will wait on the scheduler to complete shutdown,
+                // so we fork here so that we don't wait too long. Other events may need to be processed and
+                // other cluster state listeners may need to be executed as well for this event.
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        stop();
+                    }
+                });
             } else {
                 if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-                    return; // wait until the gateway has recovered from disk
+                    // wait until the gateway has recovered from disk, otherwise we think may not have .alerts and
+                    // a .alertshistory index, but they may not have been restored from the cluster state on disk
+                    return;
                 }
-
-                if (started.get()) {
-                    return; // We're already started
+                if (state.compareAndSet(State.STOPPED, State.LOADING)) {
+                    initialize(event.state());
                 }
-
-                alertsStore.start(event.state(), new LoadingListener() {
-                    @Override
-                    public void onSuccess() {
-                        startIfReady();
-                    }
-
-                    @Override
-                    public void onFailure() {
-                        retry(event);
-                    }
-                });
-                actionManager.start(event.state(), new LoadingListener() {
-                    @Override
-                    public void onSuccess() {
-                        startIfReady();
-                    }
-
-                    @Override
-                    public void onFailure() {
-                        retry(event);
-                    }
-                });
             }
+        }
+
+        private void initialize(final ClusterState state) {
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                @Override
+                public void run() {
+                    if (alertsStore.start(state)) {
+                        startIfReady();
+                    } else {
+                        retry();
+                    }
+                }
+            });
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                @Override
+                public void run() {
+                    if (actionManager.start(state)) {
+                        startIfReady();
+                    } else {
+                        retry();
+                    }
+                }
+            });
         }
 
         private void startIfReady() {
             if (alertsStore.started() && actionManager.started()) {
-                if (started.compareAndSet(false, true)) {
+                if (state.compareAndSet(State.LOADING, State.STARTED)) {
                     scheduler.start(alertsStore.getAlerts());
+                } else {
+                    logger.info("Didn't start alert manager, because it state was [{}] while [{}] was expected", state.get(), State.LOADING);
                 }
             }
         }
 
-        private void retry(final ClusterChangedEvent event) {
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                @Override
-                public void run() {
-                    // Retry with the same event:
-                    clusterChanged(event);
-                }
-            });
+        private void retry() {
+            // Only retry if our state is loading
+            if (state.get() == State.LOADING) {
+                final ClusterState newState = clusterService.state();
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        // Retry with the same event:
+                        initialize(newState);
+                    }
+                });
+            } else {
+                logger.info("Didn't retry to initialize the alert manager, because it state was [{}] while [{}] was expected", state.get(), State.LOADING);
+            }
         }
+
+    }
+
+    private enum State {
+
+        STOPPED,
+        LOADING,
+        STARTED
 
     }
 

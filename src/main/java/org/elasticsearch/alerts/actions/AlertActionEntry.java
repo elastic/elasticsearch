@@ -30,7 +30,7 @@ public class AlertActionEntry implements ToXContent {
     private DateTime scheduledTime;
     private AlertTrigger trigger;
     private List<AlertAction> actions;
-    private AlertActionState entryState;
+    private AlertActionState state;
     private SearchRequest searchRequest;
 
     /*Optional*/
@@ -49,7 +49,7 @@ public class AlertActionEntry implements ToXContent {
         this.scheduledTime = scheduledTime;
         this.trigger = alert.trigger();
         this.actions = alert.actions();
-        this.entryState = state;
+        this.state = state;
         this.searchRequest = alert.getSearchRequest();
     }
 
@@ -155,12 +155,12 @@ public class AlertActionEntry implements ToXContent {
     /**
      * @return The current state of the alert event.
      */
-    public AlertActionState getEntryState() {
-        return entryState;
+    public AlertActionState getState() {
+        return state;
     }
 
-    public void setEntryState(AlertActionState entryState) {
-        this.entryState = entryState;
+    public void setState(AlertActionState state) {
+        this.state = state;
     }
 
     public long getVersion() {
@@ -203,7 +203,7 @@ public class AlertActionEntry implements ToXContent {
             action.toXContent(historyEntry, params);
         }
         historyEntry.endObject();
-        historyEntry.field(AlertActionState.FIELD_NAME, entryState.toString());
+        historyEntry.field(AlertActionManager.STATE, state.toString());
 
         if (errorMsg != null) {
             historyEntry.field("error_msg", errorMsg);

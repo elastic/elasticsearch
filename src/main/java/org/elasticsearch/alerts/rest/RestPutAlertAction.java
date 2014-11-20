@@ -41,7 +41,7 @@ public class RestPutAlertAction extends BaseRestHandler {
         PutAlertRequest putAlertRequest = new PutAlertRequest();
         putAlertRequest.setAlertName(request.param("name"));
         putAlertRequest.setAlertSource(request.content(), request.contentUnsafe());
-        alertsClient.indexAlert(putAlertRequest, new RestBuilderListener<PutAlertResponse>(channel) {
+        alertsClient.putAlert(putAlertRequest, new RestBuilderListener<PutAlertResponse>(channel) {
             @Override
             public RestResponse buildResponse(PutAlertResponse response, XContentBuilder builder) throws Exception {
                 IndexResponse indexResponse = response.indexResponse();

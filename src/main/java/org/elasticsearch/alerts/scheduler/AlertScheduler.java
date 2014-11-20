@@ -27,8 +27,8 @@ public class AlertScheduler extends AbstractComponent {
     // Not happy about it, but otherwise we're stuck with Quartz's SimpleThreadPool
     private volatile static ThreadPool threadPool;
 
-    private volatile Scheduler scheduler;
     private AlertManager alertManager;
+    private volatile Scheduler scheduler;
 
     @Inject
     public AlertScheduler(Settings settings, ThreadPool threadPool) {
@@ -52,10 +52,14 @@ public class AlertScheduler extends AbstractComponent {
             // Can't start a scheduler that has been shutdown, so we need to re-create each time start() is invoked
             Properties properties = new Properties();
             properties.setProperty("org.quartz.threadPool.class", AlertQuartzThreadPool.class.getName());
+            properties.setProperty(StdSchedulerFactory.PROP_SCHED_SKIP_UPDATE_CHECK, "true");
+            properties.setProperty(StdSchedulerFactory.PROP_SCHED_INTERRUPT_JOBS_ON_SHUTDOWN, "true");
+            properties.setProperty(StdSchedulerFactory.PROP_SCHED_INTERRUPT_JOBS_ON_SHUTDOWN_WITH_WAIT, "true");
             SchedulerFactory schFactory = new StdSchedulerFactory(properties);
-            scheduler = schFactory.getScheduler();
+            Scheduler scheduler = schFactory.getScheduler();
             scheduler.setJobFactory(new SimpleJobFactory());
             scheduler.start();
+            this.scheduler = scheduler;
             for (Map.Entry<String, Alert> entry : alerts.entrySet()) {
                 add(entry.getKey(), entry.getValue());
             }
@@ -69,9 +73,13 @@ public class AlertScheduler extends AbstractComponent {
      */
     public synchronized void stop() {
         try {
-            scheduler.clear();
-            scheduler.shutdown(true);
-            logger.info("Stopped scheduler");
+            if (scheduler != null) {
+                logger.info("Stopping scheduler...");
+                scheduler.clear();
+                scheduler.shutdown(true);
+                scheduler = null;
+                logger.info("Stopped scheduler");
+            }
         } catch (SchedulerException se){
             logger.error("Failed to stop quartz scheduler", se);
         }

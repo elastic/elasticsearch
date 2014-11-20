@@ -36,7 +36,7 @@ public class TriggerManager extends AbstractComponent {
 
     private static final String FIRE_TIME_VARIABLE_NAME = "FIRE_TIME";
     private static final String SCHEDULED_FIRE_TIME_VARIABLE_NAME = "SCHEDULED_FIRE_TIME";
-    private static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.Defaults.DATE_TIME_FORMATTER;
+    public static final FormatDateTimeFormatter dateTimeFormatter = DateFieldMapper.Defaults.DATE_TIME_FORMATTER;
 
     private final Client client;
     private final ScriptService scriptService;

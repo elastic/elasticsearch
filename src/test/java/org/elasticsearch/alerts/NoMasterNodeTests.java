@@ -57,7 +57,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
-        alertsClient.prepareIndexAlert("my-first-alert")
+        alertsClient.preparePutAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
         assertAlertTriggered("my-first-alert", 1);
@@ -83,13 +83,13 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
 
         // Bring back the 2nd node and wait for elected master node to come back and alerting to work as expected.
         internalTestCluster().startNode();
-        ensureGreen();
+        ensureAlertingStarted();
 
         // Delete an existing alert
         DeleteAlertResponse response = alertsClient.prepareDeleteAlert("my-first-alert").get();
         assertThat(response.deleteResponse().isFound(), is(true));
         // Add a new alert and wait for it get triggered
-        alertsClient.prepareIndexAlert("my-second-alert")
+        alertsClient.preparePutAlert("my-second-alert")
                 .setAlertSource(alertSource)
                 .get();
         assertAlertTriggered("my-second-alert", 2);

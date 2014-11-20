@@ -120,7 +120,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
                 .prepareCount(AlertActionManager.ALERT_HISTORY_INDEX)
                 .setQuery(QueryBuilders.matchQuery(AlertActionState.FIELD_NAME, AlertActionState.THROTTLED.toString()))
                 .get();
-               
+
         assertThat(countOfThrottledActions.getCount(), greaterThan(0L));
     }
 

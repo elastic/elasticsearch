@@ -91,37 +91,37 @@ public interface AlertsClient extends ElasticsearchClient<AlertsClient> {
     ActionFuture<DeleteAlertResponse> deleteAlert(DeleteAlertRequest request);
 
     /**
-     * Creates a request builder to build a request to index an alert
+     * Creates a request builder to build a request to put an alert
      *
-     * @param alertName The name of the alert to index
+     * @param alertName The name of the alert to put
      * @return The builder to create the alert
      */
-    PutAlertRequestBuilder prepareIndexAlert(String alertName);
+    PutAlertRequestBuilder preparePutAlert(String alertName);
 
     /**
-     * Creates a request builder to build a request to index an alert
+     * Creates a request builder to build a request to put an alert
      *
      * @return The builder
      */
-    PutAlertRequestBuilder prepareIndexAlert();
+    PutAlertRequestBuilder preparePutAlert();
 
 
     //@TODO : rename to putAlert
     /**
-     * Indexes an alert and registers it with the scheduler
+     * Put an alert and registers it with the scheduler
      *
      * @param request The request containing the alert to index and register
      * @param listener The listener for the response containing the IndexResponse for this alert
      */
-    void indexAlert(PutAlertRequest request, ActionListener<PutAlertResponse> listener);
+    void putAlert(PutAlertRequest request, ActionListener<PutAlertResponse> listener);
 
     /**
-     * Indexes an alert and registers it with the scheduler
+     * Put an alert and registers it with the scheduler
      *
      * @param request The request containing the alert to index and register
      * @return The response containing the IndexResponse for this alert
      */
-    ActionFuture<PutAlertResponse> indexAlert(PutAlertRequest request);
+    ActionFuture<PutAlertResponse> putAlert(PutAlertRequest request);
 
 
     /**

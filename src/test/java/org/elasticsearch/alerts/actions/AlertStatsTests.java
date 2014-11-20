@@ -51,7 +51,7 @@ public class AlertStatsTests extends AbstractAlertingTests {
 
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("* * * * * ? *", searchRequest, "hits.total == 1");
-        alertClient().prepareIndexAlert("testAlert")
+        alertClient().preparePutAlert("testAlert")
                 .setAlertSource(alertSource)
                 .get();
 

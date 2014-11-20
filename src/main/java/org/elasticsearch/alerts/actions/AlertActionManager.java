@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -35,8 +36,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  */
@@ -51,27 +52,27 @@ public class AlertActionManager extends AbstractComponent {
     public static final String REQUEST = "request";
     public static final String RESPONSE = "response";
     public static final String ACTIONS_FIELD = "actions";
+    public static final String STATE = "state";
 
     public static final String ALERT_HISTORY_INDEX = ".alert_history";
     public static final String ALERT_HISTORY_TYPE = "alerthistory";
 
+    private static AlertActionEntry END_ENTRY = new AlertActionEntry();
+
     private final Client client;
+    private AlertManager alertManager;
     private final ThreadPool threadPool;
     private final AlertsStore alertsStore;
-    private final AlertActionRegistry actionRegistry;
     private final TriggerManager triggerManager;
     private final TemplateHelper templateHelper;
-    private AlertManager alertManager;
-
-    private final BlockingQueue<AlertActionEntry> actionsToBeProcessed = new LinkedBlockingQueue<>();
-    private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
+    private final AlertActionRegistry actionRegistry;
 
     private final int scrollSize;
     private final TimeValue scrollTimeout;
 
-    private static AlertActionEntry END_ENTRY = new AlertActionEntry();
-
     private final AtomicLong largestQueueSize = new AtomicLong(0);
+    private final AtomicBoolean started = new AtomicBoolean(false);
+    private final BlockingQueue<AlertActionEntry> actionsToBeProcessed = new LinkedBlockingQueue<>();
 
     @Inject
     public AlertActionManager(Settings settings, Client client, AlertActionRegistry actionRegistry,
@@ -93,55 +94,37 @@ public class AlertActionManager extends AbstractComponent {
         this.alertManager = alertManager;
     }
 
-    public void start(final ClusterState state, final LoadingListener listener) {
+    public boolean start(ClusterState state) {
+        if (started.get()) {
+            return true;
+        }
+
         IndexMetaData indexMetaData = state.getMetaData().index(ALERT_HISTORY_INDEX);
         if (indexMetaData != null) {
             if (state.routingTable().index(ALERT_HISTORY_INDEX).allPrimaryShardsActive()) {
-                if (this.state.compareAndSet(State.STOPPED, State.LOADING)) {
-                    threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            boolean success = false;
-                            try {
-                                loadQueue();
-                                success = true;
-                            } catch (Exception e) {
-                                logger.error("Unable to load unfinished jobs into the job queue", e);
-                            } finally {
-                                if (success) {
-                                    templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
-                                    if (AlertActionManager.this.state.compareAndSet(State.LOADING, State.STARTED)) {
-                                        doStart();
-                                        listener.onSuccess();
-                                    }
-                                } else {
-                                    if (AlertActionManager.this.state.compareAndSet(State.LOADING, State.STOPPED)) {
-                                        listener.onFailure();
-                                    }
-                                }
-                            }
-                        }
-                    });
+                try {
+                    loadQueue();
+                } catch (Exception e) {
+                    logger.error("Unable to load unfinished jobs into the job queue", e);
+                    actionsToBeProcessed.clear();
                 }
+                templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
+                doStart();
+                return true;
+            } else {
+                logger.info("Not all primary shards of the .alertshistory index are started");
+                return false;
             }
         } else {
-            if (this.state.compareAndSet(State.STOPPED, State.LOADING)) {
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
-                        if (AlertActionManager.this.state.compareAndSet(State.LOADING, State.STARTED)) {
-                            doStart();
-                            listener.onSuccess();
-                        }
-                    }
-                });
-            }
+            logger.info("No previous .alerthistory index, skip loading of alert actions");
+            templateHelper.checkAndUploadIndexTemplate(state, "alerthistory");
+            doStart();
+            return true;
         }
     }
 
     public void stop() {
-        if (state.compareAndSet(State.STARTED, State.STOPPED)) {
+        if (started.compareAndSet(true, false)) {
             actionsToBeProcessed.clear();
             actionsToBeProcessed.add(END_ENTRY);
             logger.info("Stopped job queue");
@@ -149,24 +132,26 @@ public class AlertActionManager extends AbstractComponent {
     }
 
     public boolean started() {
-        return state.get() == State.STARTED;
+        return started.get();
     }
 
     private void doStart() {
         logger.info("Starting job queue");
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(new QueueReaderThread());
+        if (started.compareAndSet(false, true)) {
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new QueueReaderThread());
+        }
     }
 
     public void loadQueue() {
         client.admin().indices().refresh(new RefreshRequest(ALERT_HISTORY_INDEX)).actionGet();
 
-        SearchResponse response = client.prepareSearch()
-                .setQuery(QueryBuilders.termQuery(AlertActionState.FIELD_NAME, AlertActionState.SEARCH_NEEDED.toString()))
+        SearchResponse response = client.prepareSearch(ALERT_HISTORY_INDEX)
+                .setQuery(QueryBuilders.termQuery(STATE, AlertActionState.SEARCH_NEEDED.toString()))
                 .setSearchType(SearchType.SCAN)
                 .setScroll(scrollTimeout)
                 .setSize(scrollSize)
                 .setTypes(ALERT_HISTORY_TYPE)
-                .setIndices(ALERT_HISTORY_INDEX).get();
+                .get();
         try {
             if (response.getHits().getTotalHits() > 0) {
                 response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
@@ -174,7 +159,7 @@ public class AlertActionManager extends AbstractComponent {
                     for (SearchHit sh : response.getHits()) {
                         String historyId = sh.getId();
                         AlertActionEntry historyEntry = parseHistory(historyId, sh.getSourceRef(), sh.version(), actionRegistry);
-                        assert historyEntry.getEntryState() == AlertActionState.SEARCH_NEEDED;
+                        assert historyEntry.getState() == AlertActionState.SEARCH_NEEDED;
                         actionsToBeProcessed.add(historyEntry);
                     }
                     response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
@@ -233,8 +218,8 @@ public class AlertActionManager extends AbstractComponent {
                         case ERROR_MESSAGE:
                             entry.setErrorMsg(parser.textOrNull());
                             break;
-                        case AlertActionState.FIELD_NAME:
-                            entry.setEntryState(AlertActionState.fromString(parser.text()));
+                        case STATE:
+                            entry.setState(AlertActionState.fromString(parser.text()));
                             break;
                         default:
                             throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
@@ -254,12 +239,13 @@ public class AlertActionManager extends AbstractComponent {
     }
 
     public void addAlertAction(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws IOException {
+        ensureStarted();
         AlertActionEntry entry = new AlertActionEntry(alert, scheduledFireTime, fireTime, AlertActionState.SEARCH_NEEDED);
         IndexResponse response = client.prepareIndex(ALERT_HISTORY_INDEX, ALERT_HISTORY_TYPE, entry.getId())
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .setOpType(IndexRequest.OpType.CREATE)
                 .get();
-        logger.info("Adding alert action for alert [{}]", alert.alertName() );
+        logger.info("Adding alert action for alert [{}]", alert.alertName());
         entry.setVersion(response.getVersion());
         long currentSize = actionsToBeProcessed.size() + 1;
         actionsToBeProcessed.add(entry);
@@ -275,24 +261,35 @@ public class AlertActionManager extends AbstractComponent {
         }
     }
 
+
     private void updateHistoryEntry(AlertActionEntry entry) throws IOException {
+        ensureStarted();
         IndexResponse response = client.prepareIndex(ALERT_HISTORY_INDEX, ALERT_HISTORY_TYPE, entry.getId())
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .get();
         entry.setVersion(response.getVersion());
     }
 
+
     private void updateHistoryEntry(AlertActionEntry entry, AlertActionState actionPerformed) throws IOException {
-        entry.setEntryState(actionPerformed);
+        entry.setState(actionPerformed);
         updateHistoryEntry(entry);
     }
 
     public long getQueueSize() {
+        ensureStarted();
         return actionsToBeProcessed.size();
     }
 
     public long getLargestQueueSize() {
+        ensureStarted();
         return largestQueueSize.get();
+    }
+
+    private void ensureStarted() {
+        if (!started.get()) {
+            throw new ElasticsearchIllegalStateException("not started");
+        }
     }
 
     private class AlertHistoryRunnable implements Runnable {
@@ -351,7 +348,7 @@ public class AlertActionManager extends AbstractComponent {
                 while (started()) {
                     AlertActionEntry entry = actionsToBeProcessed.take();
                     if (!started() || entry == END_ENTRY) {
-                        logger.debug("Stopping thread to read from the job queue");
+                        logger.info("Stopping thread to read from the job queue");
                         return;
                     }
                     threadPool.executor(AlertsPlugin.ALERT_THREAD_POOL_NAME).execute(new AlertHistoryRunnable(entry));
@@ -369,14 +366,6 @@ public class AlertActionManager extends AbstractComponent {
                 }
             }
         }
-    }
-
-    private enum State {
-
-        STOPPED,
-        LOADING,
-        STARTED
-
     }
 
 }

@@ -24,6 +24,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -262,7 +263,7 @@ public class BloomFilter {
     }
 
     public long getSizeInBytes() {
-        return bits.bitSize() + 8;
+        return bits.ramBytesUsed();
     }
 
     @Override
@@ -382,6 +383,10 @@ public class BloomFilter {
 
         @Override public int hashCode() {
             return Arrays.hashCode(data);
+        }
+
+        public long ramBytesUsed() {
+            return RamUsageEstimator.NUM_BYTES_LONG * data.length + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + 16;
         }
     }
 

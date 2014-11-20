@@ -77,6 +77,9 @@ public class LoggingListener extends RunListener {
 
     private Map<String, String> processTestLogging(TestLogging testLogging) {
         Map<String, String> map = getLoggersAndLevelsFromAnnotation(testLogging);
+        if (map == null) {
+            return null;
+        }
         for (Map.Entry<String, String> entry : map.entrySet()) {
             ESLogger esLogger = resolveLogger(entry.getKey());
             esLogger.setLevel(entry.getValue());

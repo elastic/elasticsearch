@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +39,6 @@ import org.junit.Ignore;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
@@ -121,7 +119,19 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new SettingsSource() {
             @Override
             public Settings node(int nodeOrdinal) {
-                return externalNodeSettings(nodeOrdinal, loggerLevels);
+                return getExternalNodeSettings(nodeOrdinal, loggerLevels);
+            }
+
+            private Settings getExternalNodeSettings(int nodeOrdinal, Map<String, String> loggerLevels) {
+                Settings externalNodesSettings = externalNodeSettings(nodeOrdinal);
+                ImmutableSettings.Builder finalSettings = ImmutableSettings.settingsBuilder();
+                if (loggerLevels != null) {
+                    for (Map.Entry<String, String> level : loggerLevels.entrySet()) {
+                        finalSettings.put("logger." + level.getKey(), level.getValue());
+                    }
+                }
+                finalSettings.put(externalNodesSettings);
+                return finalSettings.build();
             }
 
             @Override
@@ -157,15 +167,10 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
 
     protected Settings nodeSettings(int nodeOrdinal) {
-        return nodeSettings(nodeOrdinal, new HashMap<String, String>());
-    }
-    protected Settings nodeSettings(int nodeOrdinal, Map<String, String> loggerLevels) {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(requiredSettings())
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName()) // run same transport  / disco as external
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName());
-        for (Map.Entry<String, String> level : loggerLevels.entrySet()) {
-            builder.put("logger." + level.getKey(), level.getValue());
-        }
+
         if (compatibilityVersion().before(Version.V_1_3_2)) {
             // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
             // see #7210
@@ -173,6 +178,17 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
                    .put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
         }
         return builder.build();
+    }
+    protected Settings nodeSettings(int nodeOrdinal, Map<String, String> loggerLevels) {
+        Settings nodesSettings = nodeSettings(nodeOrdinal);
+        ImmutableSettings.Builder finalSettings = ImmutableSettings.settingsBuilder();
+        if (loggerLevels != null) {
+            for (Map.Entry<String, String> level : loggerLevels.entrySet()) {
+                finalSettings.put("logger." + level.getKey(), level.getValue());
+            }
+        }
+        finalSettings.put(nodesSettings);
+        return finalSettings.build();
     }
 
     public void assertAllShardsOnNodes(String index, String pattern) {
@@ -189,11 +205,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         }
     }
 
-    protected Settings externalNodeSettings(int nodeOrdinal, Map<String, String> loggerLevels) {
-        return nodeSettings(nodeOrdinal, loggerLevels);
-    }
-
     protected Settings externalNodeSettings(int nodeOrdinal) {
-        return nodeSettings(nodeOrdinal, new HashMap<String, String>());
+        return nodeSettings(nodeOrdinal);
     }
 }

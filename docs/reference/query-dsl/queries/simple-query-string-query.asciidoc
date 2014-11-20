@@ -110,3 +110,9 @@ should be enabled. It is specified as a `|`-delimited string with the
 
 The available flags are: `ALL`, `NONE`, `AND`, `OR`, `NOT`, `PREFIX`, `PHRASE`,
 `PRECEDENCE`, `ESCAPE`, `WHITESPACE`, `FUZZY`, `NEAR`, and `SLOP`.
+
+
+===== Empty Query
+
+Unlike a `query_string` query, a `simple_query_string` query will match all
+documents when the query string is empty, or contains only whitespace.

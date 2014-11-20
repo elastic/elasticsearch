@@ -78,9 +78,24 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
 
     IndexService createIndex(String index, Settings settings, String localNodeId) throws ElasticsearchException;
 
+    /**
+     * Removes the given index from this service and releases all associated resources. Persistent parts of the index
+     * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
+     * @param index the index to remove
+     * @param reason  the high level reason causing this removal
+     */
     void removeIndex(String index, String reason) throws ElasticsearchException;
 
-    void removeIndex(String index, String reason, @Nullable IndexCloseListener listener) throws ElasticsearchException;
+    /**
+     * Deletes the given index. Persistent parts of the index
+     * like the shards files, state and transaction logs are removed once all resources are released.
+     *
+     * Equivalent to {@link #removeIndex(String, String)} but fires
+     * different lifecycle events to ensure pending resources of this index are immediately removed.
+     * @param index the index to delete
+     * @param reason the high level reason causing this delete
+     */
+    void deleteIndex(String index, String reason) throws ElasticsearchException;
 
     /**
      * A listener interface that can be used to get notification once a shard or all shards

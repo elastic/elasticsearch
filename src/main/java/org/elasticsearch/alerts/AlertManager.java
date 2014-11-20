@@ -151,7 +151,11 @@ public class AlertManager extends AbstractComponent {
     }
 
 
-    public void stop() {
+    // This is synchronized, because this may first be called from the cluster changed event and then from before close
+    // when a node closes. The stop also stops the scheduler which has several background threads. If this method is
+    // invoked in that order that node closes and the test framework complains then about the fact that there are still
+    // threads alive.
+    public synchronized void stop() {
         if (state.compareAndSet(State.LOADING, State.STOPPED) || state.compareAndSet(State.STARTED, State.STOPPED)) {
             logger.info("Stopping alert manager...");
             scheduler.stop();

@@ -53,7 +53,7 @@ public class IndexAlertActionFactory implements AlertActionFactory {
                 throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
             }
         }
-        return new IndexAlertAction(index, type, client);
+        return new IndexAlertAction(index, type);
     }
 
     @Override

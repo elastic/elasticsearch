@@ -7,6 +7,9 @@ package org.elasticsearch.alerts.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.alerts.transport.actions.ack.AckAlertRequest;
+import org.elasticsearch.alerts.transport.actions.ack.AckAlertRequestBuilder;
+import org.elasticsearch.alerts.transport.actions.ack.AckAlertResponse;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequestBuilder;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
@@ -102,6 +105,8 @@ public interface AlertsClient extends ElasticsearchClient<AlertsClient> {
      */
     PutAlertRequestBuilder prepareIndexAlert();
 
+
+    //@TODO : rename to putAlert
     /**
      * Indexes an alert and registers it with the scheduler
      *
@@ -141,5 +146,36 @@ public interface AlertsClient extends ElasticsearchClient<AlertsClient> {
      * @param listener The listener for the response containing the AlertsStatsResponse
      */
     void alertsStats(AlertsStatsRequest request, ActionListener<AlertsStatsResponse> listener);
+
+    /**
+     * Creates a request builder to ack an alert by name (id)
+     *
+     * @param alertName the name (id) of the alert
+     * @return The request builder
+     */
+    AckAlertRequestBuilder prepareAckAlert(String alertName);
+
+    /**
+     * Creates a request builder that acks an alert
+     *
+     * @return The request builder
+     */
+    AckAlertRequestBuilder prepareAckAlert();
+
+    /**
+     * Ack an alert
+     *
+     * @param request The ack request with the alert name (id) to be acked
+     * @param listener The listener for the ack alert response
+     */
+    void ackAlert(AckAlertRequest request, ActionListener<AckAlertResponse> listener);
+
+    /**
+     * Acks an alert
+     *
+     * @param request The ack request with the alert name (id) to be acked
+     * @return The AckAlertResponse
+     */
+    ActionFuture<AckAlertResponse> ackAlert(AckAlertRequest request);
 
 }

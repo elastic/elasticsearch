@@ -22,6 +22,15 @@
         "last_action_fire": {
           "type": "date"
         },
+        "last_action_executed": {
+          "type": "date"
+        },
+        "throttle_period": {
+          "type": "string"
+        },
+	"ack_state" : {
+          "type": "string"
+	},
         "trigger": {
           "type": "object",
           "enabled" : false,

@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.alerts.actions.AlertActionEntry;
 import org.elasticsearch.alerts.actions.AlertActionManager;
 import org.elasticsearch.alerts.actions.AlertActionRegistry;
+import org.elasticsearch.alerts.actions.AlertActionState;
 import org.elasticsearch.alerts.scheduler.AlertScheduler;
 import org.elasticsearch.alerts.triggers.TriggerManager;
 import org.elasticsearch.alerts.triggers.TriggerResult;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.indices.IndicesService;
@@ -135,16 +137,41 @@ public class AlertManager extends AbstractComponent {
             }
             TriggerResult triggerResult = triggerManager.isTriggered(alert, entry.getScheduledTime(), entry.getFireTime());
             entry.setSearchResponse(triggerResult.getResponse());
+
             if (triggerResult.isTriggered()) {
                 entry.setTriggered(true);
-                actionRegistry.doAction(alert, triggerResult);
+                if (!isActionThrottled(alert)) {
+                    actionRegistry.doAction(alert, triggerResult);
+                    alert.setTimeLastActionExecuted(entry.getFireTime());
+                    if (alert.getAckState() == AlertAckState.NOT_TRIGGERED) {
+                        alert.setAckState(AlertAckState.NEEDS_ACK);
+                    }
+                } else {
+                    entry.setEntryState(AlertActionState.THROTTLED);
+                }
                 alert.lastActionFire(entry.getFireTime());
+                alertsStore.updateAlert(alert);
+            } else if (alert.getAckState() == AlertAckState.ACKED) {
+                alert.setAckState(AlertAckState.NOT_TRIGGERED);
                 alertsStore.updateAlert(alert);
             }
             return triggerResult;
         } finally {
             alertLock.release(entry.getAlertName());
         }
+    }
+
+    private boolean isActionThrottled(Alert alert) {
+        if (alert.getThrottlePeriod() != null && alert.getTimeLastActionExecuted() != null) {
+            TimeValue timeSinceLastExeuted = new TimeValue((new DateTime()).getMillis() - alert.getTimeLastActionExecuted().getMillis());
+            if (timeSinceLastExeuted.getMillis() <= alert.getThrottlePeriod().getMillis()) {
+                return true;
+            }
+        }
+        if (alert.getAckState() == AlertAckState.ACKED) {
+            return true;
+        }
+        return false;
     }
 
 
@@ -174,6 +201,35 @@ public class AlertManager extends AbstractComponent {
 
     public long getNumberOfAlerts() {
         return alertsStore.getAlerts().size();
+    }
+
+    /**
+     * Acks the alert if needed
+     * @param alertName
+     * @return
+     */
+    public AlertAckState ackAlert(String alertName) {
+        ensureStarted();
+        alertLock.acquire(alertName);
+        try {
+            Alert alert = alertsStore.getAlert(alertName);
+            if (alert == null) {
+                throw new ElasticsearchException("Alert is does not exist [" + alertName + "]");
+            }
+            if (alert.getAckState() == AlertAckState.NEEDS_ACK) {
+                alert.setAckState(AlertAckState.ACKED);
+                try {
+                    alertsStore.updateAlert(alert);
+                } catch (IOException ioe) {
+                    throw new ElasticsearchException("Failed to update the alert", ioe);
+                }
+                return AlertAckState.ACKED;
+            } else {
+                return alert.getAckState();
+            }
+        } finally {
+            alertLock.release(alertName);
+        }
     }
 
     private final class AlertsClusterStateListener implements ClusterStateListener {

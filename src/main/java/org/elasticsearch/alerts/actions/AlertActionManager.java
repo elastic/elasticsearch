@@ -275,12 +275,16 @@ public class AlertActionManager extends AbstractComponent {
         }
     }
 
-    private void updateHistoryEntry(AlertActionEntry entry, AlertActionState actionPerformed) throws IOException {
-        entry.setEntryState(actionPerformed);
+    private void updateHistoryEntry(AlertActionEntry entry) throws IOException {
         IndexResponse response = client.prepareIndex(ALERT_HISTORY_INDEX, ALERT_HISTORY_TYPE, entry.getId())
                 .setSource(XContentFactory.jsonBuilder().value(entry))
                 .get();
         entry.setVersion(response.getVersion());
+    }
+
+    private void updateHistoryEntry(AlertActionEntry entry, AlertActionState actionPerformed) throws IOException {
+        entry.setEntryState(actionPerformed);
+        updateHistoryEntry(entry);
     }
 
     public long getQueueSize() {
@@ -312,8 +316,16 @@ public class AlertActionManager extends AbstractComponent {
                     return;
                 }
                 updateHistoryEntry(entry, AlertActionState.SEARCH_UNDERWAY);
+                logger.info("Running an alert action entry for [{}]", entry.getAlertName());
                 TriggerResult trigger = alertManager.executeAlert(entry);
-                updateHistoryEntry(entry, trigger.isTriggered() ? AlertActionState.ACTION_PERFORMED : AlertActionState.NO_ACTION_NEEDED);
+                if (trigger.isTriggered()) {
+                    if (entry.getEntryState() != AlertActionState.THROTTLED) {
+                        entry.setEntryState(AlertActionState.ACTION_PERFORMED);
+                    }
+                } else {
+                    entry.setEntryState(AlertActionState.NO_ACTION_NEEDED);
+                }
+                updateHistoryEntry(entry);
             } catch (Exception e) {
                 if (started()) {
                     logger.error("Failed to execute alert action", e);

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.alerts.actions;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -15,7 +14,7 @@ public class IndexAlertAction implements AlertAction, ToXContent {
     private final String index;
     private final String type;
 
-    public IndexAlertAction(String index, String type, Client client){
+    public IndexAlertAction(String index, String type){
         this.index = index;
         this.type = type;
     }

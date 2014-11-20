@@ -54,6 +54,9 @@ public class AlertsStore extends AbstractComponent {
     public static final ParseField LAST_ACTION_FIRE = new ParseField("last_action_fire");
     public static final ParseField ENABLE = new ParseField("enable");
     public static final ParseField REQUEST_FIELD = new ParseField("request");
+    public static final ParseField THROTTLE_PERIOD_FIELD = new ParseField("throttle_period");
+    public static final ParseField LAST_ACTION_EXECUTED_FIELD = new ParseField("last_action_executed");
+    public static final ParseField ACK_STATE_FIELD = new ParseField("ack_state");
 
     private final Client client;
     private final ThreadPool threadPool;
@@ -248,6 +251,7 @@ public class AlertsStore extends AbstractComponent {
     protected Alert parseAlert(String alertName, BytesReference source) {
         Alert alert = new Alert();
         alert.alertName(alertName);
+        logger.error("Source : [{}]", source.toUtf8());
         try (XContentParser parser = XContentHelper.createParser(source)) {
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();
@@ -273,6 +277,12 @@ public class AlertsStore extends AbstractComponent {
                         alert.enabled(parser.booleanValue());
                     } else if (LAST_ACTION_FIRE.match(currentFieldName)) {
                         alert.lastActionFire(DateTime.parse(parser.textOrNull()));
+                    } else if (LAST_ACTION_EXECUTED_FIELD.match(currentFieldName)) {
+                        alert.setTimeLastActionExecuted(DateTime.parse(parser.textOrNull()));
+                    } else if (THROTTLE_PERIOD_FIELD.match(currentFieldName)) {
+                        alert.setThrottlePeriod(TimeValue.parseTimeValue(parser.textOrNull(), new TimeValue(0)));
+                    } else if (ACK_STATE_FIELD.match(currentFieldName)) {
+                        alert.setAckState(AlertAckState.fromString(parser.textOrNull()));
                     } else {
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }

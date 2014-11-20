@@ -55,7 +55,8 @@ public class BootStrapTest extends AbstractAlertingTests {
         assertTrue(response.isAlertManagerStarted());
         assertThat(response.getNumberOfRegisteredAlerts(), equalTo(1L));
 
-        refresh();
+        client().admin().indices().prepareRefresh(AlertsStore.ALERT_INDEX).get();
+
 
         String oldMaster = internalTestCluster().getMasterName();
 
@@ -102,7 +103,9 @@ public class BootStrapTest extends AbstractAlertingTests {
                 "0 0/5 * * * ? *",
                 new DateTime(),
                 0,
-                true );
+                true,
+                new TimeValue(0),
+                AlertAckState.NOT_ACKABLE);
 
         AlertActionEntry entry =
                 new AlertActionEntry(alert,

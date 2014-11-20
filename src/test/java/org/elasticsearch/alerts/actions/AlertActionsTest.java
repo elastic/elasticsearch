@@ -9,10 +9,7 @@ package org.elasticsearch.alerts.actions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.AlertManager;
-import org.elasticsearch.alerts.AlertUtils;
-import org.elasticsearch.alerts.AlertsStore;
+import org.elasticsearch.alerts.*;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.plugin.AlertsPlugin;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
@@ -29,6 +26,7 @@ import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -188,7 +186,9 @@ public class AlertActionsTest extends ElasticsearchIntegrationTest {
                 "0/5 * * * * ? *",
                 null,
                 1,
-                true
+                true,
+                new TimeValue(0),
+                AlertAckState.NOT_ACKABLE
         );
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();

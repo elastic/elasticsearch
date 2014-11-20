@@ -72,14 +72,18 @@ public class GeoHashGridAggregator extends BucketsAggregator {
         assert owningBucketOrdinal == 0;
         final int valuesCount = values.setDocument(doc);
 
+        long previous = Long.MAX_VALUE;
         for (int i = 0; i < valuesCount; ++i) {
             final long val = values.nextValue();
-            long bucketOrdinal = bucketOrds.add(val);
-            if (bucketOrdinal < 0) { // already seen
-                bucketOrdinal = - 1 - bucketOrdinal;
-                collectExistingBucket(doc, bucketOrdinal);
-            } else {
-                collectBucket(doc, bucketOrdinal);
+            if (previous != val || i == 0) {
+                long bucketOrdinal = bucketOrds.add(val);
+                if (bucketOrdinal < 0) { // already seen
+                    bucketOrdinal = - 1 - bucketOrdinal;
+                    collectExistingBucket(doc, bucketOrdinal);
+                } else {
+                    collectBucket(doc, bucketOrdinal);
+                }
+                previous = val;
             }
         }
     }

@@ -257,33 +257,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}] cleaning index, no longer part of the metadata", index);
                 }
-                removeIndex(index, "index no longer part of the metadata", new IndicesService.IndexCloseListener() {
-
-                    @Override
-                    public void onAllShardsClosed(Index index, List<Throwable> failures) {
-                        try {
-                            nodeEnvironment.deleteIndexDirectorySafe(index);
-                            logger.debug("deleted index [{}] from filesystem", index);
-                        } catch (Exception e) {
-                            logger.debug("failed to deleted index [{}] from filesystem", e, index);
-                            // ignore - still some shards locked here
-                        }
-                    }
-
-                    @Override
-                    public void onShardClosed(ShardId shardId) {
-                        try {
-                            nodeEnvironment.deleteShardDirectorySafe(shardId);
-                            logger.debug("deleted shard [{}] from filesystem", shardId);
-                        } catch (IOException e) {
-                            logger.warn("Can't delete shard {} ", e, shardId);
-                        }
-                    }
-
-                    @Override
-                    public void onShardCloseFailed(ShardId shardId, Throwable t) {
-                    }
-                });
+                deleteIndex(index, "index no longer part of the metadata");
             }
         }
     }
@@ -869,21 +843,32 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
     }
     private void removeIndex(String index, String reason) {
-        removeIndex(index, reason, null);
-    }
-
-    private void removeIndex(String index, String reason, @Nullable IndicesService.IndexCloseListener listener) {
         try {
-            indicesService.removeIndex(index, reason, listener);
+            indicesService.removeIndex(index, reason);
         } catch (Throwable e) {
             logger.warn("failed to clean index ({})", e, reason);
         }
+        clearSeenMappings(index);
+
+    }
+
+    private void clearSeenMappings(String index) {
         // clear seen mappings as well
         for (Tuple<String, String> tuple : seenMappings.keySet()) {
             if (tuple.v1().equals(index)) {
                 seenMappings.remove(tuple);
             }
         }
+    }
+
+    private void deleteIndex(String index, String reason) {
+        try {
+            indicesService.deleteIndex(index, reason);
+        } catch (Throwable e) {
+            logger.warn("failed to delete index ({})", e, reason);
+        }
+        // clear seen mappings as well
+        clearSeenMappings(index);
     }
 
     private class FailedEngineHandler implements Engine.FailedEngineListener {

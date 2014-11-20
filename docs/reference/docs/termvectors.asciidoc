@@ -8,7 +8,7 @@ realtime. This can be changed by setting `realtime` parameter to `false`.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true'
+curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvectors?pretty=true'
 --------------------------------------------------
 
 Optionally, you can specify the fields for which the information is
@@ -16,12 +16,15 @@ retrieved either with a parameter in the url
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?fields=text,...'
+curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvectors?fields=text,...'
 --------------------------------------------------
 
 or by adding the requested fields in the request body (see
 example below). Fields can also be specified with wildcards
 in similar way to the <<query-dsl-multi-match-query,multi match query>>
+
+[WARNING]
+Note that the usage of `/_termvector` is deprecated in 2.0, and replaced by `/_termvectors`.
 
 [float]
 === Return values

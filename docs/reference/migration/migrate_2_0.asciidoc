@@ -51,4 +51,4 @@ In addition, the following node settings related to routing have been deprecated
 
 === Term Vectors API
 
-Usage of `_termvector` is deprecated, and replaced in favor of `_termvectors`.
+Usage of `/_termvector` is deprecated, and replaced in favor of `/_termvectors`.

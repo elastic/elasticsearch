@@ -396,7 +396,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                 holes[numHoles] = null;
             }
             // only connect edges if intersections are pairwise (per comment above)
-            if (e1.intersect != Edge.maxCoordinate() && e2.intersect != Edge.maxCoordinate()) {
+            if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE) {
                 connect(e1, e2);
             }
         }

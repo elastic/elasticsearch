@@ -53,7 +53,7 @@ public class IndexTemplateMetaData {
 
     // the mapping source should always include the type as top level
     private final ImmutableOpenMap<String, CompressedString> mappings;
-    
+
     private final ImmutableOpenMap<String, AliasMetaData> aliases;
 
     private final ImmutableOpenMap<String, IndexMetaData.Custom> customs;
@@ -112,7 +112,7 @@ public class IndexTemplateMetaData {
     public ImmutableOpenMap<String, AliasMetaData> aliases() {
         return this.aliases;
     }
-    
+
     public ImmutableOpenMap<String, AliasMetaData> getAliases() {
         return this.aliases;
     }
@@ -176,7 +176,7 @@ public class IndexTemplateMetaData {
         private Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
 
         private final ImmutableOpenMap.Builder<String, CompressedString> mappings;
-        
+
         private final ImmutableOpenMap.Builder<String, AliasMetaData> aliases;
 
         private final ImmutableOpenMap.Builder<String, IndexMetaData.Custom> customs;
@@ -237,7 +237,7 @@ public class IndexTemplateMetaData {
             mappings.put(mappingType, new CompressedString(mappingSource));
             return this;
         }
-        
+
         public Builder putAlias(AliasMetaData aliasMetaData) {
             aliases.put(aliasMetaData.alias(), aliasMetaData);
             return this;
@@ -309,7 +309,7 @@ public class IndexTemplateMetaData {
                 IndexMetaData.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
                 builder.endObject();
             }
-            
+
             builder.startObject("aliases");
             for (ObjectCursor<AliasMetaData> cursor : indexTemplateMetaData.aliases().values()) {
                 AliasMetaData.Builder.toXContent(cursor.value, builder, params);
@@ -319,8 +319,8 @@ public class IndexTemplateMetaData {
             builder.endObject();
         }
 
-        public static IndexTemplateMetaData fromXContent(XContentParser parser) throws IOException {
-            Builder builder = new Builder(parser.currentName());
+        public static IndexTemplateMetaData fromXContent(XContentParser parser, String templateName) throws IOException {
+            Builder builder = new Builder(templateName);
 
             String currentFieldName = skipTemplateName(parser);
             XContentParser.Token token;

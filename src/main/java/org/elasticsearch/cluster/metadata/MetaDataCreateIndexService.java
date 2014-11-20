@@ -246,6 +246,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     Map<String, AliasMetaData> templatesAliases = Maps.newHashMap();
 
+                    List<String> templateNames = Lists.newArrayList();
+
                     for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
                         mappings.put(entry.getKey(), parseMapping(entry.getValue()));
                     }
@@ -256,6 +258,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     // apply templates, merging the mappings into the request mapping if exists
                     for (IndexTemplateMetaData template : templates) {
+                        templateNames.add(template.getName());
                         for (ObjectObjectCursor<String, CompressedString> cursor : template.mappings()) {
                             if (mappings.containsKey(cursor.key)) {
                                 XContentHelper.mergeDefaults(mappings.get(cursor.key), parseMapping(cursor.value.string()));
@@ -446,7 +449,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             .put(indexMetaData, false)
                             .build();
 
-                    logger.info("[{}] creating index, cause [{}], shards [{}]/[{}], mappings {}", request.index(), request.cause(), indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());
+                    logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}", request.index(), request.cause(), templateNames, indexMetaData.numberOfShards(), indexMetaData.numberOfReplicas(), mappings.keySet());
 
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     if (!request.blocks().isEmpty()) {
@@ -518,18 +521,20 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             File[] templatesFiles = templatesDir.listFiles();
             if (templatesFiles != null) {
                 for (File templatesFile : templatesFiles) {
-                    XContentParser parser = null;
-                    try {
-                        byte[] templatesData = Streams.copyToByteArray(templatesFile);
-                        parser = XContentHelper.createParser(templatesData, 0, templatesData.length);
-                        IndexTemplateMetaData template = IndexTemplateMetaData.Builder.fromXContent(parser);
-                        if (indexTemplateFilter.apply(request, template)) {
-                            templates.add(template);
+                    if (templatesFile.isFile()) {
+                        XContentParser parser = null;
+                        try {
+                            byte[] templatesData = Streams.copyToByteArray(templatesFile);
+                            parser = XContentHelper.createParser(templatesData, 0, templatesData.length);
+                            IndexTemplateMetaData template = IndexTemplateMetaData.Builder.fromXContent(parser, templatesFile.getName());
+                            if (indexTemplateFilter.apply(request, template)) {
+                                templates.add(template);
+                            }
+                        } catch (Exception e) {
+                            logger.warn("[{}] failed to read template [{}] from config", e, request.index(), templatesFile.getAbsolutePath());
+                        } finally {
+                            Releasables.closeWhileHandlingException(parser);
                         }
-                    } catch (Exception e) {
-                        logger.warn("[{}] failed to read template [{}] from config", e, request.index(), templatesFile.getAbsolutePath());
-                    } finally {
-                        Releasables.closeWhileHandlingException(parser);
                     }
                 }
             }

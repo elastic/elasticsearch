@@ -46,10 +46,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
 public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrationTest {
 
-    public void loadIndex(String index) throws Exception {
+    public void loadIndex(String index, Object... settings) throws Exception {
         logger.info("Checking static index " + index);
-        Settings settings = prepareBackwardsDataDir(new File(getClass().getResource(index).toURI()));
-        internalCluster().startNode(settings);
+        Settings nodeSettings = prepareBackwardsDataDir(new File(getClass().getResource(index).toURI()), settings);
+        internalCluster().startNode(nodeSettings);
         ensureGreen("test");
         assertIndexSanity();
     }

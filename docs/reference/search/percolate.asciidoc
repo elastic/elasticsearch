@@ -45,7 +45,7 @@ curl -XPUT 'localhost:9200/my-index' -d '{
       }
     }
   }
-}
+}'
 --------------------------------------------------
 
 Register a query in the percolator:

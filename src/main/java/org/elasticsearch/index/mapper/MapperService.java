@@ -827,7 +827,7 @@ public class MapperService extends AbstractIndexComponent  {
     }
 
     /**
-     * Returns smart field mappers based on a smart name. A smart name is one that can optioannly be prefixed
+     * Returns smart field mappers based on a smart name. A smart name is one that can optionally be prefixed
      * with a type (and then a '.'). If it is, then the {@link MapperService.SmartNameFieldMappers}
      * will have the doc mapper set.
      * <p/>

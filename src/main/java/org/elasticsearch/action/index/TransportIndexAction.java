@@ -83,7 +83,12 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
             request.beforeLocalFork(); // we fork on another thread...
-            createIndexAction.execute(new CreateIndexRequest(request).index(request.index()).cause("auto(index api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest(request);
+            createIndexRequest.index(request.index());
+            createIndexRequest.mapping(request.type());
+            createIndexRequest.cause("auto(index api)");
+            createIndexRequest.masterNodeTimeout(request.timeout());
+            createIndexAction.execute(createIndexRequest, new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);

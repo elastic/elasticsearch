@@ -305,6 +305,7 @@ You can disable that check using `plugins.check_lucene: false`.
 .Supported by the community
 
 * https://github.com/kzwang/elasticsearch-repository-gridfs[GridFS] Repository (by Kevin Wang)
+* https://github.com/wikimedia/search-repository-swift[Openstack Swift]
 
 [float]
 [[misc]]

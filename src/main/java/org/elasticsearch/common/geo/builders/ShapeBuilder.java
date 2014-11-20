@@ -301,7 +301,7 @@ public abstract class ShapeBuilder implements ToXContent {
             Coordinate p1 = edges[i].coordinate;
             Coordinate p2 = edges[i].next.coordinate;
             assert !Double.isNaN(p2.x) && !Double.isNaN(p1.x);  
-            edges[i].intersect = IntersectionOrder.SENTINEL;
+            edges[i].intersect = Edge.MAX_COORDINATE;
 
             double position = intersection(p1, p2, dateline);
             if (!Double.isNaN(position)) {
@@ -370,6 +370,7 @@ public abstract class ShapeBuilder implements ToXContent {
         Edge next; // next segment
         Coordinate intersect; // potential intersection with dateline
         int component = -1; // id of the component this edge belongs to
+        public static final Coordinate MAX_COORDINATE = new Coordinate(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY);
 
         protected Edge(Coordinate coordinate, Edge next, Coordinate intersection) {
             this.coordinate = coordinate;
@@ -381,7 +382,7 @@ public abstract class ShapeBuilder implements ToXContent {
         }
 
         protected Edge(Coordinate coordinate, Edge next) {
-            this(coordinate, next, IntersectionOrder.SENTINEL);
+            this(coordinate, next, Edge.MAX_COORDINATE);
         }
 
         private static final int top(Coordinate[] points, int offset, int length) {
@@ -490,10 +491,6 @@ public abstract class ShapeBuilder implements ToXContent {
             }
         }
 
-        public static Coordinate maxCoordinate() {
-            return IntersectionOrder.SENTINEL;
-        }
-
         @Override
         public String toString() {
             return "Edge[Component=" + component + "; start=" + coordinate + " " + "; intersection=" + intersect + "]";
@@ -503,8 +500,6 @@ public abstract class ShapeBuilder implements ToXContent {
     protected static final IntersectionOrder INTERSECTION_ORDER = new IntersectionOrder();
 
     private static final class IntersectionOrder implements Comparator<Edge> {
-        private static final Coordinate SENTINEL = new Coordinate(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY);
-        
         @Override
         public int compare(Edge o1, Edge o2) {
             return Double.compare(o1.intersect.y, o2.intersect.y);

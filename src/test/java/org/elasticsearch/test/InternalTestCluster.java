@@ -288,7 +288,7 @@ public final class InternalTestCluster extends TestCluster {
             builder.put("logger.level", System.getProperty("es.logger.level"));
         }
         if (Strings.hasLength(System.getProperty("es.logger.prefix"))) {
-            builder.put("logger.prefix", System.getProperty("es.logger.prefix"));
+            builder.put("logger.prefix", System.getProperty("es.logger.level"));
         }
         // Default the watermarks to absurdly low to prevent the tests
         // from failing on nodes without enough disk space

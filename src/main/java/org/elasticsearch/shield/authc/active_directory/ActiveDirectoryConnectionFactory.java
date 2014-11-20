@@ -80,7 +80,7 @@ public class ActiveDirectoryConnectionFactory extends AbstractComponent implemen
             DirContext ctx = new InitialDirContext(ldapEnv);
             SearchControls searchCtls = new SearchControls();
             searchCtls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-            searchCtls.setReturningAttributes( new String[] {} );
+            searchCtls.setReturningAttributes( Strings.EMPTY_ARRAY );
 
             String searchFilter = "(&(objectClass=user)(userPrincipalName={0}))";
             NamingEnumeration<SearchResult> results = ctx.search(userSearchDN, searchFilter, new Object[]{ userPrincipal }, searchCtls);

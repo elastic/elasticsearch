@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
@@ -67,7 +68,7 @@ public class LdapConnection extends AbstractLdapConnection {
     public List<String> getGroupsFromSearch(String userDn){
         List<String> groups = new LinkedList<>();
         SearchControls search = new SearchControls();
-        search.setReturningAttributes( new String[0] );
+        search.setReturningAttributes( Strings.EMPTY_ARRAY );
         search.setSearchScope( this.isGroupSubTreeSearch ? SearchControls.SUBTREE_SCOPE : SearchControls.ONELEVEL_SCOPE);
 
         //This could be made could be made configurable but it should cover all cases
@@ -77,7 +78,7 @@ public class LdapConnection extends AbstractLdapConnection {
 
         try {
             NamingEnumeration<SearchResult> results = jndiContext.search(
-                    groupSearchDN, filter, new Object[]{ userDn }, search);
+                    groupSearchDN, filter, new Object[]{userDn}, search);
             while (results.hasMoreElements()){
                 groups.add(results.next().getNameInNamespace());
             }

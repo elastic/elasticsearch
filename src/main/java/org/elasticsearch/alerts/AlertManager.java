@@ -200,10 +200,9 @@ public class AlertManager extends AbstractComponent {
                 });
             } else {
                 if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-                    return; // wait until the gateway has recovered from disk
-                }
-                if (isStarted()) {
-                    return; // We're already started
+                    // wait until the gateway has recovered from disk, otherwise we think may not have .alerts and
+                    // a .alertshistory index, but they may not have been restored from the cluster state on disk
+                    return;
                 }
                 if (state.compareAndSet(State.STOPPED, State.LOADING)) {
                     initialize(event.state());

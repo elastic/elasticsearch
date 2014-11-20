@@ -529,16 +529,20 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
         for (DocumentMapper documentMapper : documentMappersToUpdate) {
             mappingUpdatedAction.updateMappingOnMaster(indexService.index().getName(), documentMapper, indexService.indexUUID(), listener);
         }
-        try {
-            if (!updatedOnMaster.await(internalActionTimeout.millis(), TimeUnit.MILLISECONDS)) {
-                logger.debug("[{}][{}] recovery [phase2] to {}: waiting on pending mapping update timed out. waited [{}]",
-                        indexName, shardId, request.targetNode(), internalActionTimeout);
+        cancelableThreads.run(new Interruptable() {
+            @Override
+            public void run() throws InterruptedException {
+                try {
+                    if (!updatedOnMaster.await(internalActionTimeout.millis(), TimeUnit.MILLISECONDS)) {
+                        logger.debug("[{}][{}] recovery [phase2] to {}: waiting on pending mapping update timed out. waited [{}]",
+                                indexName, shardId, request.targetNode(), internalActionTimeout);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    logger.debug("interrupted while waiting for mapping to update on master");
+                }
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.debug("interrupted while waiting for mapping to update on master");
-        }
-
+        });
     }
 
     /**

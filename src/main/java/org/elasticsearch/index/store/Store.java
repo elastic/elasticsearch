@@ -364,15 +364,13 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             logger.debug("failed to close directory", e);
         } finally {
             try {
-                IOUtils.closeWhileHandlingException(shardLock);
-            } finally {
-                try {
-                    if (listener != null) {
-                        listener.onClose(shardId);
-                    }
-                } catch (Exception ex){
-                    logger.debug("OnCloseListener threw an exception", ex);
+                if (listener != null) {
+                    listener.onClose(shardId);
                 }
+            } catch (Exception ex){
+                logger.debug("OnCloseListener threw an exception", ex);
+            } finally {
+                IOUtils.closeWhileHandlingException(shardLock);
             }
 
 

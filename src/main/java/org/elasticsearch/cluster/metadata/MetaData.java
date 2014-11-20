@@ -319,7 +319,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
         return mapBuilder.build();
     }
-    
+
     private boolean matchAllAliases(final String[] aliases) {
         for (String alias : aliases) {
             if (alias.equals("_all")) {
@@ -1011,7 +1011,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     public static boolean isAllIndices(String[] aliasesOrIndices) {
         return aliasesOrIndices == null || aliasesOrIndices.length == 0 || isExplicitAllPattern(aliasesOrIndices);
     }
-    
+
     /**
      * Identifies whether the array containing type names given as argument refers to all types
      * The empty or null array identifies all types
@@ -1359,7 +1359,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                         }
                     } else if ("templates".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexTemplateMetaData.Builder.fromXContent(parser));
+                            builder.put(IndexTemplateMetaData.Builder.fromXContent(parser, parser.currentName()));
                         }
                     } else {
                         // check if its a custom index metadata

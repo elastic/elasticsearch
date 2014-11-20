@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -37,7 +38,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numClientNodes = 0, transportClientRatio = 0, numDataNodes = 1)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0)
 public class AlertThrottleTests extends AbstractAlertingTests {
 
     @Test
@@ -160,6 +161,15 @@ public class AlertThrottleTests extends AbstractAlertingTests {
                 .setTypes("action-type")
                 .setSource(searchSource().query(matchAllQuery()).buildAsBytes())
                 .get();
+
+        if (countResponse.getCount() != 1){
+            SearchResponse actionResponse = client().prepareSearch(AlertActionManager.ALERT_HISTORY_INDEX)
+                    .setQuery(matchAllQuery())
+                    .get();
+            for (SearchHit hit : actionResponse.getHits()) {
+                logger.info("Got action hit [{}]", hit.getSourceRef().toUtf8());
+            }
+        }
 
         assertThat(countResponse.getCount(), equalTo(1L));
 

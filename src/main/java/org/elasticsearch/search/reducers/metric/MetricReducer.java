@@ -20,20 +20,20 @@
 package org.elasticsearch.search.reducers.metric;
 
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.reducers.Reducer;
 import org.elasticsearch.search.reducers.ReducerContext;
 import org.elasticsearch.search.reducers.ReducerFactories;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
-import java.util.List;
-
 public abstract class MetricReducer extends Reducer {
 
-    public MetricReducer(String name, String bucketPath, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, bucketPath, factories, context, parent);
+    public MetricReducer(String name, ReducerFactories factories, ReducerContext context, Reducer parent) {
+        super(name, factories, context, parent);
     }
     
     @Override
-    public abstract InternalAggregation doReduce(List<? extends Aggregation> aggregation) throws ReductionExecutionException;
+    public abstract InternalAggregation reduce(Aggregations aggregationTree, Aggregation currentAggregation)
+            throws ReductionExecutionException;
 }

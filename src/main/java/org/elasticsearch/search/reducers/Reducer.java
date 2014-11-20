@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.reducers;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -26,28 +27,19 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 
 public abstract class Reducer {
 
     private String name;
-    private List<String> bucketsPaths;
     private ReducerContext context;
     private Reducer parent;
     private Reducer[] subReducers;
     private HashMap<String, Reducer> subReducersbyName;
 
-    public Reducer(String name, String bucketsPath, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        this(name, Collections.singletonList(bucketsPath), factories, context, parent);
-    }
-
-    public Reducer(String name, List<String> bucketsPaths, ReducerFactories factories, ReducerContext context, Reducer parent) {
+    public Reducer(String name, ReducerFactories factories, ReducerContext context, Reducer parent) {
         assert factories != null : "sub-factories provided to Reducer must not be null, use ReducerFactories.EMPTY instead";
         this.name = name;
-        this.bucketsPaths = bucketsPaths;
         this.parent = parent;
         this.context = context;
         this.subReducers = factories.createSubReducers(this);
@@ -55,10 +47,6 @@ public abstract class Reducer {
 
     public String name() {
         return name;
-    }
-
-    public List<String> bucketsPaths() {
-        return bucketsPaths;
     }
 
     public Reducer parent() {
@@ -89,31 +77,10 @@ public abstract class Reducer {
 
     public final InternalAggregation reduce(Aggregations aggregations)
             throws ReductionExecutionException {
-        List<Aggregation> matchingAggregations = new ArrayList<>();
-        for (String bucketsPath : bucketsPaths) {
-            Aggregation aggregation = aggregations.get(bucketsPath);
-            if (aggregation == null) {
-                throw new ReductionExecutionException("Cannot find aggregation for path: " + bucketsPath);
-            } else {
-                matchingAggregations.add(aggregation);
-            }
-        }
-        if (!matchingAggregations.isEmpty()) {
-            return doReduce(matchingAggregations);
-        } else {
-            throw new ReductionExecutionException("Cannot find any aggregations for paths: " + bucketsPaths);
-        }
+        return reduce(aggregations, null);
     }
 
-    public abstract InternalAggregation doReduce(List<? extends Aggregation> aggregations) throws ReductionExecutionException;
-
-    protected final Aggregation ensureSingleAggregation(List<? extends Aggregation> aggregations) {
-        if (aggregations.size() > 1) {
-            throw new ReductionExecutionException("Expected only one aggregation but found multiple aggregations");
-        } else {
-            return aggregations.get(0);
-        }
-    }
+    public abstract InternalAggregation reduce(Aggregations aggregationsTree, @Nullable Aggregation currentAggregation);
 
     /**
      * Parses the reducer request and creates the appropriate reducer factory for it.

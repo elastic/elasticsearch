@@ -22,6 +22,7 @@ package org.elasticsearch.search.reducers.bucket.slidingwindow;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -55,16 +56,36 @@ public class SlidingWindowReducer extends BucketReducer {
         ReducerFactoryStreams.registerStream(STREAM, InternalSlidingWindow.TYPE.stream());
     }
 
+    private String bucketsPath;
     private int windowSize;
 
     public SlidingWindowReducer(String name, String bucketsPath, int windowSize, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, bucketsPath, factories, context, parent);
+        super(name, factories, context, parent);
+        this.bucketsPath = bucketsPath;
         this.windowSize = windowSize;
     }
 
     @Override
-    public InternalBucketReducerAggregation doReduce(List<? extends Aggregation> aggregations) throws ReductionExecutionException {
-        MultiBucketsAggregation aggregation = (MultiBucketsAggregation) ensureSingleAggregation(aggregations);
+    public InternalBucketReducerAggregation reduce(Aggregations aggregationsTree, Aggregation currentAggregation) {
+        MultiBucketsAggregation aggregation;
+        if (currentAggregation == null) {
+            Object o = aggregationsTree.getProperty(bucketsPath);
+            if (o instanceof MultiBucketsAggregation) {
+               aggregation = (MultiBucketsAggregation) o;
+            } else {
+                throw new ReductionExecutionException("bucketsPath must point to an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+            }
+        } else {
+            if (currentAggregation instanceof MultiBucketsAggregation) {
+                aggregation = (MultiBucketsAggregation) currentAggregation;
+            } else {
+                throw new ReductionExecutionException("aggregation must be an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+            }
+        }
+        return doReduce(aggregationsTree, aggregation);
+    }
+
+    private InternalBucketReducerAggregation doReduce(Aggregations aggregationsTree, MultiBucketsAggregation aggregation) throws ReductionExecutionException {
         List<InternalSelection> selections = new ArrayList<>();
         List<? extends Bucket> aggBuckets = (List<? extends MultiBucketsAggregation.Bucket>) aggregation.getBuckets();
         for (int i = 0; i <= aggBuckets.size() - windowSize; i++) {
@@ -80,7 +101,7 @@ public class SlidingWindowReducer extends BucketReducer {
             }
             InternalSelection selection = new InternalSelection(selectionKey, ((InternalAggregation) aggregation).type().stream(),
                     selectionBuckets, InternalAggregations.EMPTY);
-            InternalAggregations subReducersResults = runSubReducers(selection);
+            InternalAggregations subReducersResults = runSubReducers(aggregationsTree, selection);
             selection.setAggregations(subReducersResults);
             selections.add(selection);
         }

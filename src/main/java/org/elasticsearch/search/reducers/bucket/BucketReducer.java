@@ -21,6 +21,7 @@ package org.elasticsearch.search.reducers.bucket;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.reducers.Reducer;
@@ -30,28 +31,23 @@ import org.elasticsearch.search.reducers.ReductionExecutionException;
 import org.elasticsearch.search.reducers.bucket.InternalBucketReducerAggregation.InternalSelection;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public abstract class BucketReducer extends Reducer {
 
-
-    public BucketReducer(String name, String bucketsPath, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, bucketsPath, factories, context, parent);
-    }
-
-    public BucketReducer(String name, List<String> bucketsPaths, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, bucketsPaths, factories, context, parent);
+    public BucketReducer(String name, ReducerFactories factories, ReducerContext context, Reducer parent) {
+        super(name, factories, context, parent);
     }
 
     @Override
-    public abstract InternalBucketReducerAggregation doReduce(List<? extends Aggregation> aggregations) throws ReductionExecutionException;
+    public abstract InternalBucketReducerAggregation reduce(Aggregations aggregationTree, Aggregation currentAggregation)
+            throws ReductionExecutionException;
 
-    protected InternalAggregations runSubReducers(InternalSelection selection) {
+    protected InternalAggregations runSubReducers(Aggregations aggregationTree, InternalSelection selection) {
         Reducer[] subReducers = subReducers();
         List<InternalAggregation> aggregations = new ArrayList<>(subReducers.length);
         for (Reducer reducer : subReducers) {
-            aggregations.add(reducer.doReduce(Collections.singletonList(selection)));
+            aggregations.add(reducer.reduce(aggregationTree, selection));
         }
         return new InternalAggregations(aggregations);
     }

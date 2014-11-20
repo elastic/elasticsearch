@@ -21,10 +21,12 @@ package org.elasticsearch.search.reducers;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.util.Iterator;
 import java.util.List;
@@ -123,6 +125,20 @@ public class InternalCombinedAggregations implements Aggregations {
 
     public InternalAggregations getReductions() {
         return new InternalAggregations(reductionsList);
+    }
+
+    public Object getProperty(String path) {
+        AggregationPath aggPath = AggregationPath.parse(path);
+        return getProperty(aggPath.getPathElementsAsStringList());
+    }
+
+    public Object getProperty(List<String> path) {
+        String aggName = path.get(0);
+        InternalAggregation aggregation = get(aggName);
+        if (aggregation == null) {
+            throw new ElasticsearchIllegalArgumentException("Cannot find an aggregation named [" + aggName + "]");
+        }
+        return aggregation.getProperty(path.subList(1, path.size()));
     }
 
 }

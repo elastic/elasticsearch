@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.reducers.bucket.range;
 
+import org.elasticsearch.search.aggregations.Aggregations;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -60,9 +62,11 @@ public class RangeReducer extends BucketReducer {
     private RangeAggregator.Range[] ranges;
     private String fieldName;
     private double[] maxTo;
+    private String bucketsPath;
 
     public RangeReducer(String name, String bucketsPath, String fieldName, RangeAggregator.Range[] ranges, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, bucketsPath, factories, context, parent);
+        super(name, factories, context, parent);
+        this.bucketsPath = bucketsPath;
         this.ranges = ranges;
         this.fieldName = fieldName;
 
@@ -76,12 +80,28 @@ public class RangeReducer extends BucketReducer {
     }
 
     @Override
-    public InternalBucketReducerAggregation doReduce(List<? extends Aggregation> aggregations) throws ReductionExecutionException {
-        MultiBucketsAggregation aggregation = (MultiBucketsAggregation) ensureSingleAggregation(aggregations);
+    public InternalBucketReducerAggregation reduce(Aggregations aggregationsTree, Aggregation currentAggregation) {
+        MultiBucketsAggregation aggregation;
+        if (currentAggregation == null) {
+            Object o = aggregationsTree.getProperty(bucketsPath);
+            if (o instanceof MultiBucketsAggregation) {
+               aggregation = (MultiBucketsAggregation) o;
+            } else {
+                throw new ReductionExecutionException("bucketsPath must point to an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+            }
+        } else {
+            if (currentAggregation instanceof MultiBucketsAggregation) {
+                aggregation = (MultiBucketsAggregation) currentAggregation;
+            } else {
+                throw new ReductionExecutionException("aggregation must be an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+            }
+        }
+        return doReduce(aggregationsTree, aggregation);
+    }
+
+    private InternalBucketReducerAggregation doReduce(Aggregations aggregationsTree, MultiBucketsAggregation aggregation) throws ReductionExecutionException {
         List<InternalSelection> selections = new ArrayList<>(ranges.length);
         List<? extends Bucket> aggBuckets = aggregation.getBuckets();
-
-
 
         List<List<Bucket>> rangeBuckets = new ArrayList<>();
         for (RangeAggregator.Range range : ranges) {
@@ -107,7 +127,7 @@ public class RangeReducer extends BucketReducer {
             }
             InternalSelection selection = new InternalSelection(selectionKey, ((InternalAggregation) aggregation).type().stream(),
                     selectionBuckets, InternalAggregations.EMPTY);
-            InternalAggregations subReducersResults = runSubReducers(selection);
+            InternalAggregations subReducersResults = runSubReducers(aggregationsTree, selection);
             selection.setAggregations(subReducersResults);
             selections.add(selection);
         }

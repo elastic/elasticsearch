@@ -22,6 +22,7 @@ package org.elasticsearch.search.reducers.metric.avg;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.reducers.Reducer;
@@ -32,7 +33,6 @@ import org.elasticsearch.search.reducers.ReducerFactoryStreams;
 import org.elasticsearch.search.reducers.ReductionExecutionException;
 
 import java.io.IOException;
-import java.util.List;
 
 public class AvgReducer extends Reducer {
 
@@ -45,24 +45,44 @@ public class AvgReducer extends Reducer {
         }
     };
     protected String fieldName;
+    private String bucketsPath;
 
     public static void registerStreams() {
         ReducerFactoryStreams.registerStream(STREAM, InternalAvg.TYPE.stream());
     }
 
     public AvgReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, bucketsPath, factories, context, parent);
+        super(name, factories, context, parent);
+        this.bucketsPath = bucketsPath;
         this.fieldName = fieldName;
     }
 
-    protected Object[] getProperties(MultiBucketsAggregation aggregation) {
+    protected Object[] getProperties(Aggregation aggregation) {
         return (Object[]) aggregation.getProperty(fieldName);
     }
 
     @Override
-    public InternalAggregation doReduce(List<? extends Aggregation> aggregations) throws ReductionExecutionException {
-        MultiBucketsAggregation aggregation = (MultiBucketsAggregation) ensureSingleAggregation(aggregations);
-        Object[] bucketProperties = this.getProperties(aggregation);
+    public InternalAggregation reduce(Aggregations aggregationsTree, Aggregation currentAggregation) {
+        MultiBucketsAggregation aggregation;
+        if (currentAggregation == null) {
+            Object o = aggregationsTree.getProperty(bucketsPath);
+            if (o instanceof MultiBucketsAggregation) {
+               aggregation = (MultiBucketsAggregation) o;
+            } else {
+                throw new ReductionExecutionException("bucketsPath must point to an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+            }
+        } else {
+            if (currentAggregation instanceof MultiBucketsAggregation) {
+                aggregation = (MultiBucketsAggregation) currentAggregation;
+            } else {
+                throw new ReductionExecutionException("aggregation must be an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+            }
+        }
+        return doReduce(aggregationsTree, aggregation);
+    }
+
+    public InternalAggregation doReduce(Aggregations aggregationsTree, Aggregation aggregation) throws ReductionExecutionException {
+        Object[] bucketProperties = getProperties(aggregation);
 
         double avg = 0;
         for (Object bucketValue : bucketProperties) {

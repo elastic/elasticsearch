@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.reducers.metric.max;
 
+import org.elasticsearch.search.aggregations.Aggregations;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -45,19 +47,39 @@ public class MaxReducer extends Reducer {
         }
     };
     private String fieldName;
+    private String bucketsPath;
 
     public static void registerStreams() {
         ReducerFactoryStreams.registerStream(STREAM, InternalMax.TYPE.stream());
     }
 
     public MaxReducer(String name, String bucketsPath, String fieldName, ReducerFactories factories, ReducerContext context, Reducer parent) {
-        super(name, bucketsPath, factories, context, parent);
+        super(name, factories, context, parent);
+        this.bucketsPath = bucketsPath;
         this.fieldName = fieldName;
     }
 
     @Override
-    public InternalAggregation doReduce(List<? extends Aggregation> aggregations) throws ReductionExecutionException {
-        MultiBucketsAggregation aggregation = (MultiBucketsAggregation) ensureSingleAggregation(aggregations);
+    public InternalAggregation reduce(Aggregations aggregationsTree, Aggregation currentAggregation) {
+        MultiBucketsAggregation aggregation;
+        if (currentAggregation == null) {
+            Object o = aggregationsTree.getProperty(bucketsPath);
+            if (o instanceof MultiBucketsAggregation) {
+               aggregation = (MultiBucketsAggregation) o;
+            } else {
+                throw new ReductionExecutionException("bucketsPath must point to an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+            }
+        } else {
+            if (currentAggregation instanceof MultiBucketsAggregation) {
+                aggregation = (MultiBucketsAggregation) currentAggregation;
+            } else {
+                throw new ReductionExecutionException("aggregation must be an instance of MultiBucketAggregation"); // NOCOMMIT make this message user friendly
+            }
+        }
+        return doReduce(aggregationsTree, aggregation);
+    }
+
+    public InternalAggregation doReduce(Aggregations aggregationsTree, Aggregation aggregation) throws ReductionExecutionException {
         Object[] bucketProperties = (Object[]) aggregation.getProperty(fieldName);
 
         double max = 0;

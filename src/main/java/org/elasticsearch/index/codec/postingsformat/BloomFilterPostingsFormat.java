@@ -24,8 +24,6 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.util.BloomFilter;
-import org.elasticsearch.index.store.DirectoryUtils;
-import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
 import java.util.*;
